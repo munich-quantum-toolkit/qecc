@@ -13,6 +13,7 @@ import concurrent.futures
 import itertools
 import logging
 import math
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -20,7 +21,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import stim
 from qiskit import ClassicalRegister, QuantumCircuit
-from qiskit.circuit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from tqdm import tqdm
 
@@ -35,8 +35,8 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-class NoisyNDFTStatePrepSimulator:
-    """Abstract class for simulating noisy state preparation circuit using a depolarizing noise model."""
+class NoisyNDFTStatePrepSimulator(ABC):
+    """Base class for simulating noisy quantum state preparation circuits with a depolarizing noise model and support for error correction using CSS codes."""
 
     def __init__(
         self,
@@ -55,7 +55,7 @@ class NoisyNDFTStatePrepSimulator:
             code: The code to simulate.
             p: The error rate.
             p_idle: Idling error rate. If None, it is set to p.
-            zero_state: Whether thezero state is prepared or nor.
+            zero_state: Whether the zero state is prepared or nor.
             parallel_gates: Whether to allow for parallel execution of gates.
             decoder: The decoder to use.
         """
@@ -108,6 +108,7 @@ class NoisyNDFTStatePrepSimulator:
             self.data_measurements = self.measure_x(self.stim_circ, n_measurements)
         n_measurements += self.code.n
 
+    @abstractmethod
     def _compute_postselection_indices(self) -> int:
         """Compute indices of measurements for postselection.
 
@@ -383,7 +384,7 @@ class NoisyNDFTStatePrepSimulator:
 
 
 class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
-    """Class for simulating noisy state preparation circuit using a depolarizing noise model."""
+    """Class for simulating noisy state preparation circuit using stabilizer measurements to detect in a verification circuit."""
 
     def __init__(
         self,
@@ -402,7 +403,7 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
             code: The code to simulate.
             p: The error rate.
             p_idle: Idling error rate. If None, it is set to p.
-            zero_state: Whether thezero state is prepared or nor.
+            zero_state: Whether the zero state is prepared or nor.
             parallel_gates: Whether to allow for parallel execution of gates.
             decoder: The decoder to use.
         """
@@ -448,7 +449,10 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
 
 
 class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
-    """Class for simulating steane-type noisy state preparation circuit using a depolarizing noise model."""
+    """Class for simulating Steane-type noisy state preparation circuit.
+
+    A state is checked using multiple copies of the state preparation circuit, which are connected using transversal CNOTs.
+    """
 
     def __init__(
         self,
@@ -479,7 +483,7 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
             code: The code to simulate.
             p: The error rate.
             p_idle: Idling error rate. If None, it is set to p.
-            zero_state: Whether thezero state is prepared or nor.
+            zero_state: Whether the zero state is prepared or nor.
             parallel_gates: Whether to allow for parallel execution of gates.
             decoder: The decoder to use.
             check_circuit: Circuit used for checking error rates for the error type that cannot form a logical error on the synthesized state.
@@ -510,26 +514,31 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         combined.barrier()  # need the barrier to retain order of measurements
         # transversal cnots
 
+        # Define ranges for better readability
+        self._data_range = range(code.n)
+        self._first_ancilla_range = range(code.n, 2 * code.n)
+        self._second_ancilla_range = range(2 * code.n, 3 * code.n)
+        self._third_ancilla_range = range(3 * code.n, 4 * code.n)
+
         if self.has_one_ancilla:
             if zero_state:
-                combined.cx(range(code.n), range(code.n, 2 * code.n))
+                combined.cx(self._data_range, self._first_ancilla_range)
             else:
-                combined.cx(range(code.n, 2 * code.n), range(code.n))
-
+                combined.cx(self._first_ancilla_range, self._data_range)
         else:
-            combined.cx(range(code.n), range(code.n, 2 * code.n))
-            combined.cx(range(2 * code.n, 3 * code.n), range(3 * code.n, 4 * code.n))
-            combined.cx(range(2 * code.n, 3 * code.n), range(code.n))
+            combined.cx(self._data_range, self._first_ancilla_range)
+            combined.cx(self._second_ancilla_range, self._third_ancilla_range)
+            combined.cx(self._second_ancilla_range, self._data_range)
+            combined.h(self._second_ancilla_range)  # second ancilla is measured in X basis
 
-            combined.h(range(2 * code.n, 3 * code.n))  # second ancilla is measured in X basis
         combined.barrier()  # need the barrier to retain order of measurements
+
         n_measured = 3 * code.n if not self.has_one_ancilla else code.n
         cr = ClassicalRegister(n_measured, "c")
         combined.add_register(cr)
-        if self.has_one_ancilla:
-            combined.measure(range(code.n, 2 * code.n), cr)
-        else:
-            combined.measure(range(code.n, 4 * code.n), cr)
+
+        measure_range = self._first_ancilla_range if self.has_one_ancilla else range(code.n, 4 * code.n)
+        combined.measure(measure_range, cr)
 
         self.anc_1: list[int] = []
         self.anc_2: list[int] = []
@@ -547,16 +556,17 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         secondary_error_gadget = combined.copy()
         secondary_error_gadget.barrier()
         secondary_error_gadget = check_circuit.tensor(secondary_error_gadget)
+        self._measurement_ancilla_range = range(4 * code.n, 5 * code.n)
         if zero_state:
-            secondary_error_gadget.cx(range(code.n), range(4 * code.n, 5 * code.n))
+            secondary_error_gadget.cx(self._data_range, self._measurement_ancilla_range)
         else:
-            secondary_error_gadget.cx(range(4 * code.n, 5 * code.n), range(code.n))
+            secondary_error_gadget.cx(self._measurement_ancilla_range, self._data_range)
         if self.zero_state:
-            secondary_error_gadget.h(range(code.n))
+            secondary_error_gadget.h(self._data_range)
         secondary_error_gadget.barrier()
         new_cr = ClassicalRegister(code.n, "new_c")
         secondary_error_gadget.add_register(new_cr)
-        secondary_error_gadget.measure(range(code.n), new_cr)
+        secondary_error_gadget.measure(self._data_range, new_cr)
         self.secondary_error_gadget = secondary_error_gadget
 
     def _compute_postselection_indices(self) -> int:
@@ -565,10 +575,10 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         Returns:
                 int: The number of measurements.
         """
-        self.anc_1 = list(range(self.code.n))
+        self.anc_1 = list(self._first_ancilla_range)
         if not self.has_one_ancilla:
-            self.anc_2 = list(range(self.code.n, 2 * self.code.n))
-            self.anc_3 = list(range(2 * self.code.n, 3 * self.code.n))
+            self.anc_2 = list(self._second_ancilla_range)
+            self.anc_3 = list(self._third_ancilla_range)
             return 3 * self.code.n
         return self.code.n
 
@@ -588,9 +598,9 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
             return
         self.secondary_stim_circ = self.to_stim_circ(
             self.secondary_error_gadget,
-            error_free_qubits=list(range(4 * self.code.n, 5 * self.code.n)) + error_free_qubits,
+            error_free_qubits=list(self._) + error_free_qubits,
         )
-        self.secondary_stim_circ.append("DEPOLARIZE1", list(range(4 * self.code.n, 5 * self.code.n)), [self.p])
+        self.secondary_stim_circ.append("DEPOLARIZE1", list(self._measurement_ancilla_range), [self.p])
         n_measurements = self._compute_postselection_indices()
 
         self.secondary_ancilla_measurements = list(
