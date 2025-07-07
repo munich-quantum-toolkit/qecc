@@ -116,8 +116,14 @@ class PureFaultSet:
         fs.remove_equivalent(stabs)
         return fs
 
-    def remove_equivalent(self, stabs: npt.NDArray[np.int8]) -> None:
-        """Remove faults belonging to the same coset with respect to the stabilizer group."""
+    def normalize(self, stabs: npt.NDArray[np.int8]) -> None:
+        """Normalize the faults with respect to a stabilizer group.
+
+        A fault is considered normalized if its entries in the pivot columns of the RREF of the stabilizer matrix are zero.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+        """
         if stabs.shape[1] != self.num_qubits:
             msg = f"Stabilizer matrix must have {self.num_qubits} columns."
             raise ValueError(msg)
@@ -137,6 +143,14 @@ class PureFaultSet:
             active_pivots = [p for p in pivots if fault[p] == 1]
             if active_pivots:  # Ensure there are active pivots to reduce with
                 self.faults[i] = fault ^ np.bitwise_xor.reduce(rref[active_pivots], axis=0)
+
+    def remove_equivalent(self, stabs: npt.NDArray[np.int8]) -> None:
+        """Remove faults belonging to the same coset with respect to the stabilizer group.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+        """
+        self.normalize(stabs)
 
         # remove all zero rows
         self.faults = self.faults[np.any(self.faults, axis=1)]
@@ -162,6 +176,62 @@ class PureFaultSet:
         self.faults = np.array([coset_leader(fault, generators) for fault in self.faults], dtype=np.int8)
         self.faults = np.unique(self.faults, axis=0)
 
+    def filter_by_weight(self, w: int, stabs: npt.NDArray[np.int8]) -> None:
+        """Filter faults by weight with respect to a stabilizer group.
+
+        A fault is removed if its coset leader has weight lower than w.
+        This operation also removes stabilizer equivalent errors and maps faults to their coset leaders.
+
+        Args:
+            w: Weight faults are filtered by.
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+        """
+        self.remove_equivalent(stabs)
+        self.faults_to_coset_leaders(stabs)
+
+        # filter remaining faults by weight
+        weights = np.sum(self.faults, axis=1)
+        mask = weights >= w
+        self.faults = self.faults[mask]
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality of two PureFaultSet objects.
+
+        Two PureFaultSet objects are considered equal if they have the same number of qubits
+        and contain the same faults. This check does not factor in stabilizer equivalence or coset leaders.
+
+        Args:
+            other: Another PureFaultSet object to compare with.
+
+        Returns:
+            True if both PureFaultSet objects are equal, False otherwise.
+        """
+        if not isinstance(other, PureFaultSet):
+            return False
+        return self.num_qubits == other.num_qubits and self.to_set() == other.to_set()
+
+    def __hash__(self) -> int:
+        """Return a hash of the PureFaultSet.
+
+        Returns:
+            An integer hash value.
+        """
+        return hash((self.num_qubits, tuple(map(tuple, self.faults))))
+
+    def copy(self) -> PureFaultSet:
+        """Create a copy of the PureFaultSet.
+
+        Returns:
+            A new PureFaultSet object with the same faults and number of qubits.
+        """
+        new_set = PureFaultSet(self.num_qubits)
+        new_set.faults = np.copy(self.faults)
+        return new_set
+
+    def __repr__(self) -> str:
+        """Return a string representation of the PureFaultSet."""
+        return f"PureFaultSet(num_qubits={self.num_qubits}, faults={self.faults.tolist()})"
+
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""
@@ -179,3 +249,44 @@ def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) 
     s.check()  # always SAT
     m = s.model()
     return np.array([bool(m[leader[i]]) for i in range(len(fault))]).astype(int)
+
+
+def fault_set_product(lhs: PureFaultSet, rhs: PureFaultSet) -> PureFaultSet:
+    """Generate fault set by forming the product of all faults of two fault sets.
+
+    Args:
+        lhs: The first fault set.
+        rhs: The second fault set.
+
+    Returns:
+        Fault set containing all products of faults of lhs and rhs.
+    """
+    if lhs.num_qubits != rhs.num_qubits:
+        msg = "Fault sets must have the same number of qubits to combine."
+        raise ValueError(msg)
+    new_faults = (lhs.faults[:, np.newaxis, :] ^ rhs.faults).reshape(-1, lhs.num_qubits)
+    return PureFaultSet.from_fault_array(new_faults)
+
+
+def stabilizer_equivalent(lhs: PureFaultSet, rhs: PureFaultSet, stabs: npt.NDArray[np.int8] | None) -> bool:
+    """Check if two fault sets are equivalent with respect to a stabilizer group.
+
+    Args:
+            lhs: The first fault set.
+            rhs: The second fault set.
+            stabs (optional): A 2D numpy array where each row is a stabilizer generator.
+
+    Returns:
+            True if the two fault sets are equivalent with respect to the stabilizer group, False otherwise.
+    """
+    if lhs.num_qubits != rhs.num_qubits:
+        msg = "Fault sets must have the same number of qubits to compare."
+        raise ValueError(msg)
+
+    lhs_cpy = lhs.copy()
+    rhs_cpy = rhs.copy()
+    if stabs is not None:
+        lhs_cpy.normalize(stabs)
+        rhs_cpy.normalize(stabs)
+
+    return lhs_cpy == rhs_cpy

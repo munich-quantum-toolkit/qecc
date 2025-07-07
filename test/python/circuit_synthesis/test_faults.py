@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
-from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader, stabilizer_equivalent
 
 
 @pytest.fixture
@@ -263,3 +263,124 @@ def test_coset_leader_fault_not_in_stabilizer():
     # Expected result: the minimal weight representative
     expected = np.array([0, 0, 1], dtype=np.int8)  # Minimal weight representative
     assert np.array_equal(leader, expected), "Coset leader computation failed for a fault not in the stabilizer group."
+
+
+def test_filter_by_weight_basic():
+    """Test filtering faults by weight with a simple stabilizer group."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))
+    fault_set.add_fault(np.array([1, 1, 0], dtype=np.int8))
+    fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))
+
+    # Filter faults with weight >= 2
+    fault_set.filter_by_weight(2, stabs)
+
+    # Expected faults after filtering
+    expected_faults = PureFaultSet(3)
+
+    assert fault_set == expected_faults, "Faults were not filtered correctly by weight."
+
+
+def test_filter_by_weight_empty_stabilizer():
+    """Test filtering with an empty stabilizer group."""
+    stabs = np.zeros((0, 3), dtype=np.int8)  # Empty stabilizer group
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))
+
+    # Filter faults with weight >= 2
+    fault_set.filter_by_weight(2, stabs)
+
+    # Expected faults after filtering
+    expected_faults = PureFaultSet.from_fault_array(
+        np.array(
+            [
+                [1, 0, 1],
+                [0, 1, 1],
+            ],
+            dtype=np.int8,
+        )
+    )
+
+    assert fault_set == expected_faults, "Faults should remain unchanged when the stabilizer group is empty."
+
+
+def test_filter_by_weight_complex():
+    """Test filtering by weight with a complex stabilizer group."""
+    hx = np.array([[1, 1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 1, 0, 1], [0, 0, 1, 1, 0, 1, 1]], dtype=np.int8)
+
+    fault_set = PureFaultSet(num_qubits=7)
+    fault_set.add_fault(np.array([1, 1, 1, 1, 1, 1, 1], dtype=np.int8))
+    fault_set.add_fault(np.array([1, 1, 0, 0, 0, 0, 0], dtype=np.int8))
+    fault_set.add_fault(np.array([0, 1, 1, 1, 0, 1, 1], dtype=np.int8))
+    fault_set.add_fault(np.array([0, 0, 0, 0, 1, 1, 1], dtype=np.int8))
+
+    fault_set.filter_by_weight(2, hx)
+
+    expected_faults = PureFaultSet(num_qubits=7)
+    expected_faults.add_fault(np.array([1, 1, 1, 1, 1, 1, 1], dtype=np.int8))
+    expected_faults.add_fault(np.array([1, 1, 0, 0, 0, 0, 0], dtype=np.int8))
+    expected_faults.add_fault(np.array([0, 0, 0, 0, 1, 1, 1], dtype=np.int8))
+
+    assert stabilizer_equivalent(fault_set, expected_faults, hx), (
+        "Faults were not filtered correctly by weight with a complex stabilizer group."
+    )
+
+
+def test_stabilizer_equivalent_identical_fault_sets():
+    """Test equivalence of two identical fault sets."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
+    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+    fault_set_1.add_fault(np.array([0, 1, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3)
+    fault_set_2.add_fault(np.array([1, 0, 1], dtype=np.int8))
+    fault_set_2.add_fault(np.array([0, 1, 1], dtype=np.int8))
+
+    # Check equivalence
+    assert stabilizer_equivalent(fault_set_1, fault_set_2, stabs), "Identical fault sets should be equivalent."
+
+
+def test_stabilizer_equivalent_different_fault_sets():
+    """Test non-equivalence of two different fault sets."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
+    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3)
+    fault_set_2.add_fault(np.array([0, 1, 1], dtype=np.int8))
+
+    # Check equivalence
+    assert not stabilizer_equivalent(fault_set_1, fault_set_2, stabs), "Different fault sets should not be equivalent."
+
+
+def test_stabilizer_equivalent_equivalent_fault_sets():
+    """Test equivalence of two fault sets that are equivalent under the stabilizer group."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
+    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3)
+    fault_set_2.add_fault(np.array([0, 0, 0], dtype=np.int8))  # Equivalent under stabilizer group
+
+    # Check equivalence
+    assert stabilizer_equivalent(fault_set_1, fault_set_2, stabs), (
+        "Fault sets equivalent under the stabilizer group should be equivalent."
+    )
+
+
+def test_stabilizer_equivalent_different_num_qubits():
+    """Test that fault sets with different numbers of qubits raise an error."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
+    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=4)
+    fault_set_2.add_fault(np.array([1, 0, 1, 0], dtype=np.int8))
+
+    # Check for ValueError
+    with pytest.raises(ValueError, match=r"Fault sets must have the same number of qubits to compare."):
+        stabilizer_equivalent(fault_set_1, fault_set_2, stabs)
