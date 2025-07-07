@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
 from mqt.qecc.circuit_synthesis.faults import PureFaultSet
 
 
@@ -129,3 +130,70 @@ def test_remove_equivalent(request, stabs_fixture, initial_faults, expected_faul
     assert fault_set.to_set() == set(map(tuple, expected_faults)), (
         "Fault set was not reduced to unique coset representatives correctly."
     )
+
+
+def test_from_cnot_circuit_x_faults():
+    """Test generating X-type faults from a CNOT circuit."""
+    # Create a CNOT circuit
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(1, 2)
+
+    # Generate the fault set
+    fault_set = PureFaultSet.from_cnot_circuit(circ, kind="X")
+
+    # Expected faults
+    expected_faults = np.array(
+        [
+            [1, 1, 1],
+            [0, 1, 1],
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+        ],
+        dtype=np.int8,
+    )
+
+    # Check the result
+    assert fault_set.to_set() == set(map(tuple, expected_faults)), (
+        "X-type faults were not generated correctly from the CNOT circuit."
+    )
+
+
+def test_from_cnot_circuit_z_faults():
+    """Test generating Z-type faults from a CNOT circuit."""
+    # Create a CNOT circuit
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(1, 2)
+
+    # Generate the fault set
+    fault_set = PureFaultSet.from_cnot_circuit(circ, kind="Z")
+
+    # Expected faults
+    expected_faults = np.array(
+        [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 1, 1],
+            [0, 0, 1],
+            [1, 1, 0],
+        ],
+        dtype=np.int8,
+    )
+
+    # Check the result
+    assert fault_set.to_set() == set(map(tuple, expected_faults)), (
+        "Z-type faults were not generated correctly from the CNOT circuit."
+    )
+
+
+def test_from_cnot_circuit_invalid_kind():
+    """Test that an invalid fault kind raises an assertion error."""
+    # Create a CNOT circuit
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+
+    # Attempt to generate faults with an invalid kind
+    with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
+        PureFaultSet.from_cnot_circuit(circ, kind="Y")
