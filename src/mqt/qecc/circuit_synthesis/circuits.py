@@ -98,3 +98,12 @@ class CNOTCircuit:
         """
         used_qubits = {qubit for control, target in self.cnots for qubit in (control, target)}
         return used_qubits.issubset(self.initializations.keys())
+
+    def num_qubits(self) -> int:
+        """Return the number of qubits used in the circuit.
+
+        The number of qubits is determined by the highest index of any CNOT control or target qubit,
+        """
+        cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
+        init_indices = list(self.initializations.keys())
+        return max(cnot_indices + init_indices, default=0) + 1
