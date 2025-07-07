@@ -18,19 +18,19 @@ import numpy.typing as npt
 import z3
 from ldpc import mod2
 
+from .faults import coset_leader
 from .state_prep import (
     StatePrepCircuit,
     all_gate_optimal_verification_stabilizers,
-    coset_leader,
     get_hook_errors,
     heuristic_verification_stabilizers,
-    vars_to_stab,
 )
 from .synthesis_utils import (
     iterative_search_with_timeout,
     odd_overlap,
     run_with_timeout,
     symbolic_vector_eq,
+    vars_to_stab,
 )
 
 logger = logging.getLogger(__name__)

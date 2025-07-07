@@ -20,6 +20,7 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, Q
 from qiskit.converters import circuit_to_dag
 
 from ..codes import InvalidCSSCodeError
+from .faults import coset_leader
 from .synthesis_utils import (
     build_css_circuit_from_cnot_list,
     heuristic_gaussian_elimination,
@@ -28,9 +29,7 @@ from .synthesis_utils import (
     odd_overlap,
     optimal_elimination,
     run_with_timeout,
-    symbolic_scalar_mult,
-    symbolic_vector_add,
-    symbolic_vector_eq,
+    vars_to_stab,
 )
 
 logger = logging.getLogger(__name__)
@@ -808,16 +807,6 @@ def _measure_ft_stabs(
     return measured_circ
 
 
-def vars_to_stab(
-    measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
-) -> npt.NDArray[z3.BoolRef | bool]:
-    """Compute the stabilizer measured giving the generators and the measurement variables."""
-    measurement_stab = symbolic_scalar_mult(generators[0], measurement[0])
-    for i, scalar in enumerate(measurement[1:]):
-        measurement_stab = symbolic_vector_add(measurement_stab, symbolic_scalar_mult(generators[i + 1], scalar))
-    return measurement_stab
-
-
 def verification_stabilizers(
     sp_circ: StatePrepCircuit,
     fault_set: npt.NDArray[np.int8],
@@ -904,24 +893,6 @@ def all_verification_stabilizers(
     if solutions:
         return solutions
     return None
-
-
-def coset_leader(error: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    """Compute the coset leader of an error given a set of generators."""
-    if len(generators) == 0:
-        return error
-    s = z3.Optimize()
-    leader = [z3.Bool(f"e_{i}") for i in range(len(error))]
-    coeff = [z3.Bool(f"c_{i}") for i in range(len(generators))]
-
-    g = vars_to_stab(coeff, generators)
-
-    s.add(symbolic_vector_eq(np.array(leader), symbolic_vector_add(error.astype(bool), g)))
-    s.minimize(z3.Sum(leader))
-
-    s.check()  # always SAT
-    m = s.model()
-    return np.array([bool(m[leader[i]]) for i in range(len(error))]).astype(int)
 
 
 def _propagate_error(nodes: list[DAGNode], n_qubits: int, x_errors: bool = True) -> PauliList:

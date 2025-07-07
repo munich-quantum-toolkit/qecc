@@ -12,7 +12,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import z3
 from ldpc import mod2
+
+from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -79,12 +82,13 @@ class PureFaultSet:
         return fault_set
 
     @classmethod
-    def from_cnot_circuit(cls, circ: CNOTCircuit, kind: str = "X") -> PureFaultSet:
+    def from_cnot_circuit(cls, circ: CNOTCircuit, kind: str = "X", reduce: bool = False) -> PureFaultSet:
         """Generate a PureFaultSet from a CNOT circuit.
 
         Args:
             circ: The CNOT circuit to generate faults from.
             kind: The type of faults to generate ('X' or 'Z').
+            reduce: Reduce faults by stabilizers induced by the circuit.
 
         Returns:
             A PureFaultSet containing the faults generated from the circuit.
@@ -102,7 +106,15 @@ class PureFaultSet:
             qubit_faults[ctrl].append(new_fault)
 
         # Create the fault set
-        return cls.from_fault_array(np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8))
+        fs = cls.from_fault_array(np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8))
+        if not reduce:
+            return fs
+
+        code = circ.get_code()
+        stabs = code.Hx if kind == "X" else code.Hz
+
+        fs.remove_equivalent(stabs)
+        return fs
 
     def remove_equivalent(self, stabs: npt.NDArray[np.int8]) -> None:
         """Remove faults belonging to the same coset with respect to the stabilizer group."""
@@ -133,3 +145,37 @@ class PureFaultSet:
     def to_set(self) -> set[tuple[int, ...]]:
         """Convert the fault set to a set of tuples for easier comparison."""
         return set(map(tuple, self.faults))
+
+    def faults_to_coset_leaders(self, generators: npt.NDArray[np.int8]) -> None:
+        """Map all faults in the set to their coset leaders with respect to the stabilizer generators.
+
+        This method modifies the fault set in place, replacing each fault with its coset leader.
+        Warning: This might take a while.
+
+        Args:
+            generators: A 2D numpy array where each row is a stabilizer generator.
+        """
+        if generators.ndim != 2 or generators.shape[1] != self.num_qubits:
+            msg = f"Generators must be a 2D array with {self.num_qubits} columns."
+            raise ValueError(msg)
+
+        self.faults = np.array([coset_leader(fault, generators) for fault in self.faults], dtype=np.int8)
+        self.faults = np.unique(self.faults, axis=0)
+
+
+def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+    """Compute the coset leader of a fault given a set of stabilizer generators."""
+    if len(generators) == 0:
+        return fault
+    s = z3.Optimize()
+    leader = [z3.Bool(f"e_{i}") for i in range(len(fault))]
+    coeff = [z3.Bool(f"c_{i}") for i in range(len(generators))]
+
+    g = vars_to_stab(coeff, generators)
+
+    s.add(symbolic_vector_eq(np.array(leader), symbolic_vector_add(fault.astype(bool), g)))
+    s.minimize(z3.Sum(leader))
+
+    s.check()  # always SAT
+    m = s.model()
+    return np.array([bool(m[leader[i]]) for i in range(len(fault))]).astype(int)

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
-from mqt.qecc.circuit_synthesis.faults import PureFaultSet
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader
 
 
 @pytest.fixture
@@ -197,3 +197,69 @@ def test_from_cnot_circuit_invalid_kind():
     # Attempt to generate faults with an invalid kind
     with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
         PureFaultSet.from_cnot_circuit(circ, kind="Y")
+
+
+def test_coset_leader_no_generators():
+    """Test coset leader computation when no stabilizer generators are provided."""
+    fault = np.array([1, 0, 1], dtype=np.int8)
+    generators = np.zeros((0, 3), dtype=np.int8)  # No generators
+
+    # Compute the coset leader
+    leader = coset_leader(fault, generators)
+
+    # Expected result: the fault itself
+    expected = fault
+    assert np.array_equal(leader, expected), "Coset leader should be the fault itself when no generators are provided."
+
+
+def test_coset_leader_single_generator():
+    """Test coset leader computation with a single stabilizer generator."""
+    fault = np.array([1, 0, 1], dtype=np.int8)
+    generators = np.array([[1, 0, 1]], dtype=np.int8)  # Single generator
+
+    # Compute the coset leader
+    leader = coset_leader(fault, generators)
+
+    # Expected result: the zero vector (fault is in the stabilizer group)
+    expected = np.array([0, 0, 0], dtype=np.int8)
+    assert np.array_equal(leader, expected), (
+        "Coset leader should be the zero vector when fault is in the stabilizer group."
+    )
+
+
+def test_coset_leader_multiple_generators():
+    """Test coset leader computation with multiple stabilizer generators."""
+    fault = np.array([1, 1, 0], dtype=np.int8)
+    generators = np.array(
+        [
+            [1, 0, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.int8,
+    )  # Two generators
+
+    # Compute the coset leader
+    leader = coset_leader(fault, generators)
+
+    # Expected result: the minimal weight representative
+    expected = np.array([0, 0, 0], dtype=np.int8)  # Minimal weight representative
+    assert np.array_equal(leader, expected), "Coset leader computation failed for multiple generators."
+
+
+def test_coset_leader_fault_not_in_stabilizer():
+    """Test coset leader computation when the fault is not in the stabilizer group."""
+    fault = np.array([1, 1, 1], dtype=np.int8)
+    generators = np.array(
+        [
+            [1, 1, 0],
+            [1, 0, 0],
+        ],
+        dtype=np.int8,
+    )  # Two generators
+
+    # Compute the coset leader
+    leader = coset_leader(fault, generators)
+
+    # Expected result: the minimal weight representative
+    expected = np.array([0, 0, 1], dtype=np.int8)  # Minimal weight representative
+    assert np.array_equal(leader, expected), "Coset leader computation failed for a fault not in the stabilizer group."

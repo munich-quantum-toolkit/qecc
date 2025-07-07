@@ -1236,3 +1236,13 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
             msg = f"Unsupported gate: {op}"
             raise ValueError(msg)
     return stim_circuit
+
+
+def vars_to_stab(
+    measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
+) -> npt.NDArray[z3.BoolRef | bool]:
+    """Compute the stabilizer measured giving the generators and the measurement variables."""
+    measurement_stab = symbolic_scalar_mult(generators[0], measurement[0])
+    for i, scalar in enumerate(measurement[1:]):
+        measurement_stab = symbolic_vector_add(measurement_stab, symbolic_scalar_mult(generators[i + 1], scalar))
+    return measurement_stab
