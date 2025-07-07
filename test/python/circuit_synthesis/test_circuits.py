@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import stim
 from qiskit import QuantumCircuit
@@ -110,3 +111,54 @@ def test_cnot_with_uninitialized_qubits():
     circuit = CNOTCircuit()
     circuit.add_cnot(0, 1)
     assert not circuit.is_state(), "is_state should return False when qubits in CNOT are not initialized."
+
+
+def test_get_code_simple():
+    """Test generating a CSS code from a simple CNOT circuit."""
+    # Create a CNOT circuit
+    circ = CNOTCircuit()
+    circ.initialize_qubit(0, "X")
+    circ.initialize_qubit(1, "Z")
+    circ.add_cnot(0, 1)
+
+    # Generate the CSS code
+    code = circ.get_code()
+
+    # Expected stabilizer matrices
+    expected_hz = np.array([[1, 1]], dtype=np.int8)  # Z-type stabilizers
+    expected_hx = np.array([[1, 1]], dtype=np.int8)  # X-type stabilizers
+
+    # Check the result
+    assert np.array_equal(code.Hz, expected_hz), "Z-type stabilizers were not generated correctly."
+    assert np.array_equal(code.Hx, expected_hx), "X-type stabilizers were not generated correctly."
+
+
+def test_get_code_complex():
+    """Test generating a CSS code from a more complex CNOT circuit."""
+    # Create a CNOT circuit
+    circ = CNOTCircuit()
+    circ.initialize_qubit(0, "X")
+    circ.initialize_qubit(1, "Z")
+    circ.initialize_qubit(2, "X")
+    circ.add_cnot(0, 1)
+    circ.add_cnot(2, 3)
+    circ.add_cnot(1, 2)
+
+    # Generate the CSS code
+    code = circ.get_code()
+
+    # Expected stabilizer matrices
+    expected_hz = np.array([[1, 1, 0, 0]], dtype=np.int8)
+    expected_hx = np.array(
+        [
+            [1, 1, 1, 0],
+            [0, 0, 1, 1],
+        ],
+        dtype=np.int8,
+    )
+
+    # Check the result
+    assert np.array_equal(code.Hz, expected_hz), "Z-type stabilizers were not generated correctly."
+    assert np.array_equal(code.Hx, expected_hx), "X-type stabilizers were not generated correctly."
+    assert code.n == 4, "The number of qubits in the code should be 4."
+    assert code.k == 1, "The number of logical qubits in the code should be 1."

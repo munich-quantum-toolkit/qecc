@@ -11,8 +11,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import stim
 from qiskit import QuantumCircuit
+
+from ..codes import CSSCode
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
@@ -107,3 +110,44 @@ class CNOTCircuit:
         cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
         init_indices = list(self.initializations.keys())
         return max(cnot_indices + init_indices, default=0) + 1
+
+    def get_plus_initialized(self) -> list[int]:
+        """Get the list of qubits initialized in the |+> state.
+
+        Returns:
+            A list of qubit indices initialized in the |+> state.
+        """
+        return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "X"]
+
+    def get_zero_initialized(self) -> list[int]:
+        """Get the list of qubits initialized in the |0> state.
+
+        Returns:
+            A list of qubit indices initialized in the |0> state.
+        """
+        return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "Z"]
+
+    def get_code(self) -> CSSCode:
+        """Get CSS code defined by the circuit.
+
+        A CNOT circuit with |0> and |+> initializations is the encoding isometry of some CSS code.
+        The code is obtained by propagating the stabilizers of the initialized qubits to the end of the circuit.
+        Qubits initialized in |+> define X-type stabilizers, while qubits initialized in |0> define Z-type stabilizers.
+
+        Returns:
+            A CSSCode object representing the code defined by the circuit.
+        """
+        pluses = self.get_plus_initialized()
+        zeros = self.get_zero_initialized()
+        hx = np.zeros((len(pluses), self.num_qubits()), dtype=np.int8)
+        hz = np.zeros((len(zeros), self.num_qubits()), dtype=np.int8)
+        for i, qubit in enumerate(pluses):
+            hx[i, qubit] = 1
+        for i, qubit in enumerate(zeros):
+            hz[i, qubit] = 1
+
+        for ctrl, trgt in self.cnots:
+            hx[:, trgt] ^= hx[:, ctrl]
+            hz[:, ctrl] ^= hz[:, trgt]
+
+        return CSSCode(hx, hz)
