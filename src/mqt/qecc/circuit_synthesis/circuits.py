@@ -68,6 +68,17 @@ class CNOTCircuit:
             raise ValueError(msg)
         self.initializations[qubit] = basis
 
+    def is_initialized(self, qubit: int) -> bool:
+        """Check if a qubit is initialized.
+
+        Args:
+            qubit: The qubit index to check.
+
+        Returns:
+            True if the qubit is initialized, False otherwise.
+        """
+        return qubit in self.initializations
+
     def to_stim_circuit(self) -> stim.Circuit:
         """Convert the CNOT circuit to a stim.Circuit.
 
@@ -92,6 +103,107 @@ class CNOTCircuit:
             A qiskit.QuantumCircuit representation of the CNOT circuit.
         """
         return QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
+
+    @classmethod
+    def from_qiskit_circuit(
+        cls, circ: QuantumCircuit, init_all: bool = False, initialized_qubits: Iterable[int] | None = None
+    ) -> CNOTCircuit:
+        """Construct a CNOT circuit from a qiskit `QuantumCircuit` object.
+
+        Generally, circ must contain only CNOT gates. The only exception to this is if `initialized_qubits` is given and the first gate on a qubit is a Hadamard gate. Then the qubit is initialized in |+>.
+
+        Args:
+            circ: The `QuantumCircuit` to construct the CNOT circuit from.
+            init_all: If set to `True`, all qubits are initialized.
+            initialized_qubits: Qubits to initialized.
+
+        Returns:
+            CNOTCircuit representation of the input circuit.
+        """
+        cnot_circuit = cls()
+        if initialized_qubits is None:
+            initialized_qubits = set()
+        else:
+            for qubit in initialized_qubits:
+                cnot_circuit.initialize_qubit(qubit, "Z")
+
+        # Initialize all qubits if `init_all` is True
+        if init_all:
+            for qubit in range(circ.num_qubits):
+                cnot_circuit.initialize_qubit(qubit, "Z")
+
+        initialized = [False for _ in range(circ.num_qubits)]
+        # Parse the circuit
+        for instruction in circ.data:
+            gate = instruction.operation
+            qubits = [circ.find_bit(q)[0] for q in instruction.qubits]
+
+            if gate.name == "h" and len(qubits) == 1:
+                qubit = qubits[0]
+                # Handle Hadamard gates for initialization
+                if initialized[qubit]:
+                    msg = f"Hadamard gate on qubit that is already initialized: {qubit}."
+                    raise ValueError(msg)
+                if qubit in initialized_qubits or init_all:
+                    cnot_circuit.initialize_qubit(qubit, "X")
+                    initialized[qubit] = True
+                else:
+                    msg = f"Hadamard gate on uninitialized qubit {qubit}."
+                    raise ValueError(msg)
+            elif gate.name == "cx" and len(qubits) == 2:
+                # Handle CNOT gates
+                cnot_circuit.add_cnot(qubits[0], qubits[1])
+                initialized[qubits[0]] = True
+                initialized[qubits[1]] = True
+            else:
+                msg = f"Unsupported gate {gate.name} in the circuit."
+                raise ValueError(msg)
+
+        return cnot_circuit
+
+    @classmethod
+    def from_stim_circuit(cls, circ: stim.Circuit) -> CNOTCircuit:
+        """Construct a CNOT circuit from a `stim.Circuit` object.
+
+        Generally, circ must contain only CNOT gates and initializations in the Z- or X-basis.
+
+        Args:
+            circ: The `stim.Circuit` to construct the CNOT circuit from.
+
+        Returns:
+            CNOTCircuit representation of the input circuit.
+        """
+        # determine which qubits are initialized in what basis.
+        cnot_circuit = cls()
+        initialized = [False for _ in range(circ.num_qubits)]
+        for gate in circ:
+            name = gate.name
+            for grp in gate.target_groups():
+                if name in {"R", "RZ"}:
+                    q = grp[0].qubit_value
+                    if initialized[q]:
+                        msg = f"Qubit {q} reset during circuit."
+                        raise ValueError(msg)
+                    cnot_circuit.initialize_qubit(grp[0].qubit_value, basis="Z")
+                    initialized[q] = True
+
+                elif name == "RX":
+                    q = grp[0].qubit_value
+                    if initialized[q]:
+                        msg = f"Qubit {q} reset during circuit."
+                        raise ValueError(msg)
+                    cnot_circuit.initialize_qubit(grp[0].qubit_value, basis="X")
+                    initialized[q] = True
+                elif name == "CX":
+                    control, target = grp[0].qubit_value, grp[1].qubit_value
+                    cnot_circuit.add_cnot(control, target)
+                    initialized[control] = True
+                    initialized[target] = True
+                else:
+                    msg = f"Unsupported gate {name} in the circuit."
+                    raise ValueError(msg)
+
+        return cnot_circuit
 
     def is_state(self) -> bool:
         """Check if all qubits used in the circuit are initialized.

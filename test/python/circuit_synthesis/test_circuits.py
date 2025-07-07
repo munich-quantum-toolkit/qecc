@@ -162,3 +162,145 @@ def test_get_code_complex():
     assert np.array_equal(code.Hx, expected_hx), "X-type stabilizers were not generated correctly."
     assert code.n == 4, "The number of qubits in the code should be 4."
     assert code.k == 1, "The number of logical qubits in the code should be 1."
+
+
+def test_from_qiskit_circuit_simple():
+    """Test converting a simple Qiskit circuit with CNOT gates."""
+    # Create a Qiskit circuit
+    qc = QuantumCircuit(3)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+
+    # Convert to CNOTCircuit
+    cnot_circuit = CNOTCircuit.from_qiskit_circuit(qc)
+
+    # Expected CNOT gates
+    expected_cnots = [(0, 1), (1, 2)]
+
+    # Check the result
+    assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
+    assert cnot_circuit.initializations == {}, "No qubits should be initialized."
+
+
+def test_from_qiskit_circuit_with_initialization():
+    """Test converting a Qiskit circuit with qubit initialization."""
+    # Create a Qiskit circuit
+    qc = QuantumCircuit(3)
+    qc.h(0)  # Initialize qubit 0 in |+>
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+
+    # Convert to CNOTCircuit
+    cnot_circuit = CNOTCircuit.from_qiskit_circuit(qc, initialized_qubits=[0])
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 1), (1, 2)]
+    expected_initializations = {0: "X"}
+
+    # Check the result
+    assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
+    assert cnot_circuit.initializations == expected_initializations, "Qubit initialization was not handled correctly."
+
+
+def test_from_qiskit_circuit_init_all():
+    """Test converting a Qiskit circuit with init_all=True."""
+    # Create a Qiskit circuit
+    qc = QuantumCircuit(3)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+
+    # Convert to CNOTCircuit with init_all=True
+    cnot_circuit = CNOTCircuit.from_qiskit_circuit(qc, init_all=True)
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 1), (1, 2)]
+    expected_initializations = {0: "Z", 1: "Z", 2: "Z"}
+
+    # Check the result
+    assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
+    assert cnot_circuit.initializations == expected_initializations, "All qubits should be initialized in the Z basis."
+
+
+def test_from_qiskit_circuit_unsupported_gate():
+    """Test that an unsupported gate raises a ValueError."""
+    # Create a Qiskit circuit with an unsupported gate
+    qc = QuantumCircuit(3)
+    qc.rx(0.5, 0)  # Unsupported gate
+
+    # Attempt to convert to CNOTCircuit
+    with pytest.raises(ValueError, match=r"Unsupported gate rx in the circuit."):
+        CNOTCircuit.from_qiskit_circuit(qc)
+
+
+def test_from_qiskit_circuit_hadamard_on_uninitialized_qubit():
+    """Test that a Hadamard gate on an uninitialized qubit raises a ValueError."""
+    # Create a Qiskit circuit
+    qc = QuantumCircuit(3)
+    qc.h(0)  # Hadamard on qubit 0
+
+    # Attempt to convert to CNOTCircuit without initializing qubit 0
+    with pytest.raises(ValueError, match=r"Hadamard gate on uninitialized qubit 0."):
+        CNOTCircuit.from_qiskit_circuit(qc)
+
+
+def test_from_stim_circuit_simple():
+    """Test converting a simple stim circuit with CNOT gates."""
+    # Create a stim circuit
+    stim_circ = stim.Circuit()
+    stim_circ.append_operation("RZ", [0])
+    stim_circ.append_operation("RZ", [1])
+    stim_circ.append_operation("CX", [0, 1])
+    stim_circ.append_operation("CX", [1, 2])
+
+    # Convert to CNOTCircuit
+    cnot_circuit = CNOTCircuit.from_stim_circuit(stim_circ)
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 1), (1, 2)]
+    expected_initializations = {0: "Z", 1: "Z"}
+
+    # Check the result
+    assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
+    assert cnot_circuit.initializations == expected_initializations, "Qubit initializations were not handled correctly."
+
+
+def test_from_stim_circuit_with_x_initialization():
+    """Test converting a stim circuit with X-basis initialization."""
+    # Create a stim circuit
+    stim_circ = stim.Circuit()
+    stim_circ.append_operation("RX", [0])
+    stim_circ.append_operation("CX", [0, 1])
+
+    # Convert to CNOTCircuit
+    cnot_circuit = CNOTCircuit.from_stim_circuit(stim_circ)
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 1)]
+    expected_initializations = {0: "X"}
+
+    # Check the result
+    assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
+    assert cnot_circuit.initializations == expected_initializations, "X-basis initialization was not handled correctly."
+
+
+def test_from_stim_circuit_reset_error():
+    """Test that resetting a qubit during the circuit raises a ValueError."""
+    # Create a stim circuit
+    stim_circ = stim.Circuit()
+    stim_circ.append_operation("RZ", [0])
+    stim_circ.append_operation("RZ", [0])  # Resetting qubit 0
+
+    # Attempt to convert to CNOTCircuit
+    with pytest.raises(ValueError, match=r"Qubit 0 reset during circuit."):
+        CNOTCircuit.from_stim_circuit(stim_circ)
+
+
+def test_from_stim_circuit_unsupported_gate():
+    """Test that an unsupported gate raises a ValueError."""
+    # Create a stim circuit
+    stim_circ = stim.Circuit()
+    stim_circ.append_operation("H", [0])  # Unsupported gate
+
+    # Attempt to convert to CNOTCircuit
+    with pytest.raises(ValueError, match=r"Unsupported gate H in the circuit."):
+        CNOTCircuit.from_stim_circuit(stim_circ)
