@@ -275,7 +275,7 @@ def test_filter_by_weight_basic():
     fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))
 
     # Filter faults with weight >= 2
-    fault_set.filter_by_weight(2, stabs)
+    fault_set.filter_by_weight_at_least(2, stabs)
 
     # Expected faults after filtering
     expected_faults = PureFaultSet(3)
@@ -291,7 +291,7 @@ def test_filter_by_weight_empty_stabilizer():
     fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))
 
     # Filter faults with weight >= 2
-    fault_set.filter_by_weight(2, stabs)
+    fault_set.filter_by_weight_at_least(2, stabs)
 
     # Expected faults after filtering
     expected_faults = PureFaultSet.from_fault_array(
@@ -317,7 +317,7 @@ def test_filter_by_weight_complex():
     fault_set.add_fault(np.array([0, 1, 1, 1, 0, 1, 1], dtype=np.int8))
     fault_set.add_fault(np.array([0, 0, 0, 0, 1, 1, 1], dtype=np.int8))
 
-    fault_set.filter_by_weight(2, hx)
+    fault_set.filter_by_weight_at_least(2, hx)
 
     expected_faults = PureFaultSet(num_qubits=7)
     expected_faults.add_fault(np.array([1, 1, 1, 1, 1, 1, 1], dtype=np.int8))

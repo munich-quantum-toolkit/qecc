@@ -176,7 +176,7 @@ class PureFaultSet:
         self.faults = np.array([coset_leader(fault, generators) for fault in self.faults], dtype=np.int8)
         self.faults = np.unique(self.faults, axis=0)
 
-    def filter_by_weight(self, w: int, stabs: npt.NDArray[np.int8]) -> None:
+    def filter_by_weight_at_least(self, w: int, stabs: npt.NDArray[np.int8]) -> None:
         """Filter faults by weight with respect to a stabilizer group.
 
         A fault is removed if its coset leader has weight lower than w.
