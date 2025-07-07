@@ -205,6 +205,26 @@ class CNOTCircuit:
 
         return cnot_circuit
 
+    @classmethod
+    def from_cnot_list(cls, cnots:Iterable[tuple[int, int]], initialize_z: Iterable[int], initialize_x: Iterable[int]) -> CNOTCircuit:
+        """Construct CNOT circuit from list of CNOTs.
+
+        Args:
+            cnots: Control, target pairs defining CNOT interactions.
+            initiaize_z: Qubits that should be initialized in the Z-basis
+            initiaize_x: Qubits that should be initialized in the X-basis
+
+        Returns:
+            CNOT circuit
+        """
+        cnot_circuit = cls()
+        cnot_circuit.add_cnots(cnots)
+        for q in initialize_z:
+            cnot_circuit.initialize_qubit(q, 'Z')
+        for q in initialize_x:
+            cnot_circuit.initialize_qubit(q, 'X')
+        return cnot_circuit
+
     def is_state(self) -> bool:
         """Check if all qubits used in the circuit are initialized.
 
@@ -263,3 +283,7 @@ class CNOTCircuit:
             hz[:, ctrl] ^= hz[:, trgt]
 
         return CSSCode(hx, hz)
+
+    def num_cnots(self) -> int:
+        """Get number of CNOT gates in the circuit."""
+        return len(self.cnots)

@@ -98,10 +98,8 @@ def test_heuristic_overcomplete_stabilizers() -> None:
     """Check that synthesis also works for overcomplete stabilizers."""
     code = CSSCode(np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), 2)
     sp_circ = heuristic_prep_circuit(code)
-    circ = sp_circ.circ
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.parametrize(
@@ -115,12 +113,11 @@ def test_heuristic_prep_consistent(code: CSSCode, request) -> None:  # type: ign
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -130,17 +127,15 @@ def test_gate_optimal_prep_consistent(code: CSSCode, request) -> None:  # type: 
     code = request.getfixturevalue(code)
     sp_circ = gate_optimal_prep_circuit(code, max_timeout=3)
     assert sp_circ is not None
-    assert sp_circ.zero_state
 
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -154,12 +149,11 @@ def test_depth_optimal_prep_consistent(code: CSSCode, request) -> None:  # type:
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -170,31 +164,28 @@ def test_plus_state_gate_optimal(code: CSSCode, request) -> None:  # type: ignor
     sp_circ_plus = gate_optimal_prep_circuit(code, max_timeout=3, zero_state=False)
 
     assert sp_circ_plus is not None
-    assert not sp_circ_plus.zero_state
 
     circ_plus = sp_circ_plus.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ_plus.num_qubits == code.n
-    assert circ_plus.num_nonlocal_gates() <= max_cnots
+    assert circ_plus.num_qubits() == code.n
+    assert circ_plus.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ_plus)
-    assert eq_span(code.Hz, z)
-    assert eq_span(np.vstack((code.Hx, code.Lx)), x)
+    assert eq_span(code.Hz, sp_circ_plus.z_checks)
+    assert eq_span(np.vstack((code.Hx, code.Lx)), sp_circ_plus.x_checks)
 
     sp_circ_zero = gate_optimal_prep_circuit(code, max_timeout=5, zero_state=True)
 
     assert sp_circ_zero is not None
 
     circ_zero = sp_circ_zero.circ
-    x_zero, z_zero = get_stabs_css(circ_zero)
 
     if code.is_self_dual():
-        assert np.array_equal(x, z_zero)
-        assert np.array_equal(z, x_zero)
+        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(x, z_zero)
-        assert not np.array_equal(z, x_zero)
+        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.parametrize(
@@ -206,35 +197,32 @@ def test_plus_state_heuristic(code: CSSCode, request) -> None:  # type: ignore[n
     sp_circ_plus = heuristic_prep_circuit(code, zero_state=False)
 
     assert sp_circ_plus is not None
-    assert not sp_circ_plus.zero_state
 
     circ_plus = sp_circ_plus.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ_plus.num_qubits == code.n
-    assert circ_plus.num_nonlocal_gates() <= max_cnots
+    assert circ_plus.num_qubits() == code.n
+    assert circ_plus.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ_plus)
-    assert eq_span(code.Hz, z)
-    assert eq_span(np.vstack((code.Hx, code.Lx)), x)
+    assert eq_span(code.Hz, sp_circ_plus.z_checks)
+    assert eq_span(np.vstack((code.Hx, code.Lx)), sp_circ_plus.x_checks)
 
     sp_circ_zero = heuristic_prep_circuit(code, zero_state=True)
     circ_zero = sp_circ_zero.circ
-    x_zero, z_zero = get_stabs_css(circ_zero)
 
     if code.is_self_dual():
-        assert np.array_equal(x, z_zero)
-        assert np.array_equal(z, x_zero)
+        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(x, z_zero)
-        assert not np.array_equal(z, x_zero)
+        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
 def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_timeout=5)
+    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_timeout=5)
 
     assert len(ver_stabs_layers) == 1  # 1 Ancilla measurement
 

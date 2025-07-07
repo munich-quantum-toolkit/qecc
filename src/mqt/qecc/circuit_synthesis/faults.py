@@ -140,10 +140,24 @@ class PureFaultSet:
         # Reduce all faults to their coset representatives
         for i, fault in enumerate(self.faults):
             # Identify the indices of pivot columns where the fault has a 1
-            active_pivots = [p for p in pivots if fault[p] == 1]
+            active_pivots = [pivots.index(p) for p in pivots if fault[p] == 1]
             if active_pivots:  # Ensure there are active pivots to reduce with
                 self.faults[i] = fault ^ np.bitwise_xor.reduce(rref[active_pivots], axis=0)
 
+    def remove_zero_rows(self) -> None:
+        """Remove all zero rows from the fault set.
+
+        This method modifies the fault set in place, removing any rows that are entirely zero.
+        """
+        self.faults = self.faults[np.any(self.faults, axis=1)]
+
+    def remove_duplicates(self) -> None:
+        """Remove duplicate faults from the fault set.
+
+        This method modifies the fault set in place, ensuring that each fault is unique.
+        """
+        self.faults = np.unique(self.faults, axis=0)
+        
     def remove_equivalent(self, stabs: npt.NDArray[np.int8]) -> None:
         """Remove faults belonging to the same coset with respect to the stabilizer group.
 
@@ -153,8 +167,8 @@ class PureFaultSet:
         self.normalize(stabs)
 
         # remove all zero rows
-        self.faults = self.faults[np.any(self.faults, axis=1)]
-        self.faults = np.unique(self.faults, axis=0)
+        self.remove_zero_rows()
+        self.remove_duplicates()
 
     def to_set(self) -> set[tuple[int, ...]]:
         """Convert the fault set to a set of tuples for easier comparison."""
@@ -232,6 +246,14 @@ class PureFaultSet:
         """Return a string representation of the PureFaultSet."""
         return f"PureFaultSet(num_qubits={self.num_qubits}, faults={self.faults.tolist()})"
 
+    def __len__(self) -> int:
+        """Return the number of faults in the PureFaultSet.
+
+        Returns:
+            The number of faults.
+        """
+        return self.faults.shape[0]
+
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""
@@ -251,7 +273,7 @@ def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) 
     return np.array([bool(m[leader[i]]) for i in range(len(fault))]).astype(int)
 
 
-def fault_set_product(lhs: PureFaultSet, rhs: PureFaultSet) -> PureFaultSet:
+def product_fault_set(lhs: PureFaultSet, rhs: PureFaultSet) -> PureFaultSet:
     """Generate fault set by forming the product of all faults of two fault sets.
 
     Args:
@@ -290,3 +312,6 @@ def stabilizer_equivalent(lhs: PureFaultSet, rhs: PureFaultSet, stabs: npt.NDArr
         rhs_cpy.normalize(stabs)
 
     return lhs_cpy == rhs_cpy
+
+
+  
