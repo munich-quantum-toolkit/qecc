@@ -157,7 +157,7 @@ class PureFaultSet:
         This method modifies the fault set in place, ensuring that each fault is unique.
         """
         self.faults = np.unique(self.faults, axis=0)
-        
+
     def remove_equivalent(self, stabs: npt.NDArray[np.int8]) -> None:
         """Remove faults belonging to the same coset with respect to the stabilizer group.
 
@@ -272,7 +272,48 @@ class PureFaultSet:
             An iterator over the faults.
         """
         return iter(self.faults)
-        
+
+    def all_faults_detected(self, stabs: npt.NDArray[np.int8]) -> bool:
+        """Check whether all faults in the set are detected by the given stabilizers.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+
+        Returns:
+            True if every fault anticommutes with at least one generator, False otherwise
+        """
+        return np.all(np.any(stabs @ self.faults.T % 2, axis=1))
+
+    def _get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[int]:
+        """Return indices of faults that are not detectable by the given stabilizers.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+
+        Returns:
+            Indices of faults that commute with all generators.
+        """
+        return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=1))[0]
+
+    def get_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> bool:
+        """Return faults that are not detectable by the given stabilizers.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+
+        Returns:
+            A 2D numpy array where each row is a fault that commutes with all generators.
+        """
+        return self.faults[self._get_undetectable_faults_idx(stabs)]
+
+    def remove_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> None:
+        """Remove all faults that are not detectable by the given stabilizers.
+
+        Args:
+            stabs: A 2D numpy array where each row is a stabilizer generator.
+        """
+        undetectable_indices = self._get_undetectable_faults_idx(stabs)
+        self.faults = np.delete(self.faults, undetectable_indices, axis=0)
 
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
@@ -332,6 +373,3 @@ def stabilizer_equivalent(lhs: PureFaultSet, rhs: PureFaultSet, stabs: npt.NDArr
         rhs_cpy.normalize(stabs)
 
     return lhs_cpy == rhs_cpy
-
-
-  

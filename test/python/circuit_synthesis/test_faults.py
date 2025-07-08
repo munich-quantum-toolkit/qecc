@@ -384,3 +384,144 @@ def test_stabilizer_equivalent_different_num_qubits():
     # Check for ValueError
     with pytest.raises(ValueError, match=r"Fault sets must have the same number of qubits to compare."):
         stabilizer_equivalent(fault_set_1, fault_set_2, stabs)
+
+
+def test_all_faults_detected():
+    """Test whether all faults are detected by the stabilizers."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))  # Detectable
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Detectable
+
+    # Check if all faults are detected
+    assert fault_set.all_faults_detected(stabs), "All faults should be detected by the stabilizers."
+
+
+def test_not_all_faults_detected():
+    """Test when not all faults are detected by the stabilizers."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 0], dtype=np.int8))  # Undetectable
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Detectable
+
+    # Check if all faults are detected
+    assert not fault_set.all_faults_detected(stabs), "Not all faults should be detected by the stabilizers."
+
+
+def test_get_undetectable_faults_idx():
+    """Test retrieving indices of undetectable faults."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 0], dtype=np.int8))  # Detectable
+    fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))  # Undetectable
+
+    # Get indices of undetectable faults
+    undetectable_indices = fault_set._get_undetectable_faults_idx(stabs)
+    assert np.array_equal(undetectable_indices, [1]), "The first fault should be undetectable."
+
+
+def test_get_undetectable_faults():
+    """Test retrieving undetectable faults."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 0], dtype=np.int8))  # Detectable
+    fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))  # Undetectable
+
+    # Get undetectable faults
+    undetectable_faults = fault_set.get_undetectable_faults(stabs)
+    expected_faults = np.array([[1, 1, 1]], dtype=np.int8)
+    assert np.array_equal(undetectable_faults, expected_faults), "The undetectable faults were not retrieved correctly."
+
+
+def test_remove_undetectable_faults():
+    """Test removing undetectable faults."""
+    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 0], dtype=np.int8))  # Detectable
+    fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))  # Undetectable
+
+    # Remove undetectable faults
+    fault_set.remove_undetectable_faults(stabs)
+
+    # Expected faults after removal
+    expected_faults = np.array([[1, 0, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set.to_array(), expected_faults), "Undetectable faults were not removed correctly."
+
+
+@pytest.fixture
+def stabilizer_matrix():
+    """Fixture for a sample stabilizer matrix."""
+    return np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
+
+
+@pytest.mark.parametrize(
+    (
+        "faults",
+        "expected_all_detected",
+        "expected_undetectable_indices",
+        "expected_undetectable_faults",
+        "expected_remaining_faults",
+    ),
+    [
+        # Case 1: All faults are detectable
+        (
+            [[1, 0, 1], [0, 1, 1]],  # Faults
+            True,  # All faults detected
+            [],  # No undetectable faults
+            np.empty(shape=(0, 3), dtype=np.int8),  # No undetectable faults
+            [[1, 0, 1], [0, 1, 1]],  # Remaining faults
+        ),
+        # Case 2: Not all faults are detectable
+        (
+            [[1, 0, 0], [1, 1, 1]],  # Faults
+            False,  # Not all faults detected
+            [1],  # Index of undetectable fault
+            [[1, 1, 1]],  # Undetectable fault
+            [[1, 0, 0]],  # Remaining faults
+        ),
+        # Case 3: Multiple undetectable faults
+        (
+            [[0, 0, 0], [1, 1, 1]],  # Faults
+            False,  # All faults detected
+            [0, 1],  # Indices of undetectable faults
+            [[0, 0, 0], [1, 1, 1]],  # Undetectable faults
+            np.empty(shape=(0, 3), dtype=np.int8),  # No remaining faults
+        ),
+    ],
+)
+def test_fault_detection_and_removal(
+    stabilizer_matrix,
+    faults,
+    expected_all_detected,
+    expected_undetectable_indices,
+    expected_undetectable_faults,
+    expected_remaining_faults,
+):
+    """Unified test for fault detection and removal methods."""
+    # Initialize the fault set
+    fault_set = PureFaultSet(num_qubits=3)
+    for fault in faults:
+        fault_set.add_fault(np.array(fault, dtype=np.int8))
+
+    # Test all_faults_detected
+    assert fault_set.all_faults_detected(stabilizer_matrix) == expected_all_detected, (
+        "Fault detection result is incorrect."
+    )
+
+    # Test _get_undetectable_faults_idx
+    undetectable_indices = fault_set._get_undetectable_faults_idx(stabilizer_matrix)
+    assert np.array_equal(undetectable_indices, expected_undetectable_indices), (
+        "Undetectable fault indices are incorrect."
+    )
+
+    # Test get_undetectable_faults
+    undetectable_faults = fault_set.get_undetectable_faults(stabilizer_matrix)
+    assert np.array_equal(undetectable_faults, np.array(expected_undetectable_faults, dtype=np.int8)), (
+        "Undetectable faults are incorrect."
+    )
+
+    # Test remove_undetectable_faults
+    fault_set.remove_undetectable_faults(stabilizer_matrix)
+    assert np.array_equal(fault_set.to_array(), np.array(expected_remaining_faults, dtype=np.int8)), (
+        "Remaining faults after removal are incorrect."
+    )
