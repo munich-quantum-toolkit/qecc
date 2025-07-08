@@ -254,6 +254,26 @@ class PureFaultSet:
         """
         return self.faults.shape[0]
 
+    def __getitem__(self, index: int) -> npt.NDArray[np.int8]:
+        """Get a fault by index.
+
+        Args:
+            index: The index of the fault to retrieve.
+
+        Returns:
+            A 1D numpy array representing the fault.
+        """
+        return self.faults[index]
+
+    def __iter__(self):
+        """Return an iterator over the faults in the PureFaultSet.
+
+        Returns:
+            An iterator over the faults.
+        """
+        return iter(self.faults)
+        
+
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""

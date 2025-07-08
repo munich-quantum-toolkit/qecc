@@ -304,3 +304,39 @@ def test_from_stim_circuit_unsupported_gate():
     # Attempt to convert to CNOTCircuit
     with pytest.raises(ValueError, match=r"Unsupported gate H in the circuit."):
         CNOTCircuit.from_stim_circuit(stim_circ)
+
+
+def test_depth_empty_circuit():
+    """Test the depth of an empty circuit."""
+    circ = CNOTCircuit()
+    assert circ.depth() == 0, "The depth of an empty circuit should be 0."
+
+def test_depth_single_cnot():
+    """Test the depth of a circuit with a single CNOT gate."""
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    assert circ.depth() == 1, "The depth of a single CNOT gate should be 1."
+
+def test_depth_linear_circuit():
+    """Test the depth of a linear circuit."""
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(1, 2)
+    circ.add_cnot(2, 3)
+    assert circ.depth() == 3, "The depth of a linear circuit should equal the number of gates."
+
+def test_depth_parallel_circuit():
+    """Test the depth of a circuit with parallel CNOT gates."""
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(2, 3)
+    assert circ.depth() == 1, "Parallel CNOT gates should not increase the depth."
+
+def test_depth_mixed_circuit():
+    """Test the depth of a mixed circuit with both linear and parallel gates."""
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(1, 2)
+    circ.add_cnot(2, 3)
+    circ.add_cnot(0, 2)  # Parallel with the first gate
+    assert circ.depth() == 3, "The depth of the mixed circuit should be calculated correctly."        

@@ -208,7 +208,6 @@ def test_plus_state_heuristic(code: CSSCode, request) -> None:  # type: ignore[n
     assert eq_span(np.vstack((code.Hx, code.Lx)), sp_circ_plus.x_checks)
 
     sp_circ_zero = heuristic_prep_circuit(code, zero_state=True)
-    circ_zero = sp_circ_zero.circ
 
     if code.is_self_dual():
         assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
@@ -235,14 +234,14 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
         assert in_span(z_gens, stab)
 
     errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs @ errors.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
     # Check that circuit is correct
     circ_ver = gate_optimal_verification_circuit(circ)
     assert circ_ver.num_qubits == circ.num_qubits + 1
-    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_nonlocal_gates()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 1  # 1 for the measurement
+    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3  # 1 for the measurement, 1 for the Hadamard, 1 for initializations
 
 
 def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:

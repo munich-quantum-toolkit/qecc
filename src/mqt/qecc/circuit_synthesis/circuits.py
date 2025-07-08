@@ -287,3 +287,19 @@ class CNOTCircuit:
     def num_cnots(self) -> int:
         """Get number of CNOT gates in the circuit."""
         return len(self.cnots)
+
+    def depth(self) -> int:
+        """Get the depth of the circuit.
+
+        Returns:
+            The depth of the circuit.
+        """
+        path_lengths = np.zeros(self.num_qubits(), dtype=int)
+        for control, target in self.cnots:
+            new_path_length = max(path_lengths[control], path_lengths[target]) + 1
+            path_lengths[target] = new_path_length
+            path_lengths[control] = new_path_length
+        return int(np.max(path_lengths))
+        
+        
+    
