@@ -28,7 +28,7 @@ from mqt.qecc.circuit_synthesis import (
 )
 from mqt.qecc.codes import SquareOctagonColorCode
 
-from .utils import eq_span, get_stabs_css, in_span
+from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
     from mqt.qecc.circuit_synthesis import StatePrepCircuit
@@ -178,8 +178,6 @@ def test_plus_state_gate_optimal(code: CSSCode, request) -> None:  # type: ignor
 
     assert sp_circ_zero is not None
 
-    circ_zero = sp_circ_zero.circ
-
     if code.is_self_dual():
         assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
         assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
@@ -241,7 +239,9 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
     circ_ver = gate_optimal_verification_circuit(circ)
     assert circ_ver.num_qubits == circ.num_qubits + 1
     assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3  # 1 for the measurement, 1 for the Hadamard, 1 for initializations
+    assert (
+        circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3
+    )  # 1 for the measurement, 1 for the Hadamard, 1 for initializations
 
 
 def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
@@ -280,11 +280,13 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     """
     circ = color_code_d5_sp
 
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_ancillas=3, max_timeout=4)
-
+    ver_stabs_layers = gate_optimal_verification_stabilizers(
+        circ.x_fault_sets[1:], circ.z_checks, max_ancillas=3, max_timeout=4
+    )
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
     ver_stabs_1 = ver_stabs_layers[0]
+
     assert len(ver_stabs_1) == 2  # 2 Ancilla measurements
     assert np.sum(ver_stabs_1) == 9  # 9 CNOTs
 
@@ -298,11 +300,11 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
         assert in_span(z_gens, stab)
 
     errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
     errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
 
@@ -312,7 +314,7 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     Ignore Z errors.
     """
     circ = color_code_d5_sp
-    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True, max_covering_sets=1000)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_covering_sets=10000)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -325,15 +327,15 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
         assert in_span(z_gens, stab)
 
     errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
     errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
     # Check that circuit is correct
-    circ_ver = heuristic_verification_circuit(circ, full_fault_tolerance=False)
+    circ_ver = heuristic_verification_circuit(circ)
     n_cnots = np.sum(ver_stabs_1) + np.sum(ver_stabs_2)  # type: ignore[operator]
     assert circ_ver.num_qubits == circ.num_qubits + len(ver_stabs_1) + len(ver_stabs_2)
     assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_nonlocal_gates()

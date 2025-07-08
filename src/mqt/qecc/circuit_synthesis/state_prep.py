@@ -17,12 +17,11 @@ import numpy as np
 import z3
 from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
-from qiskit.converters import circuit_to_dag
 
 from ..codes import InvalidCSSCodeError
-from .faults import coset_leader, PureFaultSet
+from .circuits import CNOTCircuit
+from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis_utils import (
-    build_css_circuit_from_cnot_list,
     heuristic_gaussian_elimination,
     iterative_search_with_timeout,
     measure_flagged,
@@ -31,8 +30,7 @@ from .synthesis_utils import (
     run_with_timeout,
     vars_to_stab,
 )
-from .circuits import CNOTCircuit
-from .faults import PureFaultSet, product_fault_set
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -48,9 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class StatePrepCircuit:
     """Represents a state preparation circuit for a CSS code."""
 
-    def __init__(
-            self, circ: CNOTCircuit, max_errors:int, error_detection_code: bool = False
-    ) -> None:
+    def __init__(self, circ: CNOTCircuit, max_errors: int, error_detection_code: bool = False) -> None:
         """Initialize a state preparation circuit.
 
         Args:
@@ -60,8 +56,9 @@ class StatePrepCircuit:
             error_detection_code: If True, prepare the state for error detection. This ensures that when computing the fault set of the circuit, up to d//2 errors errors can occur in the circuit.
         """
         if not circ.is_state():
-            raise ValueError("Input circuit is not a state!")
-        
+            msg = "Input circuit is not a state!"
+            raise ValueError(msg)
+
         self.circ = circ
         code = circ.get_code()
         self.num_qubits = circ.num_qubits()
@@ -69,20 +66,17 @@ class StatePrepCircuit:
         self.x_checks = code.Hx
         self.z_checks = code.Hz
         self.error_detection_code = error_detection_code
-        self.x_fault_sets: list[PureFaultSet | None] = [None for i in range(max_errors+1)]
-        self.z_fault_sets: list[PureFaultSet | None] = [None for i in range(max_errors+1)]
-        self.x_fault_sets_unreduced: list[PureFaultSet | None] = [None for i in range(max_errors+1)]
-        self.z_fault_sets_unreduced: list[PureFaultSet | None] = [None for i in range(max_errors+1)]
+        self.x_fault_sets: list[PureFaultSet | None] = [None for i in range(max_errors + 1)]
+        self.z_fault_sets: list[PureFaultSet | None] = [None for i in range(max_errors + 1)]
+        self.x_fault_sets_unreduced: list[PureFaultSet | None] = [None for i in range(max_errors + 1)]
+        self.z_fault_sets_unreduced: list[PureFaultSet | None] = [None for i in range(max_errors + 1)]
 
-        
     def compute_fault_sets(self, reduce: bool = True) -> None:
         """Compute the fault sets for the state preparation circuit."""
         self.compute_fault_set(self.max_errors, x_errors=True, reduce=reduce)
         self.compute_fault_set(self.max_errors, x_errors=False, reduce=reduce)
 
-    def compute_fault_set(
-        self, num_errors: int = 1, x_errors: bool = True, reduce: bool = True
-    ) -> PureFaultSet:
+    def compute_fault_set(self, num_errors: int = 1, x_errors: bool = True, reduce: bool = True) -> PureFaultSet:
         """Compute the fault set of the state.
 
         Args:
@@ -95,7 +89,7 @@ class StatePrepCircuit:
         """
         fault_sets = self.x_fault_sets if x_errors else self.z_fault_sets
         fault_sets_unreduced = self.x_fault_sets_unreduced if x_errors else self.z_fault_sets_unreduced
-        if fault_sets[num_errors] is not None: 
+        if fault_sets[num_errors] is not None:
             return fault_sets[num_errors]  # Return cached value
 
         if num_errors == 1:
@@ -109,7 +103,7 @@ class StatePrepCircuit:
 
             assert faults is not None
             assert single_faults is not None
-            
+
             fs = product_fault_set(faults, single_faults)
             fs.remove_zero_rows()
             fs.remove_duplicates()
@@ -123,14 +117,14 @@ class StatePrepCircuit:
             logger.info("Removing stabilizer equivalent faults.")
             fs.normalize(stabs)
 
-        logger.info("Removing low-weight faults.")            
-        fs.filter_by_weight_at_least(num_errors+1, stabs)
+        logger.info("Removing low-weight faults.")
+        fs.filter_by_weight_at_least(num_errors + 1, stabs)
         fault_sets[num_errors] = fs
 
         return fs
 
     def combine_faults(
-            self, additional_faults: PureFaultSet, x_errors: bool = True, reduce=False
+        self, additional_faults: PureFaultSet, x_errors: bool = True, reduce=False
     ) -> list[PureFaultSet | None]:
         """Combine fault sets of circuit with additional independent faults.
 
@@ -142,18 +136,18 @@ class StatePrepCircuit:
         fault_sets = self.x_fault_sets if x_errors else self.z_fault_sets
         fault_sets_unreduced = self.x_fault_sets_unreduced if x_errors else self.z_fault_sets_unreduced
         stabs = self.x_checks if x_errors else self.z_checks
-        
+
         if len(additional_faults) == 0:
             return fault_sets
 
-        new_products: list[PureFaultSet | None] = [None for _ in range(self.max_errors+1)]
+        new_products: list[PureFaultSet | None] = [None for _ in range(self.max_errors + 1)]
         new_products[1] = additional_faults
         for i in range(2, self.max_errors):
-            new_products[i] = product_fault_set(new_products[1], new_products[i-1])
+            new_products[i] = product_fault_set(new_products[1], new_products[i - 1])
 
-        new_fault_sets_unreduced: list[PureFaultSet | None] = [None for _ in range(self.max_errors+1)]
-        new_fault_sets = [None for _ in range(self.max_errors+1)]
-        for i in range(1, self.max_errors+1):
+        new_fault_sets_unreduced: list[PureFaultSet | None] = [None for _ in range(self.max_errors + 1)]
+        new_fault_sets = [None for _ in range(self.max_errors + 1)]
+        for i in range(1, self.max_errors + 1):
             fs = fault_sets_unreduced[i].copy()
             fs.combine(new_products[i])
             for j in range(2, i):
@@ -165,7 +159,6 @@ class StatePrepCircuit:
                 fs.normalize(stabs)
             fs.filter_by_weight_at_least(i + 1, stabs)
             new_fault_sets[i] = fs
-
 
         return new_fault_sets
 
@@ -201,7 +194,7 @@ def heuristic_prep_circuit(code: CSSCode, optimize_depth: bool = True, zero_stat
     checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
 
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, max_errors=code.distance//2)
+    return StatePrepCircuit(circ, max_errors=code.distance // 2)
 
 
 def depth_optimal_prep_circuit(
@@ -238,7 +231,7 @@ def depth_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, code.distance//2)
+    return StatePrepCircuit(circ, code.distance // 2)
 
 
 def gate_optimal_prep_circuit(
@@ -275,7 +268,7 @@ def gate_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, code.distance//2)
+    return StatePrepCircuit(circ, code.distance // 2)
 
 
 def gate_optimal_verification_stabilizers(
@@ -346,7 +339,7 @@ def all_gate_optimal_verification_stabilizers(
     for layer in range(n_layers):
         logger.info(f"Finding verification stabilizers for {layer} errors")
         faults = fault_sets[layer]
-        
+
         if len(faults) == 0:
             logger.info(f"No non-trivial faults for {layer} errors")
             layers[layer] = []
@@ -358,7 +351,7 @@ def all_gate_optimal_verification_stabilizers(
         max_cnots: int = np.sum(stabs)
 
         logger.info(
-            f"Finding verification stabilizers for {layer+1} errors with {min_cnots} to {max_cnots} CNOTs using {num_anc} ancillas"
+            f"Finding verification stabilizers for {layer + 1} errors with {min_cnots} to {max_cnots} CNOTs using {num_anc} ancillas"
         )
 
         def fun(num_cnots: int) -> list[npt.NDArray[np.int8]] | None:
@@ -378,15 +371,15 @@ def all_gate_optimal_verification_stabilizers(
             measurements = None
 
         if measurements is None:
-            logger.info(f"No verification stabilizers found for {layer+1} errors")
+            logger.info(f"No verification stabilizers found for {layer + 1} errors")
             return []  # No solution found
 
-        logger.info(f"Found verification stabilizers for {layer+1} errors with {num_cnots} CNOTs")
+        logger.info(f"Found verification stabilizers for {layer + 1} errors with {num_cnots} CNOTs")
         # If any measurements are unused we can reduce the number of ancillas at least by that
         measurements = [m for m in measurements if np.any(m)]
         num_anc = len(measurements)
         # Iterate backwards to find the minimal number of cnots
-        logger.info(f"Finding minimal number of CNOTs for {layer+1} errors")
+        logger.info(f"Finding minimal number of CNOTs for {layer + 1} errors")
 
         def search_cnots(num_cnots: int) -> list[npt.NDArray[np.int8]] | None:
             return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # noqa: B023
@@ -407,7 +400,7 @@ def all_gate_optimal_verification_stabilizers(
         logger.info(f"Minimal number of CNOTs for {layer} errors is: {num_cnots}")
 
         # If the number of CNOTs is minimal, we can reduce the number of ancillas
-        logger.info(f"Finding minimal number of ancillas for {layer+1} errors")
+        logger.info(f"Finding minimal number of ancillas for {layer + 1} errors")
         while num_anc - 1 > 0:
             logger.info(f"Trying {num_anc - 1} ancillas")
 
@@ -424,13 +417,11 @@ def all_gate_optimal_verification_stabilizers(
                 measurements = anc_opt
             else:
                 break
-        logger.info(f"Minimal number of ancillas for {layer+1} errors is: {num_anc}")
+        logger.info(f"Minimal number of ancillas for {layer + 1} errors is: {num_anc}")
         if not return_all_solutions:
-            layers[layer - 1] = [measurements]
+            layers[layer] = [measurements]
         else:
-            all_stabs = all_verification_stabilizers(
-                faults, stabs, num_anc, num_cnots, return_all_solutions=True
-            )
+            all_stabs = all_verification_stabilizers(faults, stabs, num_anc, num_cnots, return_all_solutions=True)
             if all_stabs:
                 layers[layer] = all_stabs
                 logger.info(f"Found {len(layers[layer])} equivalent solutions for {layer} errors")
@@ -440,9 +431,7 @@ def all_gate_optimal_verification_stabilizers(
 
 def _verification_circuit(
     sp_circ: StatePrepCircuit,
-    verification_stabs_fun: Callable[
-        [list[PureFaultSet], npt.NDArray[np.int8]], list[list[npt.NDArray[np.int8]]]
-    ],
+    verification_stabs_fun: Callable[[list[PureFaultSet], npt.NDArray[np.int8]], list[list[npt.NDArray[np.int8]]]],
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
 ) -> QuantumCircuit:
@@ -460,10 +449,10 @@ def _verification_circuit(
         second_checks = sp_circ.z_checks
 
     layers_1 = verification_stabs_fun(first_fault_sets, first_checks)
-    measurements_1 = [measurement for layer in layers_1 for measurement in layer]        
+    measurements_1 = [measurement for layer in layers_1 for measurement in layer]
     if not flag_first_layer:
         additional_errors = get_hook_errors(measurements_1)
-        extended_fault_sets = sp_circ.combine_faults(additional_faults=additional_errors, x_errors= not verify_x_first)
+        extended_fault_sets = sp_circ.combine_faults(additional_faults=additional_errors, x_errors=not verify_x_first)
         layers_2 = verification_stabs_fun(extended_fault_sets[1:], second_checks)
     else:
         layers_2 = verification_stabs_fun(second_fault_sets, second_checks)
@@ -506,9 +495,7 @@ def gate_optimal_verification_circuit(
     def verification_stabs_fun(
         fault_sets: list[PureFaultSet], stabs: npt.NDArray[np.int8]
     ) -> list[list[npt.NDArray[np.int8]]]:
-        return gate_optimal_verification_stabilizers(
-            fault_sets, stabs, min_timeout, max_timeout, max_ancillas
-        )
+        return gate_optimal_verification_stabilizers(fault_sets, stabs, min_timeout, max_timeout, max_ancillas)
 
     return _verification_circuit(
         sp_circ, verification_stabs_fun, verify_x_first=verify_x_first, flag_first_layer=flag_first_layer
@@ -537,9 +524,7 @@ def heuristic_verification_circuit(
     def verification_stabs_fun(
         fault_sets: list[PureFaultSet], stabs: npt.NDArray[np.int8]
     ) -> list[list[npt.NDArray[np.int8]]]:
-        return heuristic_verification_stabilizers(
-            fault_sets, stabs, max_covering_sets, find_coset_leaders
-        )
+        return heuristic_verification_stabilizers(fault_sets, stabs, max_covering_sets, find_coset_leaders)
 
     return _verification_circuit(
         sp_circ, verification_stabs_fun, verify_x_first=verify_x_first, flag_first_layer=flag_first_layer
@@ -566,7 +551,7 @@ def heuristic_verification_stabilizers(
     n_layers = len(fault_sets)
     layers: list[list[npt.NDArray[np.int8]]] = [[] for _ in range(n_layers)]
 
-    for num_errors in range(0, n_layers):
+    for num_errors in range(n_layers):
         logger.info(f"Finding verification stabilizers for {num_errors} errors")
         faults = fault_sets[num_errors]
         assert faults is not None
@@ -740,7 +725,6 @@ def _measure_ft_stabs(
     else:
         _measure_ft_x(measured_circ, x_measurements, flags=flag_first_layer, t=sp_circ.max_errors)
         _measure_ft_z(measured_circ, z_measurements, t=sp_circ.max_errors)
-    
 
     return measured_circ
 
@@ -760,9 +744,7 @@ def verification_stabilizers(
         num_cnots: The maximum number of CNOT gates to use.
         x_errors: If True, the errors are X errors. Otherwise, the errors are Z errors.
     """
-    stabs_list = all_verification_stabilizers(
-        fault_set, stabs, num_anc, num_cnots, return_all_solutions=False
-    )
+    stabs_list = all_verification_stabilizers(fault_set, stabs, num_anc, num_cnots, return_all_solutions=False)
     if stabs_list:
         return stabs_list[0]
     return None
@@ -784,16 +766,17 @@ def all_verification_stabilizers(
         num_cnots: The maximum number of CNOT gates to use.
         return_all_solutions: If True, return all solutions. Otherwise, return the first solution found.
     """
-
     # Measurements are written as sums of generators
     # The variables indicate which generators are non-zero in the sum
     if fault_set.faults.shape[1] != stabs.shape[1]:
         msg = "Fault set and stabilizers must have the same number of qubits."
         raise ValueError(msg)
-    
+
     # Check if fault set can be verified, i.e., every fault can be detected by at least one measurement
-    if any(np.all(fault_set.faults@ stabs.T % 2 == 0, axis=1)):
-        logger.warning("Fault set cannot be verified by the given stabilizers. Some faults are not detectable by the given stabilizers.")
+    if any(np.all(fault_set.faults @ stabs.T % 2 == 0, axis=1)):
+        logger.warning(
+            "Fault set cannot be verified by the given stabilizers. Some faults are not detectable by the given stabilizers."
+        )
         return None
 
     n_gens = stabs.shape[0]
@@ -812,11 +795,7 @@ def all_verification_stabilizers(
     )
 
     # assert that not too many CNOTs are used
-    solver.add(
-        z3.PbLe(
-            [(measurement[q], 1) for measurement in measurement_stabs for q in range(n_qubits)], num_cnots
-        )
-    )
+    solver.add(z3.PbLe([(measurement[q], 1) for measurement in measurement_stabs for q in range(n_qubits)], num_cnots))
 
     solutions = []
     while solver.check() == z3.sat:
