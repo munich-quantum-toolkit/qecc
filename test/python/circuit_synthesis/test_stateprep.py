@@ -219,7 +219,7 @@ def test_plus_state_heuristic(code: CSSCode, request) -> None:  # type: ignore[n
 def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_timeout=5)
+    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_timeout=5)
 
     assert len(ver_stabs_layers) == 1  # 1 Ancilla measurement
 
@@ -231,12 +231,11 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
     for stab in ver_stabs:
         assert in_span(z_gens, stab)
 
-    errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs)
 
     # Check that circuit is correct
     circ_ver = gate_optimal_verification_circuit(circ)
+
     assert circ_ver.num_qubits == circ.num_qubits + 1
     assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
     assert (
@@ -248,7 +247,7 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
 
-    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_covering_sets=10000)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_covering_sets=10000)
 
     assert len(ver_stabs_layers) == 1  # 1 layer of verification measurements
 
@@ -260,9 +259,7 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
     for stab in ver_stabs:
         assert in_span(z_gens, stab)
 
-    errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs)
 
     # Check that circuit is correct
     circ_ver = heuristic_verification_circuit(circ)
@@ -281,7 +278,7 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     circ = color_code_d5_sp
 
     ver_stabs_layers = gate_optimal_verification_stabilizers(
-        circ.x_fault_sets[1:], circ.z_checks, max_ancillas=3, max_timeout=4
+        circ.x_fault_sets, circ.z_checks, max_ancillas=3, max_timeout=4
     )
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -299,22 +296,17 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     for stab in np.vstack((ver_stabs_1, ver_stabs_2)):
         assert in_span(z_gens, stab)
 
-    errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
-
-    errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs_1)
+    assert circ.x_fault_sets[1].all_faults_detected(ver_stabs_2)
 
 
-def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
+def test_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct.
 
     Ignore Z errors.
     """
     circ = color_code_d5_sp
-    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_covering_sets=10000)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_covering_sets=1000)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -326,19 +318,14 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     for stab in np.vstack((ver_stabs_1, ver_stabs_2)):
         assert in_span(z_gens, stab)
 
-    errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
-
-    errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.faults.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs_1)
+    assert circ.x_fault_sets[1].all_faults_detected(ver_stabs_2)
 
     # Check that circuit is correct
-    circ_ver = heuristic_verification_circuit(circ)
+    circ_ver = heuristic_verification_circuit(circ, only_first_layer=True)
     n_cnots = np.sum(ver_stabs_1) + np.sum(ver_stabs_2)  # type: ignore[operator]
     assert circ_ver.num_qubits == circ.num_qubits + len(ver_stabs_1) + len(ver_stabs_2)
-    assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_nonlocal_gates()
+    assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_cnots()
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -347,14 +334,11 @@ def test_error_detection_code() -> None:
     code = CSSCode.from_code_name("carbon")
     circ = heuristic_prep_circuit(code)
 
-    circ_ver_correction = gate_optimal_verification_circuit(
-        circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=False
-    )
+    circ.set_max_errors(1)
+    circ_ver_correction = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
-    circ.set_error_detection(True)
-    circ_ver_detection = gate_optimal_verification_circuit(
-        circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=False
-    )
+    circ.set_max_errors(2)
+    circ_ver_detection = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
     assert circ_ver_detection.num_qubits > circ_ver_correction.num_qubits
     assert circ_ver_detection.num_nonlocal_gates() > circ_ver_correction.num_nonlocal_gates()

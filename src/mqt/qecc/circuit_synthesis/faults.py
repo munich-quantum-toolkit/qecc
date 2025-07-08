@@ -18,6 +18,8 @@ from ldpc import mod2
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterator
+
     import numpy.typing as npt
 
     from .circuits import CNOTCircuit
@@ -252,7 +254,7 @@ class PureFaultSet:
         Returns:
             The number of faults.
         """
-        return self.faults.shape[0]
+        return int(self.faults.shape[0])
 
     def __getitem__(self, index: int) -> npt.NDArray[np.int8]:
         """Get a fault by index.
@@ -265,7 +267,7 @@ class PureFaultSet:
         """
         return self.faults[index]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[npt.NDArray[np.int8]]:
         """Return an iterator over the faults in the PureFaultSet.
 
         Returns:
@@ -282,7 +284,7 @@ class PureFaultSet:
         Returns:
             True if every fault anticommutes with at least one generator, False otherwise
         """
-        return np.all(np.any(stabs @ self.faults.T % 2, axis=1))
+        return bool(np.all(np.any(stabs @ self.faults.T % 2, axis=1)))
 
     def _get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[int]:
         """Return indices of faults that are not detectable by the given stabilizers.
@@ -295,7 +297,7 @@ class PureFaultSet:
         """
         return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=1))[0]
 
-    def get_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> bool:
+    def get_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Return faults that are not detectable by the given stabilizers.
 
         Args:
