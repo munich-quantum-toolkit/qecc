@@ -519,7 +519,7 @@ def heuristic_verification_circuit(
     sp_circ: StatePrepCircuit,
     max_covering_sets: int = 10000,
     find_coset_leaders: bool = True,
-    full_fault_tolerance: bool = True,
+    verify_x_first: bool = True,
     flag_first_layer: bool = False,
 ) -> QuantumCircuit:
     r"""Return a verified state preparation circuit.
@@ -535,20 +535,20 @@ def heuristic_verification_circuit(
     """
 
     def verification_stabs_fun(
-        sp_circ: StatePrepCircuit, zero_state: bool, additional_errors: npt.NDArray[np.int8] | None = None
+        fault_sets: list[PureFaultSet], stabs: npt.NDArray[np.int8]
     ) -> list[list[npt.NDArray[np.int8]]]:
         return heuristic_verification_stabilizers(
-            sp_circ, zero_state, max_covering_sets, find_coset_leaders, additional_errors
+            fault_sets, stabs, max_covering_sets, find_coset_leaders
         )
 
     return _verification_circuit(
-        sp_circ, verification_stabs_fun, verify_x_first=full_fault_tolerance, flag_first_layer=flag_first_layer
+        sp_circ, verification_stabs_fun, verify_x_first=verify_x_first, flag_first_layer=flag_first_layer
     )
 
 
 def heuristic_verification_stabilizers(
-    sp_circ: StatePrepCircuit,
-    x_errors: bool = True,
+    fault_sets: list[PureFaultSet],
+    stabs: npt.NDArray[np.int8],
     max_covering_sets: int = 10000,
     find_coset_leaders: bool = True,
     additional_faults: npt.NDArray[np.int8] | None = None,
@@ -563,27 +563,19 @@ def heuristic_verification_stabilizers(
         additional_faults: Faults to verify in addition to the faults propagating in the state preparation circuit.
     """
     logger.info("Finding verification stabilizers using heuristic method")
-    max_errors = sp_circ.max_errors
-    layers: list[list[npt.NDArray[np.int8]]] = [[] for _ in range(max_errors)]
-    sp_circ.compute_fault_sets()
-    fault_sets = (
-        sp_circ.combine_faults(additional_faults, x_errors)
-        if additional_faults is not None
-        else sp_circ.x_fault_sets
-        if x_errors
-        else sp_circ.z_fault_sets
-    )
-    orthogonal_checks = sp_circ.z_checks if x_errors else sp_circ.x_checks
-    for num_errors in range(1, max_errors + 1):
+    n_layers = len(fault_sets)
+    layers: list[list[npt.NDArray[np.int8]]] = [[] for _ in range(n_layers)]
+
+    for num_errors in range(0, n_layers):
         logger.info(f"Finding verification stabilizers for {num_errors} errors")
         faults = fault_sets[num_errors]
         assert faults is not None
         logger.info(f"There are {len(faults)} faults")
         if len(faults) == 0:
-            layers[num_errors - 1] = []
+            layers[num_errors] = []
             continue
 
-        layers[num_errors - 1] = _heuristic_layer(faults, orthogonal_checks, find_coset_leaders, max_covering_sets)
+        layers[num_errors] = _heuristic_layer(faults.faults, stabs, find_coset_leaders, max_covering_sets)
 
     return layers
 

@@ -248,7 +248,7 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
 
-    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_covering_sets=10000)
 
     assert len(ver_stabs_layers) == 1  # 1 layer of verification measurements
 
@@ -261,14 +261,14 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
         assert in_span(z_gens, stab)
 
     errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.T % 2 == 0, axis=1))[0]
+    non_detected = np.where(np.all(ver_stabs @ errors.faults.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
     # Check that circuit is correct
     circ_ver = heuristic_verification_circuit(circ)
     assert circ_ver.num_qubits == circ.num_qubits + 1
-    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_nonlocal_gates()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 1  # 1 for the measurement
+    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3  # 1 for the measurement
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -280,7 +280,7 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     """
     circ = color_code_d5_sp
 
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_ancillas=3, max_timeout=4)
+    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets[1:], circ.z_checks, max_ancillas=3, max_timeout=4)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
