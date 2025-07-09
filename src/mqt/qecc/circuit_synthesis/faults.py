@@ -18,7 +18,7 @@ from ldpc import mod2
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Callable
 
     import numpy.typing as npt
 
@@ -316,6 +316,16 @@ class PureFaultSet:
         """
         undetectable_indices = self._get_undetectable_faults_idx(stabs)
         self.faults = np.delete(self.faults, undetectable_indices, axis=0)
+
+    def filter_faults(self, pred: Callable[npt.NDArray[np.int8], bool]) -> None:
+        """Filter faults by removing faults for which the given predicate is False.
+
+        This method modifies the fault set in place, removing faults that do not satisfy the predicate.
+        
+        Args:
+            pred: A callable that takes a fault (1D numpy array) and returns True if the fault should be kept.
+        """
+        self.faults = np.array([fault for fault in self.faults if pred(fault)], dtype=np.int8)
 
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:

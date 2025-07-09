@@ -525,3 +525,73 @@ def test_fault_detection_and_removal(
     assert np.array_equal(fault_set.to_array(), np.array(expected_remaining_faults, dtype=np.int8)), (
         "Remaining faults after removal are incorrect."
     )
+
+
+def test_filter_faults_weight_threshold():
+    """Test filtering faults based on a weight threshold."""
+    # Create a fault set
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))  # Weight = 2
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
+    fault_set.add_fault(np.array([1, 1, 0], dtype=np.int8))  # Weight = 2
+    fault_set.add_fault(np.array([0, 0, 1], dtype=np.int8))  # Weight = 1
+
+    # Define a predicate to filter faults with weight >= 2
+    def weight_at_least_2(fault: np.ndarray) -> bool:
+        return np.sum(fault) >= 2
+
+    # Apply the filter
+    fault_set.filter_faults(weight_at_least_2)
+
+    # Expected faults after filtering
+    expected_faults = np.array([
+        [1, 0, 1],
+        [0, 1, 1],
+        [1, 1, 0],
+    ], dtype=np.int8)
+
+    # Check the result
+    assert np.array_equal(fault_set.to_array(), expected_faults), \
+        "Faults with weight < 2 were not filtered out correctly."
+
+def test_filter_faults_no_match():
+    """Test filtering when no faults satisfy the predicate."""
+    # Create a fault set
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))  # Weight = 2
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
+
+    # Define a predicate that no fault satisfies
+    def always_false(fault: np.ndarray) -> bool:
+        return False
+
+    # Apply the filter
+    fault_set.filter_faults(always_false)
+
+    # Check the result
+    assert fault_set.to_array().size == 0, \
+        "Fault set should be empty when no faults satisfy the predicate."
+
+def test_filter_faults_all_match():
+    """Test filtering when all faults satisfy the predicate."""
+    # Create a fault set
+    fault_set = PureFaultSet(num_qubits=3)
+    fault_set.add_fault(np.array([1, 0, 1], dtype=np.int8))  # Weight = 2
+    fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
+
+    # Define a predicate that all faults satisfy
+    def always_true(fault: np.ndarray) -> bool:
+        return True
+
+    # Apply the filter
+    fault_set.filter_faults(always_true)
+
+    # Expected faults after filtering
+    expected_faults = np.array([
+        [1, 0, 1],
+        [0, 1, 1],
+    ], dtype=np.int8)
+
+    # Check the result
+    assert np.array_equal(fault_set.to_array(), expected_faults), \
+        "All faults should remain when all satisfy the predicate."    
