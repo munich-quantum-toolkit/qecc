@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Estimate logical error rate for d=7 square-octagon color code zero state preparation circuit for a given physical error rate."""
 
 from __future__ import annotations

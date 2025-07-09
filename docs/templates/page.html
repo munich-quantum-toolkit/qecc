@@ -51,4 +51,36 @@
     </div>
   </div>
 </div>
-{% endblock footer %}
+<div class="bottom-of-page">
+  <div class="left-details">
+    {%- if show_copyright %}
+    <div class="copyright">
+      {%- if hasdoc('copyright') %} {% trans path=pathto('copyright'),
+      copyright=copyright|e -%}
+      <a href="{{ path }}">Copyright</a> &#169; {{ copyright }} {%- endtrans %}
+      {%- else %} {% trans copyright=copyright|e -%} Copyright &#169; {{
+      copyright }} {%- endtrans %} {%- endif %}
+    </div>
+    {%- endif %} {%- if last_updated -%}
+    <div class="last-updated">
+      {% trans last_updated=last_updated|e -%} Last updated on {{ last_updated
+      }} {%- endtrans -%}
+    </div>
+    {%- endif %}
+  </div>
+  <div class="right-details">
+    {% if theme_footer_icons or READTHEDOCS -%}
+    <div class="icons">
+      {% if theme_footer_icons -%} {% for icon_dict in theme_footer_icons -%}
+      <a
+        class="muted-link {{ icon_dict.class }}"
+        href="{{ icon_dict.url }}"
+        aria-label="{{ icon_dict.name }}"
+      >
+        {{- icon_dict.html -}}
+      </a>
+      {% endfor %} {%- endif %} {%- endif %}
+    </div>
+  </div>
+  {% endblock footer %}
+</div>

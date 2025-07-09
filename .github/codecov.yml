@@ -1,8 +1,8 @@
 ignore:
   - "test/**/*"
-  - "src/mqt/qecc/cc_decoder/plots.py"
   - "src/mqt/qecc/analog_information_decoding/utils/data_utils.py"
   - "src/mqt/qecc/analog_information_decoding/code_construction/*"
+  - "src/mqt/qecc/circuit_synthesis/simulation_det.py"
 
 coverage:
   range: 60..90

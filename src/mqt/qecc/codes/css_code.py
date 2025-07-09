@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Class for representing quantum error correction codes."""
 
 from __future__ import annotations
@@ -20,9 +27,9 @@ class CSSCode(StabilizerCode):
 
     def __init__(
         self,
-        distance: int,
         Hx: npt.NDArray[np.int8] | None = None,  # noqa: N803
         Hz: npt.NDArray[np.int8] | None = None,  # noqa: N803
+        distance: int | None = None,
         x_distance: int | None = None,
         z_distance: int | None = None,
         n: int | None = None,
@@ -63,9 +70,8 @@ class CSSCode(StabilizerCode):
         phases = np.zeros((x_padded.shape[0] + z_padded.shape[0]), dtype=np.int8)
         super().__init__(StabilizerTableau(np.vstack((x_padded, z_padded)), phases), distance)
 
-        self.distance = distance
-        self.x_distance = x_distance if x_distance is not None else distance
-        self.z_distance = z_distance if z_distance is not None else distance
+        self.x_distance = x_distance if x_distance is not None else self.distance
+        self.z_distance = z_distance if z_distance is not None else self.distance
 
         if self.x_distance < self.distance or self.z_distance < self.distance:
             msg = "The x and z distances must be greater than or equal to the distance"
@@ -162,7 +168,7 @@ class CSSCode(StabilizerCode):
     @classmethod
     def get_trivial_code(cls, n: int) -> CSSCode:
         """Return the trivial code."""
-        return CSSCode(1, None, None, n=n)
+        return CSSCode(None, None, 1, n=n)
 
     @staticmethod
     def from_code_name(code_name: str, distance: int | None = None) -> CSSCode:
@@ -218,13 +224,54 @@ class CSSCode(StabilizerCode):
             if code_name in distances:
                 x_distance, z_distance = distances[code_name]
                 distance = min(x_distance, z_distance)
-                return CSSCode(distance, hx, hz, x_distance=x_distance, z_distance=z_distance)
+                return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
 
             if distance is None:
                 msg = f"Distance is not specified for {code_name}"
                 raise InvalidCSSCodeError(msg)
         msg = f"Unknown code name: {code_name}"
         raise InvalidCSSCodeError(msg)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> CSSCode:
+        """Load a CSS code from a file.
+
+        The file should have one line per stabilizer generator as a string.
+
+        For the Steane code, this would be:
+        XIIXXXI
+        IXIIXXX
+        IIXXIXX
+        ZIIZZZI
+        IZIIZZZ
+        IIZZIZZ
+
+        Args:
+            file_path: The path to the file containing the code.
+
+        Returns:
+            CSSCode: The CSS code.
+        """
+        with Path(file_path).open(encoding="utf-8") as f:
+            lines = f.readlines()
+        stabilizers = [line.strip() for line in lines if line.strip()]
+        # read in stabilizers
+        x_stabs = []
+        z_stabs = []
+
+        for stab in stabilizers:
+            if "X" in stab:
+                x_stabs.append([1 if c == "X" else 0 for c in stab])
+            elif "Z" in stab:
+                z_stabs.append([1 if c == "Z" else 0 for c in stab])
+            else:
+                msg = f"Invalid stabilizer: {stab}"
+                raise InvalidCSSCodeError(msg)
+        # convert to numpy arrays
+        x_stabs = np.array(x_stabs, dtype=np.int8)
+        z_stabs = np.array(z_stabs, dtype=np.int8)
+        # check if the code is valid
+        return CSSCode(x_stabs, z_stabs)
 
 
 class InvalidCSSCodeError(ValueError):

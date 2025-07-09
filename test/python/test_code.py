@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test the CSSCode class."""
 
 from __future__ import annotations
@@ -464,3 +471,39 @@ def test_many_hypercube_code_level_3() -> None:
     assert code.n == 6**3
     assert code.k == 4**3
     assert code.distance == 2**3
+
+
+def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that a stabilizer code can be constructed from a file."""
+    file_content = "IXXZZ\nZIXXZ\nZZIXX\nXZZIX"
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text(file_content)
+
+    code = StabilizerCode.from_file(file_path)
+
+    assert code.n == 5
+    assert code.k == 1
+
+
+def test_css_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that a CSS code can be constructed from a file."""
+    file_content = "XIIXXXI\nIXIIXXX\nIIXXIXX\nZIIZZZI\nIZIIZZZ\nIIZZIZZ"
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.k == 1
+
+
+def test_css_code_from_file_empty_line(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that a CSS code can be constructed from a file."""
+    file_content = "XIIXXXI\nIXIIXXX\n\nIIXXIXX\nZIIZZZI\nIZIIZZZ\nIIZZIZZ"
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.k == 1

@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Evaluation script for the deterministic state preparation verification and simulation."""
 
 from __future__ import annotations
@@ -8,12 +15,12 @@ from pathlib import Path
 from time import time
 from typing import TYPE_CHECKING
 
+import mqt.qecc.ft_stateprep as ftsp
 import numpy as np
 import pandas as pd
 import qsample as qs
 from qiskit import QuantumCircuit
 
-import mqt.qecc.ft_stateprep as ftsp
 from mqt.qecc import codes
 
 if TYPE_CHECKING:

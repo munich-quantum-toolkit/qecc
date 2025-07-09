@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test the square octagon color code. Created by Peter-Jan Derks."""
 
 from __future__ import annotations
@@ -7,12 +14,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
+from mqt.qecc.cc_decoder import SquareOctagonColorCode
+
 from .test_utils import check_and_load_json
 
 if TYPE_CHECKING:
     from pytest_console_scripts import ScriptRunner
-
-from mqt.qecc.cc_decoder import SquareOctagonColorCode
 
 
 @pytest.fixture
@@ -68,6 +75,7 @@ def test_h(d3_so_code: SquareOctagonColorCode) -> None:
     )
 
 
+@pytest.mark.xdist_group(name="check_and_load_json_user")
 def test_z3_solver(
     script_runner: ScriptRunner,
     d3_so_code: SquareOctagonColorCode,

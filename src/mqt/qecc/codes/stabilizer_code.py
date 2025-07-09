@@ -1,7 +1,15 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Class for representing general stabilizer codes."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -33,21 +41,6 @@ class StabilizerCode:
             x_logicals: The logical X-operators.
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
-        # if len(generators) == 0:
-        #     if n is None:
-        #         raise ValueError("Number of qubits must be given if no stabilizer generators are given.")
-        #     if z_logicals is None or x_logicals is None:
-        #         t = StabilizerCode.get_trivial_code(n)
-        #         print(type(self))
-        #         self.n = n
-        #         self.x_logicals = t.x_logicals
-        #         self.z_logicals = t.z_logicals
-        #         self.k = t.k
-        #         self.generators = t.generators
-        #         self.symplectic = t.symplectic
-        #         self.distance = t.distance
-        #         self._check_code_correct()
-
         self.generators = self.get_generators(generators, n)
         self.symplectic = self.generators.tableau.matrix
 
@@ -188,6 +181,29 @@ class StabilizerCode:
         z_logicals = ["I" * i + "Z" + "I" * (n - i - 1) for i in range(n)]
         x_logicals = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> StabilizerCode:
+        """Load a Stabilizer code from a file.
+
+        The file should have one line per stabilizer generator as a string.
+
+        For the 5-qubit perfect code, this would be:
+        IXXZZ
+        ZIXXZ
+        ZZIXX
+        XZZIX
+
+        Args:
+            file_path: The path to the file containing the code.
+
+        Returns:
+            StabilizerCode: The stabilizer code.
+        """
+        with Path(file_path).open(encoding="utf-8") as f:
+            lines = f.readlines()
+        generators = [line.strip() for line in lines]
+        return cls(generators)
 
 
 class InvalidStabilizerCodeError(ValueError):

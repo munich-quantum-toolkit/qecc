@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 [build-system]
 requires = [
   "hatchling>=1.27.0",
@@ -58,9 +65,7 @@ dependencies = [
   "pymatching>=2.2.2",
   "bposd>=1.6",
   "qecsim>=1.0b9",
-  "qsample>=0.0.2",
-  "urllib3>=2.3.0", # Required by qsample (to be removed)
-  "fastcore>=1.8.1", # Required by qsample (to be removed)
+  "sinter>=1.14.0",
 ]
 dynamic = ["version"]
 
@@ -73,11 +78,18 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/mqt/qecc/_version.py"
 
+[project.optional-dependencies]
+qsample = [
+  "qsample>=0.0.2",
+  "urllib3>=2.3.0",
+  "fastcore>=1.8.1",
+]
+
 [project.urls]
-Homepage = "https://github.com/cda-tum/mqt-qecc"
+Homepage = "https://github.com/munich-quantum-toolkit/qecc"
 Documentation = "https://mqt.readthedocs.io/projects/qecc"
-Issues = "https://github.com/cda-tum/mqt-qecc/issues"
-Discussions = "https://github.com/cda-tum/mqt-qecc/discussions"
+Issues = "https://github.com/munich-quantum-toolkit/qecc/issues"
+Discussions = "https://github.com/munich-quantum-toolkit/qecc/discussions"
 
 [project.scripts]
 "mqt.qecc.cc-decoder" = "mqt.qecc.cc_decoder.cli:cli"
@@ -87,24 +99,31 @@ Discussions = "https://github.com/cda-tum/mqt-qecc/discussions"
 [tool.pytest.ini_options]
 minversion = "7.2"
 testpaths = ["test/python"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "--showlocals"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--showlocals",
+  "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
+  "--dist=loadgroup", # Ensure that certain tests are run on the same worker
+]
 log_cli_level = "INFO"
 xfail_strict = true
 filterwarnings = [
   "error",
-  "ignore:.*pkg_resources.*:DeprecationWarning:",
+  "ignore:pkg_resources is deprecated:UserWarning", # Due to qsample, do not remove!
+  "ignore:Deprecated call to `pkg_resources\\.declare_namespace\\('.+'\\)`\\.:DeprecationWarning", # Due to qsample, do not remove!
   "ignore:.*The retworkx package is deprecated*:DeprecationWarning:pymatching",
-  'ignore:.*qiskit.providers.provider.Provider.*:DeprecationWarning:',
   'ignore::DeprecationWarning:.*(simpleeval).*',
-  'ignore::RuntimeWarning:.*(qsample).*',
-  'ignore:.*invalid escape sequence.*::.*qsample.*',
-  'ignore:.*invalid escape sequence.*::.*latextools.*',
   # Qiskit 1.3 deprecations
   'ignore:.*``qiskit.dagcircuit.dagcircuit.DAGCircuit.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.condition`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*Conditioned gates in qasm2 will be loaded as an IfElseOp starting in Qiskit 2.0.*:FutureWarning:',
   'ignore:.*``qiskit.circuit.singleton.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.c_if.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
+  # Qiskit 2.1 starts to warn about the upcoming Python 3.9 removal in Qiskit 2.3.
+  # We will drop 3.9 support around the same time, at which point this warning filter can be removed
+  'ignore:.*Using Qiskit with Python 3.9 is deprecated as of the 2.1.0 release.*:DeprecationWarning:',
 ]
 
 [tool.coverage]
@@ -117,7 +136,9 @@ report.exclude_also = [
   'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
   '@overload'  # Overloads are only for static typing
 ]
-
+run.disable_warnings = [
+  "no-sysmon",
+]
 
 [tool.mypy]
 files = ["src/mqt", "test/python", "noxfile.py"]
@@ -136,7 +157,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "qsample.*", "pandas.*", "networkx.*", "tqdm.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "networkx.*", "tqdm.*"]
 ignore_missing_imports = true
 
 
@@ -220,6 +241,7 @@ isort.required-imports = ["from __future__ import annotations"]
 ]
 "*/cc_decoder/plots.py" = ["T201"]
 "scripts/*" = ["T201"]
+"lifted_hgp.py" = ["EXE002"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -231,6 +253,7 @@ wille = "wille"
 ser = "ser"
 aer = "aer"
 anc = "anc"
+arange = "arange"
 
 
 [tool.repo-review]
@@ -263,6 +286,8 @@ test = [
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=6.1.1",
   "pytest-mock>=3.14.0",
+  "pytest-sugar>=1.0.0",
+  "pytest-xdist>=3.7.0",
 ]
 dev = [
   {include-group = "docs"},

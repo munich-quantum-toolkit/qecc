@@ -76,3 +76,27 @@ dependencies = ["mqt.qecc>=2.0.0"]
 
 :::
 ::::
+
+## Optional Features
+
+Some features of MQT QECC rely on optional dependencies that are not installed by default.
+To enable functionality that depends on the [`qsample`](https://github.com/dpwinter/qsample) package, install the `qsample` extra:
+
+::::{tab-set}
+
+:::{tab-item} uv _(recommended)_
+
+```console
+$ uv pip install mqt.qecc[qsample]
+```
+
+:::
+
+:::{tab-item} pip
+
+```console
+(.venv) $ python -m pip install mqt.qecc[qsample]
+```
+
+:::
+::::

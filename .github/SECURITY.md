@@ -9,7 +9,7 @@ Security updates are applied only to the most recent releases.
 To report vulnerabilities, you can privately report a potential security issue
 via the GitHub security vulnerabilities feature. This can be done here:
 
-https://github.com/cda-tum/mqt-qecc/security/advisories
+https://github.com/munich-quantum-toolkit/qecc/security/advisories
 
 Please do **not** open a public issue about a potential security vulnerability.
 

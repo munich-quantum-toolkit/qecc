@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test the decoder for the hexagonal color code."""
 
 from __future__ import annotations
@@ -7,13 +14,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from mqt.qecc.cc_decoder import HexagonalColorCode, code_from_string, decoder
+
 from .test_utils import check_and_load_json
 
 if TYPE_CHECKING:
     import pytest_mock
     from pytest_console_scripts import ScriptRunner
-
-from mqt.qecc.cc_decoder import HexagonalColorCode, code_from_string, decoder
 
 
 @pytest.fixture
@@ -88,6 +95,7 @@ def test_simulate(d3_hexcode: HexagonalColorCode, p: float, nr_sims: int) -> Non
     assert res["p"] == p
 
 
+@pytest.mark.xdist_group(name="check_and_load_json_user")
 def test_z3_solver(
     script_runner: ScriptRunner,
     d3_hexcode: HexagonalColorCode,
@@ -124,6 +132,7 @@ def test_z3_solver(
     assert result["avg_total_time"] > 0.0
 
 
+@pytest.mark.xdist_group(name="check_and_load_json_user")
 def test_external_solver(
     d3_hexcode: HexagonalColorCode,
     script_runner: ScriptRunner,
@@ -175,6 +184,7 @@ def test_external_solver(
     assert result["avg_total_time"] > 0.0
 
 
+@pytest.mark.xdist_group(name="check_and_load_json_user")
 def test_tn_decoder(script_runner: ScriptRunner, distance: int, p: float, nr_sims: int, results_dir: str) -> None:
     """Test the TN decoder."""
     decoder = "tn"
@@ -206,8 +216,11 @@ def test_get_code_from_str() -> None:
     assert code_from_string(lattice_type="hexagon", distance=3) == HexagonalColorCode(distance=3)
 
 
+@pytest.mark.xdist_group(name="check_and_load_json_user")
 def test_scenario_with_logical_errors(
-    script_runner: ScriptRunner, d3_hexcode: HexagonalColorCode, results_dir: str
+    script_runner: ScriptRunner,
+    d3_hexcode: HexagonalColorCode,
+    results_dir: str,
 ) -> None:
     """Test the Z3 solver."""
     ret = script_runner.run([

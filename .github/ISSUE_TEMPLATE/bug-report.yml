@@ -8,9 +8,9 @@ body:
         **Thank you for wanting to report a bug for this project!**
 
         ⚠
-        Verify first that your issue is not [already reported on GitHub](https://github.com/cda-tum/mqt-qecc/search?q=is%3Aissue&type=issues).
+        Verify first that your issue is not [already reported on GitHub](https://github.com/munich-quantum-toolkit/qecc/search?q=is%3Aissue&type=issues).
 
-        If you have general questions, please consider [starting a discussion](https://github.com/cda-tum/mqt-qecc/discussions).
+        If you have general questions, please consider [starting a discussion](https://github.com/munich-quantum-toolkit/qecc/discussions).
   - type: textarea
     attributes:
       label: Environment information

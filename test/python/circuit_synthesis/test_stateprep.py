@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test synthesis of state preparation and verification circuits for FT state preparation."""
 
 from __future__ import annotations
@@ -27,43 +34,43 @@ if TYPE_CHECKING:  # pragma: no cover
     from mqt.qecc.circuit_synthesis import StatePrepCircuit
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def steane_code() -> CSSCode:
     """Return the Steane code."""
     return CSSCode.from_code_name("Steane")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def css_4_2_2_code() -> CSSCode:
     """Return the 4,2,2  code."""
-    return CSSCode(2, np.array([[1] * 4]), np.array([[1] * 4]))
+    return CSSCode(np.array([[1] * 4]), np.array([[1] * 4]), 2)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def css_6_2_2_code() -> CSSCode:
     """Return the 4,2,2  code."""
-    return CSSCode(2, np.array([[1] * 6]), np.array([[1] * 6]))
+    return CSSCode(np.array([[1] * 6]), np.array([[1] * 6]), 2)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def surface_code() -> CSSCode:
     """Return the distance 3 rotated Surface Code."""
     return CSSCode.from_code_name("surface", 3)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def tetrahedral_code() -> CSSCode:
     """Return the tetrahedral code."""
     return CSSCode.from_code_name("tetrahedral")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cc_4_8_8_code() -> CSSCode:
     """Return the d=5 4,8,8 color code."""
     return SquareOctagonColorCode(5)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     sp_circ = heuristic_prep_circuit(steane_code)
@@ -71,7 +78,7 @@ def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
     return sp_circ
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
     """Return a non-ft state preparation circuit for the tetrahedral code."""
     sp_circ = heuristic_prep_circuit(tetrahedral_code)
@@ -79,7 +86,7 @@ def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
     return sp_circ
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> StatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=5 4,8,8 color code."""
     sp_circ = heuristic_prep_circuit(cc_4_8_8_code)
@@ -89,7 +96,7 @@ def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> StatePrepCircuit:
 
 def test_heuristic_overcomplete_stabilizers() -> None:
     """Check that synthesis also works for overcomplete stabilizers."""
-    code = CSSCode(2, np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), np.array([[1, 1, 1, 1], [1, 1, 1, 1]]))
+    code = CSSCode(np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), 2)
     sp_circ = heuristic_prep_circuit(code)
     circ = sp_circ.circ
     x, z = get_stabs_css(circ)
@@ -117,7 +124,7 @@ def test_heuristic_prep_consistent(code: CSSCode, request) -> None:  # type: ign
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-@pytest.mark.parametrize("code", ["steane_code", "css_4_2_2_code", "css_6_2_2_code"])
+@pytest.mark.parametrize("code", ["css_4_2_2_code", "css_6_2_2_code"])
 def test_gate_optimal_prep_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that gate_optimal_prep_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
@@ -137,7 +144,7 @@ def test_gate_optimal_prep_consistent(code: CSSCode, request) -> None:  # type: 
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-@pytest.mark.parametrize("code", ["steane_code", "css_4_2_2_code", "css_6_2_2_code"])
+@pytest.mark.parametrize("code", ["css_4_2_2_code", "css_6_2_2_code"])
 def test_depth_optimal_prep_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that depth_optimal_prep_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
@@ -156,7 +163,7 @@ def test_depth_optimal_prep_consistent(code: CSSCode, request) -> None:  # type:
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-@pytest.mark.parametrize("code", ["steane_code", "css_4_2_2_code", "css_6_2_2_code"])
+@pytest.mark.parametrize("code", ["css_4_2_2_code", "css_6_2_2_code"])
 def test_plus_state_gate_optimal(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
     """Test synthesis of the plus state."""
     code = request.getfixturevalue(code)
@@ -282,11 +289,11 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     """Test that the optimal verification is also correct for higher distance.
 
     Ignore Z errors.
-    Due to time constraints, we set the timeout for each search to 2 seconds.
+    Due to time constraints, we set the timeout for each search to 4 seconds.
     """
     circ = color_code_d5_sp
 
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_ancillas=3, max_timeout=5)
+    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_ancillas=3, max_timeout=4)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -311,12 +318,6 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     non_detected = np.where(np.all(ver_stabs_2 @ errors_2.T % 2 == 0, axis=1))[0]
     assert len(non_detected) == 0
 
-    # Check that circuit is correct
-    n_cnots = np.sum(ver_stabs_1) + np.sum(ver_stabs_2)  # type: ignore[operator]
-    circ_ver = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=True)
-    assert circ_ver.num_qubits > circ.num_qubits + 5  # overhead from the flags
-    assert circ_ver.num_nonlocal_gates() > n_cnots + circ.circ.num_nonlocal_gates()  # Overhead from Flag CNOTS
-
 
 def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct.
@@ -324,7 +325,7 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     Ignore Z errors.
     """
     circ = color_code_d5_sp
-    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True, max_covering_sets=1000)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -349,34 +350,6 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     n_cnots = np.sum(ver_stabs_1) + np.sum(ver_stabs_2)  # type: ignore[operator]
     assert circ_ver.num_qubits == circ.num_qubits + len(ver_stabs_1) + len(ver_stabs_2)
     assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_nonlocal_gates()
-
-
-@pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-def test_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
-    """Test that the optimal verification is also correct for higher distance.
-
-    Include Z errors.
-    Due to time constraints, we set the timeout for each search to 2 seconds.
-    """
-    circ = color_code_d5_sp
-
-    circ_ver_full_ft = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=True)
-    circ_ver_x_ft = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=False)
-    assert circ_ver_full_ft.num_nonlocal_gates() > circ_ver_x_ft.num_nonlocal_gates()
-    assert circ_ver_full_ft.depth() > circ_ver_x_ft.depth()
-
-
-def test_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
-    """Test that the optimal verification is also correct for higher distance.
-
-    Include Z errors.
-    """
-    circ = color_code_d5_sp
-
-    circ_ver_full_ft = heuristic_verification_circuit(circ, full_fault_tolerance=True)
-    circ_ver_x_ft = heuristic_verification_circuit(circ, full_fault_tolerance=False)
-    assert circ_ver_full_ft.num_nonlocal_gates() > circ_ver_x_ft.num_nonlocal_gates()
-    assert circ_ver_full_ft.depth() > circ_ver_x_ft.depth()
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")

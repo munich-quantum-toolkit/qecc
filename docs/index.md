@@ -26,6 +26,7 @@ self
 Installation
 LightsOutDecoder
 StatePrep
+CatStates
 Encoders
 AnalogInfo
 Publications
@@ -46,4 +47,26 @@ Support
 :caption: API Reference
 
 api/mqt/qecc/index
+```
+
+```{only} html
+## Contributors and Supporters
+The _[Munich Quantum Toolkit (MQT)](https://mqt.readthedocs.io)_ is developed by the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the [Technical University of Munich](https://www.tum.de/)
+and supported by the [Munich Quantum Software Company (MQSC)](https://munichquantum.software).
+Among others, it is part of the [Munich Quantum Software Stack (MQSS)](https://www.munich-quantum-valley.de/research/research-areas/mqss) ecosystem,
+which is being developed as part of the [Munich Quantum Valley (MQV)](https://www.munich-quantum-valley.de) initiative.
+<div style="margin-top: 0.5em">
+<div class="only-light" align="center">
+  <img src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-logo-banner-light.svg" width="90%" alt="MQT Banner">
+</div>
+<div class="only-dark" align="center">
+  <img src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-logo-banner-dark.svg" width="90%" alt="MQT Banner">
+</div>
+</div>
+Thank you to all the contributors who have helped make MQT QECC a reality!
+<p align="center">
+<a href="https://github.com/cda-tum/qecc/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=cda-tum/qecc" />
+</a>
+</p>
 ```

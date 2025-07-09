@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Simulation of deterministic state preparation circuits using qsample (https://github.com/dpwinter/qsample)."""
 
 from __future__ import annotations
@@ -6,7 +13,16 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
-import qsample as qs
+
+try:
+    import qsample as qs
+except ImportError:
+    msg = (
+        "NoisyDFTStatePrepSimulator requires the optional dependency 'qsample'. "
+        "Install with: pip install mqt.qecc[qsample]"
+    )
+    raise ImportError(msg) from ImportError
+
 
 from ..codes import InvalidCSSCodeError
 from .simulation import LutDecoder

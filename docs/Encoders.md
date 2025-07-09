@@ -87,7 +87,7 @@ import numpy as np
 d = 2
 x_stabs = np.ones((1, 4), dtype=np.int8)
 z_stabs = x_stabs
-code = CSSCode(d, x_stabs, z_stabs)
+code = CSSCode(x_stabs, z_stabs, d)
 
 print("Stabilizers:\n")
 print(code.stabs_as_pauli_strings())
@@ -161,7 +161,7 @@ Hz = np.vstack(
     )
 )
 
-concatenated = CSSCode(4, Hx, Hz)
+concatenated = CSSCode(Hx, Hz, 4)
 
 print("Stabilizers:\n")
 print(concatenated.stabs_as_pauli_strings())

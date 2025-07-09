@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test synthesis of encoding circuit synthesis."""
 
 from __future__ import annotations
@@ -55,14 +62,14 @@ def shor() -> CSSCode:
 @pytest.fixture
 def css_4_2_2_code() -> CSSCode:
     """Return the 4,2,2  code."""
-    return CSSCode(2, np.array([[1] * 4]), np.array([[1] * 4]))
+    return CSSCode(np.array([[1] * 4]), np.array([[1] * 4]), 2)
 
 
 @pytest.fixture
 def css_6_2_2_code() -> CSSCode:
     """Return the 4,2,2  code."""
     return CSSCode(
-        2, np.array([[1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 1, 1]]), np.array([[1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 1, 1]])
+        np.array([[1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 1, 1]]), np.array([[1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 1, 1]]), 2
     )
 
 

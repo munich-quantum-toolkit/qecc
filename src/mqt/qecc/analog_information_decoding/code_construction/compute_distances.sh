@@ -1,4 +1,11 @@
 #!/bin/bash
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 path=$1
 
 gap -q << EOF > $path/info.txt

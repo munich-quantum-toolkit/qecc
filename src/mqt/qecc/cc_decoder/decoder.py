@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """LightsOut MaxSAT-based decoder for the hexagonal color code."""
 
 from __future__ import annotations
@@ -38,6 +45,9 @@ class LightsOut:
         Adds all constraint to the optimizer that are independent of the value of the light.
         """
         helper_vars = self.helper_vars[light]
+        if len(indices) == 1:
+            # nothing to preconstruct for a single switch
+            return
 
         assert self.switch_vars is not None
         for i in range(1, len(indices) - 1):
@@ -54,10 +64,13 @@ class LightsOut:
         """
         helper_vars = self.helper_vars[light]
         assert self.switch_vars is not None
-        constraint = Xor(self.switch_vars[indices[0]], helper_vars[0]) == val
+        if len(indices) == 1:
+            constraint = self.switch_vars[indices[0]] == val
+        else:
+            constraint = Xor(self.switch_vars[indices[0]], helper_vars[0]) == val
         self.optimizer.add(simplify(constraint))
 
-    def preconstruct_z3_instance(self) -> None:
+    def preconstruct_z3_instance(self, weights: npt.NDArray[float] = None) -> None:
         """Preconstruct the z3 instance for the lights-out problem.
 
         Creates all necessary variables, adds the known parts of the parity constraints.
@@ -71,8 +84,12 @@ class LightsOut:
                 self.helper_vars[light] = [Bool(f"helper_{light}_{i}") for i in range(len(switches) - 1)]
             self.preconstruct_parity_constraint(light, switches)
 
-        for switch in self.switch_vars:
-            self.optimizer.add_soft(Not(switch))
+        if weights is not None and len(weights) > 0:
+            for switch, weight in zip(self.switch_vars, weights):
+                self.optimizer.add_soft(Not(switch), weight)
+        else:
+            for switch in self.switch_vars:
+                self.optimizer.add_soft(Not(switch))
 
     def validate_model(self, model: ModelRef, lights: list[bool]) -> bool:
         """Validate the model by checking if pressing the switches turns off all lights."""
@@ -90,30 +107,35 @@ class LightsOut:
         assert self.switch_vars is not None
         return sum(1 for var in self.switch_vars if model[var])
 
-    def solve(self, lights: list[bool], solver_path: str = "z3") -> tuple[list[int], float, float]:
+    def solve(self, lights: list[bool], solver_path: str = "z3", timeout: int = 1800) -> tuple[list[int], bool, float]:
         """Solve the lights-out problem for a given pattern.
 
         Assumes that the z3 instance has already been pre-constructed.
         """
         # push a new context to the optimizer
         self.optimizer.push()
-
+        self.optimizer.set("timeout", timeout)
         # add the problem specific constraints
-        start = timer()
         for light, val in enumerate(lights):
             self.complete_parity_constraint(light, self.lights_to_switches[light], val)
-        constr_time = timer() - start
         switches: list[int] = []
         if solver_path == "z3":
             # solve the problem
             start = timer()
             result = self.optimizer.check()
             solve_time = timer() - start
-            assert str(result) == "sat", "No solution found"
+            if str(result) != "sat":
+                self.optimizer.pop()
+                res_string = [0] * len(self.switch_vars) if self.switch_vars is not None else []
+                return res_string, False, solve_time
 
             # validate the model
             model = self.optimizer.model()
-            assert self.validate_model(model, lights), "Model is invalid"
+            if self.validate_model(model, lights) is False:
+                self.optimizer.pop()
+                res_string = [0] * len(self.switch_vars) if self.switch_vars is not None else []
+                return res_string, False, solve_time
+
             assert self.switch_vars is not None
             switches = [1 if model[var] else 0 for var in self.switch_vars]
         else:
@@ -121,7 +143,7 @@ class LightsOut:
             wcnf = str(self.optimizer)
             # Note: This merely calls the solver. It does not interpret the output.
             #       This is just to measure the time it takes to solve the problem.
-            with Path("./solver-out_" + solver_path.split("/")[-1] + ".txt").open(
+            with Path("./solver-out_" + solver_path.rsplit("/", maxsplit=1)[-1] + ".txt").open(
                 "a+", encoding=locale.getpreferredencoding(False)
             ) as out:
                 start = timer()
@@ -131,7 +153,7 @@ class LightsOut:
         # pop the context from the optimizer
         self.optimizer.pop()
 
-        return switches, constr_time, solve_time
+        return switches, True, solve_time
 
 
 def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver_path: str = "z3") -> dict[str, Any]:
@@ -200,7 +222,7 @@ def run(
     """Run the decoding simulation for a given distance and error rate."""
     code = code_from_string(lattice_type, distance)
     data = simulate_error_rate(code, error_rate, nr_sims, solver)
-    strg = solver.split("/")[-1]
+    strg = solver.rsplit("/", maxsplit=1)[-1]
     filename = f"./code={code.lattice_type},distance={code.distance},p={round(error_rate, 4)},solver={strg}.json"
     path = Path(results_dir)
     path.mkdir(parents=True, exist_ok=True)

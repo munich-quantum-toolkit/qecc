@@ -8,7 +8,7 @@ Ready to contribute to the project? This guide will get you started.
 
    ::::{tab-set}
    :::{tab-item} External Contribution
-   If you do not have write access to the [cda-tum/mqt-qecc](https://github.com/cda-tum/mqt-qecc) repository,
+   If you do not have write access to the [munich-quantum-toolkit/qecc](https://github.com/munich-quantum-toolkit/qecc) repository,
    fork the repository on GitHub (see <https://docs.github.com/en/get-started/quickstart/fork-a-repo>)
    and clone your fork locally.
 
@@ -18,11 +18,11 @@ Ready to contribute to the project? This guide will get you started.
 
    :::
    :::{tab-item} Internal Contribution
-   If you do have write access to the [cda-tum/mqt-qecc](https://github.com/cda-tum/mqt-qecc) repository,
+   If you do have write access to the [munich-quantum-toolkit/qecc](https://github.com/munich-quantum-toolkit/qecc) repository,
    clone the repository locally.
 
    ```console
-   $ git clone git@github.com/cda-tum/mqt-qecc.git
+   $ git clone git@github.com/munich-quantum-toolkit/qecc.git
    ```
 
    :::

@@ -228,9 +228,16 @@ det_verify_x.hook_corrections
 
 ### Simulating deterministic state preparation circuits with Qsample
 
-The resulting `DeterministicVerification` object can be used to directly simulate the deterministic state preparation circuit using the [Qsample](https://github.com/dpwinter/qsample) under the hood. The `NoisyDFTStatePrepSimulator` class automatically constructs a valid Qsample protocol containing the correct circuits and conditional paths to simulate the deterministic state preparation. The passed Error Model and simulation parameters are directly passed to Qsample and explained in the [Qsample documentation](https://dpwinter.github.io/qsample/). Similarly also the Qsample callbacks can be used to e.g. directly plot the logical error rates, showing the expected quadratic scaling.
+```{warning}
+Due to [`qsample`](https://github.com/dpwinter/qsample) not being actively maintained, this feature is optional.
+To use this feature, please locally install qsample or [install QECC with the qsample extra](Installation.md#optional-features).
+```
 
-```{code-cell} ipython3
+The resulting `DeterministicVerification` object can be used to directly simulate the deterministic state preparation circuit using the [Qsample](https://github.com/dpwinter/qsample) under the hood. The `NoisyDFTStatePrepSimulator` class automatically constructs a valid Qsample protocol containing the correct circuits and conditional paths to simulate the deterministic state preparation. The passed Error Model and simulation parameters are directly passed to Qsample and explained in the [Qsample documentation](https://dpwinter.github.io/qsample/). Similarly also the Qsample callbacks can be used to e.g. directly plot the logical error rates.
+
+```{code-block} python
+:linenos:
+
 from qsample import callbacks, noise
 
 from mqt.qecc.circuit_synthesis import NoisyDFTStatePrepSimulator
@@ -251,4 +258,4 @@ sampling_stats = qsample_sim.dss_logical_error_rates(
 
 ## Circuits and Evaluations
 
-The circuits and benchmark scripts used for our non-deterministic work {cite:labelpar}`peham2024automated`, can be found [here](https://github.com/cda-tum/mqt-qecc/tree/main/scripts/ft_stateprep/eval) and for the deterministic work {cite:labelpar}`schmid2024deterministic` [here](https://github.com/cda-tum/mqt-qecc/tree/main/scripts/ft_stateprep/eval_det).
+The circuits and benchmark scripts used for our non-deterministic work {cite:labelpar}`peham2024automated`, can be found [here](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/ft_stateprep/eval) and for the deterministic work {cite:labelpar}`schmid2024deterministic` [here](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/ft_stateprep/eval_det).
