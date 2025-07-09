@@ -414,7 +414,7 @@ def all_gate_optimal_verification_stabilizers(
                 measurements = cnot_opt
             else:
                 break
-        logger.info(f"Minimal number of CNOTs for {layer} errors is: {num_cnots}")
+        logger.info(f"Minimal number of CNOTs for {layer+1} errors is: {num_cnots}")
 
         # If the number of CNOTs is minimal, we can reduce the number of ancillas
         logger.info(f"Finding minimal number of ancillas for {layer + 1} errors")

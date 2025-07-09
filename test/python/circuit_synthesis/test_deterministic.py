@@ -109,6 +109,16 @@ def assert_statistics(
     num_cnots_hook_corrections: int = 0,
 ) -> None:
     """Assert that the statistics of a deterministic verification are correct."""
+    print(f"Verification statistics:\n")
+    print(f"  Ancillas verification: {verify.num_ancillas_verification()}")
+    print(f"  CNOTs verification: {verify.num_cnots_verification()}")
+    print(f"  Ancillas correction: {verify.num_ancillas_correction()}")
+    print(f"  CNOTs correction: {verify.num_cnots_correction()}")
+    print(f"  Ancillas hooks: {verify.num_ancillas_hooks()}")
+    print(f"  CNOTs hooks: {verify.num_cnots_hooks()}")
+    print(f"  Ancillas hook corrections: {verify.num_ancillas_hook_corrections()}")
+    print(f"  CNOTs hook corrections: {verify.num_cnots_hook_corrections()}")
+    
     assert verify.num_ancillas_verification() == num_ancillas_verification
     assert verify.num_cnots_verification() == num_cnots_verification
     assert verify.num_ancillas_correction() <= num_ancillas_correction
@@ -159,11 +169,11 @@ def test_11_1_3_det_verification_correctness(
 
     # Check X-verification
     assert_statistics(verify_x, 2, 8, 4, 14, 0, 0)
-    assert_stabs(verify_x, css_11_1_3_code_sp.code, z_stabs=True)
+    assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
     # Check Z-verification
     assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 3)
-    assert_stabs(verify_z, css_11_1_3_code_sp.code, z_stabs=False)
+    assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
 
 
 @pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
@@ -188,7 +198,7 @@ def test_steane_det_verification(
     steane_code_sp_plus: StatePrepCircuit,
 ) -> None:
     """Test correctness of deterministic verification circuit for the Steane code."""
-    verify_z_opt, verify_x_opt, verify_z_global, verify_x_global = verified_steane_data
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
         assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
@@ -205,11 +215,12 @@ def test_steane_det_simulation(
     steane_code_sp_plus: StatePrepCircuit,
 ) -> None:
     """Test simulated logical error rate for deterministic Steane state preparation."""
-    verify_z_opt, verify_x_opt, verify_z_global, verify_x_global = verified_steane_data
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
+    code = CSSCode.from_code_name("Steane")
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
         simulator = NoisyDFTStatePrepSimulator(
-            steane_code_sp_plus.circ, (verify_z, verify_x), steane_code_sp_plus.code, err_model, False
+            steane_code_sp_plus.circ.to_qiskit_circuit(), (verify_z, verify_x), code, err_model, False
         )
         simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
         assert_scaling(simulation_results)

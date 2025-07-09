@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 from qiskit import QuantumCircuit
+from qiskit.transpiler.passes import RemoveResetInZeroState
 
 from ..codes import CSSCode
 
@@ -96,13 +97,16 @@ class CNOTCircuit:
 
         return stim_circuit
 
-    def to_qiskit_circuit(self) -> QuantumCircuit:
+    def to_qiskit_circuit(self, remove_resets=True) -> QuantumCircuit:
         """Convert the CNOT circuit to a qiskit.QuantumCircuit.
 
         Returns:
             A qiskit.QuantumCircuit representation of the CNOT circuit.
         """
-        return QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
+        circ = QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
+        if remove_resets:
+            return RemoveResetInZeroState()(circ)
+        return circ
 
     @classmethod
     def from_qiskit_circuit(

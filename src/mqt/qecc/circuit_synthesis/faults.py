@@ -37,7 +37,7 @@ class PureFaultSet:
         self.num_qubits = num_qubits
         self.faults = np.zeros((0, num_qubits), dtype=np.int8)  # Pure faults as binary vectors
 
-    def add_fault(self, fault: np.ndarray) -> None:
+    def add_fault(self, fault: npt.NDArray[np.int8]) -> None:
         """Add a fault to the fault set.
 
         Args:
@@ -49,12 +49,20 @@ class PureFaultSet:
             raise ValueError(msg)
         self.faults = np.vstack([self.faults, fault])
 
-    def combine(self, other: PureFaultSet) -> PureFaultSet:
+    def add_faults(self, faults:npt.NDArray[np.int8]) -> None:
+        """Add multiple faults to the fault set.
+
+        Args:
+            fault: A 2D numpy array representing a collection of faults.
+        """
+        self.faults = np.vstack((self.faults, faults))
+        
+    def combine(self, other: PureFaultSet, inplace=False) -> PureFaultSet:
         """Combine this fault set with another fault set.
 
         Args:
             other: Another PureFaultSet to combine with.
-
+            inplace: If True, modifies self.
         Returns:
             A new PureFaultSet representing the combined faults.
         """
@@ -62,6 +70,10 @@ class PureFaultSet:
             msg = "Fault sets must have the same number of qubits to combine."
             raise ValueError(msg)
         combined_faults = np.vstack([self.faults, other.faults])
+
+        if inplace:
+            self.faults = combined_faults
+            return self
         return PureFaultSet.from_fault_array(combined_faults)
 
     def to_array(self) -> npt.NDArray[np.int8]:
@@ -327,6 +339,9 @@ class PureFaultSet:
             inplace: If True, modifies the current fault set. If False, returns a new PureFaultSet with filtered faults.
         """
         filtered = np.array([fault for fault in self.faults if pred(fault)], dtype=np.int8)
+        if filtered.size == 0:
+            filtered = np.zeros((0, self.num_qubits), dtype=np.int8)
+            
         if inplace:
             self.faults = filtered
             return self
