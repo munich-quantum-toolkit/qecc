@@ -66,6 +66,7 @@ dependencies = [
   "bposd>=1.6",
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
+  "pandas",
 ]
 dynamic = ["version"]
 
