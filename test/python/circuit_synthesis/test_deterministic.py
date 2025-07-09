@@ -192,7 +192,7 @@ def test_steane_det_verification(
 
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
         assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
-        assert_stabs(verify_z, steane_code_sp_plus.code, z_stabs=False)
+        assert_stabs(verify_z, steane_code_sp_plus.circ.get_code(), z_stabs=False)
         assert verify_x.num_ancillas_total() == 0
         assert verify_x.num_cnots_total() == 0
 
