@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Misc functions for plotting and Benchmarking."""
 
 from __future__ import annotations
@@ -19,7 +26,9 @@ if TYPE_CHECKING:
 random.seed(45)
 
 
-def generate_max_parallel_circuit(q: int, min_depth: int) -> list[tuple[int, int] | int]: # actually only tuples but mypy needs the int elements too
+def generate_max_parallel_circuit(
+    q: int, min_depth: int
+) -> list[tuple[int, int] | int]:  # actually only tuples but mypy needs the int elements too
     """Circuits with maximally parallelizable layers, i.e. per layer, ALL qubits are used in disjoint gates.
 
     CNOTS only.
@@ -40,7 +49,9 @@ def generate_max_parallel_circuit(q: int, min_depth: int) -> list[tuple[int, int
     return circuit
 
 
-def generate_min_parallel_circuit(q: int, min_depth: int, layer_size: int) -> list[tuple[int, int] | int]: #same as above
+def generate_min_parallel_circuit(
+    q: int, min_depth: int, layer_size: int
+) -> list[tuple[int, int] | int]:  # same as above
     """Circuits which have nearly no parallelism at all.
 
     CNOTS only.

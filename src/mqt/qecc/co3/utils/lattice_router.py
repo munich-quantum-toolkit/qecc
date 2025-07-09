@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Routing for Hexagonal Lattices."""
 
 from __future__ import annotations
@@ -191,13 +198,13 @@ class HexagonalLattice:
         while in_lat:
             temp_hex = [(el[0] + 3, el[1] + 1) for el in start_hex]
             missing_nodes = [node for node in temp_hex if node not in self.G]
-            if len(missing_nodes):
+            if missing_nodes:
                 in_lat = False
                 break
             # check whether lower hexagon also available
             temp_hex_lower = [(el[0] - 1, el[1] - 5) for el in temp_hex]
             missing_nodes = [node for node in temp_hex_lower if node not in self.G]
-            if len(missing_nodes):
+            if missing_nodes:
                 start_hex_lst.append(temp_hex)
                 start_hex = temp_hex
             else:
@@ -213,7 +220,7 @@ class HexagonalLattice:
                 temp_hex = [(el[0] + 1, el[1] + 5) for el in start_hex_t]
                 # check whether nodes in lattice
                 missing_nodes = [node for node in temp_hex if node not in self.G]
-                if len(missing_nodes):
+                if missing_nodes:
                     in_lat = False
                     break
                 final_hex_lst.append(temp_hex)

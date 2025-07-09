@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Creates results for circuits with 42 qubits. Run this from the src/mqt/qecc/co3/plots directory."""
 
 from __future__ import annotations
