@@ -49,20 +49,21 @@ class PureFaultSet:
             raise ValueError(msg)
         self.faults = np.vstack([self.faults, fault])
 
-    def add_faults(self, faults:npt.NDArray[np.int8]) -> None:
+    def add_faults(self, faults: npt.NDArray[np.int8]) -> None:
         """Add multiple faults to the fault set.
 
         Args:
-            fault: A 2D numpy array representing a collection of faults.
+            faults: A 2D numpy array representing a collection of faults.
         """
         self.faults = np.vstack((self.faults, faults))
-        
-    def combine(self, other: PureFaultSet, inplace=False) -> PureFaultSet:
+
+    def combine(self, other: PureFaultSet, inplace: bool = False) -> PureFaultSet:
         """Combine this fault set with another fault set.
 
         Args:
             other: Another PureFaultSet to combine with.
             inplace: If True, modifies self.
+
         Returns:
             A new PureFaultSet representing the combined faults.
         """
@@ -329,7 +330,7 @@ class PureFaultSet:
         undetectable_indices = self._get_undetectable_faults_idx(stabs)
         self.faults = np.delete(self.faults, undetectable_indices, axis=0)
 
-    def filter_faults(self, pred: Callable[npt.NDArray[np.int8], bool], inplace=True) -> PureFaultSet:
+    def filter_faults(self, pred: Callable[[npt.NDArray[np.int8]], bool], inplace: bool = True) -> PureFaultSet:
         """Filter faults by removing faults for which the given predicate is False.
 
         This method modifies the fault set in place, removing faults that do not satisfy the predicate.
@@ -341,7 +342,7 @@ class PureFaultSet:
         filtered = np.array([fault for fault in self.faults if pred(fault)], dtype=np.int8)
         if filtered.size == 0:
             filtered = np.zeros((0, self.num_qubits), dtype=np.int8)
-            
+
         if inplace:
             self.faults = filtered
             return self

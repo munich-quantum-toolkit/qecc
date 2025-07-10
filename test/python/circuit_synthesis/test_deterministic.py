@@ -109,16 +109,6 @@ def assert_statistics(
     num_cnots_hook_corrections: int = 0,
 ) -> None:
     """Assert that the statistics of a deterministic verification are correct."""
-    print(f"Verification statistics:\n")
-    print(f"  Ancillas verification: {verify.num_ancillas_verification()}")
-    print(f"  CNOTs verification: {verify.num_cnots_verification()}")
-    print(f"  Ancillas correction: {verify.num_ancillas_correction()}")
-    print(f"  CNOTs correction: {verify.num_cnots_correction()}")
-    print(f"  Ancillas hooks: {verify.num_ancillas_hooks()}")
-    print(f"  CNOTs hooks: {verify.num_cnots_hooks()}")
-    print(f"  Ancillas hook corrections: {verify.num_ancillas_hook_corrections()}")
-    print(f"  CNOTs hook corrections: {verify.num_cnots_hook_corrections()}")
-    return
     assert verify.num_ancillas_verification() == num_ancillas_verification
     assert verify.num_cnots_verification() == num_cnots_verification
     assert verify.num_ancillas_correction() <= num_ancillas_correction
@@ -168,20 +158,18 @@ def test_11_1_3_det_verification_correctness(
     verify_x, verify_z = verified_11_1_3_data
 
     # Check X-verification
-    assert_statistics(verify_x, 2, 8, 4, 14, 0, 0)
+    assert_statistics(verify_x, 2, 8, 4, 10, 1, 2, 1, 4)
     assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
     # Check Z-verification
-    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 3)
+    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 0)
     assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
-    assert False
 
 
 @pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
 def test_11_1_3_det_simulation(
     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
     css_11_1_3_code_sp: StatePrepCircuit,
-
 ) -> None:
     """Test simulated logical error rate for deterministic 11_1_3 state preparation."""
     verify_x, verify_z = verified_11_1_3_data

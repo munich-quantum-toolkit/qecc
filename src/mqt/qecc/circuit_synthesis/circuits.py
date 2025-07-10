@@ -97,8 +97,11 @@ class CNOTCircuit:
 
         return stim_circuit
 
-    def to_qiskit_circuit(self, remove_resets=True) -> QuantumCircuit:
+    def to_qiskit_circuit(self, remove_resets: bool = True) -> QuantumCircuit:
         """Convert the CNOT circuit to a qiskit.QuantumCircuit.
+
+        Args:
+            remove_resets: If set to `True`, removes resets in the |0> state from the circuit.
 
         Returns:
             A qiskit.QuantumCircuit representation of the CNOT circuit.
@@ -210,13 +213,15 @@ class CNOTCircuit:
         return cnot_circuit
 
     @classmethod
-    def from_cnot_list(cls, cnots:Iterable[tuple[int, int]], initialize_z: Iterable[int], initialize_x: Iterable[int]) -> CNOTCircuit:
+    def from_cnot_list(
+        cls, cnots: Iterable[tuple[int, int]], initialize_z: Iterable[int], initialize_x: Iterable[int]
+    ) -> CNOTCircuit:
         """Construct CNOT circuit from list of CNOTs.
 
         Args:
             cnots: Control, target pairs defining CNOT interactions.
-            initiaize_z: Qubits that should be initialized in the Z-basis
-            initiaize_x: Qubits that should be initialized in the X-basis
+            initialize_z: Qubits that should be initialized in the Z-basis
+            initialize_x: Qubits that should be initialized in the X-basis
 
         Returns:
             CNOT circuit
@@ -224,9 +229,9 @@ class CNOTCircuit:
         cnot_circuit = cls()
         cnot_circuit.add_cnots(cnots)
         for q in initialize_z:
-            cnot_circuit.initialize_qubit(q, 'Z')
+            cnot_circuit.initialize_qubit(q, "Z")
         for q in initialize_x:
-            cnot_circuit.initialize_qubit(q, 'X')
+            cnot_circuit.initialize_qubit(q, "X")
         return cnot_circuit
 
     def is_state(self) -> bool:
@@ -304,6 +309,3 @@ class CNOTCircuit:
             path_lengths[target] = new_path_length
             path_lengths[control] = new_path_length
         return int(np.max(path_lengths))
-        
-        
-    
