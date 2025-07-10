@@ -408,18 +408,6 @@ def test_not_all_faults_detected():
     assert not fault_set.all_faults_detected(stabs), "Not all faults should be detected by the stabilizers."
 
 
-def test_get_undetectable_faults_idx():
-    """Test retrieving indices of undetectable faults."""
-    stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
-    fault_set = PureFaultSet(num_qubits=3)
-    fault_set.add_fault(np.array([1, 0, 0], dtype=np.int8))  # Detectable
-    fault_set.add_fault(np.array([1, 1, 1], dtype=np.int8))  # Undetectable
-
-    # Get indices of undetectable faults
-    undetectable_indices = fault_set._get_undetectable_faults_idx(stabs)
-    assert np.array_equal(undetectable_indices, [1]), "The first fault should be undetectable."
-
-
 def test_get_undetectable_faults():
     """Test retrieving undetectable faults."""
     stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer matrix
@@ -446,12 +434,6 @@ def test_remove_undetectable_faults():
     # Expected faults after removal
     expected_faults = np.array([[1, 0, 0]], dtype=np.int8)
     assert np.array_equal(fault_set.to_array(), expected_faults), "Undetectable faults were not removed correctly."
-
-
-@pytest.fixture
-def stabilizer_matrix():
-    """Fixture for a sample stabilizer matrix."""
-    return np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
 
 
 @pytest.mark.parametrize(
@@ -509,7 +491,7 @@ def test_fault_detection_and_removal(
     )
 
     # Test _get_undetectable_faults_idx
-    undetectable_indices = fault_set._get_undetectable_faults_idx(stabilizer_matrix)
+    undetectable_indices = fault_set.get_undetectable_faults_idx(stabilizer_matrix)
     assert np.array_equal(undetectable_indices, expected_undetectable_indices), (
         "Undetectable fault indices are incorrect."
     )
@@ -544,15 +526,20 @@ def test_filter_faults_weight_threshold():
     fault_set.filter_faults(weight_at_least_2)
 
     # Expected faults after filtering
-    expected_faults = np.array([
-        [1, 0, 1],
-        [0, 1, 1],
-        [1, 1, 0],
-    ], dtype=np.int8)
+    expected_faults = np.array(
+        [
+            [1, 0, 1],
+            [0, 1, 1],
+            [1, 1, 0],
+        ],
+        dtype=np.int8,
+    )
 
     # Check the result
-    assert np.array_equal(fault_set.to_array(), expected_faults), \
+    assert np.array_equal(fault_set.to_array(), expected_faults), (
         "Faults with weight < 2 were not filtered out correctly."
+    )
+
 
 def test_filter_faults_no_match():
     """Test filtering when no faults satisfy the predicate."""
@@ -562,15 +549,15 @@ def test_filter_faults_no_match():
     fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
 
     # Define a predicate that no fault satisfies
-    def always_false(fault: np.ndarray) -> bool:
+    def always_false(fault: np.ndarray) -> bool:  # noqa: ARG001
         return False
 
     # Apply the filter
     fault_set.filter_faults(always_false)
 
     # Check the result
-    assert fault_set.to_array().size == 0, \
-        "Fault set should be empty when no faults satisfy the predicate."
+    assert fault_set.to_array().size == 0, "Fault set should be empty when no faults satisfy the predicate."
+
 
 def test_filter_faults_all_match():
     """Test filtering when all faults satisfy the predicate."""
@@ -580,18 +567,22 @@ def test_filter_faults_all_match():
     fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
 
     # Define a predicate that all faults satisfy
-    def always_true(fault: np.ndarray) -> bool:
+    def always_true(fault: np.ndarray) -> bool:  # noqa: ARG001
         return True
 
     # Apply the filter
     fault_set.filter_faults(always_true)
 
     # Expected faults after filtering
-    expected_faults = np.array([
-        [1, 0, 1],
-        [0, 1, 1],
-    ], dtype=np.int8)
+    expected_faults = np.array(
+        [
+            [1, 0, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.int8,
+    )
 
     # Check the result
-    assert np.array_equal(fault_set.to_array(), expected_faults), \
-        "All faults should remain when all satisfy the predicate."    
+    assert np.array_equal(fault_set.to_array(), expected_faults), (
+        "All faults should remain when all satisfy the predicate."
+    )

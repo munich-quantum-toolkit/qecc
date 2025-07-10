@@ -414,7 +414,7 @@ def all_gate_optimal_verification_stabilizers(
                 measurements = cnot_opt
             else:
                 break
-        logger.info(f"Minimal number of CNOTs for {layer+1} errors is: {num_cnots}")
+        logger.info(f"Minimal number of CNOTs for {layer + 1} errors is: {num_cnots}")
 
         # If the number of CNOTs is minimal, we can reduce the number of ancillas
         logger.info(f"Finding minimal number of ancillas for {layer + 1} errors")
@@ -866,7 +866,12 @@ def naive_verification_circuit(sp_circ: StatePrepCircuit, flag_first_layer: bool
 
     z_measurements = code.Hz
     x_measurements = code.Hx
-    return _measure_ft_stabs(sp_circ, z_measurements * sp_circ.max_z_errors, x_measurements * sp_circ.max_x_errors, flag_first_layer=flag_first_layer)
+    return _measure_ft_stabs(
+        sp_circ,
+        z_measurements * sp_circ.max_z_errors,
+        x_measurements * sp_circ.max_x_errors,
+        flag_first_layer=flag_first_layer,
+    )
 
 
 def get_hook_errors(measurements: list[npt.NDArray[np.int8]]) -> PureFaultSet:

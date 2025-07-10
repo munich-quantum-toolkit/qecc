@@ -299,7 +299,7 @@ class PureFaultSet:
         """
         return bool(np.all(np.any(stabs @ self.faults.T % 2, axis=1)))
 
-    def _get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[int]:
+    def get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[int]:
         """Return indices of faults that are not detectable by the given stabilizers.
 
         Args:
@@ -319,7 +319,7 @@ class PureFaultSet:
         Returns:
             A 2D numpy array where each row is a fault that commutes with all generators.
         """
-        return self.faults[self._get_undetectable_faults_idx(stabs)]
+        return self.faults[self.get_undetectable_faults_idx(stabs)]
 
     def remove_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> None:
         """Remove all faults that are not detectable by the given stabilizers.
@@ -327,7 +327,7 @@ class PureFaultSet:
         Args:
             stabs: A 2D numpy array where each row is a stabilizer generator.
         """
-        undetectable_indices = self._get_undetectable_faults_idx(stabs)
+        undetectable_indices = self.get_undetectable_faults_idx(stabs)
         self.faults = np.delete(self.faults, undetectable_indices, axis=0)
 
     def filter_faults(self, pred: Callable[[npt.NDArray[np.int8]], bool], inplace: bool = True) -> PureFaultSet:

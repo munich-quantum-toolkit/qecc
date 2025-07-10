@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+from functools import partial
 from itertools import product
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,7 @@ import numpy.typing as npt
 import z3
 from ldpc import mod2
 
-from .faults import coset_leader
+from .faults import PureFaultSet, coset_leader
 from .state_prep import (
     StatePrepCircuit,
     all_gate_optimal_verification_stabilizers,
@@ -34,11 +35,11 @@ from .synthesis_utils import (
 )
 
 logger = logging.getLogger(__name__)
-from .faults import PureFaultSet
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from ..codes import CSSCode
 
 Recovery = tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]]
 Recoveries = dict[int, Recovery]
@@ -51,22 +52,22 @@ class DeterministicVerification:
 
     def __init__(
         self,
-        verification_stabs: Verification,
+        nd_verification_stabs: Verification,
         det_correction: DeterministicCorrection,
         hook_corrections: list[DeterministicCorrection] | None = None,
     ) -> None:
         """Initialize a deterministic verification object.
 
         Args:
-            and_verification_stabs: The non-deterministic verification stabilizers to be measured.
+            nd_verification_stabs: The non-deterministic verification stabilizers to be measured.
             det_correction: The deterministic correction for the non-deterministic verification stabilizers.
             hook_corrections: the hook corrections for the non-deterministic verification stabilizers.
         """
-        self.stabs = verification_stabs
+        self.stabs = nd_verification_stabs
         self.det_correction = det_correction
-        self.hook_corrections: list[DeterministicCorrection] = [{}] * len(verification_stabs)
+        self.hook_corrections: list[DeterministicCorrection] = [{}] * len(nd_verification_stabs)
         if hook_corrections:
-            assert len(hook_corrections) == len(verification_stabs)
+            assert len(hook_corrections) == len(nd_verification_stabs)
             self.hook_corrections = hook_corrections
 
     def copy(self) -> DeterministicVerification:
@@ -187,7 +188,9 @@ class DeterministicVerification:
 class DeterministicVerificationHelper:
     """Class to compute the deterministic verification stabilizers and corrections for a given state preparation circuit."""
 
-    def __init__(self, state_prep: StatePrepCircuit, use_optimal_verification: bool = True, verify_x_first:bool=True) -> None:
+    def __init__(
+        self, state_prep: StatePrepCircuit, use_optimal_verification: bool = True, verify_x_first: bool = True
+    ) -> None:
         """Initialize the deterministic verification helper with a given state preparation circuit.
 
         Args:
@@ -205,7 +208,6 @@ class DeterministicVerificationHelper:
         self._layers: list[list[DeterministicVerification]] = [[], []]
         # Variable to store the deterministic verification stabilizers and corrections for the hook propagation solution
         self._hook_propagation_solutions: list[tuple[DeterministicVerification, DeterministicVerification]] = []
-
 
         self.state_prep.compute_fault_sets()
         if self.verify_x_first:
@@ -231,7 +233,7 @@ class DeterministicVerificationHelper:
             compute_all_solutions: If True, all equivalent verification stabilizers are computed and stored.
         """
         for layer in range(2):
-            logger.info(f"Computing non-deterministic verification stabilizers for layer {layer+1}.")
+            logger.info(f"Computing non-deterministic verification stabilizers for layer {layer + 1}.")
             stabs_all = all_gate_optimal_verification_stabilizers(
                 [self.fault_sets[layer]],
                 self.checks[layer],
@@ -254,7 +256,7 @@ class DeterministicVerificationHelper:
             self._layers[layer_idx][verify_idx].det_correction = deterministic_correction(
                 self.fault_sets[layer_idx],
                 self.checks[layer_idx],
-                self.checks[1-layer_idx],
+                self.checks[1 - layer_idx],
                 verify.stabs,
                 min_timeout=min_timeout,
                 max_timeout=max_timeout,
@@ -276,9 +278,7 @@ class DeterministicVerificationHelper:
         n = stabs.shape[1]
         for error in hook_errors:
             single_qubit_deviation = (error + np.eye(n, dtype=np.int8)) % 2
-            stabs_plus_single_qubit = np.concatenate(
-                [stabs] + [single_qubit_deviation], axis=0
-            )
+            stabs_plus_single_qubit = np.concatenate([stabs, single_qubit_deviation], axis=0)
             if not any(mod2.rank(stabs_plus_single_qubit[:, :n]) == rank for _ in range(n)):
                 return False
         return True
@@ -301,16 +301,18 @@ class DeterministicVerificationHelper:
 
                 for stab_idx, stab in enumerate(verify.stabs):
                     hook_errors = get_hook_errors([stab])
-                    if self._trivial_hook_errors(hook_errors, self.checks[1-layer_idx]):
+                    if self._trivial_hook_errors(hook_errors, self.checks[1 - layer_idx]):
                         continue
 
                     # hook errors are non-trivial
                     # add case of error on hook ancilla
-                    hook_errors = PureFaultSet.from_fault_array(np.vstack((hook_errors, np.zeros(self.num_qubits, dtype=np.int8))))
+                    hook_errors = PureFaultSet.from_fault_array(
+                        np.vstack((hook_errors, np.zeros(self.num_qubits, dtype=np.int8)))
+                    )
                     self._layers[layer_idx][verify_idx].hook_corrections[stab_idx] = {
                         1: deterministic_correction_single_outcome(
                             hook_errors,
-                            self.checks[1-layer_idx],
+                            self.checks[1 - layer_idx],
                             self.checks[layer_idx],
                             min_timeout=min_timeout,
                             max_timeout=max_timeout,
@@ -429,8 +431,7 @@ class DeterministicVerificationHelper:
         for verify in self._layers[0]:
             logger.info(f"Computing hook propagation solutions for verification {verify} / {len(self._layers[0])}.")
             stabs_flagged_all = [
-                not self._trivial_hook_errors(get_hook_errors([stab]), self.checks[0])
-                for stab in verify.stabs
+                not self._trivial_hook_errors(get_hook_errors([stab]), self.checks[0]) for stab in verify.stabs
             ]
 
             stabs_flagged_all_indices = [idx for idx, flag in enumerate(stabs_flagged_all) if flag]
@@ -465,9 +466,7 @@ class DeterministicVerificationHelper:
                         return_all_solutions=compute_all_solutions,
                     )[0]
                 else:
-                    stabs_2_list = heuristic_verification_stabilizers(
-                        fault_set, self.checks[1]
-                    )[0]
+                    stabs_2_list = heuristic_verification_stabilizers(fault_set, self.checks[1])[0]
                     stabs_2_list = [stabs_2_list]
                 verify_2_list = [DeterministicVerification(stabs_2, {}) for stabs_2 in stabs_2_list]
                 # check if better than normal verification
@@ -544,7 +543,6 @@ class DeterministicVerificationHelper:
         # Trivial case: no verification stabilizers
         return DeterministicVerification([], {}), DeterministicVerification([], {})
 
-
     def get_global_solution(
         self,
         min_timeout: int = 1,
@@ -583,7 +581,7 @@ class DeterministicVerificationHelper:
         # Compute hook propagation solutions
         self._compute_hook_propagation_solutions(
             min_timeout=min_timeout, max_timeout=max_timeout, max_ancillas=max_ancillas, compute_all_solutions=False
-            )
+        )
 
         # if hook propagation is worse, compute the hook corrections and deterministic corrections
         if len(self._hook_propagation_solutions) == 0:
@@ -644,13 +642,13 @@ def deterministic_correction(
     stabilizers for each non-deterministic verification outcome separately.
 
     Args:
-        sp_circ: The state preparation circuit to compute the deterministic verification for.
-        and_d3_verification_stabilizers: The non-deterministic verification stabilizers to be measured.
+        fault_set: The set of errors to consider for the deterministic verification.
+        verification_gens: The stabilizer generators used for verification.
+        correction_gens: The stabilizer generators the faults can be multiplied by.
+        nd_d3_verification_stabilizers: The non-deterministic verification stabilizers to be measured.
         min_timeout: The minimum time in seconds to run the verification stabilizers.
         max_timeout: The maximum time in seconds to run the verification stabilizers.
         max_ancillas: The maximum number of ancillas to use in the verification stabilizers.
-        zero_state: If True, the X errors are considered, otherwise the Z errors are considered.
-        additional_faults: Additional faults to consider in the fault set (e.g. hook errors).
     """
     num_nd_stabs = len(nd_d3_verification_stabilizers)
     num_qubits = fault_set.num_qubits
@@ -667,23 +665,18 @@ def deterministic_correction(
         )
 
         # only consider errors that triggered the verification pattern
-        def triggers_pattern(fault: npt.NDArray[np.int8]) -> bool:
-            return np.array_equal(
-                verify_outcome, [np.sum(m * fault) % 2 for m in nd_d3_verification_stabilizers]
-                )
+        def triggers_pattern(fault: npt.NDArray[np.int8], verify_outcome: npt.NDArray[np.int8]) -> bool:
+            return np.array_equal(verify_outcome, nd_d3_verification_stabilizers @ fault % 2)
 
-        errors_filtered = fault_set.filter_faults(triggers_pattern, inplace=False)
-        logger.info(
-            f"First Filtered errors for verification outcome {verify_outcome_int}: {len(errors_filtered)} errors."
+        errors_filtered = fault_set.filter_faults(
+            partial(triggers_pattern, verify_outcome=verify_outcome), inplace=False
         )
         # append single-qubit errors that could have triggered the verification pattern
         identity_matrix = np.eye(num_qubits, dtype=np.int8)
         for qubit in range(num_qubits):
             single_qubit_error = identity_matrix[qubit]
             # compute error pattern of single-qubit error on qubit i
-            error_pattern = [
-                np.sum(m * single_qubit_error) % 2 for m in nd_d3_verification_stabilizers
-            ]
+            error_pattern = [np.sum(m * single_qubit_error) % 2 for m in nd_d3_verification_stabilizers]
 
             for i in range(num_nd_stabs):
                 if np.array_equal(verify_outcome, error_pattern):
@@ -693,9 +686,6 @@ def deterministic_correction(
                     error_pattern[i] = 0
             errors_filtered.remove_duplicates()
 
-        logger.info(
-            f"Filtered errors for verification outcome {verify_outcome_int}: {len(errors_filtered)} errors."
-        )
         # add the no-error case for the error being on one of the verification ancillas
         if np.sum(verify_outcome) == 1:
             errors_filtered.add_fault(np.zeros(num_qubits, dtype=np.int8))
@@ -732,7 +722,8 @@ def deterministic_correction_single_outcome(
 
     Args:
         fault_set: The set of errors to consider for the deterministic verification.
-        stabs: The stabilizer generators used for verification.
+        verification_gens: The stabilizer generators used for verification.
+        correction_gens: The stabilizer generators the faults can be multiplied by.
         min_timeout: The minimum time in seconds to run the verification stabilizers.
         max_timeout: The maximum time in seconds to run the verification stabilizers.
         max_ancillas: The maximum number of ancillas to use in the verification stabilizers.
@@ -740,7 +731,7 @@ def deterministic_correction_single_outcome(
     num_anc = 1
     num_qubits = fault_set.num_qubits
     if max_ancillas is None:
-        max_ancillas = verification_gens.shape[0]+ correction_gens.shape[0]
+        max_ancillas = verification_gens.shape[0] + correction_gens.shape[0]
 
     def _func(num_anc: int) -> Recovery | None:
         return correction_stabilizers(fault_set, verification_gens, correction_gens, num_anc, num_anc * num_qubits)
@@ -790,7 +781,6 @@ def correction_stabilizers(
     correction_gens: npt.NDArray[np.int8],
     num_anc: int,
     num_cnot: int,
-    x_errors: bool = True,
 ) -> Recovery | None:
     """Return deterministic verification stabilizers with corresponding corrections using z3."""
     n_gens = measurement_gens.shape[0]
