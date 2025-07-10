@@ -673,6 +673,9 @@ def deterministic_correction(
                 )
 
         errors_filtered = fault_set.filter_faults(triggers_pattern, inplace=False)
+        logger.info(
+            f"First Filtered errors for verification outcome {verify_outcome_int}: {len(errors_filtered)} errors."
+        )
         # append single-qubit errors that could have triggered the verification pattern
         identity_matrix = np.eye(num_qubits, dtype=np.int8)
         for qubit in range(num_qubits):
