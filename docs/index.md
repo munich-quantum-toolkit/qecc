@@ -30,6 +30,8 @@ CatStates
 Encoders
 AnalogInfo
 Publications
+CHANGELOG
+UPGRADING
 ```
 
 ```{toctree}
