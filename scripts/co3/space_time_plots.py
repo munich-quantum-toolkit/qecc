@@ -15,8 +15,6 @@ from pathlib import Path
 import evaluation as ev
 import layouts as layout
 
-import mqt.qecc.co3 as co
-
 path = "./results/space_vs_time_q24"
 # --------- HEX --------------
 

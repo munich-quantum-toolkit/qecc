@@ -15,8 +15,6 @@ from pathlib import Path
 import evaluation as ev
 import layouts as layout
 
-import mqt.qecc.co3 as co
-
 path = "./results_minimal/f_vs_time_q42_ratio08_small_row_FSC"
 
 # ROW

@@ -15,8 +15,6 @@ from pathlib import Path
 import evaluation as ev
 import layouts as layout
 
-import mqt.qecc.co3 as co
-
 path = "./results/f_vs_time_q24_ratio08_small_row_250321_2_8_f_t_temp"  # add you desired path here
 
 # ROW
