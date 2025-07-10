@@ -658,12 +658,6 @@ def deterministic_correction(
         max_ancillas = verification_gens.shape[0] + correction_gens.shape[0]
 
     logger.info("Fault set has %s faults.", len(fault_set))
-    # get the fault set
-    # TODO: Calling context has to handle fault set extension
-    # if additional_faults is not None:
-    #     fault_set = sp_circ.combine_faults(additional_faults=additional_faults, x_errors=zero_state)
-    # else:
-    #     fault_set = sp_circ.compute_fault_set(1, x_errors=zero_state)
 
     det_verify = {}
     for verify_outcome_int in range(1, 2**num_nd_stabs):
@@ -696,6 +690,9 @@ def deterministic_correction(
                     error_pattern[i] = 0
             errors_filtered.remove_duplicates()
 
+        logger.info(
+            f"Filtered errors for verification outcome {verify_outcome_int}: {len(errors_filtered)} errors."
+        )
         # add the no-error case for the error being on one of the verification ancillas
         if np.sum(verify_outcome) == 1:
             errors_filtered.add_fault(np.zeros(num_qubits, dtype=np.int8))
