@@ -298,7 +298,7 @@ class DeterministicVerificationHelper:
                 if not verify.stabs:
                     self._layers[layer_idx][verify_idx].hook_corrections = [{}] * len(verify.stabs)
                     continue
-                
+
                 for stab_idx, stab in enumerate(verify.stabs):
                     hook_errors = get_hook_errors([stab])
                     if self._trivial_hook_errors(hook_errors, self.checks[1-layer_idx]):
@@ -375,8 +375,8 @@ class DeterministicVerificationHelper:
                     verify_2_list[verify_2_idx].hook_corrections[stab_idx] = {
                         1: deterministic_correction_single_outcome(
                             hook_errors_2,
-                            self.checks[0],
                             self.checks[1],
+                            self.checks[0],
                             min_timeout=min_timeout,
                             max_timeout=max_timeout,
                             max_ancillas=max_ancillas,
@@ -543,7 +543,7 @@ class DeterministicVerificationHelper:
 
         # Trivial case: no verification stabilizers
         return DeterministicVerification([], {}), DeterministicVerification([], {})
-        
+
 
     def get_global_solution(
         self,
@@ -562,13 +562,13 @@ class DeterministicVerificationHelper:
         if not self._layers[0] and not self._layers[1]:
             # Trivial case: no verification stabilizers
             return DeterministicVerification([], {}), DeterministicVerification([], {})
-        
+
         if not self._layers[0] and self._layers[1]:
             self._compute_det_corrections(
                 min_timeout=min_timeout, max_timeout=max_timeout, max_ancillas=max_ancillas, layer_idx=1
             )
             return DeterministicVerification([], {}), self._layers[1][0]
-        
+
         if self._layers[0] and not self._layers[1]:
             self._compute_det_corrections(
                 min_timeout=min_timeout, max_timeout=max_timeout, max_ancillas=max_ancillas, layer_idx=0
@@ -606,10 +606,10 @@ class DeterministicVerificationHelper:
                         best_stab_indices[layer_idx] = idx_verify
             if len(self._layers[1]) == 0:
                 return self._layers[0][best_stab_indices[0]], DeterministicVerification([], {})
-            
+
             if len(self._layers[0]) == 0:
                 return DeterministicVerification([], {}), self._layers[1][best_stab_indices[1]]
-            
+
             return self._layers[0][best_stab_indices[0]], self._layers[1][best_stab_indices[1]]
 
         # else return the hook propagation solution
@@ -657,6 +657,7 @@ def deterministic_correction(
     if max_ancillas is None:
         max_ancillas = verification_gens.shape[0] + correction_gens.shape[0]
 
+    logger.info("Fault set has %s faults.", len(fault_set))
     # get the fault set
     # TODO: Calling context has to handle fault set extension
     # if additional_faults is not None:
@@ -676,6 +677,7 @@ def deterministic_correction(
             return np.array_equal(
                 verify_outcome, [np.sum(m * fault) % 2 for m in nd_d3_verification_stabilizers]
                 )
+
         errors_filtered = fault_set.filter_faults(triggers_pattern, inplace=False)
         # append single-qubit errors that could have triggered the verification pattern
         identity_matrix = np.eye(num_qubits, dtype=np.int8)
