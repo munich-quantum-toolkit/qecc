@@ -31,7 +31,7 @@ from mqt.qecc.codes import SquareOctagonColorCode
 from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
-    from mqt.qecc.circuit_synthesis import StatePrepCircuit
+    from mqt.qecc.circuit_synthesis import FaultyStatePrepCircuit
 
 
 @pytest.fixture(scope="session")
@@ -71,7 +71,7 @@ def cc_4_8_8_code() -> CSSCode:
 
 
 @pytest.fixture(scope="session")
-def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
+def steane_code_sp(steane_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     sp_circ = heuristic_prep_circuit(steane_code)
     sp_circ.compute_fault_sets()
@@ -79,7 +79,7 @@ def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
 
 
 @pytest.fixture(scope="session")
-def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
+def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the tetrahedral code."""
     sp_circ = heuristic_prep_circuit(tetrahedral_code)
     sp_circ.compute_fault_sets()
@@ -87,7 +87,7 @@ def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
 
 
 @pytest.fixture(scope="session")
-def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> StatePrepCircuit:
+def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=5 4,8,8 color code."""
     sp_circ = heuristic_prep_circuit(cc_4_8_8_code)
     sp_circ.compute_fault_sets()
@@ -216,7 +216,7 @@ def test_plus_state_heuristic(code: CSSCode, request) -> None:  # type: ignore[n
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
+def test_optimal_steane_verification_circuit(steane_code_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
     ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_timeout=5)
@@ -241,7 +241,7 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
     assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
-def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
+def test_heuristic_steane_verification_circuit(steane_code_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
 
@@ -267,7 +267,7 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
+def test_not_full_ft_opt_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification is also correct for higher distance.
 
     Ignore Z errors.
@@ -298,7 +298,7 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     assert circ.x_fault_sets[1].all_faults_detected(ver_stabs_2)
 
 
-def test_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
+def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct.
 
     Ignore Z errors.

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -41,7 +42,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..codes.css_code import CSSCode
 
 
-class StatePrepCircuit:
+class FaultyStatePrepCircuit:
     """Represents a state preparation circuit for a CSS code."""
 
     def __init__(self, circ: CNOTCircuit, max_errors: int | tuple[int, int]) -> None:
@@ -63,6 +64,14 @@ class StatePrepCircuit:
             self.max_z_errors = max_errors
         else:
             self.max_x_errors, self.max_z_errors = max_errors
+
+        if self.max_x_errors == 0 and self.max_z_errors == 0:
+            warnings.warn(
+                "Initializing FaultyStatePrepCircuit with max_errors=0. "
+                "This might be a mistake. Use set_max_errors to manually set the maximum number of X and Z errors that can occur in the circuit.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         self.x_checks = code.Hx
         self.z_checks = code.Hz
@@ -132,11 +141,6 @@ class StatePrepCircuit:
         else:
             self.max_x_errors, self.max_z_errors = max_errors
 
-        # self.x_fault_sets =
-        # self.z_fault_sets =
-        # self.x_fault_sets_unreduced = [None for i in range(self.max_x_errors + 1)]
-        # self.z_fault_sets_unreduced = [None for i in range(self.max_z_errors + 1)]
-
     def combine_faults(
         self, additional_faults: PureFaultSet, x_errors: bool = True, reduce: bool = False
     ) -> list[PureFaultSet]:
@@ -195,7 +199,9 @@ def _build_state_prep_circuit_from_back(
     return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
-def heuristic_prep_circuit(code: CSSCode, optimize_depth: bool = True, zero_state: bool = True) -> StatePrepCircuit:
+def heuristic_prep_circuit(
+    code: CSSCode, optimize_depth: bool = True, zero_state: bool = True
+) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
     Args:
@@ -213,7 +219,7 @@ def heuristic_prep_circuit(code: CSSCode, optimize_depth: bool = True, zero_stat
     checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
 
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, max_errors=code.distance // 2)
+    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
 
 
 def depth_optimal_prep_circuit(
@@ -223,7 +229,7 @@ def depth_optimal_prep_circuit(
     max_depth: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> StatePrepCircuit | None:
+) -> FaultyStatePrepCircuit | None:
     """Synthesize a state preparation circuit for a CSS code that minimizes the circuit depth.
 
     Args:
@@ -250,7 +256,7 @@ def depth_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, code.distance // 2)
+    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
 
 
 def gate_optimal_prep_circuit(
@@ -260,7 +266,7 @@ def gate_optimal_prep_circuit(
     max_gates: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> StatePrepCircuit | None:
+) -> FaultyStatePrepCircuit | None:
     """Synthesize a state preparation circuit for a CSS code that minimizes the number of gates.
 
     Args:
@@ -287,7 +293,7 @@ def gate_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return StatePrepCircuit(circ, code.distance // 2)
+    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
 
 
 def gate_optimal_verification_stabilizers(
@@ -447,7 +453,7 @@ def all_gate_optimal_verification_stabilizers(
 
 
 def _verification_circuit(
-    sp_circ: StatePrepCircuit,
+    sp_circ: FaultyStatePrepCircuit,
     verification_stabs_fun: Callable[[list[PureFaultSet], npt.NDArray[np.int8]], list[list[npt.NDArray[np.int8]]]],
     only_first_layer: bool = True,
     verify_x_first: bool = True,
@@ -493,7 +499,7 @@ def _verification_circuit(
 
 
 def gate_optimal_verification_circuit(
-    sp_circ: StatePrepCircuit,
+    sp_circ: FaultyStatePrepCircuit,
     min_timeout: int = 1,
     max_timeout: int = 3600,
     max_ancillas: int | None = None,
@@ -535,7 +541,7 @@ def gate_optimal_verification_circuit(
 
 
 def heuristic_verification_circuit(
-    sp_circ: StatePrepCircuit,
+    sp_circ: FaultyStatePrepCircuit,
     max_covering_sets: int = 10000,
     find_coset_leaders: bool = True,
     only_first_layer: bool = False,
@@ -746,7 +752,7 @@ def _measure_ft_z(qc: QuantumCircuit, z_measurements: list[npt.NDArray[np.int8]]
 
 
 def _measure_ft_stabs(
-    sp_circ: StatePrepCircuit,
+    sp_circ: FaultyStatePrepCircuit,
     x_measurements: list[npt.NDArray[np.int8]],
     z_measurements: list[npt.NDArray[np.int8]],
     verify_x_first: bool = True,
@@ -860,7 +866,7 @@ def all_verification_stabilizers(
     return None
 
 
-def naive_verification_circuit(sp_circ: StatePrepCircuit, flag_first_layer: bool = True) -> QuantumCircuit:
+def naive_verification_circuit(sp_circ: FaultyStatePrepCircuit, flag_first_layer: bool = True) -> QuantumCircuit:
     """Naive verification circuit for a state preparation circuit."""
     code = sp_circ.circ.get_code()
 

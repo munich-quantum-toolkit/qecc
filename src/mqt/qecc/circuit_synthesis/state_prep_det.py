@@ -21,7 +21,7 @@ from ldpc import mod2
 
 from .faults import PureFaultSet, coset_leader
 from .state_prep import (
-    StatePrepCircuit,
+    FaultyStatePrepCircuit,
     all_gate_optimal_verification_stabilizers,
     get_hook_errors,
     heuristic_verification_stabilizers,
@@ -189,7 +189,7 @@ class DeterministicVerificationHelper:
     """Class to compute the deterministic verification stabilizers and corrections for a given state preparation circuit."""
 
     def __init__(
-        self, state_prep: StatePrepCircuit, use_optimal_verification: bool = True, verify_x_first: bool = True
+        self, state_prep: FaultyStatePrepCircuit, use_optimal_verification: bool = True, verify_x_first: bool = True
     ) -> None:
         """Initialize the deterministic verification helper with a given state preparation circuit.
 

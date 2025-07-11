@@ -34,7 +34,7 @@ from mqt.qecc.circuit_synthesis import (
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from mqt.qecc.circuit_synthesis import DeterministicVerification, StatePrepCircuit
+    from mqt.qecc.circuit_synthesis import DeterministicVerification, FaultyStatePrepCircuit
 
 # Simulation parameters
 
@@ -47,7 +47,7 @@ if HAS_QSAMPLE:
 
 
 @pytest.fixture(scope="module")
-def steane_code_sp_plus() -> StatePrepCircuit:
+def steane_code_sp_plus() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     steane_code = CSSCode.from_code_name("Steane")
     sp_circ = heuristic_prep_circuit(steane_code, zero_state=False)
@@ -57,7 +57,7 @@ def steane_code_sp_plus() -> StatePrepCircuit:
 
 @pytest.fixture(scope="module")
 def verified_steane_data(
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> tuple[DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification]:
     """Prepare the solutions once, but make no assertions here."""
     verify_helper = DeterministicVerificationHelper(steane_code_sp_plus)
@@ -67,7 +67,7 @@ def verified_steane_data(
 
 
 @pytest.fixture(scope="module")
-def css_11_1_3_code_sp() -> StatePrepCircuit:
+def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the 11_1_3 code."""
     check_matrix = np.array([
         [1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0],
@@ -84,7 +84,7 @@ def css_11_1_3_code_sp() -> StatePrepCircuit:
 
 @pytest.fixture(scope="module")
 def verified_11_1_3_data(
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> tuple[DeterministicVerification, DeterministicVerification]:
     """Run deterministic verification once, return X/Z verification circuits."""
     verify_helper = DeterministicVerificationHelper(css_11_1_3_code_sp)
@@ -152,7 +152,7 @@ def assert_scaling(simulation_results: list[npt.NDArray[np.float64]]) -> None:
 
 def test_11_1_3_det_verification_correctness(
     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> None:
     """Test correctness of deterministic verification circuit for 11_1_3 code."""
     verify_x, verify_z = verified_11_1_3_data
@@ -169,7 +169,7 @@ def test_11_1_3_det_verification_correctness(
 @pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
 def test_11_1_3_det_simulation(
     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> None:
     """Test simulated logical error rate for deterministic 11_1_3 state preparation."""
     verify_x, verify_z = verified_11_1_3_data
@@ -192,7 +192,7 @@ def test_steane_det_verification(
     verified_steane_data: tuple[
         DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
     ],
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> None:
     """Test correctness of deterministic verification circuit for the Steane code."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
@@ -209,7 +209,7 @@ def test_steane_det_simulation(
     verified_steane_data: tuple[
         DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
     ],
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> None:
     """Test simulated logical error rate for deterministic Steane state preparation."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
