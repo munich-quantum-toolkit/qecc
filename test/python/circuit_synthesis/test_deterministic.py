@@ -69,8 +69,8 @@ def verified_steane_data(
 @pytest.fixture(scope="module")
 def surface_code_sp_zero() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=3 rotated surface code."""
-    steane_code = CSSCode.from_code_name("surface", 3)
-    sp_circ = heuristic_prep_circuit(steane_code, zero_state=True)
+    surface_code = CSSCode.from_code_name("surface", 3)
+    sp_circ = heuristic_prep_circuit(surface_code, zero_state=True)
     sp_circ.compute_fault_sets()
     return sp_circ
 
@@ -83,7 +83,7 @@ def verified_surface_data(
     verify_helper = DeterministicVerificationHelper(surface_code_sp_zero)
     verify_x_opt, verify_z_opt = verify_helper.get_solution()
     verify_x_global, verify_z_global = verify_helper.get_global_solution()
-    return verify_z_opt, verify_x_opt, verify_z_global, verify_x_global
+    return verify_x_opt, verify_z_opt, verify_x_global, verify_z_global
 
 
 @pytest.fixture(scope="module")
@@ -253,7 +253,26 @@ def test_surface_det_verification(
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
-        assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
-        assert_stabs(verify_z, surface_code_sp_zero.circ.get_code(), z_stabs=False)
-        assert verify_x.num_ancillas_total() == 0
-        assert verify_x.num_cnots_total() == 0
+        assert_statistics(verify_x, 1, 3, 1, 3)
+        assert_stabs(verify_x, surface_code_sp_zero.circ.get_code(), z_stabs=True)
+        assert verify_z.num_ancillas_total() == 0
+        assert verify_z.num_cnots_total() == 0
+
+
+@pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
+def test_surface_det_simulation(
+    verified_surface_data: tuple[
+        DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
+    ],
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> None:
+    """Test simulated logical error rate for deterministic Steane state preparation."""
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
+
+    code = CSSCode.from_code_name("surface", 3)
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+        simulator = NoisyDFTStatePrepSimulator(
+            surface_code_sp_zero.circ.to_qiskit_circuit(), (verify_x, verify_z), code, err_model, True
+        )
+        simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
+        assert_scaling(simulation_results)

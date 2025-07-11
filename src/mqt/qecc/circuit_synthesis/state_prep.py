@@ -360,11 +360,11 @@ def all_gate_optimal_verification_stabilizers(
 
     # Find the optimal circuit for every number of errors in the preparation circuit
     for layer in range(n_layers):
-        logger.info(f"Finding verification stabilizers for {layer} errors")
+        logger.info(f"Finding verification stabilizers for {layer + 1} errors")
         faults = fault_sets[layer]
 
         if len(faults) == 0:
-            logger.info(f"No non-trivial faults for {layer} errors")
+            logger.info(f"No non-trivial faults for {layer + 1} errors")
             layers[layer] = []
             continue
         # Start with maximal number of ancillas

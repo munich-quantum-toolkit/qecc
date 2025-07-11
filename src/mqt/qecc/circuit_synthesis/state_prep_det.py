@@ -301,7 +301,7 @@ class DeterministicVerificationHelper:
 
                 for stab_idx, stab in enumerate(verify.stabs):
                     hook_errors = get_hook_errors([stab])
-                    if self._trivial_hook_errors(hook_errors, self.checks[1 - layer_idx]):
+                    if self._trivial_hook_errors(hook_errors, self.checks[layer_idx]):
                         continue
 
                     # hook errors are non-trivial
@@ -370,7 +370,7 @@ class DeterministicVerificationHelper:
             )
             for stab_idx, stab in enumerate(verify_2.stabs):
                 hook_errors_2 = get_hook_errors([stab])
-                if self._trivial_hook_errors(hook_errors_2, self.checks[0]):
+                if self._trivial_hook_errors(hook_errors_2, self.checks[1]):
                     verify_2_list[verify_2_idx].hook_corrections[stab_idx] = {}
                 else:
                     hook_errors_2.add_faults(np.zeros(self.num_qubits, dtype=np.int8))
@@ -451,7 +451,7 @@ class DeterministicVerificationHelper:
                     if not flag:
                         hook_errors.combine(get_hook_errors([verify.stabs[idx]]), inplace=True)
 
-                if self._trivial_hook_errors(hook_errors, self.checks[0]):
+                if self._trivial_hook_errors(hook_errors, self.checks[1]):
                     continue
                 # hook errors require different verification in second layer
                 # compute new verification
