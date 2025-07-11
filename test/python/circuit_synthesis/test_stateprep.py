@@ -238,9 +238,7 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
 
     assert circ_ver.num_qubits == circ.num_qubits + 1
     assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
-    assert (
-        circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3
-    )  # 1 for the measurement, 1 for the Hadamard, 1 for initializations
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
 def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
@@ -265,7 +263,7 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
     circ_ver = heuristic_verification_circuit(circ)
     assert circ_ver.num_qubits == circ.num_qubits + 1
     assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 3  # 1 for the measurement
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
