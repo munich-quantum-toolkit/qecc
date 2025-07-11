@@ -148,6 +148,7 @@ class HillClimbing:
         else:
             msg = "unknown layout type"
             raise ValueError(msg)
+        assert data_qubit_locs is not None
         self.data_qubit_locs = data_qubit_locs
         assert metric in {"crossing", "routing", "distance"}
         self.metric = metric

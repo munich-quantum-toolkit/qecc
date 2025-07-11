@@ -539,8 +539,11 @@ class ShortestFirstRouter(HexagonalLattice):
 
         if self.vdp_layers is not None:  # for mypy
             num_paths = len(self.vdp_layers[layer].keys())
-        colormap = plt.cm.get_cmap("rainbow", num_paths)
-        colors = [mcolors.to_hex(colormap(i)) for i in range(num_paths)]
+            colormap = plt.cm.get_cmap("rainbow", num_paths)
+            colors = [mcolors.to_hex(colormap(i)) for i in range(num_paths)]
+        else:
+            msg = "vdp_layers must be present, otherwise plotting makes no sense."
+            raise RuntimeError(msg)
 
         plt.figure(figsize=size)
         nx.draw(self.G, pos, with_labels=True, node_color="gray", edge_color="lightblue", font_size=8)
@@ -908,7 +911,7 @@ class ShortestFirstRouterTGates(HexagonalLattice):
             # add case for flag problem to avoid infinite loop
             # if only t gates in terminal_pairs_current and empty paths_temp_lst, because then we are stuck because of reset time of factories
             all_t = []
-            for _el in terminal_pairs_current:
+            for _ in terminal_pairs_current:
                 if isinstance(t_p[0], int) and isinstance(t_p[1], int):
                     all_t.append(True)
                 else:
