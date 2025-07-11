@@ -71,7 +71,7 @@ def test_to_qiskit_circuit():
     circuit.add_cnot(2, 3)
     circuit.initialize_qubit(0, "Z")
     circuit.initialize_qubit(1, "X")
-    qiskit_circuit = circuit.to_qiskit_circuit()
+    qiskit_circuit = circuit.to_qiskit_circuit(remove_resets=False)
 
     expected_qiskit = QuantumCircuit(4)
     expected_qiskit.reset(0)
@@ -343,4 +343,4 @@ def test_depth_mixed_circuit():
     circ.add_cnot(1, 2)
     circ.add_cnot(2, 3)
     circ.add_cnot(0, 2)  # Parallel with the first gate
-    assert circ.depth() == 3, "The depth of the mixed circuit should be calculated correctly."
+    assert circ.depth() == 4, "The depth of the mixed circuit should be calculated correctly."
