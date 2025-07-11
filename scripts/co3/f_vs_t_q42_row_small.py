@@ -12,7 +12,6 @@ from __future__ import annotations
 import pickle  # noqa: S403
 from pathlib import Path
 
-import evaluation as ev
 import layouts as layout
 
 path = "./results_minimal/f_vs_time_q42_ratio08_small_row_FSC"
@@ -112,7 +111,7 @@ instances = [
 
 reps = 50
 both_metric = True
-#res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
+# res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
 with Path(path).open("rb") as f:
     res_lst = pickle.load(f)  # noqa: S301

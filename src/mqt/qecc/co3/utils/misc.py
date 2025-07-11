@@ -334,7 +334,7 @@ def compare_original_dynamic_gate_order(
     pm2 = generate_preset_pass_manager(backend=backend2, optimization_level=1)
     qc_combine = pm2.run(qc_routing)
 
-    #result2 = backend2.run(qc_routing, shots=1)
+    # result2 = backend2.run(qc_routing, shots=1)
     result2 = backend2.run(qc_combine, shots=1)
     psi_out_complex_2 = result2.result()
 

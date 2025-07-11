@@ -12,7 +12,6 @@ from __future__ import annotations
 import pickle  # noqa: S403
 from pathlib import Path
 
-import evaluation as ev
 import layouts as layout
 
 path = "./results/space_vs_time_q24"
@@ -244,7 +243,7 @@ instances = [
 reps = 10
 both_metric = False
 
-#res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
+# res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
 with Path(path).open("rb") as f:
     res_lst = pickle.load(f)  # noqa: S301

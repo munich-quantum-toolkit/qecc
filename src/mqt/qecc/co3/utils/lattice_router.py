@@ -497,7 +497,7 @@ class ShortestFirstRouter(HexagonalLattice):
             vdp_dict, terminal_pairs_remainder = self.find_max_vdp_set(layer)
             vdp_layers.append(vdp_dict)
             if len(terminal_pairs_remainder) == 0:
-                #flag_continue = False
+                # flag_continue = False
                 break
             self.layers_cnots[layer] = terminal_pairs_remainder
 
@@ -942,7 +942,7 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                 if self.factory_times[key] != 0:
                     self.factory_times[key] -= 1
             if len(terminal_pairs_remainder) == 0:
-                #flag_continue = False
+                # flag_continue = False
                 break
             self.layers_cnot_t[layer] = terminal_pairs_remainder
 
@@ -1113,7 +1113,7 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
             layers = self.split_current_layer(initial_layers[i])
             if len(layers) == 1:
                 # adding remainder to initial_layers[0] caused no conflict, so we are finished
-                #flag = False
+                # flag = False
                 break
             if len(layers) == 2:  # push further through
                 initial_layers[i] = layers[0]
