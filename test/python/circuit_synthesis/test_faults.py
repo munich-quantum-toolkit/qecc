@@ -348,7 +348,7 @@ def test_stabilizer_equivalent_different_fault_sets():
     """Test non-equivalence of two different fault sets."""
     stabs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)  # Stabilizer group
     fault_set_1 = PureFaultSet(num_qubits=3)
-    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+    fault_set_1.add_fault(np.array([1, 0, 0], dtype=np.int8))
 
     fault_set_2 = PureFaultSet(num_qubits=3)
     fault_set_2.add_fault(np.array([0, 1, 1], dtype=np.int8))
