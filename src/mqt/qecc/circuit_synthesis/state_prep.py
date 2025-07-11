@@ -478,8 +478,14 @@ def _verification_circuit(
     layers_1 = verification_stabs_fun(first_fault_sets, first_checks)
     measurements_1 = [measurement for layer in layers_1 for measurement in layer]
     if not flag_first_layer:
-        additional_errors = get_hook_errors(measurements_1)
-        extended_fault_sets = sp_circ.combine_faults(additional_faults=additional_errors, x_errors=not verify_x_first)
+        if measurements_1:
+            additional_errors = get_hook_errors(measurements_1)
+            extended_fault_sets = sp_circ.combine_faults(
+                additional_faults=additional_errors, x_errors=not verify_x_first
+            )
+        else:
+            extended_fault_sets = second_fault_sets
+
         if not only_first_layer:
             layers_2 = verification_stabs_fun(extended_fault_sets, second_checks)
     elif not only_first_layer:
@@ -874,8 +880,8 @@ def naive_verification_circuit(sp_circ: FaultyStatePrepCircuit, flag_first_layer
     x_measurements = code.Hx
     return _measure_ft_stabs(
         sp_circ,
-        z_measurements * sp_circ.max_z_errors,
-        x_measurements * sp_circ.max_x_errors,
+        z_measurements=z_measurements * sp_circ.max_z_errors,
+        x_measurements=x_measurements * sp_circ.max_x_errors,
         flag_first_layer=flag_first_layer,
     )
 
