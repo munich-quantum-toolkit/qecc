@@ -29,6 +29,7 @@ StatePrep
 CatStates
 Encoders
 AnalogInfo
+co3
 Publications
 ```
 
