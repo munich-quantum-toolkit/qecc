@@ -614,3 +614,26 @@ def test_not_t_distinct_four_qubits():
     t = 4
 
     assert t_distinct(fs1, fs2, t) is False, "fs1 and fs2 should be 4-distinct"
+
+
+def test_permute_qubits_basic():
+    """Test basic permutation of faults."""
+    faults = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+    permutation = [2, 0, 1]
+
+    permuted_fault_set = fault_set.permute_qubits(permutation, inplace=False)
+
+    assert np.array_equal(permuted_fault_set.faults, faults[:, permutation]), "Faults were not permuted correctly"
+    assert fault_set == PureFaultSet.from_fault_array(faults), "Original fault set should remain unchanged"
+
+
+def test_permute_qubits_inplace():
+    """Test inplace permutation of fault set."""
+    faults = np.array([[1, 1, 0], [0, 0, 1]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+    permutation = [2, 0, 1]
+
+    fault_set.permute_qubits(permutation, inplace=True)
+
+    assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"

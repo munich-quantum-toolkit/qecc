@@ -352,6 +352,27 @@ class PureFaultSet:
 
         return PureFaultSet.from_fault_array(filtered)
 
+    def permute_qubits(self, permutation: npt.NDArray[np.int8] | list[int], inplace: bool = True) -> PureFaultSet:
+        """Permute the qubits in the fault set according to a given permutation.
+
+        Args:
+            permutation: A 1D numpy array or list representing the new order of qubits.
+            inplace: If True, modifies the current fault set. If False, returns a new PureFaultSet with permuted faults.
+
+        Returns:
+            A new PureFaultSet with permuted faults if inplace is False.
+        """
+        if len(permutation) != self.num_qubits:
+            msg = f"Permutation must have length {self.num_qubits}."
+            raise ValueError(msg)
+
+        permuted_faults = self.faults[:, permutation]
+        if inplace:
+            self.faults = permuted_faults
+            return self
+
+        return PureFaultSet.from_fault_array(permuted_faults)
+
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""
