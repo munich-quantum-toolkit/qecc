@@ -164,7 +164,7 @@ It worked! And it doesn't even come at the cost of a lower acceptance rate.
 
 ## Preparing larger cat states
 
-The question now is whether we can make this work for higher-weight cat states. Withe the framework in place, we can just plug in higher-weight cat states and try different permutations. Let's consider the case of $w=16$ and try the following:
+The question now is whether we can make this work for higher-weight cat states. With the framework in place, we can just plug in higher-weight cat states and try different permutations. Let's consider the case of $w=16$ and try the following:
 
 - $\pi_1 = \mathrm{id}$
 - $\pi_2 = (0 \quad 15)$
