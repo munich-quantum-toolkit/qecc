@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from . import plots
+#from . import plots
 from .microscopic.snake_builder import SnakeBuilder, SnakeBuilderSC, SnakeBuilderSTDW
 from .utils.hill_climber import HillClimbing
 from .utils.lattice_router import (
@@ -42,4 +42,4 @@ __all__ = [
     "translate_layout_circuit",
 ]
 
-__all__ += ["plots"]
+#__all__ += ["plots"]
