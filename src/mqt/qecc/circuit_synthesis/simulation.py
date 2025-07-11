@@ -19,6 +19,7 @@ import stim
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 
 from ..codes import InvalidCSSCodeError
+from .circuits import CNOTCircuit
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -34,7 +35,7 @@ class NoisyNDFTStatePrepSimulator:
 
     def __init__(
         self,
-        state_prep_circ: QuantumCircuit,
+        state_prep_circ: QuantumCircuit | CNOTCircuit,
         code: CSSCode,
         p: float = 0.0,
         p_idle: float | None = None,
@@ -56,6 +57,9 @@ class NoisyNDFTStatePrepSimulator:
         if code.Hx is None or code.Hz is None:
             msg = "The code must have both X and Z checks."
             raise InvalidCSSCodeError(msg)
+
+        if isinstance(state_prep_circ, CNOTCircuit):
+            state_prep_circ = state_prep_circ.to_qiskit_circuit()
 
         self.circ = state_prep_circ
         self.num_qubits = state_prep_circ.num_qubits
