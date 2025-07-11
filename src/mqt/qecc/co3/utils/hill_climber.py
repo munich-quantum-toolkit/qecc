@@ -147,10 +147,10 @@ class HillClimbing:
                 self.lat.G = custom_layout[1]
             else:
                 msg = "custom_layout is not allowed to be None if layout_type is custom."
+                raise ValueError(msg)
         else:
             msg = "unknown layout type"
             raise ValueError(msg)
-        assert data_qubit_locs is not None
         self.data_qubit_locs = data_qubit_locs
         assert metric in {"crossing", "routing", "distance"}
         self.metric = metric
