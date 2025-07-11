@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
-from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader, stabilizer_equivalent
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader, stabilizer_equivalent, t_distinct
 
 
 @pytest.fixture
@@ -586,3 +586,31 @@ def test_filter_faults_all_match():
     assert np.array_equal(fault_set.to_array(), expected_faults), (
         "All faults should remain when all satisfy the predicate."
     )
+
+
+def test_t_distinct_basic():
+    """Test t-distinctness of two fault sets."""
+    fs1 = PureFaultSet.from_fault_array(np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
+    fs2 = PureFaultSet.from_fault_array(np.array([[0, 0, 1], [1, 1, 0]], dtype=np.int8))
+    t = 2
+
+    assert t_distinct(fs1, fs2, t) is True, "fs1 and fs2 should be t-distinct"
+
+
+def test_t_distinct_four_qubits():
+    """Test t-distinctness of two fault sets with four qubits with respect to stabilizers."""
+    fs1 = PureFaultSet.from_fault_array(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8))
+    fs2 = PureFaultSet.from_fault_array(np.array([[0, 1, 1, 0], [1, 0, 0, 1]], dtype=np.int8))
+    stabs = np.array([[1, 1, 1, 1]], dtype=np.int8)
+    t = 4
+
+    assert t_distinct(fs1, fs2, t, stabs) is True, "fs1 and fs2 should be 4-distinct"
+
+
+def test_not_t_distinct_four_qubits():
+    """Test that two fault sets are not t-distinct."""
+    fs1 = PureFaultSet.from_fault_array(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8))
+    fs2 = PureFaultSet.from_fault_array(np.array([[1, 1, 1, 1]], dtype=np.int8))
+    t = 4
+
+    assert t_distinct(fs1, fs2, t) is False, "fs1 and fs2 should be 4-distinct"
