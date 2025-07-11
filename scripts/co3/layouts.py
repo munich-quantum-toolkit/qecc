@@ -48,15 +48,6 @@ def filter_factory_nodes(
             best_cycle_part = min(possible_cycles, key=len)
             kept_nodes.update(best_cycle_part)
 
-    # for node in factories:
-    #    for neighbor in g.neighbors(node):
-    #        if neighbor in factory_ring:  # Check only within the factory ring
-    #            # Check if this neighbor has at least one neighbor outside the factory ring
-    #            if any(n not in factory_ring for n in g.neighbors(neighbor)):
-    #                kept_nodes.add(neighbor)
-    #            else:
-    #                nodes_to_remove.add(neighbor)
-
     nodes_to_discard = set(factory_ring) - kept_nodes - set(factories)
     g.remove_nodes_from(nodes_to_discard)
 
@@ -1557,11 +1548,6 @@ def remove_edge_per_factory(g: nx.Graph, factories: list[tuple[int, int]]) -> nx
         # choose a random of those neighbors
         node = random.choice(neighbors)  # noqa: S311
 
-        # remove the corresponding edge from g
-        # if (node, factory) in g.edges():
-        #    g.remove_edge(node,factory)
-        # elif (factory, node) in g.edges():
-        #    g.remove_edge(factory,node)
         if (node, factory) in g.edges() or (factory, node) in g.edges:
             g.remove_node(node)
         else:

@@ -190,14 +190,6 @@ class HillClimbing:
             elif "right" in free_rows and "top" in free_rows:  # and "left" not in free_rows:
                 self.n += 1
                 self.m += 1
-            # elif "right" in free_rows and "top" in free_rows and "left" in free_rows:
-            #    self.n += 2
-            #    self.m += 1
-            # elif "right" in free_rows and "top" not in free_rows and "left" in free_rows:
-            #    self.n += 2
-            # elif "right" not in free_rows and "top" in free_rows and "left" in free_rows:
-            #    self.n += 1
-            #    self.m += 1
         self.free_rows = free_rows
 
     @staticmethod
@@ -260,9 +252,6 @@ class HillClimbing:
             msg = "`layout['factory_positions']` must be of type list[tuple[int,int]] but this is not even a list."
             raise TypeError(msg)
 
-        # else:
-        #    msg = f"factory positions of layout must be list[tuple[int,int]]. But you got {type(layout['factory_positions'])}"
-        #    raise TypeError(msg)
         router: ShortestFirstRouter | ShortestFirstRouterTGatesDyn | ShortestFirstRouterTGates
         if any(type(el) is int for el in self.circuit):
             if self.t is not None:

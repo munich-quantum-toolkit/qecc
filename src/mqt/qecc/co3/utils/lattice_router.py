@@ -497,7 +497,7 @@ class ShortestFirstRouter(HexagonalLattice):
             vdp_dict, terminal_pairs_remainder = self.find_max_vdp_set(layer)
             vdp_layers.append(vdp_dict)
             if len(terminal_pairs_remainder) == 0:
-                flag_continue = False
+                #flag_continue = False
                 break
             self.layers_cnots[layer] = terminal_pairs_remainder
 
@@ -656,7 +656,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                         raise ValueError(msg) from exc
 
                 elif t_crossings:
-                    # elif isinstance(t_p[0], int) and isinstance(t_p[1], int) and t_crossings:
                     dist_factories = {}  # gather distances to each factory to greedily choose the shortest path
                     for factory in self.factory_positions:
                         g_temp = self.G.copy()
@@ -677,8 +676,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     # choose shortest factory path
                     nearest_factory = min(dist_factories, key=lambda k: len(dist_factories[k]))
                     paths.append(dist_factories[nearest_factory])
-            # for el in paths:
-            #    print(el)
             # check the paths for overlaps
             # Create a mapping of elements to the sublists they appear in
             element_to_sublists = collections.defaultdict(set)
@@ -713,7 +710,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                 else:
                     current_layer.append(pair)
                     used_qubits.update(pair)
-            # elif isinstance(pair[0], int) and isinstance(pair[1], int):
             elif isinstance(pair[1], int):
                 if pair in used_qubits:
                     layers.append(current_layer)
@@ -722,9 +718,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                 else:
                     current_layer.append(pair)
                     used_qubits.update([pair])
-            # else:
-            #    msg = f"Wrong elements in `terminal_pairs`: type(pair[0,1]):{type(pair[0]), type(pair[1])}."
-            #    raise TypeError(msg)
 
         if current_layer:
             layers.append(current_layer)
@@ -747,11 +740,8 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     pair for pair in flattened_terminals_and_factories.copy() if pair != t_p[0] and pair != t_p[1]
                 ]
                 terminals_temp = list(set(terminals_temp))
-                # print("terminals to remove from g_temp", terminals_temp)
                 g_temp.remove_nodes_from(terminals_temp)
-                # print("g temp nodes", g_temp.nodes())
                 try:
-                    # print("tp 0, 1",t_p[0], t_p[1])
                     path = nx.dijkstra_path(g_temp, t_p[0], t_p[1])
                 except nx.NetworkXNoPath as exc:
                     msg = (
@@ -763,7 +753,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     t_p: len(path) - 1
                 })  # -1 because we want to count only what is between the terminals
 
-            # elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
             elif isinstance(t_p[1], int):
                 dist_factories = {}  # gather distances to each factory to greedily choose the shortest path
                 for factory in self.factory_positions:
@@ -776,14 +765,9 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     path = nx.dijkstra_path(g_temp, t_p, factory)
                     dist_factories.update({factory: len(path) - 1})
                 # choose shortest factory path
-                # nearest_factory = min(dist_factories, key=dist_factories.get)
                 nearest_factory = min(dist_factories, key=lambda x: dist_factories.get(x, 0))
                 # add corresponding distance to terminal_pair_dist
                 terminal_pair_dist.update({t_p: dist_factories[nearest_factory]})
-
-            # else:
-            #    msg = "Wrong elements in `terminal_pairs`."
-            #    raise TypeError(msg)
 
             # order the layer according to terminal_pair_dist
             sorted_terminal_pairs = sorted(terminal_pair_dist.keys(), key=lambda tp: terminal_pair_dist[tp])
@@ -810,7 +794,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
             list[tuple[int,int]]: remaining terminal pairs which must be placed
                 in a new layer
         """
-        # print("NEW RUN MAX VDP SET")
         vdp_dict: dict[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]], list[tuple[int, int]]] = {}
         terminal_pairs_remainder = []
         successful_terminals = []  # gather successful terminal pairs
@@ -832,13 +815,10 @@ class ShortestFirstRouterTGates(HexagonalLattice):
             tp_list: list[
                 tuple[int, int] | tuple[tuple[int, int], tuple[int, int]]
             ] = []  # same order, actually redundant but error otherwise
-            # print("terminal pairs current", terminal_pairs_current)
             for t_p in terminal_pairs_current:
-                # print("tp", t_p)
                 g_temp_temp = g_temp.copy()
                 # cnot
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
-                    # print("case tup")
                     if dct_qubits[t_p[0]] or dct_qubits[t_p[1]]:
                         flag_problem = True
                         break
@@ -859,9 +839,7 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     tp_list.append(t_p)
 
                 # t gate
-                # elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
                 elif isinstance(t_p[1], int):
-                    # print("case single")
                     if dct_qubits[t_p]:
                         flag_problem = True
                         break
@@ -869,7 +847,6 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     for factory in self.factory_positions:
                         g_temp_temp = g_temp.copy()
                         if self.factory_times[factory] == 0:  # only include available factories
-                            # print("factory time is fine")
                             # remove other terminals
                             terminals_temp = [
                                 pair for pair in flattened_terminals_and_factories.copy() if pair not in {t_p, factory}
@@ -879,34 +856,20 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                             try:
                                 path = nx.dijkstra_path(g_temp_temp, t_p, factory)
                             except nx.NetworkXNoPath:
-                                # print("no path found")
                                 continue
                             dist_factories.update({factory: path})
-                    # print("=======dist_factories==========", dist_factories)
                     # choose shortest available path or if no elements in dist_factories, flag_problem = True
                     if len(dist_factories) == 0:
-                        # print("no available factories")
-                        # flag_problem = True #flag_problem only if paths_temp_lst empty
                         pass
                     else:
                         nearest_factory = min(dist_factories, key=lambda k: len(dist_factories[k]))
-                        # print("nearest factory", nearest_factory)
                         path = dist_factories[nearest_factory]
-                        # dct_qubits[t_p] = True
                         self.factory_times[nearest_factory] = self.t  # reset time
                         paths_temp_lst.append(path)
                         tp_list.append(t_p)
-                # else:
-                #    msg = "Wrong elements in `terminal_pairs`."
-                #    raise TypeError(msg)
 
                 if flag_problem:  # break also
                     break
-
-            # print("paths temp list")
-            # for el in paths_temp_lst:
-            #    print(el)
-            # choose shortest path in paths_temp_lst, together with corresponding t_p
 
             # add case for flag problem to avoid infinite loop
             # if only t gates in terminal_pairs_current and empty paths_temp_lst, because then we are stuck because of reset time of factories
@@ -919,19 +882,14 @@ class ShortestFirstRouterTGates(HexagonalLattice):
             if all(all_t) and len(paths_temp_lst) == 0:
                 flag_problem = True
 
-            # print("tp list", tp_list)
             if len(paths_temp_lst) != 0 and not flag_problem:
                 shortest_path = min(paths_temp_lst, key=len)
                 shortest_idx = paths_temp_lst.index(shortest_path)  # index in current terminal_pairs_current
                 t_p = tp_list[shortest_idx]  # terminal_pairs_current[shortest_idx]
-                # print("Shortest tp", t_p)
-                # print("shortest_idx", shortest_idx)
-                # print("shortest_path", shortest_path)
                 # update already used qubits based on chosen t_p path
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
                     dct_qubits[t_p[0]] = True
                     dct_qubits[t_p[1]] = True
-                # elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
                 elif isinstance(t_p[1], int):
                     dct_qubits[t_p] = True
 
@@ -948,17 +906,12 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                 terminal_pairs_remainder = [s for s in terminal_pairs_current if s not in successful_terminals]
                 dct_qubits = dct_qubits_copy.copy()
 
-        # print("vdp dict", vdp_dict)
-        # print("terminal pairs remainder", terminal_pairs_remainder)
-
         # check whether the keys in vdp_dict fit the start and end point of the path
         for pair, path in vdp_dict.items():
             start, end = path[0], path[-1]
-            # if isinstance(pair[0], tuple) and isinstance(pair[1], tuple) and set(pair) != {start, end}:
             if isinstance(pair[1], tuple) and set(pair) != {start, end}:
                 msg = f"The path does not coincide with the terminal pair. There is a bug. terminal_pair = {pair} but path = {path}"
                 raise RuntimeError(msg)
-            # if isinstance(pair[0], int) and isinstance(pair[1], int) and pair not in {start, end}:
             if isinstance(pair[1], int) and pair not in {start, end}:
                 msg = f"The path does not coincide with the T gate location. There is a bug. terminal_pair = {pair} but path = {path}"
                 raise RuntimeError(msg)
@@ -989,7 +942,7 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                 if self.factory_times[key] != 0:
                     self.factory_times[key] -= 1
             if len(terminal_pairs_remainder) == 0:
-                flag_continue = False
+                #flag_continue = False
                 break
             self.layers_cnot_t[layer] = terminal_pairs_remainder
 
@@ -1057,25 +1010,16 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
         layers_cnot_t_prev = None
         counter = 0
         while len(self.layers_cnot_t) > 0:
-            # do not forget to use order_terminal_pairs before routing (update after each new layer)
-            # print("new layers_cnot_t", self.layers_cnot_t_orig)
-            ## ! this reordering is commented out because we adapted find_max_vdp_layers to determine shortest path iteratively, without predetermined ordering
-            # for i in range(len(self.layers_cnot_t_orig)):
-            #    self.order_terminal_pairs(i)
-            #    self.layers_cnot_t = self.layers_cnot_t_orig
-            # print("ordered", self.layers_cnot_t)
             layer = 0  # since we adapt the layers_cnot_t_orig inplace, always layer=0 needed
             vdp_dict, terminal_pairs_remainder = self.find_max_vdp_set(
                 layer
             )  # layer is successively reordered within find_max_vdp_set
 
-            # print("remainder", terminal_pairs_remainder)
             keys: list[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]]] = []
             for lst in vdp_layers:
                 keys += list(lst.keys())
             # if layers_cnot_t_prev == self.layers_cnot_t_orig and len(terminal_pairs_remainder)==0 and len(keys) == len(self.terminal_pairs):
             if layers_cnot_t_prev == self.layers_cnot_t_orig and len(keys) == len(self.terminal_pairs):
-                # print("desired break")
                 break
             layers_cnot_t_prev = self.layers_cnot_t_orig.copy()
 
@@ -1087,13 +1031,8 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
             initial_layers_update = self.push_remainder_into_layers(terminal_pairs_remainder)
             self.layers_cnot_t_orig = initial_layers_update
             self.layers_cnot_t = initial_layers_update
-            # print("vdp layers", vdp_layers)
-            # print(f"===========len layers cnot t {len(self.layers_cnot_t)}=============")
-            # temp += 1
             if len(self.layers_cnot_t) == 0:
                 break
-            # if temp == 20:
-            #    break
             counter += 1
 
             # avoid infinite loops
@@ -1140,9 +1079,6 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
                 else:
                     current_layer.append(pair)
                     used_qubits.update([pair])
-            # else:
-            #    msg = f"Wrong elements in `terminal_pairs`: type(pair[0,1]):{type(pair[0]), type(pair[1])}."
-            #    raise TypeError(msg)
 
         if current_layer:
             layers.append(current_layer)
@@ -1161,7 +1097,6 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
             list[list[tuple[int,int]]]: layered gates with remainder being pushed into next layer.
         """
         initial_layers = self.layers_cnot_t_orig.copy()
-        # print("initial layers", initial_layers)
         if len(initial_layers) > 1:
             del initial_layers[0]  # delete already processed layer (remainder was part of this layer)
         elif len(initial_layers) == 1 and len(remainder) != 0:
@@ -1173,15 +1108,12 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
                 initial_layers[i] = (
                     remainder + initial_layers[i]
                 )  # push remainder in front of the new zeroth entry (previously entry 1)
-                # print("initial_layers[i]", initial_layers[i])
             except IndexError:  # if no further initial_layer[i] available but still the previous layer was split
                 initial_layers.append(remainder)
-            # print("initial_layers[i]", initial_layers[i])
             layers = self.split_current_layer(initial_layers[i])
-            # print("split layers", layers)
             if len(layers) == 1:
                 # adding remainder to initial_layers[0] caused no conflict, so we are finished
-                flag = False
+                #flag = False
                 break
             if len(layers) == 2:  # push further through
                 initial_layers[i] = layers[0]

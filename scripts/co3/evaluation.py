@@ -186,7 +186,6 @@ def collect_data_space_time(
         logger.info(f"=======Instance {l}=======")
         time = []
         time2 = []
-        instance["q"]
         t = instance["t"]
         # min_depth = instance["min_depth"]
         # tgate = instance["tgate"]
@@ -689,8 +688,8 @@ def plot_f_vs_t(
     data_std = np.zeros((len(available_f), len(available_t)))
     data_abs = np.zeros((len(available_f), len(available_t)))
     data_abs_std = np.zeros((len(available_f), len(available_t)))
-    available_f_dct = {f: i for i, f in enumerate(available_f)}
-    available_t_dct = {t: i for i, t in enumerate(available_t)}
+    #available_f_dct = {f: i for i, f in enumerate(available_f)}
+    #available_t_dct = {t: i for i, t in enumerate(available_t)}
 
     # order the entries
     available_t_sorted = sorted(available_t)

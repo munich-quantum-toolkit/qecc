@@ -112,11 +112,7 @@ instances = [
 
 reps = 50
 both_metric = True
-res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
-
-
-with Path(path).open("rb") as f:
-    res_lst = pickle.load(f)  # noqa: S301
+#res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
 with Path(path).open("rb") as f:
     res_lst = pickle.load(f)  # noqa: S301

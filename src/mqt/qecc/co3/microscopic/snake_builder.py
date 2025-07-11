@@ -1146,7 +1146,7 @@ class SnakeBuilder:
         for i in range(1, len(self.positions) - 1):
             current_patch = self.positions[i]
             next_patch = self.positions[i + 1]
-            adjacent_edge = self.check_interface(i)
+            #adjacent_edge = self.check_interface(i)
             for el in compatible_x_stabs:
                 # find the present stab which includes el["i"]
                 stab = self.find_matching_dict(x_stabilizers, el["i"], i)
