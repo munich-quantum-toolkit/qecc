@@ -145,6 +145,8 @@ class HillClimbing:
             if custom_layout is not None:  # only for mypy
                 data_qubit_locs = custom_layout[0]
                 self.lat.G = custom_layout[1]
+            else:
+                msg = "custom_layout is not allowed to be None if layout_type is custom."
         else:
             msg = "unknown layout type"
             raise ValueError(msg)
