@@ -268,14 +268,14 @@ class CNOTCircuit:
         """
         return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "Z"]
 
-    def draw(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def] # noqa: ANN003, ANN002
+    def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
         """Draw the circuit using Qiskit visualization tools.
 
         Args:
             *args: Positional arguments for the Qiskit draw method.
             **kwargs: Keyword arguments for the Qiskit draw method.
         """
-        self.to_qiskit_circuit().draw(*args, **kwargs)
+        return self.to_qiskit_circuit().draw(*args, **kwargs)
 
     def get_code(self) -> CSSCode:
         """Get CSS code defined by the circuit.
