@@ -66,6 +66,7 @@ dependencies = [
   "bposd>=1.6",
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
+  "networkx[default]>=3.2.1",
 ]
 dynamic = ["version"]
 
