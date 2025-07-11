@@ -210,8 +210,3 @@ reps = 5
 both_metric = False
 res_lst = co.plots.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
-# with Path(path).open("rb") as f:
-#    res_lst = pickle.load(f)
-
-# for _res in res_lst:
-#    pass
