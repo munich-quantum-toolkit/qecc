@@ -571,7 +571,7 @@ class DeterministicVerificationHelper:
             self._compute_det_corrections(
                 min_timeout=min_timeout, max_timeout=max_timeout, max_ancillas=max_ancillas, layer_idx=0
             )
-            return self._layers[1][0], DeterministicVerification([], {})
+            return self._layers[0][0], DeterministicVerification([], {})
 
         # Both layers are non-trivial -> find best combination
         self._compute_det_corrections(

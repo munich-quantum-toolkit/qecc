@@ -67,6 +67,26 @@ def verified_steane_data(
 
 
 @pytest.fixture(scope="module")
+def surface_code_sp_zero() -> FaultyStatePrepCircuit:
+    """Return a non-ft state preparation circuit for the d=3 rotated surface code."""
+    steane_code = CSSCode.from_code_name("surface", 3)
+    sp_circ = heuristic_prep_circuit(steane_code, zero_state=True)
+    sp_circ.compute_fault_sets()
+    return sp_circ
+
+
+@pytest.fixture(scope="module")
+def verified_surface_data(
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> tuple[DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification]:
+    """Prepare the solutions once, but make no assertions here."""
+    verify_helper = DeterministicVerificationHelper(surface_code_sp_zero)
+    verify_x_opt, verify_z_opt = verify_helper.get_solution()
+    verify_x_global, verify_z_global = verify_helper.get_global_solution()
+    return verify_z_opt, verify_x_opt, verify_z_global, verify_x_global
+
+
+@pytest.fixture(scope="module")
 def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the 11_1_3 code."""
     check_matrix = np.array([
@@ -221,3 +241,19 @@ def test_steane_det_simulation(
         )
         simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
         assert_scaling(simulation_results)
+
+
+def test_surface_det_verification(
+    verified_surface_data: tuple[
+        DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
+    ],
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> None:
+    """Test correctness of deterministic verification circuit for the d=3 rotated surface code."""
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
+
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+        assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
+        assert_stabs(verify_z, surface_code_sp_zero.circ.get_code(), z_stabs=False)
+        assert verify_x.num_ancillas_total() == 0
+        assert verify_x.num_cnots_total() == 0
