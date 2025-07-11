@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from .cat_states import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
+from .circuit_utils import qiskit_to_stim_circuit
 from .circuits import CNOTCircuit
 from .encoding import depth_optimal_encoding_circuit, gate_optimal_encoding_circuit, heuristic_encoding_circuit
 from .simulation import LutDecoder, NoisyNDFTStatePrepSimulator
@@ -24,15 +26,17 @@ from .state_prep import (
     naive_verification_circuit,
 )
 from .state_prep_det import DeterministicVerification, DeterministicVerificationHelper
-from .synthesis_utils import qiskit_to_stim_circuit
 
 __all__ = [
     "CNOTCircuit",
+    "CatStatePreparationExperiment",
     "DeterministicVerification",
     "DeterministicVerificationHelper",
     "LutDecoder",
     "NoisyNDFTStatePrepSimulator",
     "StatePrepCircuit",
+    "cat_state_balanced_tree",
+    "cat_state_line",
     "depth_optimal_encoding_circuit",
     "depth_optimal_prep_circuit",
     "gate_optimal_encoding_circuit",

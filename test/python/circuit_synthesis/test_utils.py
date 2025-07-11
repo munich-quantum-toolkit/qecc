@@ -13,17 +13,18 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 import pytest
+import stim
 from ldpc import mod2
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
 
+from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit, qiskit_to_stim_circuit
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
     measure_flagged,
     measure_stab_unflagged,
-    qiskit_to_stim_circuit,
 )
 
 if TYPE_CHECKING:
@@ -214,3 +215,16 @@ def test_w_flag(w: int, z_measurement: bool) -> None:
 
     measure_flagged(qc, stab, ancilla, measurement_bit, t=w, z_measurement=z_measurement)
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
+
+
+def test_compact_stim_circuit() -> None:
+    """Test compaction method."""
+    circ = stim.Circuit()
+    circ.append("H", [0])
+    circ.append("CX", [0, 1])
+    circ.append("H", [2])
+    circ.append("CX", [2, 3])
+
+    assert len(circ) == 4
+    compacted = compact_stim_circuit(circ)
+    assert len(compacted) == 2
