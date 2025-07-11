@@ -209,4 +209,3 @@ instances = [
 reps = 5
 both_metric = False
 res_lst = co.plots.collect_data_space_time(instances, hc_params, reps, path, both_metric)
-
