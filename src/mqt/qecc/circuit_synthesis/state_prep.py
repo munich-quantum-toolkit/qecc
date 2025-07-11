@@ -890,6 +890,8 @@ def get_hook_errors(measurements: list[npt.NDArray[np.int8]]) -> PureFaultSet:
             error[qubit] = 0
             errors.append(error.copy())
 
+    if len(errors) == 0:
+        return PureFaultSet(measurements[0].shape[1])
     return PureFaultSet.from_fault_array(np.array(errors))
 
 

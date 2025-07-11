@@ -92,6 +92,9 @@ class PureFaultSet:
         Returns:
             A PureFaultSet object containing the faults.
         """
+        if array.ndim != 2:
+            msg = "Input array must be 2-dimensional."
+            raise ValueError(msg)
         fault_set = cls(array.shape[1])
         fault_set.faults = np.unique(array, axis=0)
         return fault_set
