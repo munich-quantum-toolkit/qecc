@@ -14,19 +14,19 @@ concurrency:
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@v1.11
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@v1.12
 
   python-linter:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@v1.11
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@v1.12
 
   python-tests:
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-ci.yml@v1.11
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-ci.yml@v1.12
     permissions:
       contents: read
       id-token: write
@@ -35,7 +35,7 @@ jobs:
     name: 📝 CodeQL
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-code-ql)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-code-ql-python.yml@v1.11
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-code-ql-python.yml@v1.12
 
   required-checks-pass: # This job does nothing and is only used for branch protection
     name: 🚦 Check
