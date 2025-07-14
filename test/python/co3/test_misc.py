@@ -18,7 +18,7 @@ def _split_layers_cnot(circuit: list[tuple[int, int] | int]) -> list[list[tuple[
     The input can also have mere ints, but this is only for mypy. This helper function only assumes tuple[int,int] in the circuit.
     """
     result = []
-    current_group: list[tuple[int,int] | int] = []
+    current_group: list[tuple[int, int] | int] = []
     seen: set[int] = set()
 
     for tup in circuit:
