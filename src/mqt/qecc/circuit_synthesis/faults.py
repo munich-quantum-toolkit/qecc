@@ -311,7 +311,7 @@ class PureFaultSet:
         Returns:
             Indices of faults that commute with all generators.
         """
-        return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=1))[0]
+        return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=0))[0]
 
     def get_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Return faults that are not detectable by the given stabilizers.
