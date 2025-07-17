@@ -8,11 +8,13 @@ on:
       - .github/workflows/cd.yml
 
 jobs:
-  python-packaging:
+  build-sdist:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging.yml@v1.14
-    with:
-      pure-python: true
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@v1.14
+
+  build-wheel:
+    name: 🐍 Packaging
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@v1.14
 
   deploy:
     if: github.event_name == 'release' && github.event.action == 'published'
@@ -25,7 +27,7 @@ jobs:
       id-token: write
       attestations: write
       contents: read
-    needs: [python-packaging]
+    needs: [build-sdist, build-wheel]
     steps:
       - uses: actions/download-artifact@v4
         with:
