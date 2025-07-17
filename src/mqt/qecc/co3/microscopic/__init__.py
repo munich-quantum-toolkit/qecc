@@ -5,4 +5,4 @@
 #
 # Licensed under the MIT License
 
-"""TODO."""
+"""Microscopic construction of logical patches connected by snakes."""
