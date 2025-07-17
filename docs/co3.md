@@ -11,13 +11,11 @@ mystnb:
 %config InlineBackend.figure_formats = ['svg']
 ```
 
-
 # Compilation beyond the Surface Code `co3`
 
 This submodule contains an elementary routing routine for CNOT + T compilation on a hexagonal routing graph.
 Moreover the routing assumes that each accessible boundary can host both Z and X operators for lattice surgery.
 Hence, this code is valid for color codes only. Adaptions are needed to incorporate valid paths for e.g. the folded surface code substrate. Specifications of valid paths for the folded surface code are described in Fig. 8 of [arXiv:2504.10591](https://arxiv.org/pdf/2504.10591). Incorporating this would require to adapt the Dijkstra routine in the VDP solving (see Section V of the paper).
-
 
 ## Layouts
 
@@ -46,7 +44,6 @@ We consider two microscopic substrates, both leading to a hexagonal routing grap
 First, the class [SnakeBuilderSTDW](co3.microscopic.snake_builder.SnakeBuilderSTDW) builds stabilizers and subsets of stabilizers to perform logical meausurements for the color code connected by semi transparent domain walls (STDW).
 The class [SnakeBuilderSC](co3.microscopic.snake_builder.SnakeBuilderSC) builds the surface code snakes required to perform lattice surgery between logical folded surface codes. However, this can only display snakes where you can embed the snake in 2d.
 A notebook with example constructions can be found in [/scripts/co3/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/main/scripts/co3/snake_examples.ipynb).
-
 
 ## Macroscopic Compilation Example
 
@@ -80,11 +77,13 @@ lat.G = g
 size = (5, 5) #size of the plot
 lat.plot_lattice(
     size=size, data_qubit_locs=data_qubit_locs, factory_locs=factories
-) 
+)
 ```
+
 The plot displays the magic state patches in pink at the boundary of the layout (assuming some magic state factory outside the layout) and logical data patches in orange. Note that there are no edges between adjacent logical data patches as a direct path between them would not be a valid path since it could not host a logical ancilla as required. Note that one can create other custom layouts by hand as well, the resulting structure merely has to ensure that no forbidden paths can happen.
 
 Next, generate some circuit (which is fairly low-depth for illustrative purposes). The list `pairs` contains tuples of two integers for CNOT gates and a single integer represents a T gate which consumes a T state from one of the factory patches.
+
 ```{code-cell} ipython3
 pairs = [
     (22, 6),
@@ -105,13 +104,17 @@ pairs = [
     16
 ]
 ```
+
 This circuit is defined logical qubit labels, meaning that the location of those logical qubits is not yet fixed among the possible positions of logical data qubits defined in the layout. Let's define where each logical data qubit is placed on the layout. We just do the most naive layout which is possible.
+
 ```{code-cell} ipython3
 layout = {}
 for i, j in zip(range(len(data_qubit_locs)), data_qubit_locs):
     layout.update({i: (int(j[0]), int(j[1]))})
 ```
+
 At this point one could also optimize the labeling via Hill Climbing. For such a small circuit it will not be really helpful which is why we only show how one can use the hill climbing in principle here but we do not expect it to be very helpful.
+
 ```{code-cell} ipython3
 custom_layout = [data_qubit_locs, g]
 
@@ -124,7 +127,7 @@ hc = co.HillClimbing(
     n=5, #mock variable for custom layout
     metric="crossing",
     possible_factory_positions=factories,
-    num_factories=len(factories),  
+    num_factories=len(factories),
     free_rows=None, #only needed for crude basic layouts
     t=1,
     optimize_factories=False,
@@ -141,18 +144,24 @@ print(f"Best solution: {best_solution}")
 print(f"Best score: {best_score}")
 print(f"To which repetition of the random restarts does the best score belong? {best_rep}")
 ```
+
 Once one has both the circuit and the dictionary called `layout` defining the labeling, one can translate the circuit `pairs` into the list of gates in terms of locations on the graph.
+
 ```{code-cell} ipython3
 terminal_pairs = co.translate_layout_circuit(pairs, layout) #let's stick to the simple layout
 ```
+
 Now one can actually apply the VDP solving:
+
 ```{code-cell} ipython3
 m, n = 10, 10  # random assignment since g is replaced anyways
 router = co.ShortestFirstRouterTGatesDyn(m, n, terminal_pairs, factories, t=2)
 router.G = g
 vdp_layers = router.find_total_vdp_layers_dyn()
 ```
+
 Now let's plot all non-empty layers, i.e. all in this example. As before, magic state patches are displayed in pink. Logical data patches are shown in green together with the logical qubit label.
+
 ```{code-cell} ipython3
 for i, vdp_dict in enumerate(vdp_layers):
     print(f"=====layer = {i}====")
@@ -161,7 +170,9 @@ for i, vdp_dict in enumerate(vdp_layers):
 ```
 
 ## Microscopic Snake Example
-One can create the stabilizers of the joint codes after the merge between two logical qubits and a snake in between. For instance consider an example for the color code. 
+
+One can create the stabilizers of the joint codes after the merge between two logical qubits and a snake in between. For instance consider an example for the color code.
+
 ```{code-cell} ipython3
 import networkx as nx
 
@@ -268,7 +279,9 @@ snake.plot_stabilizers(x_plaquettes)
 print("=====Z stabilizers if ZZ merge=====")
 snake.plot_stabilizers(z_plaquettes)
 ```
+
 Furthermore one can specify the subset of stabilizers to be measured to retrieve the logical ZZ result (Fig. 7 in the paper).
+
 ```{code-cell} ipython3
 # consider the boundary patches to be logical and find the subset of stabilizers to measure the logical ZZ between them
 subset_stabs = snake.find_stabilizers_zz()
