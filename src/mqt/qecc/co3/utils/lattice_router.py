@@ -830,13 +830,10 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     # find shortest path of t_p
                     try:
                         path = nx.dijkstra_path(g_temp_temp, t_p[0], t_p[1])
+                        paths_temp_lst.append(path)
+                        tp_list.append(t_p)
                     except nx.NetworkXNoPath:
-                        # if no path could be found: stop and return remaining,
-                        # unallocated terminal pairs as well
-                        flag_problem = True
-                        # break
-                    paths_temp_lst.append(path)
-                    tp_list.append(t_p)
+                        pass
 
                 # t gate
                 elif isinstance(t_p[1], int):
@@ -864,12 +861,12 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     else:
                         nearest_factory = min(dist_factories, key=lambda k: len(dist_factories[k]))
                         path = dist_factories[nearest_factory]
-                        self.factory_times[nearest_factory] = self.t  # reset time
+                        #self.factory_times[nearest_factory] = self.t  # reset time, here is the wrong place to update this
                         paths_temp_lst.append(path)
                         tp_list.append(t_p)
 
-                if flag_problem:  # break also
-                    break
+                if flag_problem:  
+                    break # type: ignore[unreachable]
 
             # add case for flag problem to avoid infinite loop
             # if only t gates in terminal_pairs_current and empty paths_temp_lst, because then we are stuck because of reset time of factories
@@ -892,6 +889,14 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                     dct_qubits[t_p[1]] = True
                 elif isinstance(t_p[1], int):
                     dct_qubits[t_p] = True
+                    #update the times of the factory patch (which is the position at one end of the path)
+                    if shortest_path[0] == t_p:
+                        self.factory_times[shortest_path[-1]] = self.t
+                    elif shortest_path[-1] == t_p:
+                        self.factory_times[shortest_path[0]] = self.t
+                    else:
+                        msg = "Factory not in path."
+                        raise RuntimeError(msg)
 
                 # remove nodes from g_temp from path
                 for node in shortest_path[1:-1]:
@@ -905,6 +910,7 @@ class ShortestFirstRouterTGates(HexagonalLattice):
             if len(paths_temp_lst) == 0 or flag_problem:
                 terminal_pairs_remainder = [s for s in terminal_pairs_current if s not in successful_terminals]
                 dct_qubits = dct_qubits_copy.copy()
+                flag_problem = True #in case the paths_temp_list is empty, you need to set the flag_problem to handle this case as well. otherwise endless loop.
 
         # check whether the keys in vdp_dict fit the start and end point of the path
         for pair, path in vdp_dict.items():
