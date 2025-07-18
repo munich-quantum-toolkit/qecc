@@ -833,7 +833,8 @@ class ShortestFirstRouterTGates(HexagonalLattice):
                         paths_temp_lst.append(path)
                         tp_list.append(t_p)
                     except nx.NetworkXNoPath:
-                        pass
+                        #skip the t_p if no path exists
+                        pass #therefore just pass
 
                 # t gate
                 elif isinstance(t_p[1], int):
