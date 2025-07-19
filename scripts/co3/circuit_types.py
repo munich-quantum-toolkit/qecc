@@ -14,7 +14,6 @@ import layouts as layout
 import matplotlib.pyplot as plt
 
 # This notebook must be run from the directory /mqt-qecc/src/mqt/qecc/co3/plots
-import mqt.qecc.co3 as co
 
 plt.rcParams["font.family"] = "Times New Roman"
 
@@ -26,32 +25,32 @@ path = "./results/circuit_types_q24_250718_d"
 g, data_qubit_locs, factory_ring = layout.gen_layout("hex", 24, [])
 custom_layout_q24_hex_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("hex", 42, [])
-#custom_layout_q42_hex_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("hex", 42, [])
+# custom_layout_q42_hex_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("hex", 60, [])
-#custom_layout_q60_hex_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("hex", 60, [])
+# custom_layout_q60_hex_f8 = [data_qubit_locs, g]
 
 # ROW
 g, data_qubit_locs, factory_ring = layout.gen_layout("row", 24, [])
 custom_layout_q24_row_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("row", 42, [])
-#custom_layout_q42_row_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("row", 42, [])
+# custom_layout_q42_row_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("row", 60, [])
-#custom_layout_q60_row_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("row", 60, [])
+# custom_layout_q60_row_f8 = [data_qubit_locs, g]
 
 
 # PAIR
 g, data_qubit_locs, factory_ring = layout.gen_layout("pair", 24, [])
 custom_layout_q24_pair_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("pair", 42, [])
-#custom_layout_q42_pair_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("pair", 42, [])
+# custom_layout_q42_pair_f8 = [data_qubit_locs, g]
 
-#g, data_qubit_locs, factory_ring = co.plots.gen_layout("pair", 60, [])
-#custom_layout_q60_pair_f8 = [data_qubit_locs, g]
+# g, data_qubit_locs, factory_ring = co.plots.gen_layout("pair", 60, [])
+# custom_layout_q60_pair_f8 = [data_qubit_locs, g]
 
 # -----------------------------
 

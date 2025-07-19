@@ -102,8 +102,8 @@ both_metric = True  # both metrics heuristic and exact are computed
 
 res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
-#with Path(path).open("rb") as f:
-#    res_lst = pickle.load(f)  # noqa: S301
+# with Path(path).open("rb") as f:
+#    res_lst = pickle.load(f)
 
 path += "_metricrouting"
 
