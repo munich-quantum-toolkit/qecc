@@ -281,6 +281,7 @@ docs = [
   "sphinx>=8.2.3; python_version >= '3.11'",
   "qiskit[qasm3-import,visualization]>=1.0.0",
   "ipywidgets>=8.1.5",
+  "qiskit-aer>=0.17.0",
 ]
 test = [
   "pytest>=8.3.5",
