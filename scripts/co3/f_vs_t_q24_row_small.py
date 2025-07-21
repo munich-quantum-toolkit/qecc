@@ -103,7 +103,7 @@ both_metric = True  # both metrics heuristic and exact are computed
 res_lst = ev.collect_data_space_time(instances, hc_params, reps, path, both_metric)
 
 with Path(path).open("rb") as f:
-    res_lst = pickle.load(f)
+    res_lst_2 = pickle.load(f) # noqa: S301
 
 path += "_metricrouting"
 
@@ -121,7 +121,7 @@ for i, res in enumerate(res_lst_routing):
     for ni, nf in zip(num_init_list, num_final_list):
         improvement_lst.append((ni - nf) / ni)
 
-for i, res in enumerate(res_lst):
+for i, res in enumerate(res_lst_2):
     layout_type = res["instances"][i]["layout_name"]
     q = res["instances"][i]["q"]
     ratio = res["instances"][i]["ratio"]

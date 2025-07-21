@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import random
+import sys
 import warnings
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,11 @@ import numpy as np
 import qiskit as qk
 from qiskit.quantum_info import random_statevector
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
-from qiskit_aer import AerSimulator
+
+if "sphinx" not in sys.modules:
+    from qiskit_aer import AerSimulator
+else:
+    AerSimulator = None
 
 if TYPE_CHECKING:
     import mqt.qecc.co3 as co
@@ -245,6 +250,10 @@ def compare_original_dynamic_gate_order(
     assert q <= 20, (
         "Too many qubits cannot be simulated via qiskit statevector simulator anymore. Consder less than 20 qubits."
     )
+
+    if AerSimulator is None:
+        msg = "AerSimulator not available during docs build"
+        raise RuntimeError(msg)
 
     # run the dynamic routing once
     vdp_layers_dyn = router.find_total_vdp_layers_dyn()
