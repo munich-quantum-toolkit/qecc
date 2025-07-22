@@ -41,4 +41,3 @@ __all__ = [
     "generate_random_circuit",
     "translate_layout_circuit",
 ]
-

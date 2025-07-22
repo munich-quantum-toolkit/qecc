@@ -19,7 +19,10 @@ if TYPE_CHECKING:
 
 from mqt.qecc import CSSCode
 
-NodePos = tuple[int, int] #Position of the graphs is determined by 2 integer coordinates. Depending of the snake type, qubits are on the nodes, or on the edge between two nodes.
+NodePos = tuple[
+    int, int
+]  # Position of the graphs is determined by 2 integer coordinates. Depending of the snake type, qubits are on the nodes, or on the edge between two nodes.
+
 
 class SnakeBuilderSC:
     """Constructs a n-snake of distance d with a surface code in snake shape on the square lattice substate (leading to brickwall routing graph aka hex graph)."""
@@ -151,7 +154,7 @@ class SnakeBuilderSC:
 
     def collect_qubit_positions(self) -> list[tuple[NodePos, NodePos]]:
         """Collects the edges on which qubit are placed defining the merged object (snake+logical patches), depending on the given rough/smooth edges/boundaries.
-        
+
         These positions can be used to construct the stabilizers (`gen_stars`, `gen_plaquettes`) given the rough/smooth boundaries.
         Only qubits on horizontal/vertical edges, no new diagonal edges added.
 
@@ -207,7 +210,7 @@ class SnakeBuilderSC:
                 "The star has overlaps with both rough boundaries, this cannot be."
             )
             # horizontal rough remove: weigh3 star with 2 overlapping nodes on rough b
-            if  sum(lst_on_rough) != 1 or len(star) != 2:  
+            if sum(lst_on_rough) != 1 or len(star) != 2:
                 stars_new.append(star)
 
         self.stars = stars_new
@@ -228,7 +231,7 @@ class SnakeBuilderSC:
         max_y = max(t[1] for t in nodes)
         collected = []
         i, j = 0, 0
-        
+
         while True:
             point = (min_x + i, min_y + j)
             if point in set(nodes):
@@ -292,9 +295,7 @@ class SnakeBuilderSC:
 
     def create_stabs(
         self,
-    ) -> tuple[
-        list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]]
-    ]:
+    ) -> tuple[list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]]]:
         """Summarizes all previously defined methods and returns the plaquette stabilizers and star stabilizers of the merged snake object.
 
         Returns:
@@ -521,9 +522,7 @@ class SnakeBuilderSTDW:
 
         return [lst_corner, lst_boundary]
 
-    def find_interface_ancillas(
-        self, triangle_0: int, triangle_1: int
-    ) -> list[tuple[NodePos, NodePos]]:
+    def find_interface_ancillas(self, triangle_0: int, triangle_1: int) -> list[tuple[NodePos, NodePos]]:
         """Finds ancilla vertices on the interface between triangle_0 and triangle_1.
 
         Args:
@@ -853,9 +852,7 @@ class SnakeBuilderSTDW:
         counts = Counter(flattened_nodes)
         return [key for key, value in counts.items() if value == 1]
 
-    def get_neighboring_pairs(
-        self, single_nodes_in_plaq: list[NodePos]
-    ) -> list[tuple[NodePos, NodePos]]:
+    def get_neighboring_pairs(self, single_nodes_in_plaq: list[NodePos]) -> list[tuple[NodePos, NodePos]]:
         """Find pairs of single nodes which are neighbors on the graph."""
         return [
             pair
@@ -1090,9 +1087,7 @@ class SnakeBuilderSteane:
         )
         return adjacent_edge
 
-    def check_paired_neighbor(
-        self, pos_i_new: dict[NodePos, int], pos_i1_new: dict[NodePos, int]
-    ) -> bool:
+    def check_paired_neighbor(self, pos_i_new: dict[NodePos, int], pos_i1_new: dict[NodePos, int]) -> bool:
         """Checks whether we can find a weight-8 x plaquette which actually connects neighbored plaqeuttes between i and i+1."""
         neighboring_pairs = []
         # neighboring_two is a bool which determines whether the weight 8 stab would connect neighboring patches

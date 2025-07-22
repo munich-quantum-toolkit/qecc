@@ -30,4 +30,4 @@ __all__ = [
     "plot_ratio_vs_t",
     "plot_space_time",
     "remove_edge_per_factory",
-]  
+]
