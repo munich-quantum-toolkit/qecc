@@ -7967,7 +7967,7 @@ def test_snake_builder():
         {(6, 7): 0, (6, 8): 2, (7, 10): 1, (7, 8): 6, (7, 9): 5, (8, 7): 3, (7, 7): 4},
     ]
 
-    sb = co.SnakeBuilder(g, positions)
+    sb = co.SnakeBuilderSteane(g, positions)
     _ = sb.generate_x_stabilizers()
     _ = sb.generate_z_stabilizers()
     checks_z, checks_x = sb.translate_checks()

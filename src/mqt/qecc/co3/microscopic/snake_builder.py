@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from mqt.qecc import CSSCode
 
+NodePos = tuple[int, int] #Position of the graphs is determined by 2 integer coordinates. Depending of the snake type, qubits are on the nodes, or on the edge between two nodes.
 
 class SnakeBuilderSC:
     """Constructs a n-snake of distance d with a surface code in snake shape on the square lattice substate (leading to brickwall routing graph aka hex graph)."""
@@ -26,28 +27,34 @@ class SnakeBuilderSC:
     def __init__(
         self,
         g: nx.Graph,
-        positions_rough: list[list[tuple[int, int]]],
-        positions_smooth: list[list[tuple[int, int]]],
+        positions_rough: list[list[NodePos]],
+        positions_smooth: list[list[NodePos]],
         d: int,
     ) -> None:
         """Initializes a SC n-snake.
 
         Args:
             g (nx.Graph): quadratic graph
-            positions_rough (list[list[list[tuple[int,int]]]]): Node positions constituting the rough boundaries
-            positions_smooth (list[list[list[tuple[int,int]]]]): Node positions constituting the smooth boundaries
+            positions_rough (list[list[NodePos]]): Node positions constituting the rough boundaries (a list per boundary)
+            positions_smooth (list[list[NodePos]]): Node positions constituting the smooth boundaries (a list per boundary)
             d (int): distance
         """
         self.g = g
         self.positions_rough = positions_rough
         self.positions_smooth = positions_smooth
         self.d = d
-        assert len(positions_smooth) == 2, "To encode 1 logical qubit there must be 2 smooth boundaries."
-        assert len(positions_rough) == 2, "To encode 1 logical qubit there must be 2 rough boundaries."
+        if len(positions_smooth) != 2:
+            msg = "To encode 1 logical qubit, there must be 2 smooth boundaries."
+            raise ValueError(msg)
+        if len(positions_rough) != 2:
+            msg = "To encode 1 logical qubit, there must be 2 rough boundaries."
+            raise ValueError(msg)
         dist = (
             min([len(el) for el in positions_rough] + [len(el) for el in positions_smooth]) - 1
         )  # -1 because we count edges not nodes
-        assert dist == d, f"Distance d={dist} does not coincide with the geometry of the rough and smooth positions."
+        if dist != d:
+            msg = f"Distance d={dist} does not coincide with the geometry of the rough and smooth positions."
+            raise ValueError(msg)
 
         # must ensure that given G is big enough to place the stabilizers on it (maybe remove G from input and generate it within the class)
         flat_smooth = {pos for group in positions_smooth for pos in group}
@@ -58,11 +65,11 @@ class SnakeBuilderSC:
                 msg = "The input graph is chosen too small and cannot accommodate all qubits for the stabs."
                 raise ValueError(msg)
 
-    def fill_snake(self) -> list[list[tuple[int, int]]]:
+    def fill_snake(self) -> list[list[NodePos]]:
         """Finds the true interior nodes by marking exterior nodes from all four edges.
 
         Returns:
-            list[list[tuple[int, int]]]: Positions of ALL nodes in the snakes.
+            list[list[NodePos]]: Positions of ALL nodes in the snakes.
         """
         positions_smooth_flattened = [pos for sublist in self.positions_smooth for pos in sublist]
         positions_rough_flattened = [pos for sublist in self.positions_rough for pos in sublist]
@@ -109,14 +116,14 @@ class SnakeBuilderSC:
         return list(boundary_nodes) + list(interior_nodes)
 
     @staticmethod
-    def neighbors_ver_hor(node1: tuple[int, int], node2: tuple[int, int]) -> bool:
+    def neighbors_ver_hor(node1: NodePos, node2: NodePos) -> bool:
         """Checks whether two nodes are neighbors.
 
         Vertical and horizontal neighbors. Not based on initial graph structure because no diagonal edges present.
 
         Args:
-            node1 (tuple[int,int]): node1
-            node2 (tuple[int,int]): node2
+            node1 (NodePos): node1
+            node2 (NodePos): node2
 
         Returns:
             bool: whether both are neighbors.
@@ -126,14 +133,14 @@ class SnakeBuilderSC:
         )
 
     @staticmethod
-    def neighbors_diag(node1: tuple[int, int], node2: tuple[int, int]) -> bool:
+    def neighbors_diag(node1: NodePos, node2: NodePos) -> bool:
         """Checks whether two nodes are neighbors.
 
         Diagonal. Not based on initial graph structure because no diagonal edges present.
 
         Args:
-            node1 (tuple[int,int]): node1
-            node2 (tuple[int,int]): node2
+            node1 (NodePos): node1
+            node2 (NodePos): node2
 
         Returns:
             bool: whether both are neighbors.
@@ -142,13 +149,14 @@ class SnakeBuilderSC:
             abs(node1[1] - node2[1]) == 1 and abs(node1[0] - node2[0]) == 1
         )  # diagonal neighbors or no neighbors at all
 
-    def collect_qubit_positions(self) -> list[tuple[tuple[int, int], tuple[int, int]]]:
-        """Collect the edges defining the qubits we need, depending on rough/smooth edges.
-
+    def collect_qubit_positions(self) -> list[tuple[NodePos, NodePos]]:
+        """Collects the edges on which qubit are placed defining the merged object (snake+logical patches), depending on the given rough/smooth edges/boundaries.
+        
+        These positions can be used to construct the stabilizers (`gen_stars`, `gen_plaquettes`) given the rough/smooth boundaries.
         Only qubits on horizontal/vertical edges, no new diagonal edges added.
 
         Returns:
-            list[tuple[tuple[int,int], tuple[int,int]]]: List of edges where qubits are placed.
+            list[tuple[NodePos, NodePos]]: List of edges where qubits are placed.
         """
         qubit_edges = []
 
@@ -170,11 +178,11 @@ class SnakeBuilderSC:
         self.qubit_edges = qubit_edges
         return qubit_edges
 
-    def gen_stars(self) -> list[list[tuple[tuple[int, int], tuple[int, int]]]]:
+    def gen_stars(self) -> list[list[tuple[NodePos, NodePos]]]:
         """Generates star operators.
 
         Returns:
-            list[list[tuple[tuple[int,int], tuple[int,int]]]]: List of lists of edges, where each list determines a star operator.
+            list[list[tuple[NodePos, NodePos]]]: List of lists of edges, where each list determines a star operator.
         """
         stars = []
         nodes = self.boundary_nodes + self.inner_nodes  # all nodes
@@ -186,50 +194,41 @@ class SnakeBuilderSC:
         # if star is placed on rough boundary, it must be removed
         stars_new = []
         for star in stars:
-            # print("star", star)
             {tup for pair in star for tup in pair}  # flatten edges such that nodes can be compared
-            # print("star_set", star_set)
             lst_on_rough = []
             for rough_b in self.positions_rough:  # through both rough boundaries
-                # print("rough_b", rough_b)
-                # common_el = sum(1 for t in star_set if t in rough_b)
                 # check whether the central node of the star is on the rough boundary
                 all_nodes = [node for edge in star for node in edge]
                 node_counts = Counter(all_nodes)
-                # central_node = max(node_counts, key=node_counts.get)
                 central_node = max(node_counts, key=lambda x: node_counts.get(x, 0))
                 common_el = central_node in rough_b
-                # print("common el", common_el)
                 lst_on_rough.append(common_el)
-            # print("lst_on_rough", lst_on_rough)
             assert sum(1 for x in lst_on_rough if x != 0) <= 1, (
                 "The star has overlaps with both rough boundaries, this cannot be."
             )
             # horizontal rough remove: weigh3 star with 2 overlapping nodes on rough b
-            if (
-                sum(lst_on_rough) == 1 and len(star) == 2
-            ):  # (sum(lst_on_rough)==2 and len(star)==3) #the weight3 case is actually not necessary right
-                pass
-            else:
+            if  sum(lst_on_rough) != 1 or len(star) != 2:  
                 stars_new.append(star)
 
         self.stars = stars_new
         return stars_new
 
-    def gen_plaquettes(self) -> list[list[tuple[tuple[int, int], tuple[int, int]]]]:
+    def gen_plaquettes(self) -> list[list[tuple[NodePos, NodePos]]]:
         """Generates Plaquette Operators.
 
         Returns:
-            list[list[tuple[tuple[int,int], tuple[int,int]]]]: _description_
+            list[list[tuple[NodePos, NodePos]]]: A List of Plaquette Operators. Each Plaquette Operator is a list of tuple[NodePos, NodePos] since qubits are placed on edges.
         """
         plaquettes = []
         nodes = self.boundary_nodes + self.inner_nodes  # all nodes
         # since we check the nodes for being in the upper left corner, you can loose some plaquettes. hence add more nodes to minimum x and y, even though there will be useless checks
         min_x = min(t[0] for t in nodes)
         min_y = min(t[1] for t in nodes)
+        max_x = max(t[0] for t in nodes)
+        max_y = max(t[1] for t in nodes)
         collected = []
         i, j = 0, 0
-
+        
         while True:
             point = (min_x + i, min_y + j)
             if point in set(nodes):
@@ -239,10 +238,10 @@ class SnakeBuilderSC:
             collected.append(point)
 
             j += 1
-            if j > max(t[1] for t in nodes):
+            if j > max_y:
                 j = 0
                 i += 1
-            if i > max(t[0] for t in nodes):
+            if i > max_x:
                 break
         nodes += collected
 
@@ -256,7 +255,6 @@ class SnakeBuilderSC:
                 (node[0] + 1, node[1] + 1),
                 (node[0] + 1, node[1]),
             ]  # cyclically aligned
-            # edges_square = list(zip(square, square[1:] + [square[0]]))
             edges_square = list(itertools.combinations(square, 2))  # also diagonals
             plaquette = [
                 edge
@@ -271,17 +269,11 @@ class SnakeBuilderSC:
         # remove weight-2 plaquettes on the smooth boundary if there are any (on diagonal)
         for plaquette in plaquettes:
             if len(plaquette) == 2:  # 2edges= 2 qubits
-                # print("plaquette", plaquette)
                 plaquette_flat = [node for edge in plaquette for node in edge]
-                # print("plaquette_flat", plaquette_flat)
                 # only check for those lements which are NOT the central qubit
                 node_counts = Counter(plaquette_flat)
-                # print("node_counts", node_counts)
-                # central_node = max(node_counts, key=node_counts.get)
                 central_node = max(node_counts, key=lambda x: node_counts.get(x, 0))
-                # print("central_node", central_node)
                 plaquette_flat = [node for node in plaquette_flat if node != central_node]
-                # print("plaquette_flat", plaquette_flat)
                 plaquette_set = set(plaquette_flat)
                 lst_on_smooth = []
                 for smooth_b in self.positions_smooth:
@@ -290,9 +282,7 @@ class SnakeBuilderSC:
                 assert sum(1 for x in lst_on_smooth if x != 0) <= 1, (
                     "The plaquette has overlaps with both rough boundaries, this cannot be."
                 )
-                if sum(lst_on_smooth) == 2:
-                    pass
-                else:
+                if sum(lst_on_smooth) != 2:
                     plaquettes_new.append(plaquette)
             else:
                 plaquettes_new.append(plaquette)
@@ -303,9 +293,15 @@ class SnakeBuilderSC:
     def create_stabs(
         self,
     ) -> tuple[
-        list[list[tuple[tuple[int, int], tuple[int, int]]]], list[list[tuple[tuple[int, int], tuple[int, int]]]]
+        list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]]
     ]:
-        """Summarizes all Methods here."""
+        """Summarizes all previously defined methods and returns the plaquette stabilizers and star stabilizers of the merged snake object.
+
+        Returns:
+            tuple[ list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]] ]: Returns two lists of stabilizers. The first are the plaquettes, second are the stars.
+            Each list contains the plaquette/star operators respectively.
+            Each Plaquette Operator is a list of tuple[NodePos, NodePos] since qubits are placed on edges.
+        """
         _ = self.fill_snake()
         _ = self.collect_qubit_positions()
         _ = self.gen_stars()
@@ -314,8 +310,7 @@ class SnakeBuilderSC:
         q = len(self.qubit_edges)
         lenstars = len(self.stars)
         lenplaq = len(self.plaquettes)
-        # assert q - lenstars - lenplaq == 1, f"Your stabilizers are wrong. They should create 1 logical qubit but they yield {q - lenstars - lenplaq} instead."
-        # print("logical qubits", q - lenstars - lenplaq)
+
         if q - lenstars - lenplaq != 1:
             warnings.warn(
                 f"Your stabilizers are wrong. They should create 1 logical qubit but they yield {q - lenstars - lenplaq} instead.",
@@ -325,12 +320,14 @@ class SnakeBuilderSC:
 
         return self.plaquettes, self.stars
 
-        # add check whether there are q-num stabs = 1
-
     def gen_checks(
         self,
-    ) -> tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], dict[tuple[tuple[int, int], tuple[int, int]], int]]:
-        """Return checks and translation dict."""
+    ) -> tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], dict[tuple[NodePos, NodePos], int]]:
+        """Return checks and translation dict.
+
+        Returns:
+            tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], dict[tuple[NodePos, NodePos], int]]: X check matrix, Z check matrix and the translation dict which translates between posiitons on the graph and positions in the check matrix.
+        """
         trans_dict = {
             edge: i for i, edge in enumerate(self.qubit_edges)
         }  # both edge orderings should be included to make sure that we get no key errors
@@ -352,13 +349,18 @@ class SnakeBuilderSC:
 
     def plot_stabs(
         self,
-        opz: list[tuple[tuple[int, int], tuple[int, int]]] | None = None,
-        opx: list[tuple[tuple[int, int], tuple[int, int]]] | None = None,
+        opz: list[tuple[NodePos, NodePos]] | None = None,
+        opx: list[tuple[NodePos, NodePos]] | None = None,
         size: tuple[int, int] = (8, 8),
     ) -> None:
         """Plots plaquettes and star operators as well as the snake itself.
 
         opz and opx are the logical operators retrieved via mqt.qecc.CSSCode which are already translated as edges on the graph.
+
+        Args:
+            opz (list[tuple[NodePos, NodePos]] | None, optional): Logical Operator Z_L as list of qubit positions. Each qubit position is an edge on the graph. Defaults to None.
+            opx (list[tuple[NodePos, NodePos]] | None, optional): Logical Operator Z_L as list of qubit positions. Each qubit position is an edge on the graph. Defaults to None.
+            size (tuple[int, int], optional): Size of the plot. Defaults to (8, 8).
         """
         # pos = {node: (node[0], -node[1]) for node in self.g.nodes()}  # Adjust for proper display
         pos = {(x, y): (x, y) for x, y in self.g.nodes()}  # Keep y as positive
@@ -450,12 +452,12 @@ class SnakeBuilderSC:
 class SnakeBuilderSTDW:
     """Constructs a n-snake of distance d color codes with semi transparent domain wall."""
 
-    def __init__(self, g: nx.Graph, positions: list[list[tuple[int, int]]], d: int) -> None:
+    def __init__(self, g: nx.Graph, positions: list[list[NodePos]], d: int) -> None:
         """Initializes a n snake with ancillas on the interface and semi transparent domain wall.
 
         Args:
             g (nx.Graph): Hexagonal graph on which the data qubits are placed
-            positions (list[tuple[int,int]]): vertex positions on the nx graph (tuples) for each triangular color code patch
+            positions (list[list[nodePos]]): vertex positions on the nx graph (tuples) for each triangular color code patch. One list per triangle.
                 The order of the triangles is important, as subsequent triangle lists should belong to neighboring triangles.
             d (int): distance of the triangular color code patches
         """
@@ -484,16 +486,16 @@ class SnakeBuilderSTDW:
         self.p = p
         self.n = len(positions)
         self.q_tilde = self.n * self.q + (self.n - 1) * (self.d - 1)
-        self.trans_dict: dict[tuple[int, int], int] | None = None
+        self.trans_dict: dict[NodePos, int] | None = None
 
-    def find_triangle_edges_corners(self, n_triangle: int) -> list[list[tuple[int, int]]]:
+    def find_triangle_edges_corners(self, n_triangle: int) -> list[list[NodePos]]:
         """Searches for the graph labels of the vertices in the 3 edges of the given triangle.
 
         Args:
             n_triangle (int): label of triangle in self.positions
 
         Returns:
-            list[list[tuple[int,int]]]: list of three edges
+            list[list[NodePos]]: list of positions in the three boundaries/edges of the triangle.
         """
         triangle = self.positions[n_triangle]
         lst_boundary = []  # gather all vertices with a single neighbor outside the set (i.e. on edge)
@@ -521,7 +523,7 @@ class SnakeBuilderSTDW:
 
     def find_interface_ancillas(
         self, triangle_0: int, triangle_1: int
-    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    ) -> list[tuple[NodePos, NodePos]]:
         """Finds ancilla vertices on the interface between triangle_0 and triangle_1.
 
         Args:
@@ -529,7 +531,7 @@ class SnakeBuilderSTDW:
             triangle_1 (int): label of second triangle in self.positions[triangle_1] -> must be adjacent to the first!
 
         Returns:
-            list[tuple] pair of ancilla locations which are in the interface.
+            list[tuple[NodePos, NodePos]]: ancilla vertices on the interface between triangle_0 and triangle_1
         """
         [lst_corner_0, lst_boundary_0] = self.find_triangle_edges_corners(triangle_0)
         [lst_corner_1, lst_boundary_1] = self.find_triangle_edges_corners(triangle_1)
@@ -551,7 +553,7 @@ class SnakeBuilderSTDW:
         ancillas = [el["path"][1] for el in next_nearest_neighbors]
 
         # only use those ancillas which do indeed have a nearest neighbor in the ancilla set (single ancillas not wanted)
-        ancilla_pairs: list[tuple[tuple[int, int], tuple[int, int]]] = []
+        ancilla_pairs: list[tuple[NodePos, NodePos]] = []
         for node in ancillas:
             neighbors = set(self.g.neighbors(node))
             valid_neighbors = neighbors.intersection(ancillas)
@@ -561,24 +563,24 @@ class SnakeBuilderSTDW:
 
         return ancilla_pairs
 
-    def hex_plaquettes(self) -> list[list[tuple[int, int]]]:
+    def hex_plaquettes(self) -> list[list[NodePos]]:
         """Find all hexagonal plaquettes on original g.
 
         Returns:
-            list: all possible hexagonal plaquettes as vertices on g.
+            list[list[NodePos]]: all possible hexagonal plaquettes as vertices on g.
         """
         cycles = list(nx.simple_cycles(self.g, length_bound=6))
         return [list(set(cycle)) for cycle in cycles if len(cycle) == 6]
 
-    def find_stabilizers(self) -> tuple[list[list[tuple[int, int]]], list[list[tuple[int, int]]]]:
+    def find_stabilizers(self) -> tuple[list[list[NodePos]], list[list[NodePos]]]:
         """Find stabilizers on self.positions.
 
         Returns:
-            tuple[list, list]: Two lists, first the Z stabilizrs, and second the X stabilizers. There are more Z than X stabilizers
+            tuple[list[list[NodePos]], list[list[NodePos]]]: Two lists, first the Z stabilizrs, and second the X stabilizers. There are more Z than X stabilizers
             because we assume a Z merge by default. but can be interchanged of course for a X merge.
         """
         total_nodes = []  # find all relevant nodes first
-        z_plaquettes: list[list[tuple[int, int]]] = []
+        z_plaquettes: list[list[NodePos]] = []
 
         for triangle in self.positions:  # all nodes in the triangles
             total_nodes += triangle
@@ -597,23 +599,21 @@ class SnakeBuilderSTDW:
                 z_plaquettes.append(list(overlap))
 
         # filter out interface only plaquettes to distinguish x_plaquettes and z_plaquettes
-        x_plaquettes: list[list[tuple[int, int]]] = []
+        x_plaquettes: list[list[NodePos]] = []
         for plaquette in z_plaquettes:
             if len(plaquette) == 6:  # pairs, weight-3, weight-5 in the interface NOT wanted for X stabs
                 # also remove the hex plaquettes within the interface (touching vertices of two triangles)
-                bools = []
+                is_x_plaquette = True
                 for i in range(len(self.positions) - 1):
                     if set(plaquette) & set(self.positions[i]) and set(plaquette) & set(self.positions[i + 1]):
-                        bools.append(False)
-                    else:
-                        bools.append(True)
-                if all(bools):
+                        is_x_plaquette = False
+                        break
+                if is_x_plaquette:
                     x_plaquettes.append(list(plaquette))  # only if above NOT fulfilled
             elif len(plaquette) == 4:
                 x_plaquettes.append(list(plaquette))
 
         self.total_nodes = total_nodes
-        # build in assertion regarding number of each stabilizers, i have equations to check whether the number is right.
         assert len(x_plaquettes) == self.n * self.p, "Your number of final x_plaquettes is wrong, maybe weird input?"
         assert len(z_plaquettes) == self.n * self.p + self.d * (self.n - 1), (
             "Your number of final z_plaquettes is wrong, maybe weird input?"
@@ -633,14 +633,14 @@ class SnakeBuilderSTDW:
 
         return z_plaquettes, x_plaquettes
 
-    def find_separate_stabilizers(self, n_triangle: int) -> list[list[tuple[int, int]]]:
+    def find_separate_stabilizers(self, n_triangle: int) -> list[list[NodePos]]:
         """Generates the stabilizers of a plain triangular color code. Not including the interface.
 
         Args:
             n_triangle (int): index of triangular patch of interest.
 
         Returns:
-            list: stabilizers of the code (both x and z stabilizers because self-dual)
+            list[list[NodePos]]: stabilizers of the code (both x and z stabilizers because self-dual)
         """
         plaquettes = []
         hexagonal_plaquettes = self.hex_plaquettes()
@@ -659,8 +659,13 @@ class SnakeBuilderSTDW:
             trans_dict.update({node: i})
         self.trans_dict = trans_dict
 
-    def plot_stabilizers(self, plaquettes: list[list[tuple[int, int]]], size: tuple[int, int] = (7, 7)) -> None:
-        """Plots the stabilizers, either z_plaquettes or x_plaquettes."""
+    def plot_stabilizers(self, plaquettes: list[list[NodePos]], size: tuple[int, int] = (7, 7)) -> None:
+        """Plots the stabilizers, either z_plaquettes or x_plaquettes.
+
+        Args:
+            plaquettes (list[list[NodePos]]): List of stabilizers to plot.
+            size (tuple[int, int], optional): size of the plot. Defaults to (7, 7).
+        """
         pos = nx.get_node_attributes(self.g, "pos")
         plt.figure(figsize=size)
         nx.draw(self.g, pos, with_labels=True, font_size=8, node_color="lightgray", edge_color="lightblue")
@@ -705,21 +710,30 @@ class SnakeBuilderSTDW:
         plt.show()
         # !todo store also the pdf of the figure in a given path.
 
-    def gen_check_matrix(self, plaquettes: list[list[tuple[int, int]]]) -> npt.NDArray[np.int_]:
-        """Takes plaquettes and translates with self.integer_labeling."""
+    def gen_check_matrix(self, plaquettes: list[list[NodePos]]) -> npt.NDArray[np.int_]:
+        """Takes plaquettes and translates with self.integer_labeling.
+
+        Args:
+            plaquettes (list[list[NodePos]]): Stabilizers as list of qubit positions.
+
+        Returns:
+            npt.NDArray[np.int_]: check matrix.
+        """
         self.integer_labeling()
         h = np.zeros((len(plaquettes), self.q_tilde), dtype=int)
         for row, plaquette in enumerate(plaquettes):
-            if self.trans_dict is not None:  # case distinction only for mypy
-                translated_plaquette = [int(self.trans_dict[node]) for node in plaquette]
-            for el in translated_plaquette:
-                h[row, el] = 1
+            assert self.trans_dict is not None, "`trans_dict` is not defined yet."
+            translated_plaquette = [int(self.trans_dict[node]) for node in plaquette]
+            h[row, translated_plaquette] = 1
         return h
 
     # ------------methods for ZLZL stabilizer subset---------------
-    def find_outer_bdry(self) -> list[list[tuple[int, int]]]:
-        """Finds the set of outer boundaries of the triangles (not connected to stdw) for the inner triangles (start and end triangle not included)."""
-        # assert self.d > 3, "This construction only works for d>=5."
+    def find_outer_bdry(self) -> list[list[NodePos]]:
+        """Finds the set of outer boundaries of the triangles (not connected to stdw) for the inner triangles (start and end triangle not included).
+
+        Returns:
+            list[list[NodePos]]: list of the outer boundaries. each boundary is a list of qubit positions NodePos.
+        """
         triangles_to_check = list(range(1, len(self.positions) - 1))
         outer_nodes_total = []
         for triangle in triangles_to_check:
@@ -743,7 +757,7 @@ class SnakeBuilderSTDW:
             outer_nodes = [n for n in all_boundary if n not in inner_nodes]
             # outer_nodes does not include the corners yet, since they may be neighbor to stdw ancilla
             # find the two elements of lst_corner which are closest to the elements in outer_nodes
-            closest_corners: list[tuple[int, int]] = []
+            closest_corners: list[NodePos] = []
             for node in outer_nodes:
                 shortest_paths = nx.single_source_shortest_path_length(
                     self.g, node, cutoff=3
@@ -751,15 +765,19 @@ class SnakeBuilderSTDW:
                 closest_corners.extend(corner for corner in lst_corner if corner in shortest_paths)
             outer_nodes += list(set(closest_corners))
             outer_nodes = list(set(outer_nodes))  # remove duplicates
-            # assert len(outer_nodes) == self.d, (
-            #    "The number of nodes on the outer bundary must be the same as the distance."
-            # ) #may find too many outer_nodes for d=3 but this does not do any harm
             outer_nodes_total.append(outer_nodes)
         self.outer_nodes_total = outer_nodes_total
         return outer_nodes_total
 
-    def fill_triangle(self, triangle_idx: int) -> list[list[tuple[int, int]]]:
-        """Selects the subset of z stabilizers within the triangle (possibly also including stdw nodes) s.t. each node is maximally touched twice by a plaquette."""
+    def fill_triangle(self, triangle_idx: int) -> list[list[NodePos]]:
+        """Selects the subset of z stabilizers within the triangle (possibly also including stdw nodes) s.t. each node is maximally touched twice by a plaquette.
+
+        Args:
+            triangle_idx (int): The label of the triangle following the numbering of the input of this class.
+
+        Returns:
+            list[list[NodePos]]: subset of stabilizers (each a list[NodePos]).
+        """
         assert triangle_idx != 0, "filling of triangles only possible if not at the ends of the snake"
         assert triangle_idx != len(self.positions) - 1, (
             "filling of triangles only possible if not at the ends of the snake"
@@ -774,7 +792,7 @@ class SnakeBuilderSTDW:
             node for plaq in next_ancilla_pairs for node in plaq
         ]
         relevant_positions = positions_triangle + nodes_stdw
-        filtered_z_plaquettes: list[list[tuple[int, int]]] = [
+        filtered_z_plaquettes: list[list[NodePos]] = [
             plaquette for plaquette in z_plaquettes if any(node in relevant_positions for node in plaquette)
         ]
 
@@ -787,13 +805,12 @@ class SnakeBuilderSTDW:
         for tup in itertools.combinations(self.outer_nodes_total[triangle_idx], 2):
             for plaquette in filtered_z_plaquettes:
                 if tup[0] in plaquette and tup[1] in plaquette:
-                    subset_stabs.append(plaquette)
-                    continue
+                    subset_stabs.append(plaquette)  # noqa: PERF401
 
         flag_filler = True
         while flag_filler:
             temp_plaquettes = []
-            single_nodes = self.get_single_nodes(subset_stabs)
+            single_nodes = self._get_single_nodes(subset_stabs)
 
             assert all(value % 2 == 0 for value in Counter(single_nodes).values() if value != 1), (
                 "Something went wrong, there are 3,5,... plaquettes touching a node in the chosen stab subset."
@@ -812,7 +829,7 @@ class SnakeBuilderSTDW:
 
                     if matching_plaq is not None and len(matching_plaq) != 2:
                         temp_plaquettes.append(matching_plaq)
-                        single_nodes = self.get_single_nodes(subset_stabs + temp_plaquettes)
+                        single_nodes = self._get_single_nodes(subset_stabs + temp_plaquettes)
 
             subset_stabs += temp_plaquettes
             if not temp_plaquettes:
@@ -823,23 +840,22 @@ class SnakeBuilderSTDW:
         for plaq in subset_stabs:
             overlap_left = sum(1 for node in plaq if node in self.positions[triangle_idx - 1])
             overlap_right = sum(1 for node in plaq if node in self.positions[triangle_idx + 1])
-            if overlap_left > 2 or overlap_right > 2:
-                continue
-            subset_stabs_temp.append(plaq)
+            if overlap_left <= 2 and overlap_right <= 2:
+                subset_stabs_temp.append(plaq)
 
         return subset_stabs_temp
 
     # helper functions for fill_triangle
     @staticmethod
-    def get_single_nodes(subset_stabs: list[list[tuple[int, int]]]) -> list[tuple[int, int]]:
+    def _get_single_nodes(subset_stabs: list[list[NodePos]]) -> list[NodePos]:
         """Flatten a list of stabilizers."""
         flattened_nodes = [item for sublist in subset_stabs for item in sublist]
         counts = Counter(flattened_nodes)
         return [key for key, value in counts.items() if value == 1]
 
     def get_neighboring_pairs(
-        self, single_nodes_in_plaq: list[tuple[int, int]]
-    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+        self, single_nodes_in_plaq: list[NodePos]
+    ) -> list[tuple[NodePos, NodePos]]:
         """Find pairs of single nodes which are neighbors on the graph."""
         return [
             pair
@@ -849,8 +865,8 @@ class SnakeBuilderSTDW:
 
     @staticmethod
     def filter_disjoint_pairs(
-        all_neighboring_pairs: list[tuple[tuple[int, int], tuple[int, int]]],
-    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+        all_neighboring_pairs: list[tuple[NodePos, NodePos]],
+    ) -> list[tuple[NodePos, NodePos]]:
         """Find disjoint pairs of neighboring nodes on a plaquette."""
         disjoint_pairs = []
         for pair in all_neighboring_pairs:
@@ -861,17 +877,17 @@ class SnakeBuilderSTDW:
 
     @staticmethod
     def find_matching_plaquette(
-        pair: tuple[tuple[int, int], tuple[int, int]],
-        filtered_z_plaquettes: list[list[tuple[int, int]]],
-        subset_stabs: list[list[tuple[int, int]]],
-    ) -> list[tuple[int, int]] | None:
+        pair: tuple[NodePos, NodePos],
+        filtered_z_plaquettes: list[list[NodePos]],
+        subset_stabs: list[list[NodePos]],
+    ) -> list[NodePos] | None:
         """Find plaquette which shares pair but is not in subset_stabs."""
         for plaquette in [plaq for plaq in filtered_z_plaquettes if plaq not in subset_stabs]:
             if all(node in plaquette for node in pair):
                 return plaquette
         return None
 
-    def find_stabilizers_zz(self) -> list[list[tuple[int, int]]]:
+    def find_stabilizers_zz(self) -> list[list[NodePos]]:
         """Summarizes the methods above and joins the subsets per triangle on the STDW."""
         n = len(self.positions)
         subset_z_stabs = []
@@ -879,7 +895,6 @@ class SnakeBuilderSTDW:
         for triangle_idx in range(1, n - 1):
             subset_stabs = self.fill_triangle(triangle_idx)
             subset_z_stabs += subset_stabs
-        # subset_z_stabs = list(map(set, {frozenset(s) for s in subset_z_stabs}))
         subset_z_stabs = [list(set(s)) for s in {frozenset(s) for s in subset_z_stabs}]
 
         # adapt the gaps connecting the snake with the logical patches
@@ -896,7 +911,6 @@ class SnakeBuilderSTDW:
                 if node in right_logical:
                     overlap_right_logical += 1
             if overlap_left_logical > 2 or overlap_right_logical > 2:
-                # subset_z_stabs.remove(plaq)
                 pass
             else:
                 subset_z_stabs_temp.append(plaq)
@@ -920,7 +934,7 @@ class SnakeBuilderSTDW:
                     "There is a correction to be done which you cannot do with the current stabilizer construction..."
                 )
                 # find stdw ancilla neighbor
-                neighbors: list[tuple[int, int]] = self.g.neighbors(node)
+                neighbors: list[NodePos] = self.g.neighbors(node)
                 pair = None
                 for neigh in neighbors:
                     if neigh in interface_ancillas_flat:
@@ -932,22 +946,21 @@ class SnakeBuilderSTDW:
                 subset_z_stabs.append(pair)
 
         # final removal of duplicates
-        # return list(map(set, {frozenset(s) for s in subset_z_stabs}))
         return [list(set(s)) for s in {frozenset(s) for s in subset_z_stabs}]
 
-    def test_zz_stabs(self, subset_z_stabs: list[list[tuple[int, int]]]) -> bool:
+    def test_zz_stabs(self, subset_z_stabs: list[list[NodePos]]) -> bool:
         """Checks whether all nodes are touched by stabilizers even number of times besides the logical operators."""
         # determine nodes on which the logical operators act.
         n = len(self.positions)
         [lst_corner, lst_boundary] = self.find_triangle_edges_corners(0)
         ancilla_pairs = self.find_interface_ancillas(0, 1)
         ancillas = [item for sublist in ancilla_pairs for item in sublist]
-        z_left_nodes: list[tuple[int, int]] = []
+        z_left_nodes: list[NodePos] = []
         for anc in ancillas:
             neighbors = self.g.neighbors(anc)
             z_left_nodes.extend(neigh for neigh in neighbors if neigh in lst_corner + lst_boundary)
 
-        closest_corners: list[tuple[int, int]] = []
+        closest_corners: list[NodePos] = []
         for node in z_left_nodes:
             shortest_paths = nx.single_source_shortest_path_length(
                 self.g, node, cutoff=3
@@ -959,7 +972,7 @@ class SnakeBuilderSTDW:
         [lst_corner, lst_boundary] = self.find_triangle_edges_corners(n - 1)
         ancilla_pairs = self.find_interface_ancillas(n - 2, n - 1)
         ancillas = [item for sublist in ancilla_pairs for item in sublist]
-        z_right_nodes: list[tuple[int, int]] = []
+        z_right_nodes: list[NodePos] = []
         for anc in ancillas:
             neighbors = self.g.neighbors(anc)
             z_right_nodes.extend(neigh for neigh in neighbors if neigh in lst_corner + lst_boundary)
@@ -983,15 +996,15 @@ class SnakeBuilderSTDW:
         return True
 
 
-class SnakeBuilder:
+class SnakeBuilderSteane:
     """Constructs a snake with n Steane patches on specified vertices in G. Without ancillas in the interface."""
 
-    def __init__(self, g: nx.Graph, positions: list[dict[tuple[int, int], int]]) -> None:
+    def __init__(self, g: nx.Graph, positions: list[dict[NodePos, int]]) -> None:
         """Initializes n snake.
 
         Args:
             g (nx.Graph): Hexagonal graph on which the data qubits are placed
-            positions (list[dictionary]): The positions must have key = networkx label, value = 0,..6. The labeling from 0-6 for each
+            positions (list[dict[NodePos, int]]): The positions must have key = networkx label, value = 0,..6. The labeling from 0-6 for each
                 steane patch (each patch has one dictionary). This follows a strict convention, the order of the overall list is important
                 since consecutive dictionaries must have patches neighboring on the lattice. Each patch has three edges: (0,2,1), (3,5,1), (0,4,3).
                 Your current patch has to be connected with the next patch via a (3,5,1) -  (0,2,1) or (0,4,3) - (0,2,1) connection. This means
@@ -1057,14 +1070,11 @@ class SnakeBuilder:
         """Returns the standard separate steane stabilizer plaquettes."""
         return [[0, 2, 4, 6], [1, 2, 5, 6], [3, 4, 5, 6]]
 
-    def neighboring_vertex(self, vertex_0: tuple[int, int], vertex_1: tuple[int, int]) -> bool:
+    def neighboring_vertex(self, vertex_0: NodePos, vertex_1: NodePos) -> bool:
         """Checks whether two vertices are adjacent."""
-        neighbor = False
-        if (vertex_0, vertex_1) in self.g.edges() or (vertex_1, vertex_0) in self.g.edges():
-            neighbor = True
-        return neighbor
+        return (vertex_0, vertex_1) in self.g.edges() or (vertex_1, vertex_0) in self.g.edges()
 
-    def check_interface(self, i: int) -> dict[tuple[int, int], int]:
+    def check_interface(self, i: int) -> dict[NodePos, int]:
         """Checks which edge of the ith steane tile is connected to the next (i+1) 0,2,1 edge."""
         next_edge = [key for key, value in self.positions[i + 1].items() if value in {0, 1, 2}]
         # find adjacent edge of ith steane to `next_edge`'s 0,1,2 edge
@@ -1081,11 +1091,10 @@ class SnakeBuilder:
         return adjacent_edge
 
     def check_paired_neighbor(
-        self, pos_i_new: dict[tuple[int, int], int], pos_i1_new: dict[tuple[int, int], int]
+        self, pos_i_new: dict[NodePos, int], pos_i1_new: dict[NodePos, int]
     ) -> bool:
         """Checks whether we can find a weight-8 x plaquette which actually connects neighbored plaqeuttes between i and i+1."""
         neighboring_pairs = []
-        neighboring_two = False
         # neighboring_two is a bool which determines whether the weight 8 stab would connect neighboring patches
         for key_i in pos_i_new:
             for key_i1 in pos_i1_new:
@@ -1094,18 +1103,18 @@ class SnakeBuilder:
                     neighboring_pairs.append((key_i, key_i1))  # Store the pair
                     # If we already found 2 pairs, return true
                     if len(neighboring_pairs) == 2:
-                        neighboring_two = True
-        return neighboring_two
+                        return True
+        return False
 
-    def generate_x_stabilizers(self) -> list[dict[tuple[int, int], int]]:
+    def generate_x_stabilizers(self) -> list[dict[NodePos, int]]:
         """Subsequently builds the X stabilizers. Focus on the big `trillerpfeifen` weight-8 stabilizers."""
-        x_stabilizers: list[dict[tuple[int, int], int]] = []
+        x_stabilizers: list[dict[NodePos, int]] = []
         compatible_x_stabs = self.compatible_x_stabs()
 
         # check at which interface the next steane tile is placed
         adjacent_edge = self.check_interface(0)
 
-        if sorted(adjacent_edge.values()) == sorted([0, 4, 3]):
+        if sorted(adjacent_edge.values()) == [0, 3, 4]:
             k = 0  # make a choice for the two possibilities
             x_stab = {}
             x_stab.update({
@@ -1121,7 +1130,7 @@ class SnakeBuilder:
                 {key: value for key, value in self.positions[1].items() if value in {1, 2, 5, 6}},
                 {key: value for key, value in self.positions[1].items() if value in {3, 4, 5, 6}},
             ))
-        elif sorted(adjacent_edge.values()) == sorted([1, 5, 3]):
+        elif sorted(adjacent_edge.values()) == [1, 3, 5]:
             k = 2
             x_stab = {}
             x_stab.update({
@@ -1146,7 +1155,6 @@ class SnakeBuilder:
         for i in range(1, len(self.positions) - 1):
             current_patch = self.positions[i]
             next_patch = self.positions[i + 1]
-            # adjacent_edge = self.check_interface(i)
             for el in compatible_x_stabs:
                 # find the present stab which includes el["i"]
                 stab = self.find_matching_dict(x_stabilizers, el["i"], i)
@@ -1176,8 +1184,8 @@ class SnakeBuilder:
         return x_stabilizers
 
     def find_matching_dict(
-        self, x_stabilizers: list[dict[tuple[int, int], int]], target_values: list[int], i: int
-    ) -> dict[tuple[int, int], int]:
+        self, x_stabilizers: list[dict[NodePos, int]], target_values: list[int], i: int
+    ) -> dict[NodePos, int]:
         """Finds the set of stabilizers in the ith patch which have the desired target_values."""
         target_set = set(target_values)  # Convert target_values to a set for fast lookup
         temp_keys = set(self.positions[i].keys())
@@ -1194,9 +1202,9 @@ class SnakeBuilder:
                 candidates.append(stabilizer_dict)
         return min(candidates, key=len)  # the shortest suitable candidate
 
-    def generate_z_stabilizers(self) -> list[dict[tuple[int, int], int]]:
+    def generate_z_stabilizers(self) -> list[dict[NodePos, int]]:
         """Builds Z stabilizers based on X stabilizers."""
-        z_stabilizers: list[dict[tuple[int, int], int]] = []
+        z_stabilizers: list[dict[NodePos, int]] = []
 
         # first, add all standard stabilizers
         standard_steane_plaquettes = self.standard_steane()
@@ -1259,10 +1267,10 @@ class SnakeBuilder:
 
     @staticmethod
     def find_matching_dict_z(
-        x_stabs: list[dict[tuple[int, int], int]],
-        current_patch: dict[tuple[int, int], int],
-        next_patch: dict[tuple[int, int], int],
-    ) -> dict[tuple[int, int], int] | None:
+        x_stabs: list[dict[NodePos, int]],
+        current_patch: dict[NodePos, int],
+        next_patch: dict[NodePos, int],
+    ) -> dict[NodePos, int] | None:
         """Finds the x stabilizer which connects current_patch and next_patch."""
         current_keys = set(current_patch.keys())
         next_keys = set(next_patch.keys())
@@ -1275,8 +1283,8 @@ class SnakeBuilder:
 
     def find_disjoint_dict(
         self,
-        current_patch: dict[tuple[int, int], int],
-        next_patch: dict[tuple[int, int], int],
+        current_patch: dict[NodePos, int],
+        next_patch: dict[NodePos, int],
         dict_list: list[dict[str, list[int]]],
         pair: list[int],
     ) -> dict[str, list[int]] | None:
@@ -1284,8 +1292,8 @@ class SnakeBuilder:
         pair_set = set(pair)  # Convert the pair to a set for easy comparison
 
         def neighboring_pair(
-            current_patch: dict[tuple[int, int], int],
-            next_patch: dict[tuple[int, int], int],
+            current_patch: dict[NodePos, int],
+            next_patch: dict[NodePos, int],
             dictionary: dict[str, list[int]],
         ) -> bool | None:
             """Checks whether at least one neighboring pair in chosen 4-weight stab."""
@@ -1338,7 +1346,7 @@ class SnakeBuilder:
 
         return checks_z, checks_x
 
-    def plot_stabilizers(self, stabilizers: list[dict[tuple[int, int], int]], size: tuple[int, int] = (7, 7)) -> None:
+    def plot_stabilizers(self, stabilizers: list[dict[NodePos, int]], size: tuple[int, int] = (7, 7)) -> None:
         """Plots the faces of the stabilizers for a given list of stabilizers (either x or z)."""
         pos = nx.get_node_attributes(self.g, "pos")
         num_faces = len(stabilizers)
