@@ -358,6 +358,10 @@ def all_gate_optimal_verification_stabilizers(
     layers: list[list[list[npt.NDArray[np.int8]]]] = [[] for _ in range(n_layers)]
     max_ancillas = stabs.shape[0]
 
+    for fs in fault_sets:
+        print(len(fs))
+        print(fs.faults)
+
     # Find the optimal circuit for every number of errors in the preparation circuit
     for layer in range(n_layers):
         logger.info(f"Finding verification stabilizers for {layer + 1} errors")
