@@ -239,7 +239,6 @@ def test_optimal_steane_verification_circuit(steane_code_sp: FaultyStatePrepCirc
     assert circ_ver.num_qubits == circ.num_qubits + 1
     assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
     assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
-    assert False
 
 
 def test_heuristic_steane_verification_circuit(steane_code_sp: FaultyStatePrepCircuit) -> None:
