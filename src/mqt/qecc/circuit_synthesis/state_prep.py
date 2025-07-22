@@ -838,7 +838,7 @@ def all_verification_stabilizers(
 
     n_gens = stabs.shape[0]
     n_qubits = stabs.shape[1]
-    print(stabs)
+
     measurement_vars = [[z3.Bool(f"m_{anc}_{i}") for i in range(n_gens)] for anc in range(num_anc)]
     measurement_stabs = [vars_to_stab(vars_, stabs) for vars_ in measurement_vars]
 
