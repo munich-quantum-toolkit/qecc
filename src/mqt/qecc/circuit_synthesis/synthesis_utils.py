@@ -367,6 +367,14 @@ def _column_addition_constraint(
 
 def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]) -> z3.BoolRef:
     """Return assertion that two symbolic vectors should be equal."""
+    if len(v1) != len(v2):
+        msg = "Vectors must have the same length for equality check."
+        raise ValueError(msg)
+
+    # map all numpy bools to Python bools, otherwise z3 will not be able to handle them
+    v1 = np.array([bool(v) if isinstance(v, (bool, np.bool_)) else v for v in v1], dtype=object)
+    v2 = np.array([bool(v) if isinstance(v, (bool, np.bool_)) else v for v in v2], dtype=object)
+
     constraints = [False for _ in v1]
     for i in range(len(v1)):
         # If one of the elements is a bool, we can simplify the expression
@@ -394,7 +402,13 @@ def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int
     """Return True if the overlap of symbolic vector with constant vector is odd."""
     if np.array_equal(v_con, np.zeros(len(v_con), dtype=np.int8)):
         return z3.BoolVal(False)
-    return z3.PbEq([(v_sym[i], 1) for i, c in enumerate(v_con) if c == 1], 1)
+
+    constraint = False
+    for i, c in enumerate(v_con):
+        if c != 1:
+            continue
+        constraint = z3.Xor(constraint, v_sym[i])
+    return constraint
 
 
 def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[z3.BoolRef]:

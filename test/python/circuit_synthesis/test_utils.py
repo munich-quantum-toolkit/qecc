@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 import pytest
 import stim
+import z3
 from ldpc import mod2
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
@@ -23,8 +24,11 @@ from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
+    heuristic_gaussian_elimination,
     measure_flagged,
     measure_stab_unflagged,
+    odd_overlap,
+    symbolic_vector_eq,
 )
 
 if TYPE_CHECKING:
@@ -75,6 +79,18 @@ def full_matrix() -> MatrixTest:
     return MatrixTest(np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8), 3, 2)
 
 
+@pytest.fixture
+def single_row_matrix() -> MatrixTest:
+    """Return a matrix with a single row."""
+    return MatrixTest(np.array([[1, 0, 1, 0]], dtype=np.int8), 1, 1)
+
+
+@pytest.fixture
+def single_column_matrix() -> MatrixTest:
+    """Return a matrix with a single ."""
+    return MatrixTest(np.array([[1], [0], [1], [1]], dtype=np.int8), 0, 0)
+
+
 class MeasurementTest(NamedTuple):
     """Class containing all information for a measurement test."""
 
@@ -95,7 +111,7 @@ def _make_measurement_test(n: int, stab: list[int]) -> MeasurementTest:
     return MeasurementTest(qc, stab_qubits, ancilla, measurement_bit)
 
 
-@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix"])
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
 def test_min_column_ops(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
     """Check correct number of column operations are returned."""
     fixture = request.getfixturevalue(test_vals)
@@ -111,7 +127,7 @@ def test_min_column_ops(test_vals: MatrixTest, request) -> None:  # type: ignore
     assert check_correct_elimination(matrix, reduced, ops)
 
 
-@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix"])
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
 def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
     """Check correct number of parallel eliminations are returned."""
     fixture = request.getfixturevalue(test_vals)
@@ -128,6 +144,32 @@ def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # t
 
     n_parallel_layers = get_n_parallel_layers(ops)
     assert n_parallel_layers <= max_parallel_steps
+
+
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
+def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
+    """Test heuristic Gaussian elimination method."""
+    fixture = request.getfixturevalue(test_vals)
+    matrix = fixture.matrix
+    res_seq = heuristic_gaussian_elimination(matrix, parallel_elimination=False)
+    res_parallel = heuristic_gaussian_elimination(matrix, parallel_elimination=True)
+
+    assert res_seq is not None
+    reduced_seq, ops_seq = res_seq
+
+    assert res_parallel is not None
+    reduced_parallel, ops_parallel = res_parallel
+
+    assert check_correct_elimination(matrix, reduced_seq, ops_seq)
+    assert check_correct_elimination(matrix, reduced_parallel, ops_parallel)
+
+    n_parallel_layers_seq = get_n_parallel_layers(ops_seq)
+    assert n_parallel_layers_seq <= fixture.max_parallel_steps
+
+    n_parallel_layers_parallel = get_n_parallel_layers(ops_parallel)
+    assert n_parallel_layers_parallel <= fixture.max_parallel_steps
+
+    assert n_parallel_layers_parallel <= n_parallel_layers_seq
 
 
 def correct_stabilizer_propagation(
@@ -228,3 +270,62 @@ def test_compact_stim_circuit() -> None:
     assert len(circ) == 4
     compacted = compact_stim_circuit(circ)
     assert len(compacted) == 2
+
+
+def test_symbolic_vector_eq_with_different_length_vectors(different_length_vectors_fixture):
+    """Test ~symbolic_vector_eq~ with vectors of different lengths."""
+    v1, v2 = different_length_vectors_fixture
+    try:
+        symbolic_vector_eq(v1, v2)
+        msg = "Different length vectors should raise an error."
+        raise AssertionError(msg)
+    except ValueError:
+        pass  # Expected behavior
+
+
+class TestSymbolicVectorOperations:
+    """Test class for symbolic vector operations, including ~odd_overlap~."""
+
+    x = z3.Bool("x")
+    y = z3.Bool("y")
+
+    @pytest.mark.parametrize(
+        ("lhs", "rhs", "expected_result"),
+        [
+            (np.array([True, False, True]), np.array([False, True, False]), z3.unsat),
+            (np.array([True, False, True]), np.array([True, False, True]), z3.sat),
+            (np.array([x, y, z3.Not(x)]), np.array([x, y, z3.Not(x)]), z3.sat),
+            (np.array([x, y, z3.Not(x)]), np.array([y, x, y]), z3.unsat),
+            (np.array([True, False, x]), np.array([True, False, x]), z3.sat),
+            (np.array([True, False, x]), np.array([False, True, x]), z3.unsat),
+            (np.array([], dtype=bool), np.array([], dtype=bool), z3.sat),
+        ],
+    )
+    def test_symbolic_vector_eq(self, lhs, rhs, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_vector_eq~."""
+        # Test equal vectors
+        solver = z3.Solver()
+        solver.add(symbolic_vector_eq(lhs, rhs))
+        assert solver.check() == expected_result
+
+    @pytest.mark.parametrize(
+        ("v_sym", "v_con", "expected_result"),
+        [
+            # Empty constant vector
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([0, 0, 0, 0, 0], dtype=np.int8), z3.unsat),
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([1, 0, 1, 0, 0], dtype=np.int8), z3.sat),
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([1, 0, 1, 0, 1], dtype=np.int8), z3.sat),
+            # Mixed boolean and symbolic values
+            (
+                np.array([True, z3.Bool("x1"), False, z3.Bool("x3"), True]),
+                np.array([1, 1, 0, 1, 0], dtype=np.int8),
+                z3.sat,
+            ),
+            (np.array([True, x, x]), np.array([False, True, True]), z3.unsat),
+        ],
+    )
+    def test_odd_overlap(self, v_sym, v_con, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~odd_overlap~."""
+        solver = z3.Solver()
+        solver.add(odd_overlap(v_sym, v_con))
+        assert solver.check() == expected_result, f"Test failed for v_sym={v_sym}, v_con={v_con}"
