@@ -656,6 +656,7 @@ def deterministic_correction(
         max_ancillas = verification_gens.shape[0] + correction_gens.shape[0]
 
     logger.info("Fault set has %s faults.", len(fault_set))
+    logger.info("Non-deterministic verification stabilizers: %s", nd_d3_verification_stabilizers)
 
     det_verify = {}
     for verify_outcome_int in range(1, 2**num_nd_stabs):

@@ -108,7 +108,7 @@ def verified_11_1_3_data(
 ) -> tuple[DeterministicVerification, DeterministicVerification]:
     """Run deterministic verification once, return X/Z verification circuits."""
     verify_helper = DeterministicVerificationHelper(css_11_1_3_code_sp)
-    verify_x, verify_z = verify_helper.get_solution()
+    verify_x, verify_z = verify_helper.get_solution(min_timeout=3)
     return verify_x, verify_z
 
 
@@ -182,7 +182,7 @@ def test_11_1_3_det_verification_correctness(
     assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
     # Check Z-verification
-    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 0)
+    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 4)
     assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
 
 

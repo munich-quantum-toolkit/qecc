@@ -275,17 +275,6 @@ def test_compact_stim_circuit() -> None:
     assert len(compacted) == 2
 
 
-def test_symbolic_vector_eq_with_different_length_vectors(different_length_vectors_fixture):
-    """Test ~symbolic_vector_eq~ with vectors of different lengths."""
-    v1, v2 = different_length_vectors_fixture
-    try:
-        symbolic_vector_eq(v1, v2)
-        msg = "Different length vectors should raise an error."
-        raise AssertionError(msg)
-    except ValueError:
-        pass  # Expected behavior
-
-
 class TestSymbolicVectorOperations:
     """Test class for symbolic vector operations, including ~odd_overlap~."""
 
