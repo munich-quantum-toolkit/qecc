@@ -19,7 +19,6 @@ from .utils.lattice_router import (
     ShortestFirstRouterTGatesDyn,
 )
 from .utils.misc import (
-    compare_original_dynamic_gate_order,
     generate_max_parallel_circuit,
     generate_min_parallel_circuit,
     generate_random_circuit,
@@ -35,7 +34,6 @@ __all__ = [
     "SnakeBuilderSC",
     "SnakeBuilderSTDW",
     "SnakeBuilderSteane",
-    "compare_original_dynamic_gate_order",
     "generate_max_parallel_circuit",
     "generate_min_parallel_circuit",
     "generate_random_circuit",

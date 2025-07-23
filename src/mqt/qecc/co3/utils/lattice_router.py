@@ -523,58 +523,6 @@ class ShortestFirstRouter(HexagonalLattice):
         )
         return vdp_layers
 
-    def plot_lattice_paths(
-        self, layer: int, layout: dict[int, tuple[int, int]] | None = None, size: tuple[float, float] = (3.5, 3.5)
-    ) -> None:
-        """Plots the graph and the corresponding VDP of a layer.
-
-        Args:
-            layer (int): label of layer to plot
-            layout (dict): potentially also display the qubit labels. keys = qubit label, value = node label
-            size (tuple[float,float], optional): _description_. Size of the plot. Defaults to (3.5,3.5).
-        """
-        if layout is None:
-            layout = {}
-        pos = nx.get_node_attributes(self.G, "pos")
-
-        if self.vdp_layers is not None:  # for mypy
-            num_paths = len(self.vdp_layers[layer].keys())
-            colormap = plt.cm.get_cmap("rainbow", num_paths)
-            colors = [mcolors.to_hex(colormap(i)) for i in range(num_paths)]
-        else:
-            msg = "vdp_layers must be present, otherwise plotting makes no sense."
-            raise RuntimeError(msg)
-
-        plt.figure(figsize=size)
-        nx.draw(self.G, pos, with_labels=True, node_color="gray", edge_color="lightblue", font_size=8)
-
-        if self.vdp_layers is not None:
-            for i, path in enumerate(self.vdp_layers[layer].values()):
-                if path:
-                    path_edges = [(path[j], path[j + 1]) for j in range(len(path) - 1)]
-                    nx.draw_networkx_edges(self.G, pos, edgelist=path_edges, width=2, edge_color=colors[i])
-                    nx.draw_networkx_nodes(self.G, pos, nodelist=path, node_color=colors[i], label=f"Path {i + 1}")
-
-        if len(list(layout.keys())) != 0:
-            for key, value in layout.items():
-                node_pos = pos[value]
-                plt.text(
-                    node_pos[0], node_pos[1] - 0.1, str(key), fontsize=8, color="white", horizontalalignment="center"
-                )
-                # also highlight data qubits
-                nx.draw_networkx_nodes(
-                    self.G,
-                    pos,
-                    nodelist=layout.values(),  # Nodes to highlight
-                    node_color="none",  # Unfilled circles
-                    edgecolors="lime",  # Neon green outline
-                    linewidths=1.5,  # Line width for the outline
-                )
-
-        plt.legend()
-        plt.show()
-
-
 class ShortestFirstRouterTGates(HexagonalLattice):
     """Shortest First Routing for VDP on Hexagonal Lattice with adaption to greedily include T gates."""
 
@@ -1015,7 +963,7 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
         vdp_layers: list[dict[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]], list[tuple[int, int]]]] = []
         # temp = 0
         layers_cnot_t_prev = None
-        counter = 0
+        #counter = 0
         while len(self.layers_cnot_t) > 0:
             layer = 0  # since we adapt the layers_cnot_t_orig inplace, always layer=0 needed
             vdp_dict, terminal_pairs_remainder = self.find_max_vdp_set(
@@ -1040,11 +988,11 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
             self.layers_cnot_t = initial_layers_update
             if len(self.layers_cnot_t) == 0:
                 break
-            counter += 1
+            #counter += 1
 
             # avoid infinite loops
-            if counter == len(self.terminal_pairs) * 10:
-                break
+            #if counter == len(self.terminal_pairs) * 10:
+            #    break
 
         # it might be possible that there are bugs. hence, check whether vdp layers really contains as main paths as there are gates.
         keys = []
