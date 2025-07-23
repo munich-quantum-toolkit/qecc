@@ -28,7 +28,10 @@ from mqt.qecc.circuit_synthesis.synthesis_utils import (
     measure_flagged,
     measure_stab_unflagged,
     odd_overlap,
+    symbolic_scalar_mult,
+    symbolic_vector_add,
     symbolic_vector_eq,
+    vars_to_stab,
 )
 
 if TYPE_CHECKING:
@@ -329,3 +332,86 @@ class TestSymbolicVectorOperations:
         solver = z3.Solver()
         solver.add(odd_overlap(v_sym, v_con))
         assert solver.check() == expected_result, f"Test failed for v_sym={v_sym}, v_con={v_con}"
+
+    @pytest.mark.parametrize(
+        ("v", "scalar", "expected_result"),
+        [
+            # Empty vector
+            (np.array([], dtype=np.int8), True, np.array([])),
+            # Scalar multiplication with True
+            (np.array([1, 0, 1], dtype=np.int8), True, np.array([True, False, True])),
+            # Scalar multiplication with False
+            (np.array([1, 0, 1], dtype=np.int8), False, np.array([False, False, False])),
+            # Scalar multiplication with a Z3 variable (x)
+            (np.array([1, 0, 1], dtype=np.int8), x, np.array([x, False, x])),
+            # Scalar multiplication with a Z3 variable (y)
+            (np.array([1, 0, 0, 1], dtype=np.int8), y, np.array([y, False, False, y])),
+        ],
+    )
+    def test_symbolic_scalar_mult(self, v, scalar, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_scalar_mult~."""
+        result = symbolic_scalar_mult(v, scalar)
+        assert np.array_equal(result, expected_result), f"Test failed for v={v}, scalar={scalar}"
+
+    @pytest.mark.parametrize(
+        ("v1", "v2", "expected_result"),
+        [
+            # Empty vectors
+            (np.array([]), np.array([]), np.array([])),
+            # Addition of boolean vectors
+            (np.array([True, False, True]), np.array([False, True, False]), np.array([True, True, True])),
+            # Addition of symbolic vectors
+            (
+                np.array([x, y, z3.Not(x)]),
+                np.array([x, y, z3.Not(x)]),
+                np.array([z3.BoolVal(False), z3.BoolVal(False), z3.BoolVal(False)]),
+            ),
+            # Mixed boolean and symbolic vectors
+            (np.array([True, False, x]), np.array([False, True, y]), np.array([True, True, z3.Xor(x, y)])),
+            # Boolean and symbolic simplifications
+            (np.array([True, x, False]), np.array([False, y, True]), np.array([True, z3.Xor(x, y), True])),
+        ],
+    )
+    def test_symbolic_vector_add(self, v1, v2, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_vector_add~."""
+        result = symbolic_vector_add(v1, v2)
+        assert np.array_equal(result, expected_result), f"Test failed for v1={v1}, v2={v2}"
+
+    @pytest.mark.parametrize(
+        ("measurement", "generators", "expected_result"),
+        [
+            # Single generator
+            ([True], np.array([[1, 0, 1]], dtype=np.int8), np.array([True, False, True])),
+            # Multiple generators with boolean measurements
+            ([True, False], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([True, False, True])),
+            # Multiple generators with symbolic measurements
+            ([x, y], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([x, y, x])),
+            # Mixed boolean and symbolic measurements
+            ([True, y], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([True, y, True])),
+        ],
+    )
+    def test_vars_to_stab_valid_inputs(self, measurement, generators, expected_result):  # noqa: PLR6301
+        """Test ~vars_to_stab~ with valid inputs."""
+        result = vars_to_stab(measurement, generators)
+        assert np.array_equal(result, expected_result), (
+            f"Test failed for measurement={measurement}, generators={generators}"
+        )
+
+    @pytest.mark.parametrize(
+        ("measurement", "generators", "expected_exception", "expected_message"),
+        [
+            # Empty measurement
+            ([], np.array([[1, 0, 1]], dtype=np.int8), ValueError, "Measurement must not be empty"),
+            # Mismatched lengths
+            (
+                [True],
+                np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8),
+                ValueError,
+                "Generators and measurement must have the same length",
+            ),
+        ],
+    )
+    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):  # noqa: PLR6301
+        """Test ~vars_to_stab~ with invalid inputs that raise exceptions."""
+        with pytest.raises(expected_exception, match=expected_message):
+            vars_to_stab(measurement, generators)

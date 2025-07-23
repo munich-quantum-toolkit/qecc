@@ -439,6 +439,8 @@ def symbolic_vector_add(
             else:
                 v_new[i] = v1[i]
 
+        elif bool(v1[i] == v2[i]):
+            v_new[i] = False
         else:
             v_new[i] = z3.Xor(v1[i], v2[i])
 
@@ -1256,6 +1258,14 @@ def vars_to_stab(
     measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
 ) -> npt.NDArray[z3.BoolRef | bool]:
     """Compute the stabilizer measured giving the generators and the measurement variables."""
+    if not measurement:
+        msg = "Measurement must not be empty"
+        raise ValueError(msg)
+
+    if len(generators) != len(measurement):
+        msg = "Generators and measurement must have the same length"
+        raise ValueError(msg)
+
     measurement_stab = symbolic_scalar_mult(generators[0], measurement[0])
     for i, scalar in enumerate(measurement[1:]):
         measurement_stab = symbolic_vector_add(measurement_stab, symbolic_scalar_mult(generators[i + 1], scalar))
