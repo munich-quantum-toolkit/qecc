@@ -9,16 +9,7 @@
 
 from __future__ import annotations
 
-import math
 import random
-import sys
-import warnings
-from typing import TYPE_CHECKING
-
-import numpy as np
-
-if TYPE_CHECKING:
-    import mqt.qecc.co3 as co
 
 random.seed(45)
 
@@ -222,5 +213,3 @@ def translate_layout_circuit(
             terminal_pairs.append(pos)
 
     return terminal_pairs
-
-

@@ -523,6 +523,7 @@ class ShortestFirstRouter(HexagonalLattice):
         )
         return vdp_layers
 
+
 class ShortestFirstRouterTGates(HexagonalLattice):
     """Shortest First Routing for VDP on Hexagonal Lattice with adaption to greedily include T gates."""
 
@@ -963,7 +964,7 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
         vdp_layers: list[dict[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]], list[tuple[int, int]]]] = []
         # temp = 0
         layers_cnot_t_prev = None
-        #counter = 0
+        # counter = 0
         while len(self.layers_cnot_t) > 0:
             layer = 0  # since we adapt the layers_cnot_t_orig inplace, always layer=0 needed
             vdp_dict, terminal_pairs_remainder = self.find_max_vdp_set(
@@ -988,10 +989,10 @@ class ShortestFirstRouterTGatesDyn(ShortestFirstRouterTGates):
             self.layers_cnot_t = initial_layers_update
             if len(self.layers_cnot_t) == 0:
                 break
-            #counter += 1
+            # counter += 1
 
             # avoid infinite loops
-            #if counter == len(self.terminal_pairs) * 10:
+            # if counter == len(self.terminal_pairs) * 10:
             #    break
 
         # it might be possible that there are bugs. hence, check whether vdp layers really contains as main paths as there are gates.
