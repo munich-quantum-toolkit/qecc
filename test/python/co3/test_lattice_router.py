@@ -13,10 +13,15 @@ import math
 import random
 import sys
 import warnings
+from pathlib import Path
 
-sys.path.append("../../../scripts/co3")
-import layouts  # type: ignore[import-not-found]
-import matplotlib as mpl
+test_dir = Path(__file__).resolve().parent
+layouts_path = (test_dir / "../../../scripts/co3").resolve()
+if str(layouts_path) not in sys.path:
+    sys.path.insert(0, str(layouts_path))
+
+import layouts as layouts  # type: ignore[import-not-found]
+import matplotlib
 import numpy as np
 import pytest
 import qiskit as qk
