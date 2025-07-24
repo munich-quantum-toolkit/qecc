@@ -15,12 +15,7 @@ import sys
 import warnings
 from pathlib import Path
 
-test_dir = Path(__file__).resolve().parent
-layouts_path = (test_dir / "../../../scripts/co3").resolve()
-if str(layouts_path) not in sys.path:
-    sys.path.insert(0, str(layouts_path))
-
-import layouts  # type: ignore[import-not-found]
+import matplotlib as mpl
 import numpy as np
 import pytest
 import qiskit as qk
@@ -30,6 +25,14 @@ from qiskit_aer import AerSimulator
 
 import mqt.qecc.co3 as co
 from mqt.qecc.co3.utils.lattice_router import plot_lattice_paths
+
+test_dir = Path(__file__).resolve().parent
+layouts_path = (test_dir / "../../../scripts/co3").resolve()
+if str(layouts_path) not in sys.path:
+    sys.path.insert(0, str(layouts_path))
+
+import layouts as layouts  # type: ignore[import-not-found]  # noqa: E402, I001, PLC0414
+
 
 
 def compare_original_dynamic_gate_order(
