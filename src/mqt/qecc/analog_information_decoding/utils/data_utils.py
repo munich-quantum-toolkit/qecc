@@ -67,11 +67,11 @@ def load_data(
         path = Path(file)
 
         try:
-            ldata = json.load(path.open())
+            ldata = json.load(path.open(encoding="utf-8"))
             data.append(ldata)
         except json.decoder.JSONDecodeError:
             merge_json_files(str(path.with_suffix("")))
-            ldata = json.load(path.open())
+            ldata = json.load(path.open(encoding="utf-8"))
             data.append(ldata)
     return data
 
