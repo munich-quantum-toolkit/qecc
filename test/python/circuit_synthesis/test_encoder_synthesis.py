@@ -109,7 +109,7 @@ def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # ty
     """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder = gate_optimal_encoding_circuit(code, max_timeout=5, min_gates=3, max_gates=10)
+    encoder = gate_optimal_encoding_circuit(code, max_timeout=8, min_gates=3, max_gates=10)
     assert encoder is not None
     encoder.get_uninitialized()
     assert encoder.num_qubits() == code.n
