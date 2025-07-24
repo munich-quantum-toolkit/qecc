@@ -17,7 +17,7 @@ import stim
 from qiskit import QuantumCircuit
 
 from .circuit_utils import qiskit_to_stim_circuit, relabel_qubits
-from .noise import CircuitLevelNoiseNoIdling
+from .noise import CircuitLevelNoise
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -106,7 +106,7 @@ class CatStatePreparationExperiment:
         Returns:
             The noisy cat state preparation circuit.
         """
-        return CircuitLevelNoiseNoIdling(p).apply(self.circ)
+        return CircuitLevelNoise(p).apply(self.circ)
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None

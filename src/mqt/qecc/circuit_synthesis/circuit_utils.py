@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.converters import circuit_to_dag, dag_to_circuit
-from stim import Circuit
+from stim import Circuit, CircuitInstruction
 
 
 def reorder_qubits(circ: QuantumCircuit, qubit_mapping: dict[int, int]) -> QuantumCircuit:
@@ -111,3 +111,5 @@ def compact_stim_circuit(circ: Circuit) -> Circuit:
 
     # Convert back to stim circuit
     return qiskit_to_stim_circuit(new_circ)
+
+
