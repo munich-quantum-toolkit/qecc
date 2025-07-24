@@ -34,7 +34,6 @@ if str(layouts_path) not in sys.path:
 import layouts as layouts  # type: ignore[import-not-found]  # noqa: E402, I001, PLC0414
 
 
-
 def compare_original_dynamic_gate_order(
     q: int, layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]], router: co.ShortestFirstRouterTGatesDyn
 ) -> bool:
