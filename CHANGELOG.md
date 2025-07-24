@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ## [Unreleased]
 
+### Added
+
+- New `PureFaultSet` class for representing collections of X or Z faults.
+- New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries.
+
+### Changed
+
+- Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes.
+- Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes.
+- Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information.
+
 ## [1.9.0] - 2025-03-14
 
 _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-toolkit/qecc/releases) for previous changelogs._
