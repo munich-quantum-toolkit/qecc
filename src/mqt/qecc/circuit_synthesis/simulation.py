@@ -25,7 +25,6 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from tqdm import tqdm
 
 from ..codes import InvalidCSSCodeError
-from .synthesis_utils import support
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -203,42 +202,6 @@ class NoisyNDFTStatePrepSimulator(ABC):
                     initialized[anc] = False
 
         return stim_circuit
-
-    def measure_stabilizers(
-        self, circ: stim.Circuit, measurement_index, data_index: int = 0
-    ) -> tuple[list[int], list[int]]:
-        """Measure the stabilizers of the code.
-
-        An ancilla is used for each measurement.
-        """
-        assert self.code.Hx is not None
-        assert self.code.Hz is not None
-
-        x_measurements = []
-        z_measurements = []
-        anc = circ.num_qubits
-        n_measurements = 0
-        for check in self.code.Hx:
-            supp = support(check)
-
-            circ.append_operation("H", [anc])
-            for q in supp:
-                circ.append_operation("CX", [anc, q + data_index])
-            circ.append_operation("MRX", [anc])
-            x_measurements.append(measurement_index + n_measurements)
-            n_measurements += 1
-            anc += 1
-
-        for check in self.code.Hz:
-            supp = support(check)
-            for q in supp:
-                circ.append_operation("CX", [q + data_index, anc])
-            circ.append_operation("MRZ", [anc])
-            z_measurements.append(measurement_index + n_measurements)
-            n_measurements += 1
-            anc += 1
-
-        return x_measurements, z_measurements
 
     def measure_z(self, circ: stim.Circuit, measurement_index: int, data_index: int = 0) -> list[int]:
         """Measure all data qubits in the Z basis."""
