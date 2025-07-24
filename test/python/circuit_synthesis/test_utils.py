@@ -300,6 +300,13 @@ class TestSymbolicVectorOperations:
         solver.add(symbolic_vector_eq(lhs, rhs))
         assert solver.check() == expected_result
 
+    def test_symbolic_vector_eq_different_lengths(self):
+        """Test symbolic_vector_eq with vectors of different lengths."""
+        lhs = np.array([True, False, self.x])
+        rhs = np.array([True, False])
+        with pytest.raises(ValueError, match=r"Vectors must have the same length for equality check."):
+            symbolic_vector_eq(lhs, rhs)
+
     @pytest.mark.parametrize(
         ("v_sym", "v_con", "expected_result"),
         [

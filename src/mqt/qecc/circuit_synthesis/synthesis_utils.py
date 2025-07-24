@@ -18,7 +18,6 @@ import numpy as np
 import z3
 from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
-from stim import Circuit
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -1221,37 +1220,6 @@ def measure_three_flagged_12(
     if not z_measurement:
         qc.h(ancilla)
     qc.measure(ancilla, measurement_bit)
-
-
-def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
-    """Convert a Qiskit circuit to a Stim circuit.
-
-    Args:
-        qc: The Qiskit circuit to convert.
-    """
-    single_qubit_gate_map = {
-        "h": "H",
-        "x": "X",
-        "y": "Y",
-        "z": "Z",
-        "s": "S",
-        "sdg": "S_DAG",
-        "sx": "SQRT_X",
-        "measure": "MR",
-    }
-    stim_circuit = Circuit()
-    for gate in qc:
-        op = gate.operation.name
-        qubit = qc.find_bit(gate.qubits[0])[0]
-        if op in single_qubit_gate_map:
-            stim_circuit.append_operation(single_qubit_gate_map[op], [qubit])
-        elif op == "cx":
-            target = qc.find_bit(gate.qubits[1])[0]
-            stim_circuit.append_operation("CX", [qubit, target])
-        else:
-            msg = f"Unsupported gate: {op}"
-            raise ValueError(msg)
-    return stim_circuit
 
 
 def vars_to_stab(

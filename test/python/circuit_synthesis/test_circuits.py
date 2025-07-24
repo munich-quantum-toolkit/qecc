@@ -32,6 +32,16 @@ def test_add_cnots():
     assert circuit.cnots == [(0, 1), (2, 3), (4, 5)], "Multiple CNOT gates were not added correctly."
 
 
+def test_add_cnot_invalid():
+    """Test adding an invalid CNOT gate raises an error."""
+    circuit = CNOTCircuit()
+    with pytest.raises(ValueError, match=r"Control and target qubits must have non-negative indices."):
+        circuit.add_cnot(-1, 1)
+
+    with pytest.raises(ValueError, match=r"Control and target qubits cannot be the same."):
+        circuit.add_cnot(0, 0)
+
+
 def test_initialize_qubit():
     """Test initializing qubits in the circuit."""
     circuit = CNOTCircuit()
@@ -45,6 +55,13 @@ def test_initialize_invalid_basis():
     circuit = CNOTCircuit()
     with pytest.raises(ValueError, match=r"Initialization basis must be 'Z' or 'X'."):
         circuit.initialize_qubit(0, "Y")
+
+
+def test_initialize_invalid_qubit():
+    """Test initializing a qubit with an invalid index."""
+    circuit = CNOTCircuit()
+    with pytest.raises(ValueError, match=r"Qubit index must be non-negative."):
+        circuit.initialize_qubit(-1, "Z")  # Negative index
 
 
 def test_to_stim_circuit():
@@ -416,6 +433,26 @@ def test_get_logicals():
     for qubit, operator in expected_logical_z.items():
         assert np.array_equal(logicals[qubit][1], operator), f"Logical Z operator for qubit {qubit} is incorrect."
 
+    x = circuit.get_logical_x()
+    z = circuit.get_logical_z()
+
+    for qubit, (x_op, z_op) in logicals.items():
+        assert np.array_equal(x[qubit], x_op), f"Logical X operator for qubit {qubit} is incorrect."
+        assert np.array_equal(z[qubit], z_op), f"Logical Z operator for qubit {qubit} is incorrect."
+
+
+def test_logicals_state():
+    """Test that states do not have logicals."""
+    circuit = CNOTCircuit()
+    circuit.initialize_qubit(0, "Z")
+    circuit.initialize_qubit(1, "X")
+
+    # Check that the circuit has no logicals
+    logicals = circuit.get_logicals()
+    assert not logicals, "States should not have logical operators."
+    assert circuit.get_logical_x() == {}, "States should not have logical X operators."
+    assert circuit.get_logical_z() == {}, "States should not have logical Z operators."
+
 
 def test_copy_circuit():
     """Test the copy method.
@@ -477,6 +514,23 @@ def test_relabel_qubits():
     # Check the result
     assert circuit.cnots == expected_cnots, "CNOT gates were not relabeled correctly."
     assert circuit.initializations == expected_initializations, "Initializations were not relabeled correctly."
+
+
+def test_relabel_qubits_invalid_mapping():
+    """Test relabeling with an invalid mapping.
+
+    This test ensures that an error is raised when the mapping contains invalid indices.
+    """
+    # Create a CNOT circuit
+    circuit = CNOTCircuit()
+    circuit.initialize_qubit(0, "Z")
+
+    # Define an invalid mapping (negative index)
+    invalid_mapping = {0: -1}
+
+    # Attempt to relabel the qubits and expect a ValueError
+    with pytest.raises(ValueError, match=r"Invalid initialization on negative qubit index: -1"):
+        circuit.relabel_qubits(invalid_mapping)
 
 
 def test_compose_cnot_circuits_no_wiring():
@@ -547,3 +601,19 @@ def test_compose_cnot_circuits_with_wiring():
     )
     assert m1 == {0: 0, 1: 3, 2: 1, 3: 4}, "Mapping m1 should map circ1 qubits to the composed circuit."
     assert m2 == {0: 3, 1: 2, 2: 4}, "Mapping m2 should map circ2 qubits to the composed circuit."
+
+
+def test_compose_invalid_wiring():
+    """Test composition with invalid wiring."""
+    circ1 = CNOTCircuit()
+    circ1.add_cnot(0, 1)
+
+    circ2 = CNOTCircuit()
+    circ2.initialize_qubit(0, "Z")
+
+    wiring = {1: 0}  # Invalid wiring, circ1 qubit 1 cannot be connected to initialized qubit 0 of circ2
+
+    with pytest.raises(
+        ValueError, match=r"Cannot compose circuits with wiring that connects to initialized qubits in circ2."
+    ):
+        compose_cnot_circuits(circ1, circ2, wiring)
