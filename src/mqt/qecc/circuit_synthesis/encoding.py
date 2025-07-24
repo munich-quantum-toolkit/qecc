@@ -19,20 +19,18 @@ import z3
 from ldpc import mod2
 
 from ..codes import InvalidCSSCodeError
-from .synthesis_utils import build_css_circuit_from_cnot_list, heuristic_gaussian_elimination, optimal_elimination
+from .circuits import CNOTCircuit
+from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
-    from qiskit.circuit import QuantumCircuit
 
     from ..codes.css_code import CSSCode
 
 logger = logging.getLogger(__name__)
 
 
-def heuristic_encoding_circuit(
-    code: CSSCode, optimize_depth: bool = True, balance_checks: bool = False
-) -> QuantumCircuit:
+def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balance_checks: bool = False) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
     Args:
@@ -77,7 +75,6 @@ def heuristic_encoding_circuit(
                 checks[row, encoding_qubit] = 0
 
     cnots = cnots[::-1]
-
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
@@ -87,7 +84,7 @@ def gate_optimal_encoding_circuit(
     max_gates: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> QuantumCircuit:
+) -> CNOTCircuit | None:
     """Synthesize an encoding circuit for the given CSS code using the minimal number of gates.
 
     Args:
@@ -135,7 +132,7 @@ def depth_optimal_encoding_circuit(
     max_depth: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> QuantumCircuit:
+) -> CNOTCircuit | None:
     """Synthesize an encoding circuit for the given CSS code using minimal depth.
 
     Args:
@@ -222,7 +219,7 @@ def _final_matrix_constraint_partially_full_reduction(
 
 def _build_css_encoder_from_cnot_list(
     n_checks: int, checks_and_logicals: npt.NDArray[np.int8], cnots: list[tuple[int, int]], use_x_checks: bool
-) -> tuple[QuantumCircuit, list[int]]:
+) -> CNOTCircuit:
     encoding_qubits = np.where(checks_and_logicals[n_checks:, :].sum(axis=0) != 0)[0]
     if use_x_checks:
         hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) != 0)[0]
@@ -231,8 +228,8 @@ def _build_css_encoder_from_cnot_list(
         cnots = [(j, i) for i, j in cnots]
 
     hadamards = np.setdiff1d(hadamards, encoding_qubits)
-    circ = build_css_circuit_from_cnot_list(checks_and_logicals.shape[1], cnots, list(hadamards))
-    return circ, encoding_qubits
+    non_hadamards = [i for i in range(checks_and_logicals.shape[1]) if i not in hadamards and i not in encoding_qubits]
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
 def _balance_matrix(m: npt.NDArray[np.int8]) -> None:

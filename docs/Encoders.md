@@ -38,21 +38,23 @@ There is not a unique encoding circuit but usually we would like to obtain an en
 Under the hood, this uses the SMT solver [z3](https://github.com/Z3Prover/z3). Of course this method scales only up to a few qubits. Synthesizing depth-optimal circuits is usually faster than synthesizing gate-optimal circuits.
 
 ```{code-cell} ipython3
-depth_opt, q_enc = depth_optimal_encoding_circuit(steane_code, max_timeout=5)
+depth_opt = depth_optimal_encoding_circuit(steane_code, max_timeout=5)
+q_enc = depth_opt.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {depth_opt.depth()}.")
-print(f"Circuit has {depth_opt.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {depth_opt.num_cnots()} CNOTs.")
 
 depth_opt.draw('mpl')
 ```
 
 ```{code-cell} ipython3
-gate_opt, q_enc = gate_optimal_encoding_circuit(steane_code, max_timeout=5)
+gate_opt = gate_optimal_encoding_circuit(steane_code, max_timeout=5)
+q_enc = gate_opt.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {gate_opt.depth()}.")
-print(f"Circuit has {gate_opt.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {gate_opt.num_cnots()} CNOTs.")
 
 gate_opt.draw('mpl')
 ```
@@ -64,11 +66,12 @@ In addition to the circuit, the synthesis methods also return the encoding qubit
 For larger codes, synthesizing optimal circuits is not feasible. In this case, QECC provides a heuristic synthesis method that tries to use as few CNOTs with the lowest depth as possible.
 
 ```{code-cell} ipython3
-heuristic_circ, q_enc = heuristic_encoding_circuit(steane_code)
+heuristic_circ = heuristic_encoding_circuit(steane_code)
+q_enc = heuristic_circ.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
-print(f"Circuit has {heuristic_circ.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
 heuristic_circ.draw('mpl')
 ```
@@ -101,11 +104,12 @@ We have to be careful with the logicals. Each _anticommuting_ pair of logicals d
 As before, we synthesize the encoding circuit:
 
 ```{code-cell} ipython3
-encoder, q_enc = depth_optimal_encoding_circuit(code, max_timeout=5)
+encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
+q_enc = depth_optimal_encoding_circuit.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {encoder.depth()}.")
-print(f"Circuit has {encoder.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
 encoder.draw('mpl')
 ```

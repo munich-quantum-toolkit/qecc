@@ -14,7 +14,7 @@ import pytest
 import stim
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_synthesis import CNOTCircuit
+from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit, compose_cnot_circuits
 
 
 def test_add_cnot():
@@ -344,3 +344,206 @@ def test_depth_mixed_circuit():
     circ.add_cnot(2, 3)
     circ.add_cnot(0, 2)  # Parallel with the first gate
     assert circ.depth() == 4, "The depth of the mixed circuit should be calculated correctly."
+
+
+def test_num_input_qubits_no_init():
+    """Test the number of input qubits in a CNOT circuit with no initializations."""
+    circ = CNOTCircuit()
+    circ.add_cnot(0, 1)
+    circ.add_cnot(2, 3)
+    assert circ.num_inputs() == 4, "The number of input qubits should match the highest qubit index used."
+
+
+def test_num_input_qubits_state():
+    """Test the number of input qubits of a state."""
+    circ = CNOTCircuit()
+    circ.initialize_qubit(0, "Z")
+    circ.initialize_qubit(1, "X")
+    circ.add_cnot(0, 1)
+    assert circ.num_inputs() == 0, "The number of input qubits of a state is 0."
+
+
+def test_num_input_qubits_isometry():
+    """Test the number of input qubits in a CNOT circuit with initializations."""
+    circ = CNOTCircuit()
+    circ.initialize_qubit(0, "Z")
+    circ.initialize_qubit(1, "X")
+    circ.add_cnot(0, 1)
+    circ.add_cnot(2, 3)
+    assert circ.num_inputs() == 2, "The number of input qubits should match the highest qubit index used."
+
+
+def test_get_uninitialized_qubits():
+    """Test the get_uninitialized method.
+
+    This test ensures that the method correctly identifies qubits that have not been initialized.
+    """
+    circuit = CNOTCircuit()
+    circuit.initialize_qubit(0, "Z")
+    circuit.initialize_qubit(1, "X")
+    circuit.add_cnot(0, 2)
+    circuit.add_cnot(3, 4)
+
+    expected_uninitialized = [2, 3, 4]
+
+    assert circuit.get_uninitialized() == expected_uninitialized, "Uninitialized qubits were not identified correctly."
+
+
+def test_get_logicals():
+    """Test the get_logicals method.
+
+    This test ensures that the method correctly identifies both logical X and Z operators for input qubits.
+    """
+    circuit = CNOTCircuit()
+    circuit.add_cnot(0, 1)
+    circuit.add_cnot(1, 2)
+
+    expected_logical_x = {
+        0: np.array([1, 1, 1], dtype=np.int8),
+        1: np.array([0, 1, 1], dtype=np.int8),
+        2: np.array([0, 0, 1], dtype=np.int8),
+    }
+    expected_logical_z = {
+        0: np.array([1, 0, 0], dtype=np.int8),
+        1: np.array([1, 1, 0], dtype=np.int8),
+        2: np.array([0, 1, 1], dtype=np.int8),
+    }
+
+    # Check the result
+    logicals = circuit.get_logicals()
+    for qubit, operator in expected_logical_x.items():
+        assert np.array_equal(logicals[qubit][0], operator), f"Logical X operator for qubit {qubit} is incorrect."
+    for qubit, operator in expected_logical_z.items():
+        assert np.array_equal(logicals[qubit][1], operator), f"Logical Z operator for qubit {qubit} is incorrect."
+
+
+def test_copy_circuit():
+    """Test the copy method.
+
+    This test ensures that the copy method creates an independent copy of the circuit
+    with the same CNOT gates and initializations.
+    """
+    # Create an original CNOT circuit
+    original_circuit = CNOTCircuit()
+    original_circuit.add_cnot(0, 1)
+    original_circuit.add_cnot(2, 3)
+    original_circuit.initialize_qubit(0, "Z")
+    original_circuit.initialize_qubit(1, "X")
+
+    # Create a copy of the circuit
+    copied_circuit = original_circuit.copy()
+
+    # Verify that the copied circuit has the same gates and initializations
+    assert copied_circuit.cnots == original_circuit.cnots, "CNOT gates were not copied correctly."
+    assert copied_circuit.initializations == original_circuit.initializations, (
+        "Initializations were not copied correctly."
+    )
+
+    # Modify the original circuit and ensure the copy remains unchanged
+    original_circuit.add_cnot(4, 5)
+    original_circuit.initialize_qubit(2, "Z")
+
+    assert copied_circuit.cnots != original_circuit.cnots, (
+        "Copied circuit should not reflect changes to the original circuit."
+    )
+    assert copied_circuit.initializations != original_circuit.initializations, (
+        "Copied circuit should not reflect changes to the original circuit."
+    )
+
+
+def test_relabel_qubits():
+    """Test the relabel_qubits method.
+
+    This test ensures that the method correctly updates the qubit indices
+    in the circuit according to the provided mapping.
+    """
+    # Create a CNOT circuit
+    circuit = CNOTCircuit()
+    circuit.add_cnot(0, 1)
+    circuit.add_cnot(2, 3)
+    circuit.initialize_qubit(0, "Z")
+    circuit.initialize_qubit(1, "X")
+
+    # Define a mapping for relabeling qubits
+    mapping = {0: 10, 1: 11, 2: 12, 3: 13}
+
+    # Relabel the qubits
+    circuit.relabel_qubits(mapping)
+
+    # Expected CNOT gates and initializations after relabeling
+    expected_cnots = [(10, 11), (12, 13)]
+    expected_initializations = {10: "Z", 11: "X"}
+
+    # Check the result
+    assert circuit.cnots == expected_cnots, "CNOT gates were not relabeled correctly."
+    assert circuit.initializations == expected_initializations, "Initializations were not relabeled correctly."
+
+
+def test_compose_cnot_circuits_no_wiring():
+    """Test composing two CNOT circuits without wiring.
+
+    This test ensures that the circuits are vertically stacked when no wiring is provided.
+    """
+    # Create the first CNOT circuit
+    circ1 = CNOTCircuit()
+    circ1.add_cnot(0, 1)
+    circ1.add_cnot(2, 3)
+    circ1.initialize_qubit(0, "Z")
+    circ1.initialize_qubit(1, "X")
+
+    # Create the second CNOT circuit
+    circ2 = CNOTCircuit()
+    circ2.add_cnot(0, 1)
+    circ2.add_cnot(1, 2)
+    circ2.initialize_qubit(0, "X")
+    circ2.initialize_qubit(2, "Z")
+
+    # Compose the circuits without wiring
+    composed_circuit, m1, m2 = compose_cnot_circuits(circ1, circ2)
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 1), (2, 3), (4, 5), (5, 6)]
+    expected_initializations = {0: "Z", 1: "X", 4: "X", 6: "Z"}
+
+    # Check the result
+    assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly."
+    assert composed_circuit.initializations == expected_initializations, "Initializations were not composed correctly."
+    assert m1 == {0: 0, 1: 1, 2: 2, 3: 3}, "Mapping m1 should be identity."
+    assert m2 == {0: 4, 1: 5, 2: 6}, "Mapping m2 should map circ2 qubits to the end of circ1."
+
+
+def test_compose_cnot_circuits_with_wiring():
+    """Test composing two CNOT circuits with wiring.
+
+    This test ensures that the circuits are composed along the specified wiring.
+    """
+    # Create the first CNOT circuit
+    circ1 = CNOTCircuit()
+    circ1.add_cnot(0, 1)
+    circ1.add_cnot(2, 3)
+    circ1.initialize_qubit(0, "Z")
+    circ1.initialize_qubit(1, "X")
+
+    # Create the second CNOT circuit
+    circ2 = CNOTCircuit()
+    circ2.add_cnot(0, 1)
+    circ2.add_cnot(1, 2)
+    circ2.initialize_qubit(1, "Z")
+
+    # Define wiring between the circuits
+    wiring = {1: 0, 3: 2}
+
+    # Compose the circuits with wiring
+    composed_circuit, m1, m2 = compose_cnot_circuits(circ1, circ2, wiring)
+
+    # Expected CNOT gates and initializations
+    expected_cnots = [(0, 3), (1, 4), (3, 2), (2, 4)]
+    expected_initializations = {0: "Z", 3: "X", 2: "Z"}
+
+    # Check the result
+    assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly with wiring."
+    assert composed_circuit.initializations == expected_initializations, (
+        "Initializations were not composed correctly with wiring."
+    )
+    assert m1 == {0: 0, 1: 3, 2: 1, 3: 4}, "Mapping m1 should map circ1 qubits to the composed circuit."
+    assert m2 == {0: 3, 1: 2, 2: 4}, "Mapping m2 should map circ2 qubits to the composed circuit."

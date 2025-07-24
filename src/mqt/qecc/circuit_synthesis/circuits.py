@@ -21,6 +21,8 @@ from ..codes import CSSCode
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
 
+    import numpy.typing as npt
+
 
 class CNOTCircuit:
     """Represents a restricted quantum circuit composed of CNOT gates with optional qubit initialization."""
@@ -232,6 +234,7 @@ class CNOTCircuit:
             cnot_circuit.initialize_qubit(q, "Z")
         for q in initialize_x:
             cnot_circuit.initialize_qubit(q, "X")
+        cnot_circuit._check_valid()
         return cnot_circuit
 
     def is_state(self) -> bool:
@@ -252,6 +255,14 @@ class CNOTCircuit:
         init_indices = list(self.initializations.keys())
         return max(cnot_indices + init_indices, default=0) + 1
 
+    def num_inputs(self) -> int:
+        """Get the number of uninitialized qubits, i.e., the inputs of the isometry.
+
+        Returns:
+            The number of uninitialized_qubits.
+        """
+        return self.num_qubits() - len(self.initializations)
+
     def get_plus_initialized(self) -> list[int]:
         """Get the list of qubits initialized in the |+> state.
 
@@ -268,6 +279,14 @@ class CNOTCircuit:
         """
         return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "Z"]
 
+    def get_uninitialized(self) -> list[int]:
+        """Get the list of uninitialized qubits.
+
+        Returns:
+            A list of uninitialized qubits.
+        """
+        return [qubit for qubit in range(self.num_qubits()) if qubit not in self.initializations]
+
     def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
         """Draw the circuit using Qiskit visualization tools.
 
@@ -276,6 +295,20 @@ class CNOTCircuit:
             **kwargs: Keyword arguments for the Qiskit draw method.
         """
         return self.to_qiskit_circuit().draw(*args, **kwargs)
+
+    def _propagate_paulis(self, xs: list[int], zs: list[int]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
+        x = np.zeros((len(xs), self.num_qubits()), dtype=np.int8)
+        z = np.zeros((len(zs), self.num_qubits()), dtype=np.int8)
+        for i, qubit in enumerate(xs):
+            x[i, qubit] = 1
+        for i, qubit in enumerate(zs):
+            z[i, qubit] = 1
+
+        for ctrl, trgt in self.cnots:
+            x[:, trgt] ^= x[:, ctrl]
+            z[:, ctrl] ^= z[:, trgt]
+
+        return x, z
 
     def get_code(self) -> CSSCode:
         """Get CSS code defined by the circuit.
@@ -289,17 +322,7 @@ class CNOTCircuit:
         """
         pluses = self.get_plus_initialized()
         zeros = self.get_zero_initialized()
-        hx = np.zeros((len(pluses), self.num_qubits()), dtype=np.int8)
-        hz = np.zeros((len(zeros), self.num_qubits()), dtype=np.int8)
-        for i, qubit in enumerate(pluses):
-            hx[i, qubit] = 1
-        for i, qubit in enumerate(zeros):
-            hz[i, qubit] = 1
-
-        for ctrl, trgt in self.cnots:
-            hx[:, trgt] ^= hx[:, ctrl]
-            hz[:, ctrl] ^= hz[:, trgt]
-
+        hx, hz = self._propagate_paulis(pluses, zeros)
         return CSSCode(hx, hz)
 
     def num_cnots(self) -> int:
@@ -318,3 +341,127 @@ class CNOTCircuit:
             path_lengths[target] = new_path_length
             path_lengths[control] = new_path_length
         return int(np.max(path_lengths))
+
+    def get_logical_x(self) -> dict[int, npt.NDArray[np.int8]]:
+        """Get logical X operators of the isometry.
+
+        Returns:
+            A dictionary mapping input qubits to their X-logicals.
+        """
+        return {qubit: logicals[0] for qubit, logicals in self.get_logicals().items()}
+
+    def get_logical_z(self) -> dict[int, npt.NDArray[np.int8]]:
+        """Get logical Z operators of the isometry.
+
+        Returns:
+            A dictionary mapping input qubits to their Z-logicals.
+        """
+        return {qubit: logicals[1] for qubit, logicals in self.get_logicals().items()}
+
+    def get_logicals(self) -> dict[int, tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]]:
+        """Get logical operators of the isomety.
+
+        Returns:
+            A dictionary mapping input qubits to their X-logicals and Z-logicals.
+        """
+        if self.is_state():
+            return {}
+
+        inputs = self.get_uninitialized()
+        x, z = self._propagate_paulis(inputs, inputs)
+        return {qubit: (x[i], z[i]) for i, qubit in enumerate(inputs)}
+
+    def copy(self) -> CNOTCircuit:
+        """Create a copy of the CNOT circuit.
+
+        Returns:
+            A new CNOTCircuit instance with the same CNOT gates and initializations.
+        """
+        new_circuit = CNOTCircuit()
+        new_circuit.cnots = self.cnots.copy()
+        new_circuit.initializations = self.initializations.copy()
+        return new_circuit
+
+    def relabel_qubits(self, mapping: dict[int, int]) -> None:
+        """Relabel the qubits in the circuit according to a given mapping.
+
+        Args:
+            mapping: A dictionary mapping old qubit indices to new qubit indices.
+        """
+        self.cnots = [(mapping[control], mapping[target]) for control, target in self.cnots]
+        self.initializations = {mapping[q]: basis for q, basis in self.initializations.items()}
+        self._check_valid()
+
+    def _check_valid(self) -> None:
+        """Check if the circuit is valid.
+
+        Raises:
+            ValueError: If the circuit contains invalid CNOT gates or initializations.
+        """
+        for control, target in self.cnots:
+            if control < 0 or target < 0:
+                msg = f"Invalid CNOT gate with negative indices: ({control}, {target})"
+                raise ValueError(msg)
+            if control == target:
+                msg = f"CNOT gate with control and target being the same qubit: ({control}, {target})"
+                raise ValueError(msg)
+
+        for qubit, basis in self.initializations.items():
+            if qubit < 0:
+                msg = f"Invalid initialization on negative qubit index: {qubit}"
+                raise ValueError(msg)
+            if basis.upper() not in {"Z", "X"}:
+                msg = f"Invalid initialization basis '{basis}' for qubit {qubit}"
+                raise ValueError(msg)
+
+
+def compose_cnot_circuits(
+    circ1: CNOTCircuit, circ2: CNOTCircuit, wiring: dict[int, int] | None = None
+) -> tuple[CNOTCircuit, dict[int, int], dict[int, int]]:
+    """Compose two CNOT circuits.
+
+    The circuits are composed only along the qubits that are connected by the `wiring` dict.
+    All other qubits are assumed to be unconnected.
+    If wire is None, then the circuits are simply vertically stacked.
+
+    Args:
+        circ1: The first CNOT circuit.
+        circ2: The second CNOT circuit.
+        wiring: Optional dict mapping outputs of `circ1` to inputs of `circ2`.
+
+    Returns:
+        A tuple containing the composed CNOT circuit and two mappings:
+        - mapping1: Maps qubits of circ1 to the composed circuit.
+        - mapping2: Maps qubits of circ2 to the composed circuit.
+    """
+    if wiring is None:
+        wiring = {}
+
+    # make sure that wires are not connected to initialized qubits in circ2
+    if any(q in circ2.initializations for q in wiring.values()):
+        msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
+        raise ValueError(msg)
+
+    connected = wiring.keys()
+    non_connected_circ1 = set(range(circ1.num_qubits())) - set(connected)
+    non_connected_circ2 = set(range(circ2.num_qubits())) - set(wiring.values())
+    # map non-connected of circ1 to the first n_connected qubits
+    non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
+    # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
+    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
+    # map connected qubits to the last n_connected qubits
+    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
+    connected_mapping2 = {
+        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
+    }
+
+    mapping1 = {**non_connected_mapping1, **connected_mapping1}
+    mapping2 = {**non_connected_mapping2, **connected_mapping2}
+
+    composed = circ1.copy()
+    composed.relabel_qubits(mapping1)
+    circ2_relabelled = circ2.copy()
+    circ2_relabelled.relabel_qubits(mapping2)
+    composed.add_cnots(circ2_relabelled.cnots)
+    composed.initializations.update(circ2_relabelled.initializations)
+    return composed, mapping1, mapping2
