@@ -123,8 +123,11 @@ class CircuitLevelNoise(NoiseModel):
                 noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_init)
 
             elif name in STIM_TQGS:
-                noisy_circ.append_operation(op.name, targets)
-                noisy_circ.append_operation("DEPOLARIZE2", targets, self.p_tqg)
+                for grp in (
+                    op.target_groups()
+                ):  # errors might propagate so we have to apply noise to every target group individually
+                    noisy_circ.append_operation(op.name, grp)
+                    noisy_circ.append_operation("DEPOLARIZE2", grp, self.p_tqg)
 
             elif name in STIM_MEASUREMENTS:
                 noisy_circ.append_operation(op.name, targets, self.p_meas)

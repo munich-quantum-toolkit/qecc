@@ -104,7 +104,7 @@ class CatStatePreparationExperiment:
         Returns:
             The noisy cat state preparation circuit.
         """
-        return CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(self.circ)
+        return CircuitLevelNoise(p, p, p, p).apply(self.circ)
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None
