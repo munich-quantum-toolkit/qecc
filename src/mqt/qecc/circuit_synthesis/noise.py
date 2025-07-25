@@ -13,7 +13,7 @@ from stim import Circuit
 
 from .circuit_utils import collect_circuit_layers
 
-stim_single_qubit_gates = {
+STIM_SQGS = {
     "H",
     "X",
     "Y",
@@ -32,7 +32,7 @@ stim_single_qubit_gates = {
     "SQRT_Z",
     "SQRT_Z_DAG",
 }
-stim_two_qubit_gates = {
+STIM_TQGS = {
     "CNOT",
     "CX",
     "CXSWAP",
@@ -60,8 +60,8 @@ stim_two_qubit_gates = {
     "ZCY",
     "ZCZ",
 }
-stim_measurements = {"MR", "MRX", "MRY", "MRZ"}
-stim_resets = {"R", "RX", "RY", "RZ"}
+STIM_MEASUREMENTS = {"MR", "MRX", "MRY", "MRZ"}
+STIM_RESETS = {"R", "RX", "RY", "RZ"}
 
 
 class NoiseModel:
@@ -114,19 +114,19 @@ class CircuitLevelNoise(NoiseModel):
         for op in circ:
             name = op.name
             targets = op.targets_copy()
-            if name in stim_single_qubit_gates:
+            if name in STIM_SQGS:
                 noisy_circ.append_operation(op.name, targets)
                 noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_sqg)
 
-            elif name in stim_resets:
+            elif name in STIM_RESETS:
                 noisy_circ.append_operation(op.name, targets)
                 noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_init)
 
-            elif name in stim_two_qubit_gates:
+            elif name in STIM_TQGS:
                 noisy_circ.append_operation(op.name, targets)
                 noisy_circ.append_operation("DEPOLARIZE2", targets, self.p_tqg)
 
-            elif name in stim_measurements:
+            elif name in STIM_MEASUREMENTS:
                 noisy_circ.append_operation(op.name, targets, self.p_meas)
 
         return noisy_circ
@@ -232,7 +232,7 @@ def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
     """Get the list of reset qubits in the current layer of the circuit."""
     resets = set()
     for instr in circ:
-        if instr.name in stim_resets:
+        if instr.name in STIM_RESETS:
             resets.update([q.qubit_value for q in instr.targets_copy()])
     return resets
 
