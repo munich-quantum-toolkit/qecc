@@ -145,7 +145,7 @@ def test_circuit_level_noise_idling_sequential_alap(noise_free, expected_noisy):
         # ),
     ],
 )
-def test_circuit_level_noise_idling_parallel_asap(noise_free, expected_noisy):
+def test_circuit_level_noise_idling_sequential_asap(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
     noise_model = CircuitLevelNoiseIdlingSequential(
         p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=False
