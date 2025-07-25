@@ -11,14 +11,14 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Added
 
-- New `PureFaultSet` class for representing collections of X or Z faults.
-- New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries.
+- New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
+- New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
 
 ### Changed
 
-- Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes.
-- Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes.
-- Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information.
+- Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
+- Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
+- Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
 
 ## [1.9.0] - 2025-03-14
 
