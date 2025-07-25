@@ -31,7 +31,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
-[#453]: https://github.com/munich-quantum-toolkit/qecc/pull/443
+[#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 
 <!-- Contributor -->
 
