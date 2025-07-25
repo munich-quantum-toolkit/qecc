@@ -234,6 +234,14 @@ def test_compact_stim_circuit() -> None:
     assert len(compacted) == 2
 
 
+def test_compact_stim_circuit_empty() -> None:
+    """Test compaction method on empty circuit."""
+    circ = stim.Circuit()
+    assert len(circ) == 0
+    compacted = compact_stim_circuit(circ)
+    assert len(compacted) == 0
+
+
 def test_collect_circuit_layers() -> None:
     """Test collecting circuit layers."""
     circ = stim.Circuit()

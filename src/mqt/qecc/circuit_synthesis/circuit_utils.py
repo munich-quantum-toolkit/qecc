@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister
-from qiskit.converters import circuit_to_dag, dag_to_circuit
 from stim import Circuit
 
 
@@ -100,17 +99,10 @@ def compact_stim_circuit(circ: Circuit) -> Circuit:
     Returns:
          A compacted stim circuit.
     """
-    # qiskit already does the job for us
-    qiskit_circ = QuantumCircuit.from_qasm_str(circ.to_qasm(open_qasm_version=2))
-    dag = circuit_to_dag(qiskit_circ)
-    layers = dag.layers()
-    new_circ = QuantumCircuit(qiskit_circ.num_qubits)
-    for layer in layers:
-        layer_circ = dag_to_circuit(layer["graph"])
-        new_circ.compose(layer_circ, inplace=True)
-
-    # Convert back to stim circuit
-    return qiskit_to_stim_circuit(new_circ)
+    compact_circ = Circuit()
+    for layer in collect_circuit_layers(circ):
+        compact_circ += layer
+    return compact_circ
 
 
 def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
