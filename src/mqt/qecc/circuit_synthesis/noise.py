@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from stim import Circuit
 
-single_qubit_gates = {
+from .circuit_utils import collect_circuit_layers
+
+stim_single_qubit_gates = {
     "H",
     "X",
     "Y",
@@ -30,7 +32,7 @@ single_qubit_gates = {
     "SQRT_Z",
     "SQRT_Z_DAG",
 }
-two_qubit_gates = {
+stim_two_qubit_gates = {
     "CNOT",
     "CX",
     "CXSWAP",
@@ -58,8 +60,8 @@ two_qubit_gates = {
     "ZCY",
     "ZCZ",
 }
-measurements = {"MR", "MRX", "MRY", "MRZ"}
-resets = {"R", "RX", "RY", "RZ"}
+stim_measurements = {"MR", "MRX", "MRY", "MRZ"}
+stim_resets = {"R", "RX", "RY", "RZ"}
 
 
 class NoiseModel:
@@ -108,37 +110,33 @@ class CircuitLevelNoise(NoiseModel):
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
         noisy_circ = Circuit()
-        
+
         for op in circ:
             name = op.name
-            if name in single_qubit_gates:
-                for target in op.targets_copy():
-                    noisy_circ.append_operation(op.name, target)
-                    noisy_circ.append_operation("DEPOLARIZE1", target, self.p_sqg)
+            targets = op.targets_copy()
+            if name in stim_single_qubit_gates:
+                noisy_circ.append_operation(op.name, targets)
+                noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_sqg)
 
-            elif name in resets:
-                for target in op.targets_copy():
-                    noisy_circ.append_operation(op.name, target)
-                    noisy_circ.append_operation("DEPOLARIZE1", target, self.p_init)
-                
-            elif name in two_qubit_gates:
-                for ctrl, trgt in op.target_groups():
-                    noisy_circ.append_operation(op.name, [ctrl, trgt])
-                    noisy_circ.append_operation("DEPOLARIZE2", [ctrl, trgt], self.p_tqg)
+            elif name in stim_resets:
+                noisy_circ.append_operation(op.name, targets)
+                noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_init)
 
-            elif name in measurements:
-                for target in op.targets_copy():
-                    noisy_circ.append_operation("DEPOLARIZE1", target, self.p_meas)
-                    noisy_circ.append_operation(op.name, target)
+            elif name in stim_two_qubit_gates:
+                noisy_circ.append_operation(op.name, targets)
+                noisy_circ.append_operation("DEPOLARIZE2", targets, self.p_tqg)
+
+            elif name in stim_measurements:
+                noisy_circ.append_operation(op.name, targets, self.p_meas)
 
         return noisy_circ
 
 
-class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
+class CircuitLevelNoiseIdlingParallel(NoiseModel):
     """Class representing circuit-level noise with idling qubits and parallel gates.
 
     A qubit is considered idle if it is not involved in any gate operation at a given time step.
-    
+
     The following noise model is applied to the circuit:
         - Qubit initialization flips with probability p_init (depolaring noise after initialization).
         - Measurements flip with probability p_meas (depolarizing noise before measuring).
@@ -147,7 +145,9 @@ class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
         - Idling qubits are subject to depolarizing noise of strength p_idle.
     """
 
-    def __init__(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float) -> None:
+    def __init__(
+        self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float, resets_alap: bool = False
+    ) -> None:
         """Initialize the circuit-level noise model.
 
         Args:
@@ -156,8 +156,11 @@ class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
             p_meas: Probability of depolarizing noise for measurements.
             p_init: Probability of depolarizing noise after initialization.
             p_idle: Probability of depolarizing noise for idling qubits.
+            resets_alap: If True, resets are applied as late as possible, i.e. just before the first gate where the qubit is used (ALAP).
         """
-        self.set_noise_parameters(p_tqg, p_sqg, p_meas, p_init, p_idle)
+        self.standard_noise = CircuitLevelNoise(p_tqg, p_sqg, p_meas, p_init)
+        self.resets_alap = resets_alap
+        self.p_idle = p_idle
 
     def set_noise_parameters(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float) -> None:
         """Set the noise parameters for the noise model.
@@ -169,19 +172,79 @@ class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
             p_init: Probability of depolarizing noise after initialization.
             p_idle: Probability of depolarizing noise for idling qubits.
         """
-        super().set_noise_parameters(p_tqg, p_sqg, p_meas, p_init)
+        self.standard_noise.set_noise_parameters(p_tqg, p_sqg, p_meas, p_init)
         self.p_idle = p_idle
 
+    def _apply_alap(self, circ: Circuit) -> Circuit:
+        """Apply the noise model to a stim circuit with ALAP resets."""
+        layers = collect_circuit_layers(circ)
+        noisy_circ = Circuit()
 
-    def _add_dummy_id_gates(circ: Circuit) -> Circuit:
-        """Add dummy identity gates to the circuit to represent idling qubits."""
-        new_circ = Circuit()
+        initialized_qubits: set[int] = set()
+        uninitialized_qubits = set(range(circ.num_qubits))
 
-        # traverse the circuit layer by layer
-        layers = []
-        done = False
-        
-        while not done:
-            layer = []
-            
-        
+        for layer in layers:
+            idling = _get_idle_qubits_layer(layer, circ.num_qubits) - uninitialized_qubits
+            non_idling = _get_non_idle_qubits_layer(layer)
+            resets = _get_reset_qubits_layer(layer)
+
+            non_idling_non_resets = non_idling - resets
+            noisy_layer = self.standard_noise.apply(layer)  # apply regular noise
+
+            uninitialized_qubits -= non_idling_non_resets
+            initialized_qubits = initialized_qubits.union(non_idling_non_resets)
+
+            for q in idling:
+                noisy_layer.append_operation("DEPOLARIZE1", q, self.p_idle)
+
+            noisy_circ += noisy_layer
+        return noisy_circ
+
+    def _apply_asap(self, circ: Circuit) -> Circuit:
+        """Apply the noise model to a stim circuit with ASAP resets."""
+        layers = collect_circuit_layers(circ)
+        noisy_circ = Circuit()
+
+        uninitialized_qubits = set(range(circ.num_qubits))
+
+        for layer in layers:
+            idling = _get_idle_qubits_layer(layer, circ.num_qubits) - uninitialized_qubits
+            non_idling = _get_non_idle_qubits_layer(layer)
+
+            noisy_layer = self.standard_noise.apply(layer)  # apply regular noise
+
+            uninitialized_qubits -= non_idling
+
+            for q in idling:
+                layer.append_operation("DEPOLARIZE1", q, self.p_idle)
+
+            noisy_circ += noisy_layer
+        return noisy_circ
+
+    def apply(self, circ: Circuit) -> Circuit:
+        """Apply the noise model to a stim circuit."""
+        if self.resets_alap:
+            return self._apply_alap(circ)
+        return self._apply_asap(circ)
+
+
+def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
+    """Get the list of reset qubits in the current layer of the circuit."""
+    resets = set()
+    for instr in circ:
+        if instr.name in stim_resets:
+            resets.update([q.qubit_value for q in instr.targets_copy()])
+    return resets
+
+
+def _get_non_idle_qubits_layer(circ: Circuit) -> set[int]:
+    qubits = set()
+    for instr in circ:
+        qubits.update([q.qubit_value for q in instr.targets_copy()])
+    return qubits
+
+
+def _get_idle_qubits_layer(circ: Circuit, n_qubits: int) -> set[int]:
+    """Get the list of idle qubits in the current layer of the circuit."""
+    non_idle = _get_non_idle_qubits_layer(circ)
+    return set(range(n_qubits)) - non_idle
