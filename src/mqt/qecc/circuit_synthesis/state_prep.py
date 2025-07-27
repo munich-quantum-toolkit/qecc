@@ -57,7 +57,7 @@ class StatePrepCircuit:
             circ: The state preparation circuit.
             code: The CSS code to prepare the state for.
             zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
-            error_detection_code: If True, prepare the state for error detection. This ensures that when computing the fault set of the circuit, up to d//2 errors errors can occur in the circuit.
+            error_detection_code: If True, prepare the state for error detection. This ensures that when computing the fault set of the circuit, up to d//2 errors can occur in the circuit.
         """
         self.circ = circ
         self.code = code
