@@ -45,12 +45,13 @@ if TYPE_CHECKING:  # pragma: no cover
 class FaultyStatePrepCircuit:
     """Represents a state preparation circuit for a CSS code."""
 
-    def __init__(self, circ: CNOTCircuit, max_errors: int | tuple[int, int]) -> None:
+    def __init__(self, circ: CNOTCircuit, max_x_errors: int, max_z_errors: int) -> None:
         """Initialize a state preparation circuit.
 
         Args:
             circ: The state preparation circuit.
-            max_errors: Maximum errors that can happen in the circuit. If tuple is given, different numbers of X- and Z-errors can occur.
+            max_x_errors: Maximum number of independent x errors that can happen in the circuit.
+            max_z_errors: Maximum number of independent z errors that can happen in the circuit.
         """
         if not circ.is_state():
             msg = "Input circuit is not a state!"
@@ -59,13 +60,10 @@ class FaultyStatePrepCircuit:
         self.circ = circ
         code = circ.get_code()
         self.num_qubits = circ.num_qubits()
-        if isinstance(max_errors, int):
-            self.max_x_errors = max_errors
-            self.max_z_errors = max_errors
-        else:
-            self.max_x_errors, self.max_z_errors = max_errors
+        self.max_x_errors = max_x_errors
+        self.max_z_errors = max_z_errors
 
-        if self.max_x_errors == 0 and self.max_z_errors == 0:
+        if self.max_x_errors == 0 and self.max_z_errors == 0:  # pragma: no cover
             warnings.warn(
                 "Initializing FaultyStatePrepCircuit with max_errors=0. "
                 "This might be a mistake. Use set_max_errors to manually set the maximum number of X and Z errors that can occur in the circuit.",
@@ -96,6 +94,8 @@ class FaultyStatePrepCircuit:
         Returns:
             The fault set of the state.
         """
+        if num_errors == 0:
+            return PureFaultSet(self.circ.num_qubits())
         fault_sets = self.x_fault_sets if x_errors else self.z_fault_sets
         fault_sets_unreduced = self.x_fault_sets_unreduced if x_errors else self.z_fault_sets_unreduced
         if len(fault_sets) >= num_errors:
@@ -133,13 +133,10 @@ class FaultyStatePrepCircuit:
 
         return fs
 
-    def set_max_errors(self, max_errors: int | tuple[int, int]) -> None:
+    def set_max_errors(self, max_x_errors: int, max_z_errors: int) -> None:
         """Set maximum errors. Also resets cached fault sets."""
-        if isinstance(max_errors, int):
-            self.max_x_errors = max_errors
-            self.max_z_errors = max_errors
-        else:
-            self.max_x_errors, self.max_z_errors = max_errors
+        self.max_x_errors = max_x_errors
+        self.max_z_errors = max_z_errors
 
     def combine_faults(
         self, additional_faults: PureFaultSet, x_errors: bool = True, reduce: bool = False
@@ -167,17 +164,17 @@ class FaultyStatePrepCircuit:
             last_faults = new_products[i - 1]
             new_products.append(product_fault_set(single_faults, last_faults))
 
-        new_fault_sets_unreduced: list[PureFaultSet] = []
+        # new_fault_sets_unreduced: list[PureFaultSet] = []
         new_fault_sets = []
         for i in range(max_errors):
             fs_opt = fault_sets_unreduced[i]
             fs = fs_opt.copy()
-            fs.combine(new_products[i])
-            for j in range(1, i):
-                k = i - j
-                prod = product_fault_set(new_products[j], new_products[k])
-                fs.combine(prod)
-            new_fault_sets_unreduced.append(fs.copy())
+            fs.combine(new_products[i], inplace=True)
+            for j in range(i):
+                k = i - j - 1
+                prod = product_fault_set(fault_sets_unreduced[j], new_products[k])
+                fs.combine(prod, inplace=True)
+            # new_fault_sets_unreduced.append(fs.copy())
             if reduce:
                 fs.remove_equivalent(stabs)
             fs.filter_by_weight_at_least(i + 2, stabs)
@@ -219,7 +216,7 @@ def heuristic_prep_circuit(
     checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
 
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 
 def depth_optimal_prep_circuit(
@@ -256,7 +253,7 @@ def depth_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 
 def gate_optimal_prep_circuit(
@@ -293,7 +290,7 @@ def gate_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, (code.x_distance // 2, code.z_distance // 2))
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 
 def gate_optimal_verification_stabilizers(

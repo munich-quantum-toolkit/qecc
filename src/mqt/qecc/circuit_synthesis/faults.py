@@ -221,6 +221,8 @@ class PureFaultSet:
         self.remove_equivalent(stabs)
         self.faults_to_coset_leaders(stabs)
 
+        if len(self.faults) == 0:
+            return
         # filter remaining faults by weight
         weights = np.sum(self.faults, axis=1)
         mask = weights >= w

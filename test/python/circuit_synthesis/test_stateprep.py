@@ -26,6 +26,7 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_circuit,
     heuristic_verification_stabilizers,
 )
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet
 from mqt.qecc.codes import SquareOctagonColorCode
 
 from .utils import eq_span, in_span
@@ -335,11 +336,38 @@ def test_error_detection_code() -> None:
     code = CSSCode.from_code_name("carbon")
     circ = heuristic_prep_circuit(code)
 
-    circ.set_max_errors(1)
+    circ.set_max_errors(1, 1)
     circ_ver_correction = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
-    circ.set_max_errors(2)
+    circ.set_max_errors(2, 2)
     circ_ver_detection = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
     assert circ_ver_detection.num_qubits > circ_ver_correction.num_qubits
     assert circ_ver_detection.num_nonlocal_gates() > circ_ver_correction.num_nonlocal_gates()
+
+
+def test_combine_faults() -> None:
+    """Test `combine_faults` method of `FaultyStatePrepCircuit` class."""
+    code = CSSCode(
+        np.array([[1, 1, 0, 0, 0, 0], [0, 1, 1, 0, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 1, 1, 0], [0, 0, 0, 0, 1, 1]]),
+        x_distance=1,
+        z_distance=6,
+    )  # d=5 rep code
+    circ = heuristic_prep_circuit(code)
+    # circuit has single-qubit z faults [0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1], [1, 1, 0, 0, 0, 0]
+    circ.compute_fault_sets()
+    new_faults = PureFaultSet.from_fault_array(np.array([[1, 0, 1, 0, 0, 0]], dtype=np.int8))
+
+    combined_faults = circ.combine_faults(new_faults, x_errors=False, reduce=True)
+
+    print(combined_faults[1])
+    print(circ.z_fault_sets[1])
+
+    combined_1 = new_faults.combine(circ.z_fault_sets[0])
+
+    combined_2 = circ.z_fault_sets[1].copy()
+    combined_2.add_faults(np.array([[1, 0, 1, 0, 1, 0], [1, 0, 1, 0, 0, 1]]))
+    combined_2.normalize(circ.z_checks)
+
+    assert combined_faults[0] == combined_1
+    assert combined_faults[1] == combined_2
