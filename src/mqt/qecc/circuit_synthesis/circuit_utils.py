@@ -151,9 +151,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
                 layer.append_operation(instr.name, qubits)
                 instr_to_delete.append(idx)  # Mark this instruction for removal
 
-                # Mark the qubits used in this instruction
-                for q in qubits:
-                    qubit_layer_used[q] = True
+            # Mark the qubits used in this instruction
+            for q in qubits:
+                qubit_layer_used[q] = True
 
             idx += 1
 
