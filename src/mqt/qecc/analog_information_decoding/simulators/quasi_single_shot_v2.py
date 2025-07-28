@@ -290,6 +290,6 @@ class QssSimulator:
             if run % self.save_interval == 1:
                 self._save_results(success_cnt, run)
                 if _check_convergence(success_cnt, run, self.code_params, self.eb_precision):
-                    print("Converged")
+                    print("Converged")  # noqa: T201
                     break
         return self._save_results(success_cnt, run)

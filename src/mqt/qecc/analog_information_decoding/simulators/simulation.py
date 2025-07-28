@@ -742,7 +742,7 @@ class SingleShotSimulator:
                     self.code_params,
                     self.eb_precision,
                 ):
-                    print("Result has converged.")
+                    print("Result has converged.")  # noqa: T201
                     break
 
         x_ler, x_ler_eb, x_wer, x_wer_eb = calculate_error_rates(x_success_cnt, runs, self.code_params)
