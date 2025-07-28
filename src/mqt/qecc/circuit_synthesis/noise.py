@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from stim import Circuit
+from stim import Circuit, GateTarget
 
 from .circuit_utils import collect_circuit_layers
 
@@ -67,9 +67,32 @@ STIM_RESETS = {"R", "RX", "RY", "RZ"}
 class NoiseModel:
     """Class representing a noise model for a quantum circuit."""
 
+    def __init__(self, ideal_qubits: set[int] | None = None) -> None:
+        """Initialize the noise model.
+
+        Args:
+           ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
+        """
+        self.ideal_qubits = ideal_qubits or set()
+
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a quantum circuit."""
         raise NotImplementedError
+
+    def _apply_noise(self, circ: Circuit, op: str, targets: list[int | GateTarget], p: float) -> None:
+        """Apply noise to the circuit only if the targets are not ideal qubits.
+
+        If any of the targets are in the set of ideal qubits, the noise operation is not applied to those targets.
+
+        Args:
+           circ: The circuit to which the noise is applied.
+           op: The noise operation (e.g., "DEPOLARIZE1").
+           targets: List of qubit indices to apply the noise to.
+           p: Probability of the noise operation.
+        """
+        any_ideal = any(t in self.ideal_qubits for t in targets)
+        if not any_ideal:
+            circ.append_operation(op, targets, p)
 
 
 class CircuitLevelNoise(NoiseModel):
@@ -116,21 +139,24 @@ class CircuitLevelNoise(NoiseModel):
             targets = op.targets_copy()
             if name in STIM_SQGS:
                 noisy_circ.append_operation(op.name, targets)
-                noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_sqg)
+                self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_sqg)
 
             elif name in STIM_RESETS:
                 noisy_circ.append_operation(op.name, targets)
-                noisy_circ.append_operation("DEPOLARIZE1", targets, self.p_init)
+                self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_init)
 
             elif name in STIM_TQGS:
                 for grp in (
                     op.target_groups()
                 ):  # errors might propagate so we have to apply noise to every target group individually
                     noisy_circ.append_operation(op.name, grp)
-                    noisy_circ.append_operation("DEPOLARIZE2", grp, self.p_tqg)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE2", grp, self.p_tqg)
 
             elif name in STIM_MEASUREMENTS:
-                noisy_circ.append_operation(op.name, targets, self.p_meas)
+                if any(t in self.ideal_qubits for t in targets):
+                    noisy_circ.append_operation(op.name, targets)
+                else:
+                    noisy_circ.append_operation(op.name, targets, p_meas)
 
         return noisy_circ
 
@@ -265,7 +291,7 @@ def _add_idling_noise_to_layers_alap(
         uninitialized_qubits -= non_idling_non_resets
         initialized_qubits = initialized_qubits.union(non_idling_non_resets)
 
-        for q in idling:
+        for q in idling - noise.ideal_qubits:
             noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
 
         noisy_circ += noisy_layer
@@ -287,7 +313,7 @@ def _add_idling_noise_to_layers_asap(
 
         uninitialized_qubits -= non_idling
 
-        for q in idling:
+        for q in idling - noise.ideal_qubits:
             noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
 
         noisy_circ += noisy_layer
