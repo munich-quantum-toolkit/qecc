@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 
-from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag, dag_to_circuit
+from typing import TYPE_CHECKING
+
 from stim import Circuit
+
+if TYPE_CHECKING:
+    from qiskit.circuit import QuantumCircuit
 
 
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
@@ -70,14 +73,69 @@ def compact_stim_circuit(circ: Circuit) -> Circuit:
     Returns:
          A compacted stim circuit.
     """
-    # qiskit already does the job for us
-    qiskit_circ = QuantumCircuit.from_qasm_str(circ.to_qasm(open_qasm_version=2))
-    dag = circuit_to_dag(qiskit_circ)
-    layers = dag.layers()
-    new_circ = QuantumCircuit(qiskit_circ.num_qubits)
-    for layer in layers:
-        layer_circ = dag_to_circuit(layer["graph"])
-        new_circ.compose(layer_circ, inplace=True)
+    compact_circ = Circuit()
+    for layer in collect_circuit_layers(circ):
+        compact_circ += layer
+    return compact_circ
 
-    # Convert back to stim circuit
-    return qiskit_to_stim_circuit(new_circ)
+
+def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
+    """Collect all layers that can be executed in parallel.
+
+    Args:
+        circ: Stim circuit to process.
+
+    Returns:
+        list of circuit layers. All instructions in one layer can be executed in parallel. It holds that circ=sum(collect_circuit_layers(circ)).
+    """
+    # Copy the circuit and separate all instructions by ticks
+    circ_cpy = Circuit()
+    for instr in circ:
+        for grp in instr.target_groups():
+            qubits = [q.qubit_value for q in grp]
+            circ_cpy.append_operation(instr.name, qubits)
+            circ_cpy.append_operation("TICK", [])
+
+    # Now work with the copied circuit
+    circ = circ_cpy
+    n_qubits = circ.num_qubits
+    layers = []
+
+    while len(circ) > 0:
+        layer = Circuit()
+        qubit_layer_used = [False] * n_qubits  # Track used qubits in this layer
+        instr_to_delete = []  # Track instructions to delete after adding them to the layer
+        idx = 0
+
+        while idx < len(circ):
+            instr = circ[idx]
+
+            # Skip TICK instructions
+            while instr is not None and instr.name == "TICK" and idx < len(circ):
+                circ.pop(idx)
+                instr = circ[idx] if idx < len(circ) else None
+
+            if instr is None:  # No more instructions to process
+                break
+
+            qubits = [q.qubit_value for q in instr.targets_copy()]
+
+            # Check if any qubit from this instruction is already used in the layer
+            if not any(qubit_layer_used[q] for q in qubits):
+                layer.append_operation(instr.name, qubits)
+                instr_to_delete.append(idx)  # Mark this instruction for removal
+
+                # Mark the qubits used in this instruction
+                for q in qubits:
+                    qubit_layer_used[q] = True
+
+            idx += 1
+
+        # Add the layer to the list
+        layers.append(layer)
+
+        # Remove the instructions that were added to the layer
+        for n_deleted, gate_idx in enumerate(instr_to_delete):
+            circ.pop(gate_idx - n_deleted)
+
+    return layers

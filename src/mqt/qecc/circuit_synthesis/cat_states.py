@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import stim
-from qiskit import QuantumCircuit
 
-from .circuit_utils import qiskit_to_stim_circuit, relabel_qubits
-from .noise import CircuitLevelNoiseNoIdling
+from .circuit_utils import relabel_qubits
+from .noise import CircuitLevelNoise
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -95,7 +94,6 @@ class CatStatePreparationExperiment:
         self.w = circ1.num_qubits
         self.circ = transversal_cnot(circ1, relabel_qubits(circ2, self.w), permutation)
         self.circ.append("MR", range(self.w, self.w * 2))
-        self.circ = qiskit_to_stim_circuit(QuantumCircuit.from_qasm_str(self.circ.to_qasm(open_qasm_version=2)))
 
     def _get_noisy_circ(self, p: float) -> stim.Circuit:
         """Return a noisy version of the cat state preparation circuit.
@@ -106,7 +104,7 @@ class CatStatePreparationExperiment:
         Returns:
             The noisy cat state preparation circuit.
         """
-        return CircuitLevelNoiseNoIdling(p).apply(self.circ)
+        return CircuitLevelNoise(p, p, p, p).apply(self.circ)
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None
