@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ldpc import mod2
-from sympy.combinatorics import Permutation, PermutationGroup
 
 from .pauli import StabilizerTableau
 from .stabilizer_code import StabilizerCode
@@ -80,25 +79,6 @@ class CSSCode(StabilizerCode):
 
         self.Lx = CSSCode._compute_logical(self.Hz, self.Hx)
         self.Lz = CSSCode._compute_logical(self.Hx, self.Hz)
-
-        self._automorphism_generators: list[Permutation] = []
-        self._automorphism_group: list[Permutation] = []
-
-    @property
-    def automorphism_group(self) -> list[Permutation]:
-        """Property for the automorphism group."""
-        return self._automorphism_group
-
-    @automorphism_group.setter
-    def automorphism_group(self, generators: list[list[int]]) -> None:
-        self._automorphism_generators = [Permutation(generator) for generator in generators]
-        g = PermutationGroup(self._automorphism_generators)
-        self._automorphism_group = list(g.generate())
-
-    @property
-    def automorphism_generators(self) -> list[Permutation]:
-        """Property for the automorphism generators."""
-        return self._automorphism_generators
 
     def x_checks_as_pauli_strings(self) -> list[str]:
         """Return the x checks as Pauli strings."""
