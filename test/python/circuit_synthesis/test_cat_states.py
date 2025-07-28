@@ -88,7 +88,7 @@ def test_cat_state_experiment_nonft() -> None:
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
     ps = np.arange(0.01, 0.1, 0.01)
-    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=1000000)
+    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=2000000)
 
     # In the given circuit structure, single errors can lead to weight 3 errors.
     # Since c1 and c2 prepare the circuit in the same way, such errors cancel out and won't be detected.
