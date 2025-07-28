@@ -12,6 +12,8 @@ from __future__ import annotations
 from qiskit.circuit import QuantumCircuit, QuantumRegister
 from stim import Circuit
 
+from .definitions import STIM_MEASUREMENTS
+
 
 def reorder_qubits(circ: QuantumCircuit, qubit_mapping: dict[int, int]) -> QuantumCircuit:
     """Reorders the qubits in a QuantumCircuit based on the given mapping.
@@ -165,3 +167,15 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
             circ.pop(gate_idx - n_deleted)
 
     return layers
+
+
+def unmeasured_qubits(circ: Circuit) -> list[int]:
+    """Return a list of qubits that are not measured in circ."""
+    measured_qubits: set[int] = set()
+
+    for instr in circ:
+        if instr.name in STIM_MEASUREMENTS:
+            measured_qubits.update(q.qubit_value for q in instr.targets_copy())
+
+    all_qubits = set(range(circ.num_qubits))
+    return list(all_qubits - measured_qubits)
