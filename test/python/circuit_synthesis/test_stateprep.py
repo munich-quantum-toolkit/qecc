@@ -266,7 +266,10 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: FaultyStatePrepCi
     assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
-@pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
+@pytest.mark.skipif(
+    os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
+    reason="Too slow for CI on Windows or MacOS",
+)
 def test_not_full_ft_opt_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification is also correct for higher distance.
 
