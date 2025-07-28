@@ -57,7 +57,7 @@ Among others, it is part of the [Munich Quantum Software Stack (MQSS)](https://w
   </picture>
 </p>
 
-Thank you to all the contributors who have helped make MQT Predictor a reality!
+Thank you to all the contributors who have helped make MQT QECC a reality!
 
 <p align="center">
 <a href="https://github.com/munich-quantum-toolkit/qecc/graphs/contributors">

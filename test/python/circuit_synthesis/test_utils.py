@@ -13,17 +13,22 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 import pytest
+import stim
 from ldpc import mod2
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
 
+from mqt.qecc.circuit_synthesis.circuit_utils import (
+    collect_circuit_layers,
+    compact_stim_circuit,
+    qiskit_to_stim_circuit,
+)
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
     measure_flagged,
     measure_stab_unflagged,
-    qiskit_to_stim_circuit,
 )
 
 if TYPE_CHECKING:
@@ -214,3 +219,53 @@ def test_w_flag(w: int, z_measurement: bool) -> None:
 
     measure_flagged(qc, stab, ancilla, measurement_bit, t=w, z_measurement=z_measurement)
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
+
+
+def test_compact_stim_circuit() -> None:
+    """Test compaction method."""
+    circ = stim.Circuit()
+    circ.append("H", [0])
+    circ.append("CX", [0, 1])
+    circ.append("H", [2])
+    circ.append("CX", [2, 3])
+
+    assert len(circ) == 4
+    compacted = compact_stim_circuit(circ)
+    assert len(compacted) == 2
+
+
+def test_compact_stim_circuit_empty() -> None:
+    """Test compaction method on empty circuit."""
+    circ = stim.Circuit()
+    assert len(circ) == 0
+    compacted = compact_stim_circuit(circ)
+    assert len(compacted) == 0
+
+
+def test_collect_circuit_layers() -> None:
+    """Test collecting circuit layers."""
+    circ = stim.Circuit()
+    circ.append("RX", [0])
+    circ.append("CX", [0, 1])
+    circ.append("TICK")
+    circ.append("H", [2])
+
+    layers = collect_circuit_layers(circ)
+    assert len(layers) == 2  # Two layers of operations
+    assert layers[0] == stim.Circuit("RX 0\nH 2") or layers[0] == stim.Circuit("H 2\nRX 0")
+    assert layers[1] == stim.Circuit("CX 0 1")
+
+
+def test_collect_circuit_layers_empty_circuit() -> None:
+    """Test collecting layers from an empty circuit."""
+    circ = stim.Circuit()
+    layers = collect_circuit_layers(circ)
+    assert len(layers) == 0  # No layers in an empty circuit
+
+
+def test_collect_circuit_layers_single_operation() -> None:
+    """Test collecting layers from a circuit with a single operation."""
+    circ = stim.Circuit("H 0")
+    layers = collect_circuit_layers(circ)
+    assert len(layers) == 1  # One layer with a single operation
+    assert layers[0] == stim.Circuit("H 0")
