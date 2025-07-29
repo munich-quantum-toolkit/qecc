@@ -25,6 +25,7 @@ from .state_prep import (
     naive_verification_circuit,
 )
 from .state_prep_det import DeterministicVerification, DeterministicVerificationHelper
+from .surface_code.ft_surface_code_stateprep import FTSurfaceCodeStatePrep
 
 __all__ = [
     "CatStatePreparationExperiment",
@@ -47,4 +48,5 @@ __all__ = [
     "heuristic_verification_stabilizers",
     "naive_verification_circuit",
     "qiskit_to_stim_circuit",
+    "FTSurfaceCodeStatePrep",
 ]
