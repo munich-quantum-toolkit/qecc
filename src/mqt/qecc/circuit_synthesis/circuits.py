@@ -17,6 +17,7 @@ from qiskit import QuantumCircuit
 from qiskit.transpiler.passes import RemoveResetInZeroState
 
 from ..codes import CSSCode
+from .circuit_utils import compose_circuits
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
@@ -442,26 +443,5 @@ def compose_cnot_circuits(
         msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
         raise ValueError(msg)
 
-    connected = wiring.keys()
-    non_connected_circ1 = set(range(circ1.num_qubits())) - set(connected)
-    non_connected_circ2 = set(range(circ2.num_qubits())) - set(wiring.values())
-    # map non-connected of circ1 to the first n_connected qubits
-    non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
-    # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
-    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
-    # map connected qubits to the last n_connected qubits
-    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
-    connected_mapping2 = {
-        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
-    }
-
-    mapping1 = {**non_connected_mapping1, **connected_mapping1}
-    mapping2 = {**non_connected_mapping2, **connected_mapping2}
-
-    composed = circ1.copy()
-    composed.relabel_qubits(mapping1)
-    circ2_relabelled = circ2.copy()
-    circ2_relabelled.relabel_qubits(mapping2)
-    composed.add_cnots(circ2_relabelled.cnots)
-    composed.initializations.update(circ2_relabelled.initializations)
-    return composed, mapping1, mapping2
+    composed, mapping1, mapping2 = compose_circuits(circ1.to_stim_circuit(), circ2.to_stim_circuit(), wiring)
+    return CNOTCircuit.from_stim_circuit(composed), mapping1, mapping2

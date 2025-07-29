@@ -22,6 +22,7 @@ from stim import Flow, PauliString
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
+    compose_circuits,
     qiskit_to_stim_circuit,
 )
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
@@ -452,3 +453,67 @@ def test_collect_circuit_layers_single_operation() -> None:
     layers = collect_circuit_layers(circ)
     assert len(layers) == 1  # One layer with a single operation
     assert layers[0] == stim.Circuit("H 0")
+
+
+@pytest.mark.parametrize(
+    ("circ1_ops", "circ2_ops", "wiring", "expected_num_qubits", "expected_mapping1", "expected_mapping2"),
+    [
+        # Test case 1: No wiring, circuits are vertically stacked
+        (
+            [("H", [0]), ("CX", [0, 1])],  # circ1 operations
+            [("H", [0]), ("CX", [0, 1])],  # circ2 operations
+            None,  # No wiring
+            4,  # Total qubits in composed circuit
+            {0: 0, 1: 1},  # Mapping for circ1
+            {0: 2, 1: 3},  # Mapping for circ2
+        ),
+        # Test case 2: Wiring connects qubits between circuits
+        (
+            [("H", [0]), ("CX", [0, 1])],
+            [("H", [0]), ("CX", [0, 1])],
+            {1: 0},  # Wiring connects qubit 1 of circ1 to qubit 0 of circ2
+            3,  # Total qubits in composed circuit
+            {0: 0, 1: 2},  # Mapping for circ1
+            {0: 2, 1: 1},  # Mapping for circ2
+        ),
+        # Test case 3: Empty circuits
+        (
+            [],  # circ1 operations
+            [],  # circ2 operations
+            None,  # No wiring
+            0,  # Total qubits in composed circuit
+            {},  # Mapping for circ1
+            {},  # Mapping for circ2
+        ),
+        # Test case 4: Wiring connects all qubits
+        (
+            [("H", [0]), ("CX", [0, 1])],
+            [("H", [0]), ("CX", [0, 1])],
+            {0: 0, 1: 1},  # Wiring connects all qubits
+            2,  # Total qubits in composed circuit
+            {0: 0, 1: 1},  # Mapping for circ1
+            {0: 0, 1: 1},  # Mapping for circ2
+        ),
+    ],
+)
+def test_compose_circuits(circ1_ops, circ2_ops, wiring, expected_num_qubits, expected_mapping1, expected_mapping2):
+    """Parameterized test for compose_circuits."""
+    # Create the first circuit
+    circ1 = stim.Circuit()
+    for op, targets in circ1_ops:
+        circ1.append_operation(op, targets)
+
+    # Create the second circuit
+    circ2 = stim.Circuit()
+    for op, targets in circ2_ops:
+        circ2.append_operation(op, targets)
+
+    # Compose the circuits
+    composed, mapping1, mapping2 = compose_circuits(circ1, circ2, wiring)
+
+    # Check the number of qubits in the composed circuit
+    assert composed.num_qubits == expected_num_qubits
+
+    # Check the mappings
+    assert mapping1 == expected_mapping1
+    assert mapping2 == expected_mapping2

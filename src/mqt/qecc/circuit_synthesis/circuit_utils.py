@@ -139,3 +139,48 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
             circ.pop(gate_idx - n_deleted)
 
     return layers
+
+
+def compose_circuits(
+    circ1: Circuit, circ2: Circuit, wiring: dict[int, int] | None = None
+) -> tuple[Circuit, dict[int, int], dict[int, int]]:
+    """Compose two Stim circuits.
+
+    The circuits are composed only along the qubits that are connected by the `wiring` dict.
+    All other qubits are assumed to be unconnected.
+    If wire is None, then the circuits are simply vertically stacked.
+
+    Args:
+        circ1: The first stim circuit.
+        circ2: The second stim circuit.
+        wiring: Optional dict mapping outputs of `circ1` to inputs of `circ2`.
+
+    Returns:
+        A tuple containing the composed stim circuit and two mappings:
+        - mapping1: Maps qubits of circ1 to the composed circuit.
+        - mapping2: Maps qubits of circ2 to the composed circuit.
+    """
+    if wiring is None:
+        wiring = {}
+
+    connected = wiring.keys()
+    non_connected_circ1 = set(range(circ1.num_qubits)) - set(connected)
+    non_connected_circ2 = set(range(circ2.num_qubits)) - set(wiring.values())
+    # map non-connected of circ1 to the first n_connected qubits
+    non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
+    # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
+    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
+    # map connected qubits to the last n_connected qubits
+    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
+    connected_mapping2 = {
+        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
+    }
+
+    mapping1 = {**non_connected_mapping1, **connected_mapping1}
+    mapping2 = {**non_connected_mapping2, **connected_mapping2}
+
+    composed = circ1.copy()
+    composed = relabel_qubits(composed, mapping1)
+    circ2_relabelled = relabel_qubits(circ2, mapping2)
+    composed += circ2_relabelled
+    return composed, mapping1, mapping2
