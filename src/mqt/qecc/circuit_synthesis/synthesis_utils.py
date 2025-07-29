@@ -103,7 +103,7 @@ class CandidateAction(Enum):
     EVALUATE = auto()  # Proceed with full validation (overlap checks)
 
 
-class GaussianElimination:
+class EliminationCNOTSynthesizer:
     """Class to apply Gaussian Elimination on a given Matrix."""
 
     def __init__(
@@ -156,7 +156,7 @@ class GaussianElimination:
         self.current_z_fs: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.used_cnots: list[tuple[int, int]] = []
 
-    def basic_elimination(self) -> None:
+    def greedy_synthesis(self) -> None:
         """Basic heuristic Gaussian elimination.
 
         Calculates CNOTS and Check matrix.
@@ -168,7 +168,7 @@ class GaussianElimination:
             i, j = np.unravel_index(np.argmin(costs_unused), self.costs.shape)
             self._apply_cnot_to_matrix(int(i), int(j))
 
-    def reference_based_construction(self) -> None:
+    def fault_set_guided_synthesis(self) -> None:
         """Reference based heuristic Gaussian elimination.
 
         This version takes reference fault sets into consideration and only applies cnots that

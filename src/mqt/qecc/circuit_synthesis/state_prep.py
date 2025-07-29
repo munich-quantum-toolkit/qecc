@@ -21,7 +21,7 @@ from qiskit.converters import circuit_to_dag
 
 from ..codes import InvalidCSSCodeError
 from .synthesis_utils import (
-    GaussianElimination,
+    EliminationCNOTSynthesizer,
     build_css_circuit_from_cnot_list,
     iterative_search_with_timeout,
     measure_flagged,
@@ -244,8 +244,8 @@ def heuristic_prep_circuit(
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    ge = GaussianElimination(matrix=checks, code=code, parallel_elimination=optimize_depth)
-    ge.basic_elimination()
+    ge = EliminationCNOTSynthesizer(matrix=checks, code=code, parallel_elimination=optimize_depth)
+    ge.greedy_synthesis()
 
     circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
     return StatePrepCircuit(circ, code, zero_state)
@@ -284,7 +284,7 @@ def heuristic_reference_prep_circuit(
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    ge = GaussianElimination(
+    ge = EliminationCNOTSynthesizer(
         matrix=checks,
         parallel_elimination=optimize_depth,
         code=code,
@@ -295,7 +295,7 @@ def heuristic_reference_prep_circuit(
         penalty_cnots=penalty_cnots,
         guide_by_x=guide_by_x,
     )
-    ge.reference_based_construction()
+    ge.fault_set_guided_synthesis()
     circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
     return StatePrepCircuit(circ, code, zero_state)
 
@@ -444,12 +444,8 @@ def _permute_commuting_cnots(
         q2 = orders[q1][0]
 
         if q2 in stack:  # conflict -> resolve via cycles
-            print("CONFLICT")
             q1_idx = orders[q2].index(q1)
-            print(orders[q2])
             orders[q2] = orders[q2][q1_idx:] + orders[q2][:q1_idx]
-            print(orders[q2])
-            print("####################")
             # unroll stack to q2
             stack = stack[: stack.index(q2) + 1]
 

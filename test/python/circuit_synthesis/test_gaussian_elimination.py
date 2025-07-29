@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.synthesis_utils import CandidateAction, GaussianElimination
+from mqt.qecc.circuit_synthesis.synthesis_utils import CandidateAction, EliminationCNOTSynthesizer
 from mqt.qecc.codes.css_code import CSSCode
 
 STEANE_CHECK_MATRIX = np.array([[1, 1, 0, 0, 1, 1, 0], [1, 0, 1, 0, 1, 0, 1], [0, 0, 0, 1, 1, 1, 1]], dtype=np.int8)
@@ -20,7 +20,7 @@ STEANE_CODE = CSSCode(Hx=STEANE_CHECK_MATRIX)
 @pytest.fixture
 def get_instance():
     """A basic fixture to provide a fresh GaussianElimination instance for each test."""
-    return GaussianElimination(matrix=STEANE_CHECK_MATRIX.copy(), code=STEANE_CODE)
+    return EliminationCNOTSynthesizer(matrix=STEANE_CHECK_MATRIX.copy(), code=STEANE_CODE)
 
 
 # Use parametrize to test all logical branches
@@ -60,7 +60,7 @@ def test_apply_cnot_to_matrix_updates_matrix_and_costs_correctly(get_instance):
     expected_matrix = np.array([[1, 1, 0, 0, 0, 1, 0], [1, 0, 1, 0, 0, 0, 1], [0, 0, 0, 1, 1, 1, 1]], dtype=np.int8)
     get_instance._apply_cnot_to_matrix(i=0, j=4)
     np.testing.assert_array_equal(get_instance.matrix, expected_matrix)
-    expected_instance = GaussianElimination(matrix=expected_matrix, code=CSSCode(expected_matrix))
+    expected_instance = EliminationCNOTSynthesizer(matrix=expected_matrix, code=CSSCode(expected_matrix))
     expected_costs = expected_instance.costs
     np.testing.assert_array_equal(get_instance.costs, expected_costs)
 
@@ -132,8 +132,8 @@ def test_handle_stagnation(
         assert len(reset_call_log) == 0
 
 
-def test_basic_elimination_integration_with_known_matrix(get_instance):
-    """Tests the full basic_elimination method from start to finish.
+def test_greedy_synthesis_integration_with_known_matrix(get_instance):
+    """Tests the full greedy_synthesis method from start to finish.
 
     It verifies that the correct sequence of eliminations is produced
     and that the matrix is fully reduced at the end.
@@ -144,7 +144,7 @@ def test_basic_elimination_integration_with_known_matrix(get_instance):
 
     expected_eliminations = [(0, 4), (1, 5), (2, 6), (1, 0), (3, 4), (5, 6), (0, 2), (3, 5)]
 
-    get_instance.basic_elimination()
+    get_instance.greedy_synthesis()
 
     # 1. Did it produce the correct sequence of operations?
     assert get_instance.eliminations == expected_eliminations
@@ -242,7 +242,7 @@ def test_compute_cost_matrix_golden_master():
         [0, 0, 2, 0, -2, 1, 0],
         [0, 2, 0, 0, -2, 0, 1],
     ])
-    instance = GaussianElimination(matrix=input_matrix, code=CSSCode(input_matrix))
+    instance = EliminationCNOTSynthesizer(matrix=input_matrix, code=CSSCode(input_matrix))
     cost_matrix = instance._compute_cost_matrix()
     np.testing.assert_array_equal(cost_matrix, expected_cost_matrix)
 

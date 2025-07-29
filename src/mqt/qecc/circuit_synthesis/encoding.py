@@ -20,7 +20,7 @@ from ldpc import mod2
 
 from ..codes import InvalidCSSCodeError
 from .synthesis_utils import (
-    GaussianElimination,
+    EliminationCNOTSynthesizer,
     build_css_circuit_from_cnot_list,
     optimal_elimination,
 )
@@ -55,8 +55,10 @@ def heuristic_encoding_circuit(
     if balance_checks:
         _balance_matrix(logicals)
 
-    ge = GaussianElimination(matrix=np.vstack((checks, logicals)), code=code, parallel_elimination=optimize_depth)
-    ge.basic_elimination()
+    ge = EliminationCNOTSynthesizer(
+        matrix=np.vstack((checks, logicals)), code=code, parallel_elimination=optimize_depth
+    )
+    ge.greedy_synthesis()
     checks, cnots = ge.matrix, ge.eliminations
 
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
