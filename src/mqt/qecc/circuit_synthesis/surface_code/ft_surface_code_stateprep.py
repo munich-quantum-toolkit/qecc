@@ -10,12 +10,14 @@ from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
 class FTSurfaceCodeStatePrep:
     """Class to synthesize a fault tolerant state preparation circuit for the rotated surface code."""
 
-    def __init__(self, distance: int | tuple[int, int], zero_state: bool = True) -> None:
+    def __init__(self, distance: int | tuple[int, int], zero_state: bool = True, kwargs: dict | None = None) -> None:
         """Initialize the FT_SurfaceCodeStatePrep class.
 
         Args:
             distance (int): The distance of the surface code.
             zero_state (bool): If True, prepare the |0> state, otherwise prepare the |+> state.
+            kwargs (dict, optional): Additional keyword arguments for customization.
+                Defaults to None.
         """
         if isinstance(distance, tuple):
             self.distance_x = distance[0]
@@ -24,20 +26,13 @@ class FTSurfaceCodeStatePrep:
             self.distance_x = distance
             self.distance_z = distance
         self.zero_state = zero_state
-        self.generate_circuit()
+        self.kwargs = kwargs if kwargs is not None else {}
+        self._generate_circuit()
 
-    def generate_circuit(self) -> None:
+    def _generate_circuit(self) -> None:
         """Generate the state preparation circuit."""
         # This method should contain the logic to generate the circuit.
         # For now, it is a placeholder.
-        self.circ = Circuit("""""")
-
-    def get_circuit(self) -> Circuit:
-        """Get the generated circuit.
-
-        Returns:
-            Circuit: The generated circuit.
-        """
         qubit_pos = ""
 
         # Generate qubit placement on a square grid (just for crumble)
@@ -50,25 +45,35 @@ class FTSurfaceCodeStatePrep:
         # Reset all qubits
         circ_str += "R " + " ".join(map(str, range(self.distance_x * self.distance_z))) + "\n"
 
-        for i in [1, 0]:
+        # Check kwargs for additional parameters
+        if "horizontal_cx_direction" in self.kwargs:
+            horizontal_cx_direction = self.kwargs["horizontal_cx_direction"]
+        else:
+            horizontal_cx_direction = "right"
+        if "vertical_cx_direction" in self.kwargs:
+            vertical_cx_direction = self.kwargs["vertical_cx_direction"]
+        else:
+            vertical_cx_direction = "left"
+
+        for i in range(self.distance_z - 1):
             circ_str += _generate_row(
                 start_qubit_idx=i * self.distance_x,
                 small_stabilizer_left=(i % 2 == 1),
-                direction_down=True,
-                vertical_cx_direction="left",
-                horizontal_cx_direction="right",
+                direction_down=(i < self.distance_z // 2),
+                vertical_cx_direction=vertical_cx_direction,
+                horizontal_cx_direction=horizontal_cx_direction,
                 width=self.distance_x,
             )
-        for i in [2, 3]:
-            circ_str += _generate_row(
-                start_qubit_idx=i * self.distance_x,
-                small_stabilizer_left=(i % 2 == 1),
-                direction_down=False,
-                vertical_cx_direction="left",
-                horizontal_cx_direction="left",
-                width=self.distance_x,
-            )
-        self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_str))
+
+        # self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_str))
+        self.circ = Circuit(qubit_pos) + Circuit(circ_str)
+
+    def get_circuit(self) -> Circuit:
+        """Get the generated circuit.
+
+        Returns:
+            Circuit: The generated circuit.
+        """
         return self.circ
 
 
