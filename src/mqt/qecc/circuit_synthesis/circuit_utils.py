@@ -87,6 +87,8 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
         elif op == "cx":
             target = qc.find_bit(gate.qubits[1])[0]
             stim_circuit.append_operation("CX", [qubit, target])
+        elif op == "barrier":
+            stim_circuit.append("TICK")
         else:
             msg = f"Unsupported gate: {op}"
             raise ValueError(msg)
@@ -153,9 +155,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
                 layer.append_operation(instr.name, qubits)
                 instr_to_delete.append(idx)  # Mark this instruction for removal
 
-                # Mark the qubits used in this instruction
-                for q in qubits:
-                    qubit_layer_used[q] = True
+            # Mark the qubits used in this instruction
+            for q in qubits:
+                qubit_layer_used[q] = True
 
             idx += 1
 
@@ -179,3 +181,17 @@ def unmeasured_qubits(circ: Circuit) -> list[int]:
 
     all_qubits = set(range(circ.num_qubits))
     return list(all_qubits - measured_qubits)
+
+
+def measured_qubits(circ: Circuit) -> list[int]:
+    """Return a list of qubits that are measured in circ.
+
+    The qubits are in the ordered according to when they are measured.
+    """
+    measured_qubits: list[int] = []
+
+    for instr in circ:
+        if instr.name in STIM_MEASUREMENTS:
+            measured_qubits.extend(q.qubit_value for q in instr.targets_copy())
+
+    return measured_qubits

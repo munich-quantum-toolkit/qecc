@@ -21,6 +21,7 @@ from stim import Flow, PauliString
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
+    measured_qubits,
     qiskit_to_stim_circuit,
     unmeasured_qubits,
 )
@@ -291,3 +292,34 @@ def test_unmeasured_qubits(circuit_operations, expected_unmeasured):
     for op, targets in circuit_operations:
         circ.append_operation(op, targets)
     assert sorted(unmeasured_qubits(circ)) == sorted(expected_unmeasured)
+
+
+@pytest.mark.parametrize(
+    ("circuit_operations", "expected_measured"),
+    [
+        # Test case 1: Empty circuit
+        ([], []),
+        # Test case 2: Circuit with no measurements
+        ([("H", [0]), ("CX", [0, 1])], []),
+        # Test case 3: Circuit with one measurement
+        ([("H", [0]), ("CX", [0, 1]), ("MR", [1])], [1]),
+        # Test case 4: Circuit with multiple measurements
+        ([("H", [0]), ("CX", [0, 1]), ("MR", [1]), ("MR", [0])], [1, 0]),
+        # Test case 5: Circuit with interleaved operations and measurements
+        (
+            [("H", [0]), ("MR", [1]), ("CX", [0, 1]), ("MR", [0]), ("MR", [2])],
+            [1, 0, 2],
+        ),
+        # Test case 6: Large circuit with measurements
+        (
+            [("H", [i]) for i in range(10)] + [("MR", [2]), ("MR", [5]), ("MR", [7])],
+            [2, 5, 7],
+        ),
+    ],
+)
+def test_measured_qubits(circuit_operations, expected_measured):
+    """Parameterized test for measured_qubits."""
+    circ = stim.Circuit()
+    for op, targets in circuit_operations:
+        circ.append_operation(op, targets)
+    assert measured_qubits(circ) == expected_measured

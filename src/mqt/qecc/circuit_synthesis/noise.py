@@ -56,7 +56,9 @@ class CircuitLevelNoise(NoiseModel):
         - Two-qubit gates are subject to depolarizing noise of strength p_tqg.
     """
 
-    def __init__(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float) -> None:
+    def __init__(
+        self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, ideal_qubits: set[int] | None = None
+    ) -> None:
         """Initialize the circuit-level noise model.
 
         Args:
@@ -64,18 +66,9 @@ class CircuitLevelNoise(NoiseModel):
             p_sqg: Probability of depolarizing noise for single-qubit gates.
             p_meas: Probability of depolarizing noise for measurements.
             p_init: Probability of depolarizing noise after initialization.
+            ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
         """
-        self.set_noise_parameters(p_tqg, p_sqg, p_meas, p_init)
-
-    def set_noise_parameters(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float) -> None:
-        """Set the noise parameters for the noise model.
-
-        Args:
-            p_tqg: Probability of depolarizing noise for two-qubit gates.
-            p_sqg: Probability of depolarizing noise for single-qubit gates.
-            p_meas: Probability of depolarizing noise for measurements.
-            p_init: Probability of depolarizing noise after initialization.
-        """
+        super().__init__(ideal_qubits)
         self.p_tqg = p_tqg
         self.p_sqg = p_sqg
         self.p_meas = p_meas
@@ -112,7 +105,7 @@ class CircuitLevelNoise(NoiseModel):
         return noisy_circ
 
 
-class CircuitLevelNoiseIdlingParallel(NoiseModel):
+class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
     """Class representing circuit-level noise with idling qubits and parallel gates.
 
     A qubit is considered idle if it is not involved in any gate operation at a given time step.
@@ -126,7 +119,14 @@ class CircuitLevelNoiseIdlingParallel(NoiseModel):
     """
 
     def __init__(
-        self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float, resets_alap: bool = False
+        self,
+        p_tqg: float,
+        p_sqg: float,
+        p_meas: float,
+        p_init: float,
+        p_idle: float,
+        resets_alap: bool = False,
+        ideal_qubits: set[int] | None = None,
     ) -> None:
         """Initialize the circuit-level noise model.
 
@@ -137,22 +137,10 @@ class CircuitLevelNoiseIdlingParallel(NoiseModel):
             p_init: Probability of depolarizing noise after initialization.
             p_idle: Probability of depolarizing noise for idling qubits.
             resets_alap: If True, resets are applied as late as possible, i.e. just before the first gate where the qubit is used (ALAP).
+            ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
         """
-        self.standard_noise = CircuitLevelNoise(p_tqg, p_sqg, p_meas, p_init)
+        super().__init__(p_tqg, p_sqg, p_meas, p_init, ideal_qubits)
         self.resets_alap = resets_alap
-        self.p_idle = p_idle
-
-    def set_noise_parameters(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float) -> None:
-        """Set the noise parameters for the noise model.
-
-        Args:
-            p_tqg: Probability of depolarizing noise for two-qubit gates.
-            p_sqg: Probability of depolarizing noise for single-qubit gates.
-            p_meas: Probability of depolarizing noise for measurements.
-            p_init: Probability of depolarizing noise after initialization.
-            p_idle: Probability of depolarizing noise for idling qubits.
-        """
-        self.standard_noise.set_noise_parameters(p_tqg, p_sqg, p_meas, p_init)
         self.p_idle = p_idle
 
     def apply(self, circ: Circuit) -> Circuit:
@@ -160,11 +148,11 @@ class CircuitLevelNoiseIdlingParallel(NoiseModel):
         layers = collect_circuit_layers(circ)
 
         if self.resets_alap:
-            return _add_idling_noise_to_layers_alap(layers, self.standard_noise, self.p_idle, circ.num_qubits)
-        return _add_idling_noise_to_layers_asap(layers, self.standard_noise, self.p_idle, circ.num_qubits)
+            return _add_idling_noise_to_layers_alap(layers, self, self.p_idle, circ.num_qubits)
+        return _add_idling_noise_to_layers_asap(layers, self, self.p_idle, circ.num_qubits)
 
 
-class CircuitLevelNoiseIdlingSequential(NoiseModel):
+class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
     """Class representing circuit-level noise with idling qubits and sequential gates.
 
     A qubit is considered idle if it is not involved in any gate operation at a given time step.
@@ -179,7 +167,14 @@ class CircuitLevelNoiseIdlingSequential(NoiseModel):
     """
 
     def __init__(
-        self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float, resets_alap: bool = False
+        self,
+        p_tqg: float,
+        p_sqg: float,
+        p_meas: float,
+        p_init: float,
+        p_idle: float,
+        resets_alap: bool = False,
+        ideal_qubits: set[int] | None = None,
     ) -> None:
         """Initialize the circuit-level noise model.
 
@@ -190,22 +185,10 @@ class CircuitLevelNoiseIdlingSequential(NoiseModel):
             p_init: Probability of depolarizing noise after initialization.
             p_idle: Probability of depolarizing noise for idling qubits.
             resets_alap: If True, resets are applied as late as possible, i.e. just before the first gate where the qubit is used (ALAP).
+            ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
         """
-        self.standard_noise = CircuitLevelNoise(p_tqg, p_sqg, p_meas, p_init)
+        super().__init__(p_tqg, p_sqg, p_meas, p_init, ideal_qubits)
         self.resets_alap = resets_alap
-        self.p_idle = p_idle
-
-    def set_noise_parameters(self, p_tqg: float, p_sqg: float, p_meas: float, p_init: float, p_idle: float) -> None:
-        """Set the noise parameters for the noise model.
-
-        Args:
-            p_tqg: Probability of depolarizing noise for two-qubit gates.
-            p_sqg: Probability of depolarizing noise for single-qubit gates.
-            p_meas: Probability of depolarizing noise for measurements.
-            p_init: Probability of depolarizing noise after initialization.
-            p_idle: Probability of depolarizing noise for idling qubits.
-        """
-        self.standard_noise.set_noise_parameters(p_tqg, p_sqg, p_meas, p_init)
         self.p_idle = p_idle
 
     def apply(self, circ: Circuit) -> Circuit:
@@ -219,8 +202,8 @@ class CircuitLevelNoiseIdlingSequential(NoiseModel):
                 layers.append(layer_circ)
 
         if self.resets_alap:
-            return _add_idling_noise_to_layers_alap(layers, self.standard_noise, self.p_idle, circ.num_qubits)
-        return _add_idling_noise_to_layers_asap(layers, self.standard_noise, self.p_idle, circ.num_qubits)
+            return _add_idling_noise_to_layers_alap(layers, self, self.p_idle, circ.num_qubits)
+        return _add_idling_noise_to_layers_asap(layers, self, self.p_idle, circ.num_qubits)
 
 
 def _add_idling_noise_to_layers_alap(
@@ -237,7 +220,7 @@ def _add_idling_noise_to_layers_alap(
         resets = _get_reset_qubits_layer(layer)
 
         non_idling_non_resets = non_idling - resets
-        noisy_layer = noise.apply(layer)  # apply regular noise
+        noisy_layer = CircuitLevelNoise.apply(noise, layer)  # apply regular noise
 
         uninitialized_qubits -= non_idling_non_resets
         initialized_qubits = initialized_qubits.union(non_idling_non_resets)
@@ -260,7 +243,7 @@ def _add_idling_noise_to_layers_asap(
         idling = _get_idle_qubits_layer(layer, n_qubits) - uninitialized_qubits
         non_idling = _get_non_idle_qubits_layer(layer)
 
-        noisy_layer = noise.apply(layer)  # apply regular noise
+        noisy_layer = CircuitLevelNoise.apply(noise, layer)  # apply regular noise
 
         uninitialized_qubits -= non_idling
 
