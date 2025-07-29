@@ -13,6 +13,8 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
+- Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states.
+- Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus).
 
 ### Changed
 
@@ -20,6 +22,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
 - Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
+- `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`.
 
 ## [1.9.0] - 2025-03-14
 
