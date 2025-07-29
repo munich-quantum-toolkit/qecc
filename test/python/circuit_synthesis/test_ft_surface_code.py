@@ -10,7 +10,9 @@ from mqt.qecc.circuit_synthesis import FTSurfaceCodeStatePrep
 def test_ft_surface_code_state_prep() -> None:
     """Test the FTSurfaceCodeStatePrep class."""
     distance = 5
-    ft_surface_code = FTSurfaceCodeStatePrep(distance)
+    ft_surface_code = FTSurfaceCodeStatePrep(
+        distance, zero_state=True, kwargs={"horizontal_cx_direction": "right", "vertical_cx_direction": "straight"}
+    )
 
     # Check the circuit generation
     circuit = ft_surface_code.get_circuit()

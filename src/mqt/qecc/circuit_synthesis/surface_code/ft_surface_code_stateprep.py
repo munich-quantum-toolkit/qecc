@@ -56,7 +56,7 @@ class FTSurfaceCodeStatePrep:
 
         circ_all_rows = SurfaceCodeRow([], [])
 
-        for i in range(self.distance_z - 1):
+        for i in list(range(self.distance_z // 2 - 1, -1, -1)) + list(range(self.distance_z // 2, self.distance_z - 1)):
             circ_all_rows += _generate_row(
                 start_qubit_idx=i * self.distance_x,
                 small_stabilizer_left=(i % 2 == 1),
@@ -66,7 +66,6 @@ class FTSurfaceCodeStatePrep:
                 width=self.distance_x,
             )
 
-        # self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_str))
         self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_all_rows.to_string()))
 
     def get_circuit(self) -> Circuit:
@@ -182,5 +181,7 @@ def _generate_row(
                     qubits_cx_v_second += [i - 1, i + vertical_step - 1]
                 else:
                     qubits_cx_v_second += [i + 1, i + vertical_step + 1]
+    # small stabilizer cx
+    qubits_cx_v_second += [small_stabilizer_index, small_stabilizer_index + vertical_step]
 
     return SurfaceCodeRow(h_qubits=qubits_h, cx_qubits=qubits_cx_h + qubits_cx_v_first + qubits_cx_v_second)
