@@ -55,7 +55,7 @@ class FTSurfaceCodeStatePrep:
                 vertical_cx_direction="left",
                 horizontal_cx_direction="right",
                 width=self.distance_x,
-            )
+            ).to_string()
         for i in [2, 3]:
             circ_str += _generate_row(
                 start_qubit_idx=i * self.distance_x,
@@ -64,9 +64,30 @@ class FTSurfaceCodeStatePrep:
                 vertical_cx_direction="left",
                 horizontal_cx_direction="left",
                 width=self.distance_x,
-            )
+            ).to_string()
         self.circ = Circuit(circ_str)
         return self.circ
+
+
+class SurfaceCodeRow:
+    """Class containing the h and cx gates of a single row of the surface code state preparation circuit."""
+
+    def __init__(self, h_qubits: list[int], cx_qubits: list[int]) -> None:
+        """Initialize the SurfaceCodeRow class."""
+        self.h_qubits = h_qubits
+        self.cx_qubits = cx_qubits
+
+    # overrride + operator
+    def __add__(self, other: SurfaceCodeRow) -> SurfaceCodeRow:
+        """Combine two SurfaceCodeRow objects."""
+        return SurfaceCodeRow(
+            h_qubits=self.h_qubits + other.h_qubits,
+            cx_qubits=self.cx_qubits + other.cx_qubits,
+        )
+
+    def to_string(self) -> str:
+        """Return a string representation of the row."""
+        return f"{'h ' + ' '.join(map(str, self.h_qubits))}\n" + f"{'cx ' + ' '.join(map(str, self.cx_qubits))}\n"
 
 
 def _generate_row(
@@ -76,7 +97,7 @@ def _generate_row(
     horizontal_cx_direction: str,
     vertical_cx_direction: str,
     width: int,
-) -> str:
+) -> SurfaceCodeRow:
     """Generate one row of the circuit.
 
     Args:
@@ -87,8 +108,6 @@ def _generate_row(
         vertical_cx_direction (str): One of 'left', 'right', 'straight'.
         width (int): The width of the code patch row.
     """
-    circ_str = ""
-
     # Invert error propagation direction if stabilizer is not build downwards
     if not direction_down:
         if vertical_cx_direction == "left":
@@ -118,7 +137,6 @@ def _generate_row(
         small_stabilizer_index += width
 
     qubits_h.sort()
-    circ_str += "H " + " ".join(map(str, qubits_h)) + "\n"
 
     qubits_cx_h: list[int] = []
     qubits_cx_v_first: list[int] = []
@@ -156,6 +174,4 @@ def _generate_row(
                 else:
                     qubits_cx_v_second += [i + 1, i + vertical_step + 1]
 
-    circ_str += "CX " + " ".join(map(str, qubits_cx_h + qubits_cx_v_first + qubits_cx_v_second)) + "\n"
-
-    return circ_str
+    return SurfaceCodeRow(h_qubits=qubits_h, cx_qubits=qubits_cx_h + qubits_cx_v_first + qubits_cx_v_second)
