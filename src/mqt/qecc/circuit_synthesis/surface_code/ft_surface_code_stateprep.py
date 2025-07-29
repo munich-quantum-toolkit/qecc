@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from stim import Circuit
 
+from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
+
 
 class FTSurfaceCodeStatePrep:
     """Class to synthesize a fault tolerant state preparation circuit for the rotated surface code."""
@@ -36,14 +38,15 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The generated circuit.
         """
-        circ_str = ""
+        qubit_pos = ""
 
         # Generate qubit placement on a square grid (just for crumble)
         for i in range(self.distance_x):
             for j in range(self.distance_z):
-                circ_str += f"QUBIT_COORDS({i},{j}) {j * self.distance_x + i}\n"
-        circ_str += "\n"
+                qubit_pos += f"QUBIT_COORDS({i},{j}) {j * self.distance_x + i}\n"
+        qubit_pos += "\n"
 
+        circ_str = ""
         # Reset all qubits
         circ_str += "R " + " ".join(map(str, range(self.distance_x * self.distance_z))) + "\n"
 
@@ -65,7 +68,7 @@ class FTSurfaceCodeStatePrep:
                 horizontal_cx_direction="left",
                 width=self.distance_x,
             )
-        self.circ = Circuit(circ_str)
+        self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_str))
         return self.circ
 
 
