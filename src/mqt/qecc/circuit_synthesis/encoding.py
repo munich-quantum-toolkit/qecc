@@ -58,10 +58,6 @@ def heuristic_encoding_circuit(
     ge = GaussianElimination(matrix=np.vstack((checks, logicals)), code=code, parallel_elimination=optimize_depth)
     ge.basic_elimination()
     checks, cnots = ge.matrix, ge.eliminations
-    # checks, cnots = heuristic_gaussian_elimination(
-    #     np.vstack((checks, logicals)),
-    #     parallel_elimination=optimize_depth,
-    # )
 
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
     encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]

@@ -94,20 +94,6 @@ def iterative_search_with_timeout(
     return None, max_param
 
 
-# def print_dynamic_eliminations(eliminations, failed_cnots) -> None:
-#     """Prints the eliminations list dynamically on a single line.
-#
-#     Parameters:
-#     - eliminations: List of (control, target) tuples representing CNOT operations.
-#     """
-#     # Clear both lines
-#     sys.stdout.write("\r" + " " * 1000 + "\r")  # Clear line 1
-#
-#     # Print the updated lists
-#     sys.stdout.write(f"\rCurrent Eliminations: {eliminations} | Failed CNOTs: {failed_cnots}")
-#     sys.stdout.flush()
-
-
 class CandidateAction(Enum):
     """Class to help distinguish the control flow of the reference based heuristic gaussian elimination."""
 
