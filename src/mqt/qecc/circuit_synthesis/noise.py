@@ -80,27 +80,29 @@ class CircuitLevelNoise(NoiseModel):
 
         for op in circ:
             name = op.name
-            targets = op.targets_copy()
             if name in STIM_SQGS:
-                noisy_circ.append_operation(op.name, targets)
-                self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_sqg)
+                for targets in op.target_groups():
+                    noisy_circ.append_operation(op.name, targets)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_sqg)
 
             elif name in STIM_RESETS:
-                noisy_circ.append_operation(op.name, targets)
-                self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_init)
+                for targets in op.target_groups():
+                    noisy_circ.append_operation(op.name, targets)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_init)
 
             elif name in STIM_TQGS:
-                for grp in (
+                for targets in (
                     op.target_groups()
                 ):  # errors might propagate so we have to apply noise to every target group individually
-                    noisy_circ.append_operation(op.name, grp)
+                    noisy_circ.append_operation(op.name, targets)
                     self._apply_noise(noisy_circ, "DEPOLARIZE2", targets, self.p_tqg)
 
             elif name in STIM_MEASUREMENTS:
-                if not any(t in self.ideal_qubits for t in targets):
-                    noisy_circ.append_operation(op.name, targets, self.p_meas)
-                else:
-                    noisy_circ.append_operation(op.name, targets)
+                for targets in op.target_groups():
+                    if not any(t in self.ideal_qubits for t in targets):
+                        noisy_circ.append_operation(op.name, targets, self.p_meas)
+                    else:
+                        noisy_circ.append_operation(op.name, targets)
 
         return noisy_circ
 
