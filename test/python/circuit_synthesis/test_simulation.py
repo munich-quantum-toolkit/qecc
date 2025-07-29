@@ -19,14 +19,21 @@ import pytest
 from mqt.qecc import CSSCode
 from mqt.qecc.circuit_synthesis import (
     LutDecoder,
-    NoisyNDFTStatePrepSimulator,
+    SteaneNDFTStatePrepSimulator,
+    VerificationNDFTStatePrepSimulator,
     gate_optimal_verification_circuit,
     heuristic_prep_circuit,
     naive_verification_circuit,
 )
+from mqt.qecc.circuit_synthesis.noise import CircuitLevelNoiseIdlingParallel
 
 if TYPE_CHECKING:  # pragma: no cover
     from qiskit import QuantumCircuit
+
+
+def make_uniform_error_model(p: float) -> CircuitLevelNoiseIdlingParallel:
+    """Create a uniform error model."""
+    return CircuitLevelNoiseIdlingParallel(p_tqg=p, p_sqg=p, p_idle=p * 0.01, p_meas=2 / 3 * p, p_init=p)
 
 
 @pytest.fixture
@@ -38,13 +45,13 @@ def steane_code() -> CSSCode:
 @pytest.fixture
 def non_ft_steane_zero(steane_code: CSSCode) -> QuantumCircuit:
     """Return a non fault-tolerant Steane code state preparation circuit."""
-    return heuristic_prep_circuit(steane_code).circ
+    return heuristic_prep_circuit(steane_code).circ.to_qiskit_circuit()
 
 
 @pytest.fixture
 def non_ft_steane_plus(steane_code: CSSCode) -> QuantumCircuit:
     """Return a non fault-tolerant Steane code state preparation circuit."""
-    return heuristic_prep_circuit(steane_code, zero_state=False).circ
+    return heuristic_prep_circuit(steane_code, zero_state=False).circ.to_qiskit_circuit()
 
 
 @pytest.fixture
@@ -124,16 +131,17 @@ def test_non_ft_sim_zero(steane_code: CSSCode, non_ft_steane_zero: QuantumCircui
     """Test the simulation of a non fault-tolerant state preparation circuit for the Steane |0>."""
     tol = 5e-4
     p = 1e-3
+    noise = make_uniform_error_model(p)
     lower = 1e-4
-    simulator = NoisyNDFTStatePrepSimulator(
-        non_ft_steane_zero,
-        steane_code,
-        p=p,
-        p_idle=p * 0.01,
-    )
-    p_l, _, _, _ = simulator.logical_error_rate(min_errors=10)
+    simulator = VerificationNDFTStatePrepSimulator(non_ft_steane_zero, steane_code)
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol > lower
+
+    # steane code prep is already FT2 due to error degeneracy.
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -141,27 +149,28 @@ def test_ft_sim_zero(steane_code: CSSCode, ft_steane_zero: QuantumCircuit) -> No
     """Test the simulation of a fault-tolerant state preparation circuit for the Steane |0>."""
     tol = 5e-4
     p = 1e-3
+    noise = make_uniform_error_model(p)
     lower = 1e-4
-    simulator = NoisyNDFTStatePrepSimulator(
-        ft_steane_zero,
-        steane_code,
-        p=p,
-        p_idle=p * 0.01,
-    )
-    p_l, _, _, _ = simulator.logical_error_rate(min_errors=10)
+    simulator = VerificationNDFTStatePrepSimulator(ft_steane_zero, steane_code)
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol < lower
+
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
 
 
 def test_non_ft_sim_plus(steane_code: CSSCode, non_ft_steane_plus: QuantumCircuit, steane_lut: LutDecoder) -> None:
     """Test the simulation of a non fault-tolerant state preparation circuit for the Steane |0>."""
     tol = 5e-4
     p = 1e-3
+    noise = make_uniform_error_model(p)
     lower = 1e-4
-    simulator = NoisyNDFTStatePrepSimulator(
-        non_ft_steane_plus, steane_code, p=p, p_idle=p * 0.01, zero_state=False, decoder=steane_lut
+    simulator = VerificationNDFTStatePrepSimulator(
+        non_ft_steane_plus, steane_code, zero_state=False, decoder=steane_lut
     )
-    p_l, _, _, _ = simulator.logical_error_rate(min_errors=10)
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol > lower
 
@@ -171,11 +180,12 @@ def test_ft_sim_plus(steane_code: CSSCode, ft_steane_plus: QuantumCircuit, stean
     """Test the simulation of a fault-tolerant state preparation circuit for the Steane |0>."""
     tol = 5e-4
     p = 1e-3
+    noise = make_uniform_error_model(p)
     lower = 1e-4
-    simulator = NoisyNDFTStatePrepSimulator(
-        ft_steane_plus, steane_code, p=p, p_idle=p * 0.01, zero_state=False, decoder=steane_lut
-    )
-    p_l, _, _, _ = simulator.logical_error_rate(min_errors=10)
+
+    simulator = VerificationNDFTStatePrepSimulator(ft_steane_plus, steane_code, zero_state=False, decoder=steane_lut)
+
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol < lower
 
@@ -185,11 +195,36 @@ def test_naive_verification_circuit_with_flags(
 ) -> None:
     """Test that naive verification is correct."""
     tol = 5e-4
+
     p = 1e-3
+    noise = make_uniform_error_model(p)
     lower = 1e-4
-    simulator = NoisyNDFTStatePrepSimulator(
-        ft_steane_zero_naive, steane_code, p=p, p_idle=p * 0.01, zero_state=True, decoder=steane_lut
+    simulator = VerificationNDFTStatePrepSimulator(
+        ft_steane_zero_naive, steane_code, zero_state=True, decoder=steane_lut
     )
-    p_l, _, _, _ = simulator.logical_error_rate(min_errors=10)
+
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
+
+    assert p_l - tol < lower
+
+
+def test_steane_type_ftsp_trivial(steane_code: CSSCode, non_ft_steane_zero: QuantumCircuit) -> None:
+    """Test state preparation using Steane-type verification.
+
+    This is overkill for the Steane code but this is just for testing purposes.
+    """
+    tol = 5e-3
+    p = 1e-2
+    noise = make_uniform_error_model(p)
+    lower = 1e-2
+    simulator = SteaneNDFTStatePrepSimulator(
+        non_ft_steane_zero,
+        non_ft_steane_zero,
+        steane_code,
+        non_ft_steane_zero,
+        non_ft_steane_zero,
+        zero_state=True,
+    )
+    p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=100)
 
     assert p_l - tol < lower
