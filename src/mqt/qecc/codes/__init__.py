@@ -17,6 +17,7 @@ from .css_code import CSSCode, InvalidCSSCodeError
 from .hexagonal_color_code import HexagonalColorCode
 from .square_octagon_color_code import SquareOctagonColorCode
 from .stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
+from .rotated_surface_code import RotatedSurfaceCode
 
 __all__ = [
     "CSSCode",
@@ -24,6 +25,7 @@ __all__ = [
     "ConcatenatedCSSCode",
     "ConcatenatedCode",
     "HexagonalColorCode",
+    "RotatedSurfaceCode",
     "InvalidCSSCodeError",
     "InvalidStabilizerCodeError",
     "LatticeType",
