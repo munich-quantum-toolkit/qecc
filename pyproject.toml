@@ -65,6 +65,7 @@ dependencies = [
   "bposd>=1.6",
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
+  "tqdm>=4.66.2"
 ]
 dynamic = ["version"]
 
@@ -156,7 +157,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*"]
 ignore_missing_imports = true
 
 

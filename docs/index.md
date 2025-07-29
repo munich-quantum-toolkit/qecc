@@ -26,9 +26,12 @@ self
 Installation
 LightsOutDecoder
 StatePrep
+CatStates
 Encoders
 AnalogInfo
 Publications
+CHANGELOG
+UPGRADING
 ```
 
 ```{toctree}
