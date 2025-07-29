@@ -292,7 +292,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         )  # number of non-commuting corrected states
         return num_logical_errors, num_discarded
 
-    def plot_state_prep(
+    def plot_state_prep(  # pragma: no cover
         self,
         ps: list[float],
         min_errors: int = 500,

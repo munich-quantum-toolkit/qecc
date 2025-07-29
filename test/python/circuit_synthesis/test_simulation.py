@@ -174,6 +174,10 @@ def test_non_ft_sim_plus(steane_code: CSSCode, non_ft_steane_plus: QuantumCircui
 
     assert p_l - tol > lower
 
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
+
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
 def test_ft_sim_plus(steane_code: CSSCode, ft_steane_plus: QuantumCircuit, steane_lut: LutDecoder) -> None:
@@ -188,6 +192,10 @@ def test_ft_sim_plus(steane_code: CSSCode, ft_steane_plus: QuantumCircuit, stean
     p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol < lower
+
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
 
 
 def test_naive_verification_circuit_with_flags(
@@ -206,6 +214,10 @@ def test_naive_verification_circuit_with_flags(
     p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=10)
 
     assert p_l - tol < lower
+
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
 
 
 def test_steane_type_ftsp_trivial(steane_code: CSSCode, non_ft_steane_zero: QuantumCircuit) -> None:
@@ -228,3 +240,7 @@ def test_steane_type_ftsp_trivial(steane_code: CSSCode, non_ft_steane_zero: Quan
     p_l, _, _, _ = simulator.logical_error_rate(noise, min_errors=100)
 
     assert p_l - tol < lower
+
+    p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
+
+    assert p_l_correction - tol < lower
