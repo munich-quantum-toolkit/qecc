@@ -253,6 +253,7 @@ ser = "ser"
 aer = "aer"
 anc = "anc"
 arange = "arange"
+nd = "nd"
 
 
 [tool.repo-review]

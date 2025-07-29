@@ -26,12 +26,13 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_circuit,
     heuristic_verification_stabilizers,
 )
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet
 from mqt.qecc.codes import SquareOctagonColorCode
 
-from .utils import eq_span, get_stabs_css, in_span
+from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
-    from mqt.qecc.circuit_synthesis import StatePrepCircuit
+    from mqt.qecc.circuit_synthesis import FaultyStatePrepCircuit
 
 
 @pytest.fixture(scope="session")
@@ -71,7 +72,7 @@ def cc_4_8_8_code() -> CSSCode:
 
 
 @pytest.fixture(scope="session")
-def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
+def steane_code_sp(steane_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     sp_circ = heuristic_prep_circuit(steane_code)
     sp_circ.compute_fault_sets()
@@ -79,7 +80,7 @@ def steane_code_sp(steane_code: CSSCode) -> StatePrepCircuit:
 
 
 @pytest.fixture(scope="session")
-def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
+def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the tetrahedral code."""
     sp_circ = heuristic_prep_circuit(tetrahedral_code)
     sp_circ.compute_fault_sets()
@@ -87,7 +88,7 @@ def tetrahedral_code_sp(tetrahedral_code: CSSCode) -> StatePrepCircuit:
 
 
 @pytest.fixture(scope="session")
-def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> StatePrepCircuit:
+def color_code_d5_sp(cc_4_8_8_code: CSSCode) -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=5 4,8,8 color code."""
     sp_circ = heuristic_prep_circuit(cc_4_8_8_code)
     sp_circ.compute_fault_sets()
@@ -98,10 +99,8 @@ def test_heuristic_overcomplete_stabilizers() -> None:
     """Check that synthesis also works for overcomplete stabilizers."""
     code = CSSCode(np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), np.array([[1, 1, 1, 1], [1, 1, 1, 1]]), 2)
     sp_circ = heuristic_prep_circuit(code)
-    circ = sp_circ.circ
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.parametrize(
@@ -115,12 +114,11 @@ def test_heuristic_prep_consistent(code: CSSCode, request) -> None:  # type: ign
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -130,17 +128,15 @@ def test_gate_optimal_prep_consistent(code: CSSCode, request) -> None:  # type: 
     code = request.getfixturevalue(code)
     sp_circ = gate_optimal_prep_circuit(code, max_timeout=3)
     assert sp_circ is not None
-    assert sp_circ.zero_state
 
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -154,12 +150,11 @@ def test_depth_optimal_prep_consistent(code: CSSCode, request) -> None:  # type:
     circ = sp_circ.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ.num_qubits == code.n
-    assert circ.num_nonlocal_gates() <= max_cnots
+    assert circ.num_qubits() == code.n
+    assert circ.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ)
-    assert eq_span(code.Hx, x)
-    assert eq_span(np.vstack((code.Hz, code.Lz)), z)
+    assert eq_span(code.Hx, sp_circ.x_checks)
+    assert eq_span(np.vstack((code.Hz, code.Lz)), sp_circ.z_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -170,31 +165,26 @@ def test_plus_state_gate_optimal(code: CSSCode, request) -> None:  # type: ignor
     sp_circ_plus = gate_optimal_prep_circuit(code, max_timeout=3, zero_state=False)
 
     assert sp_circ_plus is not None
-    assert not sp_circ_plus.zero_state
 
     circ_plus = sp_circ_plus.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ_plus.num_qubits == code.n
-    assert circ_plus.num_nonlocal_gates() <= max_cnots
+    assert circ_plus.num_qubits() == code.n
+    assert circ_plus.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ_plus)
-    assert eq_span(code.Hz, z)
-    assert eq_span(np.vstack((code.Hx, code.Lx)), x)
+    assert eq_span(code.Hz, sp_circ_plus.z_checks)
+    assert eq_span(np.vstack((code.Hx, code.Lx)), sp_circ_plus.x_checks)
 
     sp_circ_zero = gate_optimal_prep_circuit(code, max_timeout=5, zero_state=True)
 
     assert sp_circ_zero is not None
 
-    circ_zero = sp_circ_zero.circ
-    x_zero, z_zero = get_stabs_css(circ_zero)
-
     if code.is_self_dual():
-        assert np.array_equal(x, z_zero)
-        assert np.array_equal(z, x_zero)
+        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(x, z_zero)
-        assert not np.array_equal(z, x_zero)
+        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.parametrize(
@@ -206,35 +196,31 @@ def test_plus_state_heuristic(code: CSSCode, request) -> None:  # type: ignore[n
     sp_circ_plus = heuristic_prep_circuit(code, zero_state=False)
 
     assert sp_circ_plus is not None
-    assert not sp_circ_plus.zero_state
 
     circ_plus = sp_circ_plus.circ
     max_cnots = np.sum(code.Hx) + np.sum(code.Hz)  # type: ignore[operator]
 
-    assert circ_plus.num_qubits == code.n
-    assert circ_plus.num_nonlocal_gates() <= max_cnots
+    assert circ_plus.num_qubits() == code.n
+    assert circ_plus.num_cnots() <= max_cnots
 
-    x, z = get_stabs_css(circ_plus)
-    assert eq_span(code.Hz, z)
-    assert eq_span(np.vstack((code.Hx, code.Lx)), x)
+    assert eq_span(code.Hz, sp_circ_plus.z_checks)
+    assert eq_span(np.vstack((code.Hx, code.Lx)), sp_circ_plus.x_checks)
 
     sp_circ_zero = heuristic_prep_circuit(code, zero_state=True)
-    circ_zero = sp_circ_zero.circ
-    x_zero, z_zero = get_stabs_css(circ_zero)
 
     if code.is_self_dual():
-        assert np.array_equal(x, z_zero)
-        assert np.array_equal(z, x_zero)
+        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(x, z_zero)
-        assert not np.array_equal(z, x_zero)
+        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
-def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
+def test_optimal_steane_verification_circuit(steane_code_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_timeout=5)
+    ver_stabs_layers = gate_optimal_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_timeout=5)
 
     assert len(ver_stabs_layers) == 1  # 1 Ancilla measurement
 
@@ -246,22 +232,21 @@ def test_optimal_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -
     for stab in ver_stabs:
         assert in_span(z_gens, stab)
 
-    errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs)
 
     # Check that circuit is correct
     circ_ver = gate_optimal_verification_circuit(circ)
+
     assert circ_ver.num_qubits == circ.num_qubits + 1
-    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_nonlocal_gates()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 1  # 1 for the measurement
+    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
-def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit) -> None:
+def test_heuristic_steane_verification_circuit(steane_code_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct."""
     circ = steane_code_sp
 
-    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_covering_sets=10000)
 
     assert len(ver_stabs_layers) == 1  # 1 layer of verification measurements
 
@@ -273,34 +258,34 @@ def test_heuristic_steane_verification_circuit(steane_code_sp: StatePrepCircuit)
     for stab in ver_stabs:
         assert in_span(z_gens, stab)
 
-    errors = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs @ errors.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs)
 
     # Check that circuit is correct
     circ_ver = heuristic_verification_circuit(circ)
     assert circ_ver.num_qubits == circ.num_qubits + 1
-    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_nonlocal_gates()
-    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 1  # 1 for the measurement
+    assert circ_ver.num_nonlocal_gates() == np.sum(ver_stabs) + circ.circ.num_cnots()
+    assert circ_ver.depth() == np.sum(ver_stabs) + circ.circ.depth() + 2  # 1 for the measurement, 1 for the Hadamard
 
 
 @pytest.mark.skipif(
     os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
     reason="Too slow for CI on Windows or MacOS",
 )
-def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
+def test_not_full_ft_opt_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification is also correct for higher distance.
 
     Ignore Z errors.
-    Due to time constraints, we set the timeout for each search to 4 seconds.
+    Due to time constraints, we limit the timeout for each search.
     """
     circ = color_code_d5_sp
 
-    ver_stabs_layers = gate_optimal_verification_stabilizers(circ, x_errors=True, max_ancillas=3, max_timeout=4)
-
+    ver_stabs_layers = gate_optimal_verification_stabilizers(
+        circ.x_fault_sets, circ.z_checks, max_ancillas=3, max_timeout=10
+    )
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
     ver_stabs_1 = ver_stabs_layers[0]
+
     assert len(ver_stabs_1) == 2  # 2 Ancilla measurements
     assert np.sum(ver_stabs_1) == 9  # 9 CNOTs
 
@@ -313,22 +298,17 @@ def test_not_full_ft_opt_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     for stab in np.vstack((ver_stabs_1, ver_stabs_2)):
         assert in_span(z_gens, stab)
 
-    errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
-
-    errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs_1)
+    assert circ.x_fault_sets[1].all_faults_detected(ver_stabs_2)
 
 
-def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
+def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None:
     """Test that the optimal verification circuit for the Steane code is correct.
 
     Ignore Z errors.
     """
     circ = color_code_d5_sp
-    ver_stabs_layers = heuristic_verification_stabilizers(circ, x_errors=True, max_covering_sets=1000)
+    ver_stabs_layers = heuristic_verification_stabilizers(circ.x_fault_sets, circ.z_checks, max_covering_sets=1000)
 
     assert len(ver_stabs_layers) == 2  # 2 layers of verification measurements
 
@@ -340,19 +320,14 @@ def test_not_full_ft_heuristic_cc5(color_code_d5_sp: StatePrepCircuit) -> None:
     for stab in np.vstack((ver_stabs_1, ver_stabs_2)):
         assert in_span(z_gens, stab)
 
-    errors_1 = circ.compute_fault_set(1)
-    non_detected = np.where(np.all(ver_stabs_1 @ errors_1.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
-
-    errors_2 = circ.compute_fault_set(2)
-    non_detected = np.where(np.all(ver_stabs_2 @ errors_2.T % 2 == 0, axis=1))[0]
-    assert len(non_detected) == 0
+    assert circ.x_fault_sets[0].all_faults_detected(ver_stabs_1)
+    assert circ.x_fault_sets[1].all_faults_detected(ver_stabs_2)
 
     # Check that circuit is correct
-    circ_ver = heuristic_verification_circuit(circ, full_fault_tolerance=False)
+    circ_ver = heuristic_verification_circuit(circ, only_first_layer=True)
     n_cnots = np.sum(ver_stabs_1) + np.sum(ver_stabs_2)  # type: ignore[operator]
     assert circ_ver.num_qubits == circ.num_qubits + len(ver_stabs_1) + len(ver_stabs_2)
-    assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_nonlocal_gates()
+    assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_cnots()
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -361,14 +336,38 @@ def test_error_detection_code() -> None:
     code = CSSCode.from_code_name("carbon")
     circ = heuristic_prep_circuit(code)
 
-    circ_ver_correction = gate_optimal_verification_circuit(
-        circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=False
-    )
+    circ.set_max_errors(1, 1)
+    circ_ver_correction = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
-    circ.set_error_detection(True)
-    circ_ver_detection = gate_optimal_verification_circuit(
-        circ, max_ancillas=3, max_timeout=5, full_fault_tolerance=False
-    )
+    circ.set_max_errors(2, 2)
+    circ_ver_detection = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
 
     assert circ_ver_detection.num_qubits > circ_ver_correction.num_qubits
     assert circ_ver_detection.num_nonlocal_gates() > circ_ver_correction.num_nonlocal_gates()
+
+
+def test_combine_faults() -> None:
+    """Test `combine_faults` method of `FaultyStatePrepCircuit` class."""
+    code = CSSCode(
+        np.array([[1, 1, 0, 0, 0, 0], [0, 1, 1, 0, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 1, 1, 0], [0, 0, 0, 0, 1, 1]]),
+        x_distance=1,
+        z_distance=6,
+    )  # d=5 rep code
+    circ = heuristic_prep_circuit(code)
+    # circuit has single-qubit z faults [0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1], [1, 1, 0, 0, 0, 0]
+    circ.compute_fault_sets()
+    new_faults = PureFaultSet.from_fault_array(np.array([[1, 0, 1, 0, 0, 0]], dtype=np.int8))
+
+    combined_faults = circ.combine_faults(new_faults, x_errors=False, reduce=True)
+
+    print(combined_faults[1])
+    print(circ.z_fault_sets[1])
+
+    combined_1 = new_faults.combine(circ.z_fault_sets[0])
+
+    combined_2 = circ.z_fault_sets[1].copy()
+    combined_2.add_faults(np.array([[1, 0, 1, 0, 1, 0], [1, 0, 1, 0, 0, 1]]))
+    combined_2.normalize(circ.z_checks)
+
+    assert combined_faults[0] == combined_1
+    assert combined_faults[1] == combined_2

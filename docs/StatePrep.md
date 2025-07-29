@@ -141,7 +141,7 @@ Even though optimal state preparation circuit synthesis seems out of range we ca
 
 ```{code-cell} ipython3
 cc_ft_sp = gate_optimal_verification_circuit(
-    cc_non_ft_sp, max_timeout=2, max_ancillas=3
+    cc_non_ft_sp, max_timeout=4, max_ancillas=3
 )
 
 cc_ft_sp.draw(output="mpl", initial_state=True, fold=-1, scale=0.2)

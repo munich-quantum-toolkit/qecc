@@ -18,7 +18,6 @@ import numpy as np
 import z3
 from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
-from stim import Circuit
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -367,6 +366,14 @@ def _column_addition_constraint(
 
 def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]) -> z3.BoolRef:
     """Return assertion that two symbolic vectors should be equal."""
+    if len(v1) != len(v2):
+        msg = "Vectors must have the same length for equality check."
+        raise ValueError(msg)
+
+    # map all numpy bools to Python bools, otherwise z3 will not be able to handle them
+    v1 = np.array([bool(v) if isinstance(v, (bool, np.bool_)) else v for v in v1], dtype=object)
+    v2 = np.array([bool(v) if isinstance(v, (bool, np.bool_)) else v for v in v2], dtype=object)
+
     constraints = [False for _ in v1]
     for i in range(len(v1)):
         # If one of the elements is a bool, we can simplify the expression
@@ -394,7 +401,13 @@ def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int
     """Return True if the overlap of symbolic vector with constant vector is odd."""
     if np.array_equal(v_con, np.zeros(len(v_con), dtype=np.int8)):
         return z3.BoolVal(False)
-    return z3.PbEq([(v_sym[i], 1) for i, c in enumerate(v_con) if c == 1], 1)
+
+    constraint = False
+    for i, c in enumerate(v_con):
+        if c != 1:
+            continue
+        constraint = z3.Xor(constraint, v_sym[i])
+    return constraint
 
 
 def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[z3.BoolRef]:
@@ -425,6 +438,8 @@ def symbolic_vector_add(
             else:
                 v_new[i] = v1[i]
 
+        elif bool(v1[i] == v2[i]):
+            v_new[i] = False
         else:
             v_new[i] = z3.Xor(v1[i], v2[i])
 
@@ -1207,32 +1222,19 @@ def measure_three_flagged_12(
     qc.measure(ancilla, measurement_bit)
 
 
-def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
-    """Convert a Qiskit circuit to a Stim circuit.
+def vars_to_stab(
+    measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
+) -> npt.NDArray[z3.BoolRef | bool]:
+    """Compute the stabilizer measured giving the generators and the measurement variables."""
+    if not measurement:
+        msg = "Measurement must not be empty"
+        raise ValueError(msg)
 
-    Args:
-        qc: The Qiskit circuit to convert.
-    """
-    single_qubit_gate_map = {
-        "h": "H",
-        "x": "X",
-        "y": "Y",
-        "z": "Z",
-        "s": "S",
-        "sdg": "S_DAG",
-        "sx": "SQRT_X",
-        "measure": "MR",
-    }
-    stim_circuit = Circuit()
-    for gate in qc:
-        op = gate.operation.name
-        qubit = qc.find_bit(gate.qubits[0])[0]
-        if op in single_qubit_gate_map:
-            stim_circuit.append_operation(single_qubit_gate_map[op], [qubit])
-        elif op == "cx":
-            target = qc.find_bit(gate.qubits[1])[0]
-            stim_circuit.append_operation("CX", [qubit, target])
-        else:
-            msg = f"Unsupported gate: {op}"
-            raise ValueError(msg)
-    return stim_circuit
+    if len(generators) != len(measurement):
+        msg = "Generators and measurement must have the same length"
+        raise ValueError(msg)
+
+    measurement_stab = symbolic_scalar_mult(generators[0], measurement[0])
+    for i, scalar in enumerate(measurement[1:]):
+        measurement_stab = symbolic_vector_add(measurement_stab, symbolic_scalar_mult(generators[i + 1], scalar))
+    return measurement_stab

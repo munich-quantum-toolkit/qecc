@@ -38,21 +38,23 @@ There is not a unique encoding circuit but usually we would like to obtain an en
 Under the hood, this uses the SMT solver [z3](https://github.com/Z3Prover/z3). Of course this method scales only up to a few qubits. Synthesizing depth-optimal circuits is usually faster than synthesizing gate-optimal circuits.
 
 ```{code-cell} ipython3
-depth_opt, q_enc = depth_optimal_encoding_circuit(steane_code, max_timeout=5)
+depth_opt = depth_optimal_encoding_circuit(steane_code, max_timeout=5)
+q_enc = depth_opt.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {depth_opt.depth()}.")
-print(f"Circuit has {depth_opt.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {depth_opt.num_cnots()} CNOTs.")
 
 depth_opt.draw('mpl')
 ```
 
 ```{code-cell} ipython3
-gate_opt, q_enc = gate_optimal_encoding_circuit(steane_code, max_timeout=5)
+gate_opt = gate_optimal_encoding_circuit(steane_code, max_timeout=5)
+q_enc = gate_opt.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {gate_opt.depth()}.")
-print(f"Circuit has {gate_opt.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {gate_opt.num_cnots()} CNOTs.")
 
 gate_opt.draw('mpl')
 ```
@@ -64,11 +66,12 @@ In addition to the circuit, the synthesis methods also return the encoding qubit
 For larger codes, synthesizing optimal circuits is not feasible. In this case, QECC provides a heuristic synthesis method that tries to use as few CNOTs with the lowest depth as possible.
 
 ```{code-cell} ipython3
-heuristic_circ, q_enc = heuristic_encoding_circuit(steane_code)
+heuristic_circ = heuristic_encoding_circuit(steane_code)
+q_enc = heuristic_circ.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
-print(f"Circuit has {heuristic_circ.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
 heuristic_circ.draw('mpl')
 ```
@@ -101,11 +104,12 @@ We have to be careful with the logicals. Each _anticommuting_ pair of logicals d
 As before, we synthesize the encoding circuit:
 
 ```{code-cell} ipython3
-encoder, q_enc = depth_optimal_encoding_circuit(code, max_timeout=5)
+encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
+q_enc = encoder.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {encoder.depth()}.")
-print(f"Circuit has {encoder.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
 encoder.draw('mpl')
 ```
@@ -115,72 +119,51 @@ Propagating Paulis from the encoding qubits at the input to the output will not 
 Concatenating the circuits can be done as follows with qiskit:
 
 ```{code-cell} ipython3
-from qiskit import QuantumCircuit
-
-from mqt.qecc.circuit_synthesis.circuit_utils import reorder_qubits
+from mqt.qecc.circuit_synthesis.circuits import compose_cnot_circuits
 
 n = 4
 
-first_layer = QuantumCircuit(n).tensor(encoder)
-second_layer = encoder.tensor(encoder)
+first_layer = encoder
+second_layer, mapping1, mapping2 = compose_cnot_circuits(encoder, encoder) # vertically composes circuits
 
-initialized_qubits = set(range(2 * n)) - set(q_enc) - {q + n for q in q_enc}
-qubit_mapping = {q_enc[0]: 0, q_enc[1]: 3, q_enc[0] + n: 2, q_enc[1] + n: 1}
-qubit_mapping.update({q: i + 2 * len(q_enc) for i, q in enumerate(initialized_qubits)})
-second_layer = reorder_qubits(second_layer, qubit_mapping)
+wiring = {0: mapping1[q_enc[0]], 1: mapping1[q_enc[1]], 2: mapping2[q_enc[0]], 3: mapping2[q_enc[1]]}
+concatenated, _, _ = compose_cnot_circuits(first_layer, second_layer, wiring)
 
-encoder_concat_naive = first_layer.compose(second_layer)
-
+q_enc = concatenated.get_uninitialized()
 print(f"Encoding qubits are qubits {q_enc}.")
-print(f"Circuit has depth {encoder_concat_naive.depth()}.")
-print(f"Circuit has {encoder_concat_naive.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has depth {concatenated.depth()}.")
+print(f"Circuit has {concatenated.num_cnots()} CNOTs.")
 
-encoder_concat_naive.draw('mpl')
+concatenated.draw('mpl')
 ```
 
 Qubits $1$ and $2$ are still the encoding qubits and if we propagate Pauli $X$ and $Z$ to the output, we find that this is indeed the encoder for an $[[8,2,2]]$ code.
 
-This circuit has $3$ times as many CNOT gates as the encoder for the unconcatenated code because we needed to encode 3 times. Instead of concatenating the encoder circuits we can synthesize the encoders directly from the stabilizers of the concatenated code. The stabilizers of the concatenated code are the stabilizers of the original code on the respective subset of qubits with the addition of the "encoded" stabilizers of the inner code. We have a choice of how exactly we encode the stabilizers of the inner code. In the circuit picture, we have a choice of how we "wire the qubits together". Depending on how we do this, the code might have different logical operators.
+This circuit has $3$ times as many CNOT gates as the encoder for the unconcatenated code because we needed to encode 3 times. Instead of concatenating the encoder circuits we can synthesize the encoders directly from the stabilizers of the concatenated code.
+We can obtain the code defined by the circuit directly from the circuit object.
 
 ```{code-cell} ipython3
-permutation = [3, 0, 2, 1]
-
-x_prod = (code.Lx[0] + code.Lx[1]) % 2
-Hx = np.vstack(
-    (
-        np.kron(np.eye(2, dtype=np.int8), code.Hx),
-        np.hstack((x_prod, x_prod[permutation])),
-    )
-)
-
-z_prod = (code.Lz[0] + code.Lz[1]) % 2
-Hz = np.vstack(
-    (
-        np.kron(np.eye(2, dtype=np.int8), code.Hz),
-        np.hstack((z_prod, z_prod[permutation])),
-    )
-)
-
-concatenated = CSSCode(Hx, Hz, 4)
+concatenated_code = concatenated.get_code()
 
 print("Stabilizers:\n")
-print(concatenated.stabs_as_pauli_strings())
+print(concatenated_code.stabs_as_pauli_strings())
 
 print("\nLogicals:\n")
-print(concatenated.x_logicals_as_pauli_strings())
-print(concatenated.z_logicals_as_pauli_strings())
+print(concatenated_code.x_logicals_as_pauli_strings())
+print(concatenated_code.z_logicals_as_pauli_strings())
 ```
 
 Now we can directly synthesize the encoder:
 
 ```{code-cell} ipython3
-encoder_concat_direct, q_enc = depth_optimal_encoding_circuit(
-    concatenated, max_timeout=5
+encoder_concat_direct = depth_optimal_encoding_circuit(
+    concatenated_code, max_timeout=5
 )
+q_enc = encoder_concat_direct.get_uninitialized()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {encoder_concat_direct.depth()}.")
-print(f"Circuit has {encoder_concat_direct.num_nonlocal_gates()} CNOTs.")
+print(f"Circuit has {encoder_concat_direct.num_cnots()} CNOTs.")
 
 encoder_concat_direct.draw('mpl')
 ```

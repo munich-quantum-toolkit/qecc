@@ -23,10 +23,10 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_encoding_circuit,
 )
 
-from .utils import eq_span, get_stabs_css_with_indices, in_span
+from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
-    from qiskit import QuantumCircuit
+    from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
 
 
 @pytest.fixture
@@ -73,32 +73,19 @@ def css_6_2_2_code() -> CSSCode:
     )
 
 
-def _assert_correct_encoding_circuit(encoder: QuantumCircuit, encoding_qubits: list[int], code: CSSCode) -> None:
-    assert encoder.num_qubits == code.n
-
-    x_stabs, z_stabs_tmp, x_qubits, z_qubits = get_stabs_css_with_indices(encoder)
-
-    # Since no gate is applied to the encoding qubits at the beginning of the circuit, the propagation of Z-logicals through the circuit can be read off from the Z-stabilizers.
-    z_logical_indices = [z_qubits[i] for i in encoding_qubits]
-    z_logicals = z_stabs_tmp[z_logical_indices]
-
-    # To get propagation we need to apply a Hadamard to the encoding qubits and propagate again.
-    encoder_h = encoder.inverse()
-    encoder_h.h(encoding_qubits)
-    encoder_h = encoder_h.inverse()
-    x_stabs_tmp, z_stabs, x_qubits, _ = get_stabs_css_with_indices(encoder_h)
-    print(x_stabs_tmp, x_qubits)
-    x_logicals = x_stabs_tmp[[x_qubits[i] for i in encoding_qubits]]
+def _assert_correct_encoding_circuit(encoder: CNOTCircuit, code: CSSCode) -> None:
+    assert encoder.num_qubits() == code.n
+    circuit_code = encoder.get_code()
 
     # assert correct propagation of stabilizers
-    assert eq_span(code.Hx, x_stabs)
-    assert eq_span(code.Hz, z_stabs)
+    assert eq_span(code.Hx, circuit_code.Hx)
+    assert eq_span(code.Hz, circuit_code.Hz)
 
     # assert correct propagation of logicals
-    for logical in z_logicals:
+    for logical in circuit_code.Lz:
         assert in_span(np.vstack((code.Hz, code.Lz)), logical)
 
-    for logical in x_logicals:
+    for logical in circuit_code.Lx:
         assert in_span(np.vstack((code.Hx, code.Lx)), logical)
 
 
@@ -109,10 +96,11 @@ def test_heuristic_encoding_consistent(code: CSSCode, request) -> None:  # type:
     """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder, encoding_qubits = heuristic_encoding_circuit(code)
-    assert encoder.num_qubits == code.n
+    encoder = heuristic_encoding_circuit(code)
+    encoder.get_uninitialized()
+    assert encoder.num_qubits() == code.n
 
-    _assert_correct_encoding_circuit(encoder, encoding_qubits, code)
+    _assert_correct_encoding_circuit(encoder, code)
 
 
 @pytest.mark.skipif(
@@ -124,10 +112,12 @@ def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # ty
     """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder, encoding_qubits = gate_optimal_encoding_circuit(code, max_timeout=5, min_gates=3, max_gates=10)
-    assert encoder.num_qubits == code.n
+    encoder = gate_optimal_encoding_circuit(code, max_timeout=8, min_gates=3, max_gates=10)
+    assert encoder is not None
+    encoder.get_uninitialized()
+    assert encoder.num_qubits() == code.n
 
-    _assert_correct_encoding_circuit(encoder, encoding_qubits, code)
+    _assert_correct_encoding_circuit(encoder, code)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
@@ -136,7 +126,9 @@ def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # t
     """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder, encoding_qubits = depth_optimal_encoding_circuit(code, max_timeout=5)
-    assert encoder.num_qubits == code.n
+    encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
+    assert encoder is not None
+    encoder.get_uninitialized()
+    assert encoder.num_qubits() == code.n
 
-    _assert_correct_encoding_circuit(encoder, encoding_qubits, code)
+    _assert_correct_encoding_circuit(encoder, code)
