@@ -69,20 +69,21 @@ If we want to see the probability of a logical error happening after post-select
 [^1]: https://www.nature.com/articles/srep19578
 
 ```{code-cell} ipython3
-from mqt.qecc.circuit_synthesis import NoisyNDFTStatePrepSimulator
+from mqt.qecc.circuit_synthesis import VerificationNDFTStatePrepSimulator, CircuitLevelNoiseIdlingParallel
 
 p = 0.05
+noise = CircuitLevelNoiseIdlingParallel(p_tqg=p, p_sqg=p, p_init=p, p_meas=p, p_idle=p/100)
 
-non_ft_simulator = NoisyNDFTStatePrepSimulator(
-    non_ft_sp.circ, code=steane_code, zero_state=True, p=p
+non_ft_simulator = VerificationNDFTStatePrepSimulator(
+    non_ft_sp.circ, code=steane_code, zero_state=True
 )
-ft_simulator = NoisyNDFTStatePrepSimulator(
-    ft_sp, code=steane_code, zero_state=True, p=p
+ft_simulator = VerificationNDFTStatePrepSimulator(
+    ft_sp, code=steane_code, zero_state=True
 )
 
 
-pl_non_ft, ra_non_ft, _, _ = non_ft_simulator.logical_error_rate(min_errors=10)
-pl_ft, ra_ft, _, _ = ft_simulator.logical_error_rate(min_errors=10)
+pl_non_ft, ra_non_ft, _, _ = non_ft_simulator.logical_error_rate(noise, min_errors=10)
+pl_ft, ra_ft, _, _ = ft_simulator.logical_error_rate(noise, min_errors=10)
 
 print(f"Logical error rate for non-FT state preparation: {pl_non_ft}")
 print(f"Logical error rate for FT state preparation: {pl_ft}")
@@ -93,8 +94,8 @@ The error rates seem quite close to each other. To properly judge the fault tole
 ```{code-cell} ipython3
 ps = [0.1, 0.05, 0.01, 0.008, 0.006, 0.004, 0.002, 0.001]
 
-non_ft_simulator.plot_state_prep(ps, min_errors=50, name="non-FT", p_idle_factor=0.01)
-ft_simulator.plot_state_prep(ps, min_errors=50, name="FT", p_idle_factor=0.01)
+non_ft_simulator.plot_state_prep(ps, min_errors=50, p_idle_factor=0.01)
+ft_simulator.plot_state_prep(ps, min_errors=50, p_idle_factor=0.01)
 ```
 
 Indeed we observe a quadratic scaling for the fault tolerant state preparation circuit while the logical error rate scales linearly for the non-fault tolerant state preparation.
@@ -165,14 +166,14 @@ print(
 We expect that the distance 5 color code should be prepared with a better logical error rate than the Steane code. And this is indeed the case:
 
 ```{code-cell} ipython3
-cc_simulator = NoisyNDFTStatePrepSimulator(cc_ft_sp, code=cc, zero_state=True)
+cc_simulator = VerificationNDFTStatePrepSimulator(cc_ft_sp, code=cc, zero_state=True)
 
 ps = [0.1, 0.05, 0.04, 0.03, 0.02, 0.01, 0.009, 0.008]
 
 ft_simulator.plot_state_prep(
-    ps, min_errors=50, name="Distance 3", p_idle_factor=0.01
+    ps, min_errors=50, p_idle_factor=0.01
 )  # simulate Steane code as comparison
-cc_simulator.plot_state_prep(ps, min_errors=50, name="Distance 5", p_idle_factor=0.01)
+cc_simulator.plot_state_prep(ps, min_errors=50, p_idle_factor=0.01)
 ```
 
 ## Deterministic state preparation ($d < 5$)

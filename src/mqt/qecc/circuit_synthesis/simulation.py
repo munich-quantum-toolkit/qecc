@@ -23,6 +23,7 @@ from tqdm import tqdm
 
 from ..codes import InvalidCSSCodeError
 from .circuit_utils import measured_qubits, qiskit_to_stim_circuit, relabel_qubits, unmeasured_qubits
+from .circuits import CNOTCircuit
 from .noise import CircuitLevelNoiseIdlingParallel
 from .state_prep import heuristic_prep_circuit
 
@@ -35,6 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..codes.css_code import CSSCode
     from .noise import NoiseModel
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +45,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
     def __init__(
         self,
-        state_prep_circ: QuantumCircuit | stim.Circuit,
+        state_prep_circ: QuantumCircuit | stim.Circuit | CNOTCircuit,
         code: CSSCode,
         zero_state: bool = True,
         decoder: LutDecoder | None = None,
@@ -62,6 +64,8 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         if isinstance(state_prep_circ, QuantumCircuit):
             self.circ = qiskit_to_stim_circuit(state_prep_circ)
+        elif isinstance(state_prep_circ, CNOTCircuit):
+            self.circ = state_prep_circ.to_stim_circuit()
         else:
             self.circ = state_prep_circ.copy()
 
@@ -371,7 +375,6 @@ class NoisyNDFTStatePrepSimulator(ABC):
             marker="d",
             linestyle="--",
             color="orange",
-            label="Acceptance Rate",
         )
         plt.xscale("log")
         plt.yscale("log")
@@ -379,8 +382,6 @@ class NoisyNDFTStatePrepSimulator(ABC):
         plt.ylabel("Acceptance Rate", fontsize=12)
         plt.title("Acceptance Rate vs Physical Error Rate", fontsize=14, fontweight="bold")
         plt.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
-        plt.legend(fontsize=10)
-
         # Adjust layout for better spacing
         plt.tight_layout()
         plt.show()
@@ -391,7 +392,7 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
 
     def __init__(
         self,
-        state_prep_circ: QuantumCircuit,
+        state_prep_circ: QuantumCircuit | stim.Circuit | CNOTCircuit,
         code: CSSCode,
         zero_state: bool = True,
         decoder: LutDecoder | None = None,
