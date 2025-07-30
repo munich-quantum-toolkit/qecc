@@ -192,7 +192,6 @@ class EliminationCNOTSynthesizer:
         created circuit.
         """
         self._validate_inputs()
-        self._modify_matrix_structure()
         self._ref_based_init()
         while not self.is_reduced():
             costs_unused = self._mask_out_used_qubits()
@@ -379,14 +378,6 @@ class EliminationCNOTSynthesizer:
         m[self.used_columns, :] = True
         m[:, self.used_columns] = True
         return np.ma.array(self.costs, mask=m)  # type: ignore[no-untyped-call]
-
-    def _modify_matrix_structure(self) -> None:
-        """This should not necessary but for distance seven codes this was the only way to reliably produce solutions."""
-        if self.code.distance > 5:
-            if self.ref_z_fs.size and not self.ref_x_fs.size:
-                self.matrix = mod2.row_echelon(self.matrix, full=True)[0]
-            if self.ref_z_fs.size and self.ref_x_fs.size:
-                self.matrix = mod2.row_echelon(self.matrix, full=True)[0]
 
     def _get_candidate_pairs(self, costs_unused: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
         # Get all valid (i, j) pairs sorted by cost
