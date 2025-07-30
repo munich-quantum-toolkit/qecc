@@ -510,7 +510,6 @@ def test_css_code_from_file_empty_line(tmp_path) -> None:  # type: ignore[no-unt
     assert code.k == 1
 
 
-# parametrize
 @pytest.mark.parametrize(("x_distance", "z_distance"), [(3, 3), (7, 3), (5, 7)])
 def test_rotated_surface_code_params(x_distance: int, z_distance: int) -> None:
     """Test the RotatedSurfaceCode class."""
