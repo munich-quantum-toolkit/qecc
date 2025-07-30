@@ -9,10 +9,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from stim import Circuit
 
 from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
 from mqt.qecc.codes import RotatedSurfaceCode
+
+if TYPE_CHECKING:
+    from mqt.qecc.circuit_synthesis.noise import NoiseModel
 
 
 class FTSurfaceCodeStatePrep:
@@ -55,6 +60,7 @@ class FTSurfaceCodeStatePrep:
 
         # Reset all qubits
         qubit_pos += "R " + " ".join(map(str, range(self.n))) + "\n"
+        self.qubit_pos = Circuit(qubit_pos)
 
         # Check kwargs for additional parameters
         if "horizontal_cx_direction" in self.kwargs:
@@ -79,10 +85,9 @@ class FTSurfaceCodeStatePrep:
             )
         measurements = ""
         measurements += "M " + " ".join(map(str, range(self.n))) + "\n"
+        self.measurements = Circuit(measurements)
 
-        self.circ = (
-            Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_all_rows.to_string())) + Circuit(measurements)
-        )
+        self.circ = compact_stim_circuit(Circuit(circ_all_rows.to_string()))
 
     def get_circuit(self) -> Circuit:
         """Get the generated circuit.
@@ -92,18 +97,20 @@ class FTSurfaceCodeStatePrep:
         """
         return self.circ
 
-    def get_circuit_logical_x(self) -> Circuit:
+    def get_circuit_logical_x(self, noise_model: NoiseModel) -> Circuit:
         """Get the circuit with detectors added.
 
         Returns:
             Circuit: The circuit with detectors.
         """
-        if not hasattr(self, "circ_Lx"):
-            self._add_detectors()
+        noisy_circ = noise_model.apply(self.circ)
+        det = self._detectors_lx()
+        self.circ_Lx = self.qubit_pos + noisy_circ + self.measurements + det
         return self.circ_Lx
 
-    def _add_detectors(self) -> None:
-        """Add detectors to the circuit."""
+    def _detectors_lx(self) -> Circuit:
+        """Prepare the circuit to measure the logical error rate of the logical X operator."""
+        # add detectors
         det_circ = ""
         for m, matrix_type in [(self.code.Hz, "detectors"), (self.code.Lz, "observables")]:
             for stab in m:
@@ -116,7 +123,7 @@ class FTSurfaceCodeStatePrep:
                     det_circ += f"DETECTOR({x_coord}, {y_coord}, 0) " + " ".join(f"rec[{i}]" for i in recs) + "\n"
                 else:
                     det_circ += "OBSERVABLE_INCLUDE(0) " + " ".join(f"rec[{i}]" for i in recs) + "\n"
-        self.circ_Lx = self.circ.copy() + Circuit(det_circ)
+        return Circuit(det_circ)
 
 
 class SurfaceCodeRow:
