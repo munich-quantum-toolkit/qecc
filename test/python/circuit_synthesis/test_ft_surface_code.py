@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test synthesis of FT state preparation circuits for surface code."""
 
 from __future__ import annotations
@@ -15,9 +22,10 @@ def test_ft_surface_code_state_prep() -> None:
     )
 
     # Check the circuit generation
-    circuit = ft_surface_code.get_circuit()
+    circuit = ft_surface_code.get_circuit_logical_x()
 
     # Open the circuit in a web browser
-    webbrowser.open(circuit.to_crumble_url(), new=2)
+    webbrowser.open(circuit.to_crumble_url(skip_detectors=False), new=2)
+    circuit.to_file("ft_surface_code_state_prep.stim")
 
     assert True

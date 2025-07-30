@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Class to synthesize a fault tolerant state preparation circuit for the rotated surface code."""
 
 from __future__ import annotations
@@ -5,12 +12,15 @@ from __future__ import annotations
 from stim import Circuit
 
 from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
+from mqt.qecc.codes import RotatedSurfaceCode
 
 
 class FTSurfaceCodeStatePrep:
     """Class to synthesize a fault tolerant state preparation circuit for the rotated surface code."""
 
-    def __init__(self, distance: int | tuple[int, int], zero_state: bool = True, kwargs: dict | None = None) -> None:
+    def __init__(
+        self, distance: int | tuple[int, int], zero_state: bool = True, kwargs: dict[str, str] | None = None
+    ) -> None:
         """Initialize the FT_SurfaceCodeStatePrep class.
 
         Args:
@@ -26,8 +36,10 @@ class FTSurfaceCodeStatePrep:
             self.distance_x = distance
             self.distance_z = distance
         self.zero_state = zero_state
+        self.n = self.distance_x * self.distance_z
         self.kwargs = kwargs if kwargs is not None else {}
         self._generate_circuit()
+        self.code = RotatedSurfaceCode(x_distance=self.distance_x, z_distance=self.distance_z)
 
     def _generate_circuit(self) -> None:
         """Generate the state preparation circuit."""
@@ -42,7 +54,7 @@ class FTSurfaceCodeStatePrep:
         qubit_pos += "\n"
 
         # Reset all qubits
-        qubit_pos += "R " + " ".join(map(str, range(self.distance_x * self.distance_z))) + "\n"
+        qubit_pos += "R " + " ".join(map(str, range(self.n))) + "\n"
 
         # Check kwargs for additional parameters
         if "horizontal_cx_direction" in self.kwargs:
@@ -65,8 +77,12 @@ class FTSurfaceCodeStatePrep:
                 horizontal_cx_direction=horizontal_cx_direction,
                 width=self.distance_x,
             )
+        measurements = ""
+        measurements += "M " + " ".join(map(str, range(self.n))) + "\n"
 
-        self.circ = Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_all_rows.to_string()))
+        self.circ = (
+            Circuit(qubit_pos) + compact_stim_circuit(Circuit(circ_all_rows.to_string())) + Circuit(measurements)
+        )
 
     def get_circuit(self) -> Circuit:
         """Get the generated circuit.
@@ -75,6 +91,32 @@ class FTSurfaceCodeStatePrep:
             Circuit: The generated circuit.
         """
         return self.circ
+
+    def get_circuit_logical_x(self) -> Circuit:
+        """Get the circuit with detectors added.
+
+        Returns:
+            Circuit: The circuit with detectors.
+        """
+        if not hasattr(self, "circ_Lx"):
+            self._add_detectors()
+        return self.circ_Lx
+
+    def _add_detectors(self) -> None:
+        """Add detectors to the circuit."""
+        det_circ = ""
+        for m, matrix_type in [(self.code.Hz, "detectors"), (self.code.Lz, "observables")]:
+            for stab in m:
+                indices = [i for i, val in enumerate(stab) if val == 1]
+                x_coord = indices[0] % self.distance_x
+                y_coord = indices[0] // self.distance_x
+                # convert indices into stim rec's
+                recs = [i - self.n for i in indices]
+                if matrix_type == "detectors":
+                    det_circ += f"DETECTOR({x_coord}, {y_coord}, 0) " + " ".join(f"rec[{i}]" for i in recs) + "\n"
+                else:
+                    det_circ += "OBSERVABLE_INCLUDE(0) " + " ".join(f"rec[{i}]" for i in recs) + "\n"
+        self.circ_Lx = self.circ.copy() + Circuit(det_circ)
 
 
 class SurfaceCodeRow:
@@ -85,7 +127,7 @@ class SurfaceCodeRow:
         self.h_qubits = h_qubits
         self.cx_qubits = cx_qubits
 
-    # overrride + operator
+    # override + operator
     def __add__(self, other: SurfaceCodeRow) -> SurfaceCodeRow:
         """Combine two SurfaceCodeRow objects."""
         return SurfaceCodeRow(
@@ -160,27 +202,26 @@ def _generate_row(
         # skip small stabs one
         if i == small_stabilizer_index:
             continue
-        match vertical_cx_direction:
-            case "left":
-                if horizontal_cx_direction == "left":
-                    qubits_cx_v_first += [i, i + vertical_step - 1]
-                    qubits_cx_v_second += [i, i + vertical_step]
-                else:
-                    qubits_cx_v_first += [i + 1, i + vertical_step]
-                    qubits_cx_v_second += [i + 1, i + vertical_step + 1]
-            case "right":
-                if horizontal_cx_direction == "right":
-                    qubits_cx_v_first += [i, i + vertical_step + 1]
-                    qubits_cx_v_second += [i, i + vertical_step]
-                else:
-                    qubits_cx_v_first += [i - 1, i + vertical_step]
-                    qubits_cx_v_second += [i - 1, i + vertical_step - 1]
-            case "straight":
-                qubits_cx_v_first += [i, i + vertical_step]
-                if horizontal_cx_direction == "left":
-                    qubits_cx_v_second += [i - 1, i + vertical_step - 1]
-                else:
-                    qubits_cx_v_second += [i + 1, i + vertical_step + 1]
+        if vertical_cx_direction == "left":
+            if horizontal_cx_direction == "left":
+                qubits_cx_v_first += [i, i + vertical_step - 1]
+                qubits_cx_v_second += [i, i + vertical_step]
+            else:
+                qubits_cx_v_first += [i + 1, i + vertical_step]
+                qubits_cx_v_second += [i + 1, i + vertical_step + 1]
+        elif vertical_cx_direction == "right":
+            if horizontal_cx_direction == "right":
+                qubits_cx_v_first += [i, i + vertical_step + 1]
+                qubits_cx_v_second += [i, i + vertical_step]
+            else:
+                qubits_cx_v_first += [i - 1, i + vertical_step]
+                qubits_cx_v_second += [i - 1, i + vertical_step - 1]
+        elif vertical_cx_direction == "straight":
+            qubits_cx_v_first += [i, i + vertical_step]
+            if horizontal_cx_direction == "left":
+                qubits_cx_v_second += [i - 1, i + vertical_step - 1]
+            else:
+                qubits_cx_v_second += [i + 1, i + vertical_step + 1]
     # small stabilizer cx
     qubits_cx_v_second += [small_stabilizer_index, small_stabilizer_index + vertical_step]
 
