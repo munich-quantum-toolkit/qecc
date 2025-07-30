@@ -536,3 +536,5 @@ def test_rotated_surface_code_invalid_distance() -> None:
         RotatedSurfaceCode(x_distance=4, z_distance=5)
     with pytest.raises(InvalidDistanceError):
         RotatedSurfaceCode(x_distance=5, z_distance=4)
+    with pytest.raises(InvalidDistanceError):
+        RotatedSurfaceCode(x_distance=5, z_distance=None)

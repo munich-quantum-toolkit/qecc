@@ -59,10 +59,6 @@ class RotatedSurfaceCode(CSSCode):
     @staticmethod
     def _generate_h(stab_type: str, x_distance: int, z_distance: int) -> NDArray[np.int8]:
         """Generate the check matrix for the rotated surface code."""
-        if stab_type not in {"x", "z"}:
-            msg = "Type must be either 'x' or 'z'."
-            raise ValueError(msg)
-
         n = x_distance * z_distance
         h: NDArray[np.int8] = np.empty((0, n), dtype=np.int8)
 
