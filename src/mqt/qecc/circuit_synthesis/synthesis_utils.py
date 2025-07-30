@@ -353,7 +353,7 @@ class EliminationCNOTSynthesizer:
         self.costs = self._compute_cost_matrix()
 
     def _apply_cnot_to_matrix(self, i: int, j: int) -> None:
-        self.eliminations.append((int(i), int(j)))
+        self.eliminations.append((i, j))
         if self.parallel_elimination:
             self.used_columns.append(i)
             self.used_columns.append(j)
