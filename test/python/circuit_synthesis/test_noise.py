@@ -16,6 +16,8 @@ from mqt.qecc.circuit_synthesis.noise import (
     CircuitLevelNoise,
     CircuitLevelNoiseIdlingParallel,
     CircuitLevelNoiseIdlingSequential,
+    ComposedNoiseModel,
+    NoiseModel,
 )
 
 
@@ -178,3 +180,63 @@ def test_ideal_qubits(noise_free, ideal_qubits, expected_noisy):
 
     # Check that the noisy circuit has the expected operations
     assert noisy == expected_noisy, f"Expected: {expected_noisy}, Got: {noisy}"
+
+
+class MockNoiseModel(NoiseModel):
+    """Mock noise model for testing purposes."""
+
+    def __init__(self, operation: str, probability: float):
+        """Initialize the mock noise model."""
+        self.operation = operation
+        self.probability = probability
+
+    def apply(self, circ: Circuit) -> Circuit:
+        """Apply the mock noise model."""
+        noisy_circ = circ.copy()
+        for i in range(circ.num_qubits):
+            noisy_circ.append_operation(self.operation, [i], self.probability)
+        return noisy_circ
+
+
+@pytest.mark.parametrize(
+    ("circ_string", "noise_models", "expected_circ_string"),
+    [
+        # Test case 1: Single noise model
+        (
+            "H 0\nCX 0 1",
+            [MockNoiseModel("DEPOLARIZE1", 0.01)],
+            "H 0\nCX 0 1\nDEPOLARIZE1(0.01) 0 1",
+        ),
+        # Test case 2: Multiple noise models
+        (
+            "H 0\nCX 0 1",
+            [
+                MockNoiseModel("Z_ERROR", 0.01),
+                MockNoiseModel("X_ERROR", 0.02),
+            ],
+            "H 0\nCX 0 1\nZ_ERROR(0.01) 0 1\nX_ERROR(0.02) 0 1",
+        ),
+        # Test case 3: No noise models
+        (
+            "H 0\nCX 0 1",
+            [],
+            "H 0\nCX 0 1",
+        ),
+    ],
+)
+def test_composed_noise_model(circ_string, noise_models, expected_circ_string):
+    """Parameterized test for ComposedNoiseModel."""
+    # Create the circuit from the string
+    circ = Circuit(circ_string)
+
+    # Create the composed noise model
+    composed_model = ComposedNoiseModel(noise_models)
+
+    # Apply the composed noise model
+    noisy_circ = composed_model.apply(circ)
+
+    # Convert the noisy circuit to a string
+    actual_circ_string = str(noisy_circ)
+
+    # Check that the resulting circuit matches the expected circuit
+    assert actual_circ_string.strip() == expected_circ_string.strip()

@@ -9,10 +9,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from stim import Circuit
 
 from .circuit_utils import collect_circuit_layers
 from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
+
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterable
 
 
 class NoiseModel:
@@ -46,6 +51,31 @@ class NoiseModel:
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a quantum circuit."""
         raise NotImplementedError
+
+
+class ComposedNoiseModel(NoiseModel):
+    """Noise model composed of multiple other noise models."""
+
+    def __init__(self, models: Iterable[NoiseModel], ideal_qubits: set[int] | None = None) -> None:
+        """Initialize the noise model.
+
+        Args:
+           models: The noise models to compose.
+           ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
+        """
+        self.ideal_qubits = ideal_qubits or set()
+        self.models = list(models)
+
+    def add_model(self, model: NoiseModel) -> None:
+        """Add noise model to models."""
+        self.models.append(model)
+
+    def apply(self, circ: Circuit) -> Circuit:
+        """Apply the noise model to a quantum circuit."""
+        noisy_circ = circ.copy()
+        for model in self.models:
+            noisy_circ = model.apply(noisy_circ)
+        return noisy_circ
 
 
 class CircuitLevelNoise(NoiseModel):
