@@ -9,9 +9,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .css_code import CSSCode
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class InvalidDistanceError(ValueError):
@@ -52,14 +57,14 @@ class RotatedSurfaceCode(CSSCode):
             )
 
     @staticmethod
-    def _generate_h(stab_type: str, x_distance: int, z_distance: int) -> np.ndarray:
+    def _generate_h(stab_type: str, x_distance: int, z_distance: int) -> NDArray[np.int8]:
         """Generate the check matrix for the rotated surface code."""
         if stab_type not in {"x", "z"}:
             msg = "Type must be either 'x' or 'z'."
             raise ValueError(msg)
 
         n = x_distance * z_distance
-        h = np.empty((0, n), dtype=np.int8)
+        h: NDArray[np.int8] = np.empty((0, n), dtype=np.int8)
 
         # squares
         for i in range(x_distance - 1):
