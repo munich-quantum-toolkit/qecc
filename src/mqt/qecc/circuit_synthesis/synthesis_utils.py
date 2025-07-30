@@ -104,7 +104,23 @@ class CandidateAction(Enum):
 
 
 class EliminationCNOTSynthesizer:
-    """Class to apply Gaussian Elimination on a given Matrix."""
+    """Synthesizes a CNOT circuit through check matrix reduction via eliminations.
+
+    This class implements algorithms to find a sequence of CNOT gates that
+    transforms a given binary matrix (e.g., a stabilizer generator matrix
+    from a quantum error-correcting code) into a reduced row echelon form.
+    The core mechanism is based on Gaussian elimination, where CNOT gates
+    correspond to column operations.
+
+    Two primary synthesis strategies are provided:
+    1.  `greedy_synthesis`: A fast, purely cost-based algorithm that always
+        chooses the CNOT gate that reduces the column weights the most.
+    2.  `fault_set_guided_synthesis`: A more advanced algorithm that uses a
+        backtracking search guided by reference fault sets. This ensures the
+        synthesized circuit adheres to specific fault-tolerance constraints,
+        with respect to the reference fault sets given.
+
+    """
 
     def __init__(
         self,
