@@ -330,13 +330,12 @@ class EliminationCNOTSynthesizer:
         self.backtrack_required = False
 
     def _validate_inputs(self) -> None:
-        """Here will be some checks that ensure that the reference based construction can actually be executed."""
+        """Here are some checks that ensure that the reference based construction can actually be executed."""
         has_refs = bool(self.ref_x_fs.size or self.ref_z_fs.size)
         has_code = self.code is not None
-        if has_refs ^ has_code:  # xor
-            return
-        msg = "Must provide either both a reference fault set and CSS code, or neither."
-        raise ValueError(msg)
+        if has_refs != has_code:
+            msg = "Must provide either both a reference fault set and CSS code, or neither."
+            raise ValueError(msg)
 
     def _reset_if_stuck(self, costs_unused: npt.NDArray[np.int8]) -> bool:
         """Handles local minima or full column usage. Returns True if reset occurred."""
