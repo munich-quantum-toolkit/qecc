@@ -17,6 +17,9 @@ from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
 from mqt.qecc.codes import RotatedSurfaceCode
 
 if TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
+
     from mqt.qecc.circuit_synthesis.noise import NoiseModel
 
 
@@ -104,15 +107,15 @@ class FTSurfaceCodeStatePrep:
             Circuit: The circuit with detectors.
         """
         noisy_circ = noise_model.apply(self.circ)
-        det = self._detectors_lx()
+        det = self._detectors(self.code.Hz, self.code.Lz)
         self.circ_Lx = self.qubit_pos + noisy_circ + self.measurements + det
         return self.circ_Lx
 
-    def _detectors_lx(self) -> Circuit:
+    def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8]) -> Circuit:
         """Prepare the circuit to measure the logical error rate of the logical X operator."""
         # add detectors
         det_circ = ""
-        for m, matrix_type in [(self.code.Hz, "detectors"), (self.code.Lz, "observables")]:
+        for m, matrix_type in [(detectors, "detectors"), (logicals, "observables")]:
             for stab in m:
                 indices = [i for i, val in enumerate(stab) if val == 1]
                 x_coord = indices[0] % self.distance_x
