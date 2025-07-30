@@ -38,17 +38,17 @@ class RotatedSurfaceCode(CSSCode):
         if distance is not None:
             if distance % 2 == 0:
                 msg = "Distance must be odd."
-                raise ValueError(msg)
+                raise InvalidDistanceError(msg)
             super().__init__(
                 self._generate_h("x", distance, distance), self._generate_h("z", distance, distance), distance
             )
         elif x_distance is None or z_distance is None:
             msg = "Either distance or both x_distance and z_distance must be provided."
-            raise ValueError(msg)
+            raise InvalidDistanceError(msg)
         else:
             if x_distance % 2 == 0 or z_distance % 2 == 0:
                 msg = "x_distance and z_distance must be odd."
-                raise ValueError(msg)
+                raise InvalidDistanceError(msg)
             super().__init__(
                 self._generate_h("x", x_distance, z_distance),
                 self._generate_h("z", x_distance, z_distance),
