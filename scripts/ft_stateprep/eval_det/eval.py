@@ -15,12 +15,12 @@ from pathlib import Path
 from time import time
 from typing import TYPE_CHECKING
 
-import mqt.qecc.ft_stateprep as ftsp
 import numpy as np
 import pandas as pd
 import qsample as qs
 from qiskit import QuantumCircuit
 
+import mqt.qecc.ft_stateprep as ftsp
 from mqt.qecc import codes
 
 if TYPE_CHECKING:

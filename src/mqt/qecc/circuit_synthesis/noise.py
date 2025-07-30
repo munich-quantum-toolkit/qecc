@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from stim import Circuit, GateTarget
+from stim import Circuit
 
 from .circuit_utils import collect_circuit_layers
 from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
@@ -26,7 +26,7 @@ class NoiseModel:
         """
         self.ideal_qubits = ideal_qubits or set()
 
-    def _apply_noise(self, circ: Circuit, op: str, targets: list[int | GateTarget], p: float) -> None:
+    def _apply_noise(self, circ: Circuit, op: str, targets: list[int], p: float) -> None:
         """Apply noise to the circuit only if the targets are not ideal qubits.
 
         If any of the targets are in the set of ideal qubits, the noise operation is not applied to those targets.
@@ -37,6 +37,8 @@ class NoiseModel:
            targets: List of qubit indices to apply the noise to.
            p: Probability of the noise operation.
         """
+        assert targets, "Targets cannot be empty."
+
         any_ideal = any(t in self.ideal_qubits for t in targets)
         if not any_ideal:
             circ.append_operation(op, targets, p)
@@ -83,23 +85,23 @@ class CircuitLevelNoise(NoiseModel):
             if name in STIM_SQGS:
                 for targets in op.target_groups():
                     noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_sqg)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", [trgt.qubit_value for trgt in targets], self.p_sqg)
 
             elif name in STIM_RESETS:
                 for targets in op.target_groups():
                     noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", targets, self.p_init)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", [trgt.qubit_value for trgt in targets], self.p_init)
 
             elif name in STIM_TQGS:
                 for targets in (
                     op.target_groups()
                 ):  # errors might propagate so we have to apply noise to every target group individually
                     noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE2", targets, self.p_tqg)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE2", [trgt.qubit_value for trgt in targets], self.p_tqg)
 
             elif name in STIM_MEASUREMENTS:
                 for targets in op.target_groups():
-                    if not any(t in self.ideal_qubits for t in targets):
+                    if not any(t in self.ideal_qubits for t in [trgt.qubit_value for trgt in targets]):
                         noisy_circ.append_operation(op.name, targets, self.p_meas)
                     else:
                         noisy_circ.append_operation(op.name, targets)
