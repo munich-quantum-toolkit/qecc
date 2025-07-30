@@ -60,37 +60,39 @@ class RotatedSurfaceCode(CSSCode):
     def _generate_h(stab_type: str, x_distance: int, z_distance: int) -> NDArray[np.int8]:
         """Generate the check matrix for the rotated surface code."""
         n = x_distance * z_distance
-        h: NDArray[np.int8] = np.empty((0, n), dtype=np.int8)
+        n_stabs = ((x_distance-1)*(z_distance-1))//2
+        n_stabs += z_distance-1 if stab_type == "x" else x_distance-1
+        h: NDArray[np.int8] = np.zeros((n_stabs, n), dtype=np.int8)
 
         # squares
+        row = 0
         for i in range(x_distance - 1):
             for j in range(z_distance - 1):
                 if (stab_type == "x" and (i + j) % 2 == 0) or (stab_type == "z" and (i + j) % 2 == 1):
-                    stab = np.zeros(n, dtype=np.int8)
-                    stab[i + j * x_distance] = 1
-                    stab[i + j * x_distance + 1] = 1
-                    stab[i + j * x_distance + x_distance] = 1
-                    stab[i + j * x_distance + x_distance + 1] = 1
-                    h = np.vstack((h, stab), dtype=np.int8)
+                    stab = h[row]
+                    base_index = i + j * x_distance
+                    h[row, base_index:base_index + 2] = 1
+                    h[row, base_index + x_distance:base_index + x_distance + 2] = 1
+                    row += 1
         # boundaries
         if stab_type == "x":
             for i in range(z_distance - 1):  # rows
-                stab = np.zeros(n, dtype=np.int8)
+                stab = h[row]
                 if i % 2 == 0:
                     stab[i * x_distance + x_distance - 1] = 1
                     stab[(i + 1) * x_distance + x_distance - 1] = 1
                 else:
                     stab[i * x_distance] = 1
                     stab[(i + 1) * x_distance] = 1
-                h = np.vstack((h, stab), dtype=np.int8)
+                row += 1
         else:
             for i in range(x_distance - 1):  # columns
-                stab = np.zeros(n, dtype=np.int8)
+                stab = h[row]
                 if i % 2 == 0:
                     stab[i] = 1
                     stab[i + 1] = 1
                 else:
                     stab[i + x_distance * (z_distance - 1)] = 1
                     stab[i + x_distance * (z_distance - 1) + 1] = 1
-                h = np.vstack((h, stab), dtype=np.int8)
+                row += 1
         return h
