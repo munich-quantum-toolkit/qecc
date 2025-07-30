@@ -227,7 +227,11 @@ class EliminationCNOTSynthesizer:
                     continue
 
     def is_reduced(self) -> bool:
-        """Method decides if the Gaussian elimination has successfully ended."""
+        """Method decides if the Gaussian elimination has successfully ended.
+
+        The matrix is considered reduced when the number of columns actually turned into
+        all-zeros matches the number of linearily depended columns.
+        """
         return bool(len(np.where(np.all(self.matrix == 0, axis=0))[0]) == self.matrix.shape[1] - self.rank)
 
     def _get_candidate_action(self, i: int, j: int, costs: int) -> CandidateAction:
