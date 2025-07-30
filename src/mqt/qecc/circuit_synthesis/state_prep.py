@@ -288,6 +288,8 @@ def heuristic_reference_prep_circuit(
         matrix=checks,
         parallel_elimination=optimize_depth,
         code=code,
+    )
+    ge.fault_set_guided_synthesis(
         ref_x_fs=ref_x_fs,
         ref_z_fs=ref_z_fs,
         ref_x_1fs=ref_x_1fs,
@@ -295,7 +297,6 @@ def heuristic_reference_prep_circuit(
         penalty_cnots=penalty_cnots,
         guide_by_x=guide_by_x,
     )
-    ge.fault_set_guided_synthesis()
     circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
     return StatePrepCircuit(circ, code, zero_state)
 

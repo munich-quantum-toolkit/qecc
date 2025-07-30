@@ -127,6 +127,18 @@ class EliminationCNOTSynthesizer:
         matrix: npt.NDArray[np.int8],
         code: CSSCode,
         parallel_elimination: bool = True,
+    ) -> None:
+        """Initialiser for the basic functionality."""
+        self.matrix = matrix.copy()
+        self.parallel_elimination = parallel_elimination
+        self.code = code
+        self.rank = mod2.rank(self.matrix)
+        self.eliminations: list[tuple[int, int]] = []
+        self.used_columns: list[int] = []
+        self.costs = self._compute_cost_matrix()
+
+    def _ref_based_init(
+        self,
         ref_x_fs: npt.NDArray[np.int8] | None = None,
         ref_z_fs: npt.NDArray[np.int8] | None = None,
         ref_x_1fs: npt.NDArray[np.int8] | None = None,
@@ -134,24 +146,14 @@ class EliminationCNOTSynthesizer:
         penalty_cnots: list[tuple[int, int]] | None = None,
         guide_by_x: bool = True,
     ) -> None:
-        """Initialiser for the basic functionality."""
-        self.matrix = matrix.copy()
-        self.parallel_elimination = parallel_elimination
-        self.code = code
         self.ref_x_fs = ref_x_fs or np.empty((0,), dtype=np.int8)
         self.ref_z_fs = ref_z_fs or np.empty((0,), dtype=np.int8)
         self.ref_x_1fs = ref_x_1fs or np.empty((0,), dtype=np.int8)
         self.ref_z_1fs = ref_z_1fs or np.empty((0,), dtype=np.int8)
         self.guide_by_x = guide_by_x
-        self.rank = mod2.rank(self.matrix)
-        self.eliminations: list[tuple[int, int]] = []
         self.failed_cnots: list[tuple[int, int]] = (
             penalty_cnots or []
         )  # NOTE: this is already a feature and not necessarily default
-        self.used_columns: list[int] = []
-        self.costs = self._compute_cost_matrix()
-
-    def _ref_based_init(self) -> None:
         self.x_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.z_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.backtrack_required: bool = False
@@ -184,7 +186,15 @@ class EliminationCNOTSynthesizer:
             i, j = np.unravel_index(np.argmin(costs_unused), self.costs.shape)
             self._apply_cnot_to_matrix(int(i), int(j))
 
-    def fault_set_guided_synthesis(self) -> None:
+    def fault_set_guided_synthesis(
+        self,
+        ref_x_fs: npt.NDArray[np.int8] | None = None,
+        ref_z_fs: npt.NDArray[np.int8] | None = None,
+        ref_x_1fs: npt.NDArray[np.int8] | None = None,
+        ref_z_1fs: npt.NDArray[np.int8] | None = None,
+        penalty_cnots: list[tuple[int, int]] | None = None,
+        guide_by_x: bool = True,
+    ) -> None:
         """Reference based heuristic Gaussian elimination.
 
         This version takes reference fault sets into consideration and only applies cnots that
@@ -192,7 +202,14 @@ class EliminationCNOTSynthesizer:
         created circuit.
         """
         self._validate_inputs()
-        self._ref_based_init()
+        self._ref_based_init(
+            ref_x_fs=ref_x_fs,
+            ref_z_fs=ref_z_fs,
+            ref_x_1fs=ref_x_1fs,
+            ref_z_1fs=ref_z_1fs,
+            penalty_cnots=penalty_cnots,
+            guide_by_x=guide_by_x,
+        )
         while not self.is_reduced():
             costs_unused = self._mask_out_used_qubits()
             if self._reset_if_stuck(costs_unused):
