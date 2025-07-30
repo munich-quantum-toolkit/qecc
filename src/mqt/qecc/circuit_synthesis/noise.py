@@ -63,7 +63,7 @@ class ComposedNoiseModel(NoiseModel):
            models: The noise models to compose.
            ideal_qubits: Set of qubit indices that are ideal (not subject to noise).
         """
-        self.ideal_qubits = ideal_qubits or set()
+        super().__init__(ideal_qubits)
         self.models = list(models)
 
     def add_model(self, model: NoiseModel) -> None:

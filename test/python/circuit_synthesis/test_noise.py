@@ -56,14 +56,14 @@ def test_circuit_level_noise(noise_free, expected_noisy):
         (
             Circuit("RX 0 1 2\nCX 0 1\nCX 1 2"),
             Circuit(
-                "RX 0 1 2\nDEPOLARIZE1(0.04) 0 1 2\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nCX 1 2\nDEPOLARIZE2(0.01) 1 2\nDEPOLARIZE1(0.5) 0\n"
+                "RX 0\nDEPOLARIZE1(0.04) 0\nRX 1\n\nDEPOLARIZE1(0.04) 1\nRX 2\n\nDEPOLARIZE1(0.04) 2\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nCX 1 2\nDEPOLARIZE2(0.01) 1 2\nDEPOLARIZE1(0.5) 0\n"
             ),
         ),
         (Circuit(), Circuit()),
         (
             Circuit("RX 0 1\nH 0\nH 0\nH 0\nCX 0 1"),
             Circuit(
-                "RX 0 1\nDEPOLARIZE1(0.04) 0 1\nH 0\nDEPOLARIZE1(0.02) 0\nH 0\nDEPOLARIZE1(0.02) 0\nH 0\nDEPOLARIZE1(0.02) 0\nCX 0 1\nDEPOLARIZE2(0.01) 0 1"
+                "RX 0\nDEPOLARIZE1(0.04) 0\nRX 1\nDEPOLARIZE1(0.04) 1\nH 0\nDEPOLARIZE1(0.02) 0\nH 0\nDEPOLARIZE1(0.02) 0\nH 0\nDEPOLARIZE1(0.02) 0\nCX 0 1\nDEPOLARIZE2(0.01) 0 1"
             ),
         ),
     ],
@@ -85,14 +85,14 @@ def test_circuit_level_noise_idling_parallel_alap(noise_free, expected_noisy):
         (
             Circuit("RX 0 1 2\nCX 0 1\nCX 1 2"),
             Circuit(
-                "RX 0 1 2\nDEPOLARIZE1(0.04) 0 1 2\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nDEPOLARIZE1(0.5) 2\nCX 1 2\nDEPOLARIZE2(0.01) 1 2\nDEPOLARIZE1(0.5) 0\n"
+                "RX 0\nDEPOLARIZE1(0.04) 0\nRX 1\n\nDEPOLARIZE1(0.04) 1\nRX 2\nDEPOLARIZE1(0.04) 2\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nDEPOLARIZE1(0.5) 2\nCX 1 2\nDEPOLARIZE2(0.01) 1 2\nDEPOLARIZE1(0.5) 0\n"
             ),
         ),
         (Circuit(), Circuit()),
         (
             Circuit("RX 0 1\nH 0\nH 0\nH 0\nCX 0 1"),
             Circuit(
-                "RX 0 1\nDEPOLARIZE1(0.04) 0 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nCX 0 1\nDEPOLARIZE2(0.01) 0 1"
+                "RX 0\nDEPOLARIZE1(0.04) 0\nRX 1\nDEPOLARIZE1(0.04) 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nH 0\nDEPOLARIZE1(0.02) 0\nDEPOLARIZE1(0.5) 1\nCX 0 1\nDEPOLARIZE2(0.01) 0 1"
             ),
         ),
     ],
