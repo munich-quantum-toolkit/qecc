@@ -105,7 +105,8 @@ class CircuitLevelNoise(NoiseModel):
                         noisy_circ.append_operation(op.name, targets, self.p_meas)
                     else:
                         noisy_circ.append_operation(op.name, targets)
-
+            else:
+                noisy_circ.append_operation(op)
         return noisy_circ
 
 
