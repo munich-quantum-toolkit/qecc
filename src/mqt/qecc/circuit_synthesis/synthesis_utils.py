@@ -179,7 +179,7 @@ class EliminationCNOTSynthesizer:
         """
         while not self.is_reduced():
             costs_unused = self._mask_out_used_qubits()
-            if self._handle_stagnation(costs_unused):
+            if self._reset_if_stuck(costs_unused):
                 continue
             i, j = np.unravel_index(np.argmin(costs_unused), self.costs.shape)
             self._apply_cnot_to_matrix(int(i), int(j))
@@ -196,7 +196,7 @@ class EliminationCNOTSynthesizer:
         self._ref_based_init()
         while not self.is_reduced():
             costs_unused = self._mask_out_used_qubits()
-            if self._handle_stagnation(costs_unused):
+            if self._reset_if_stuck(costs_unused):
                 continue
             candidate_pairs = self._get_candidate_pairs(costs_unused)
             for i, j in candidate_pairs:
@@ -334,7 +334,7 @@ class EliminationCNOTSynthesizer:
         msg = "Must provide either both a reference fault set and CSS code, or neither."
         raise ValueError(msg)
 
-    def _handle_stagnation(self, costs_unused: npt.NDArray[np.int8]) -> bool:
+    def _reset_if_stuck(self, costs_unused: npt.NDArray[np.int8]) -> bool:
         """Handles local minima or full column usage. Returns True if reset occurred."""
         if np.all(costs_unused >= 0) or len(self.used_columns) == self.matrix.shape[1]:
             if not self.used_columns:  # Local minimum

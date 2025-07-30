@@ -102,7 +102,7 @@ def test_mask_out_used_qubits(get_instance):
         ("not_stagnated", [1, 2], False, False, False, [1, 2]),
     ],
 )
-def test_handle_stagnation(
+def test_reset_if_stuck(
     get_instance,
     monkeypatch,
     scenario,
@@ -112,7 +112,7 @@ def test_handle_stagnation(
     expect_reset_called,
     expected_final_used_cols,
 ):
-    """Verify that _handle_stagnation behaves correctly in all scenarios."""
+    """Verify that _reset_if_stuck behaves correctly in all scenarios."""
     costs_unused = np.array([[0, 1], [1, 0]]) if costs_are_positive else np.array([[0, -1], [1, 0]])
     get_instance.used_columns = initial_used_cols
 
@@ -121,7 +121,7 @@ def test_handle_stagnation(
     # that just appends to our log list when it's called.
     monkeypatch.setattr(get_instance, "_triangular_reset", lambda: reset_call_log.append(True))
 
-    return_value = get_instance._handle_stagnation(costs_unused)
+    return_value = get_instance._reset_if_stuck(costs_unused)
 
     assert return_value == expected_return
     assert get_instance.used_columns == expected_final_used_cols
