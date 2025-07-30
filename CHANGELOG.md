@@ -14,9 +14,10 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
 - Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
+- Added functionality to concatenate stim circuits along specific qubits. Add functionality to concatenate stim circuits along specific qubits ([#461]) ([**@pehamtom**])
 - Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. [(#462)] ([**@pehamtom**])
 - Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). [(#462)] ([**@pehamtom**])
-- Added functionality to concatenate stim circuits along specific qubits. Add functionality to concatenate stim circuits along specific qubits ([#461]) ([**@pehamtom**])
+- Added `ComposedNoiseModel` class that allows for composition of noise models. [(#462)] ([**@pehamtom**])
 
 ### Changed
 
