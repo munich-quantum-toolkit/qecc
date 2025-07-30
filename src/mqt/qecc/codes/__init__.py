@@ -15,6 +15,7 @@ from .concatenation import ConcatenatedCode, ConcatenatedCSSCode
 from .constructions import construct_iceberg_code, construct_many_hypercube_code, construct_quantum_hamming_code
 from .css_code import CSSCode, InvalidCSSCodeError
 from .hexagonal_color_code import HexagonalColorCode
+from .rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
 from .square_octagon_color_code import SquareOctagonColorCode
 from .stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
 
@@ -25,8 +26,10 @@ __all__ = [
     "ConcatenatedCode",
     "HexagonalColorCode",
     "InvalidCSSCodeError",
+    "InvalidDistanceError",
     "InvalidStabilizerCodeError",
     "LatticeType",
+    "RotatedSurfaceCode",
     "SquareOctagonColorCode",
     "StabilizerCode",
     "construct_bb_code",
