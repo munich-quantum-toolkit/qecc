@@ -49,22 +49,25 @@ class FTSurfaceCodeStatePrep:
         self._generate_circuit()
         self.code = RotatedSurfaceCode(x_distance=self.distance_x, z_distance=self.distance_z)
 
+    def _get_qubit_pos(self, num_patches: int) -> Circuit:
+        """Get the qubit positions for the circuit.
+
+        Args:
+            num_patches (int): The number of patches in the circuit.
+
+        Returns:
+            Circuit: The circuit with qubit positions.
+        """
+        qubit_pos = ""
+        for k in range(num_patches):
+            for col in range(self.distance_x):
+                for row in range(self.distance_z):
+                    acutal_row = row + k * (self.distance_z + 1)
+                    qubit_pos += f"QUBIT_COORDS({col},{acutal_row}) {acutal_row * self.distance_x + col}\n"
+        return Circuit(qubit_pos)
+
     def _generate_circuit(self) -> None:
         """Generate the state preparation circuit."""
-        # This method should contain the logic to generate the circuit.
-        # For now, it is a placeholder.
-        qubit_pos = ""
-
-        # Generate qubit placement on a square grid (just for crumble)
-        for i in range(self.distance_x):
-            for j in range(self.distance_z):
-                qubit_pos += f"QUBIT_COORDS({i},{j}) {j * self.distance_x + i}\n"
-        qubit_pos += "\n"
-
-        # Reset all qubits
-        qubit_pos += "R " + " ".join(map(str, range(self.n))) + "\n"
-        self.qubit_pos = Circuit(qubit_pos)
-
         # Check kwargs for additional parameters
         if "horizontal_cx_direction" in self.kwargs:
             horizontal_cx_direction = self.kwargs["horizontal_cx_direction"]
@@ -86,11 +89,8 @@ class FTSurfaceCodeStatePrep:
                 horizontal_cx_direction=horizontal_cx_direction,
                 width=self.distance_x,
             )
-        measurements = ""
-        measurements += "M " + " ".join(map(str, range(self.n))) + "\n"
-        self.measurements = Circuit(measurements)
 
-        self.circ = compact_stim_circuit(Circuit(circ_all_rows.to_string()))
+        self.circ_rows = circ_all_rows
 
     def get_circuit(self) -> Circuit:
         """Get the generated circuit.
@@ -98,7 +98,7 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The generated circuit.
         """
-        return self.circ
+        return compact_stim_circuit(Circuit(self.circ_rows.to_string()))
 
     def get_circuit_logical_x(self, noise_model: NoiseModel) -> Circuit:
         """Get the circuit with detectors added.
@@ -106,9 +106,14 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The circuit with detectors.
         """
-        noisy_circ = noise_model.apply(self.circ)
+        circ = Circuit("R " + " ".join(map(str, range(self.n))) + "\n")
+        circ += self.get_circuit()
+
+        noisy_circ = noise_model.apply(circ)
+        noisy_circ += Circuit("M " + " ".join(map(str, range(self.n))) + "\n")
         det = self._detectors(self.code.Hz, self.code.Lz)
-        self.circ_Lx = self.qubit_pos + noisy_circ + self.measurements + det
+        pos = self._get_qubit_pos(1)
+        self.circ_Lx = pos + noisy_circ + det
         return self.circ_Lx
 
     def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8]) -> Circuit:
@@ -145,8 +150,10 @@ class SurfaceCodeRow:
             cx_qubits=self.cx_qubits + other.cx_qubits,
         )
 
-    def to_string(self) -> str:
+    def to_string(self, skip_hs: bool = False) -> str:
         """Return a string representation of the row."""
+        if skip_hs:
+            return f"{'cx ' + ' '.join(map(str, self.cx_qubits))}\n"
         return f"{'h ' + ' '.join(map(str, self.h_qubits))}\n" + f"{'cx ' + ' '.join(map(str, self.cx_qubits))}\n"
 
 
