@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 from stim import Circuit
 
 from mqt.qecc.circuit_synthesis.circuit_utils import compact_stim_circuit
 from mqt.qecc.codes import RotatedSurfaceCode
 
 if TYPE_CHECKING:
-    import numpy as np
     import numpy.typing as npt
 
     from mqt.qecc.circuit_synthesis.noise import NoiseModel
@@ -62,11 +62,12 @@ class FTSurfaceCodeStatePrep:
         for k in range(num_patches):
             for col in range(self.distance_x):
                 for row in range(self.distance_z):
+                    qubit_row = row + k * self.distance_z
                     acutal_row = row + k * (self.distance_z + 1)
-                    qubit_pos += f"QUBIT_COORDS({col},{acutal_row}) {acutal_row * self.distance_x + col}\n"
+                    qubit_pos += f"QUBIT_COORDS({col},{acutal_row}) {qubit_row * self.distance_x + col}\n"
         return Circuit(qubit_pos)
 
-    def _generate_circuit(self) -> None:
+    def _generate_circuit(self) -> SurfaceCodeRow:
         """Generate the state preparation circuit."""
         # Check kwargs for additional parameters
         if "horizontal_cx_direction" in self.kwargs:
@@ -90,15 +91,7 @@ class FTSurfaceCodeStatePrep:
                 width=self.distance_x,
             )
 
-        self.circ_rows = circ_all_rows
-
-    def get_circuit(self) -> Circuit:
-        """Get the generated circuit.
-
-        Returns:
-            Circuit: The generated circuit.
-        """
-        return compact_stim_circuit(Circuit(self.circ_rows.to_string()))
+        return circ_all_rows
 
     def get_circuit_logical_x(self, noise_model: NoiseModel) -> Circuit:
         """Get the circuit with detectors added.
@@ -107,7 +100,8 @@ class FTSurfaceCodeStatePrep:
             Circuit: The circuit with detectors.
         """
         circ = Circuit("R " + " ".join(map(str, range(self.n))) + "\n")
-        circ += self.get_circuit()
+
+        circ += compact_stim_circuit(Circuit(self._generate_circuit().to_string()))
 
         noisy_circ = noise_model.apply(circ)
         noisy_circ += Circuit("M " + " ".join(map(str, range(self.n))) + "\n")
@@ -116,17 +110,43 @@ class FTSurfaceCodeStatePrep:
         self.circ_Lx = pos + noisy_circ + det
         return self.circ_Lx
 
-    def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8]) -> Circuit:
+    def get_circuit_logical_z(self, noise_model: NoiseModel) -> Circuit:
+        """Get the circuit with detectors added for logical Z.
+
+        Returns:
+            Circuit: The circuit with detectors for logical Z.
+        """
+        circ = Circuit("RX " + " ".join(map(str, range(2 * self.n))) + "\n")
+        cx_rows = self._generate_circuit()
+        patch1 = Circuit(cx_rows.to_string(skip_hs=True))
+        cx_rows.offset(self.n)
+        patch2 = Circuit(cx_rows.to_string(skip_hs=True))
+        circ += compact_stim_circuit(patch1 + patch2)
+        # transversal
+        cxs = []
+        for i in range(self.n):
+            cxs += [i, i + self.n]
+        circ += Circuit("CX " + " ".join(map(str, cxs)) + "\n")
+
+        noisy_circ = noise_model.apply(circ)
+        noisy_circ += Circuit("MX " + " ".join(map(str, range(2 * self.n))) + "\n")
+        det_anc = self._detectors(self.code.Hx, np.array([]), self.n)
+        det = self._detectors(self.code.Hx, self.code.Lx)
+        pos = self._get_qubit_pos(2)
+        self.circ_Lz = pos + noisy_circ + det + det_anc
+        return self.circ_Lz
+
+    def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8], offset: int = 0) -> Circuit:
         """Prepare the circuit to measure the logical error rate of the logical X operator."""
         # add detectors
         det_circ = ""
         for m, matrix_type in [(detectors, "detectors"), (logicals, "observables")]:
             for stab in m:
-                indices = [i for i, val in enumerate(stab) if val == 1]
+                indices = [i + offset for i, val in enumerate(stab) if val == 1]
                 x_coord = indices[0] % self.distance_x
                 y_coord = indices[0] // self.distance_x
                 # convert indices into stim rec's
-                recs = [i - self.n for i in indices]
+                recs = [i - self.n - 2 * offset for i in indices]
                 if matrix_type == "detectors":
                     det_circ += f"DETECTOR({x_coord}, {y_coord}, 0) " + " ".join(f"rec[{i}]" for i in recs) + "\n"
                 else:
@@ -149,6 +169,11 @@ class SurfaceCodeRow:
             h_qubits=self.h_qubits + other.h_qubits,
             cx_qubits=self.cx_qubits + other.cx_qubits,
         )
+
+    def offset(self, offset: int) -> None:
+        """Offset the qubit indices in the row by a given value."""
+        self.h_qubits = [i + offset for i in self.h_qubits]
+        self.cx_qubits = [i + offset for i in self.cx_qubits]
 
     def to_string(self, skip_hs: bool = False) -> str:
         """Return a string representation of the row."""
