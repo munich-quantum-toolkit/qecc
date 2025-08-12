@@ -67,7 +67,7 @@ class FTSurfaceCodeStatePrep:
                     qubit_pos += f"QUBIT_COORDS({col},{acutal_row}) {qubit_row * self.distance_x + col}\n"
         return Circuit(qubit_pos)
 
-    def _generate_circuit(self) -> SurfaceCodeRow:
+    def _generate_circuit(self, mirror: bool = False) -> SurfaceCodeRow:
         """Generate the state preparation circuit."""
         # Check kwargs for additional parameters
         if "horizontal_cx_direction" in self.kwargs:
@@ -78,6 +78,11 @@ class FTSurfaceCodeStatePrep:
             vertical_cx_direction = self.kwargs["vertical_cx_direction"]
         else:
             vertical_cx_direction = "left"
+
+        if mirror:
+            horizontal_cx_direction = "left" if horizontal_cx_direction == "right" else "right"
+            if vertical_cx_direction != "straight":
+                vertical_cx_direction = "left" if vertical_cx_direction == "right" else "right"
 
         circ_all_rows = SurfaceCodeRow([], [])
 
@@ -119,8 +124,9 @@ class FTSurfaceCodeStatePrep:
         circ = Circuit("RX " + " ".join(map(str, range(2 * self.n))) + "\n")
         cx_rows = self._generate_circuit()
         patch1 = Circuit(cx_rows.to_string(skip_hs=True))
-        cx_rows.offset(self.n)
-        patch2 = Circuit(cx_rows.to_string(skip_hs=True))
+        cx_rows_anc = self._generate_circuit(mirror=True)
+        cx_rows_anc.offset(self.n)
+        patch2 = Circuit(cx_rows_anc.to_string(skip_hs=True))
         circ += compact_stim_circuit(patch1 + patch2)
         # transversal
         cxs = []

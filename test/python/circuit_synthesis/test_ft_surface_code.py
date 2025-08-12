@@ -24,7 +24,7 @@ def test_ft_surface_code_state_prep() -> None:
 
     # Check the circuit generation
     noise = CircuitLevelNoise(0.1, 0.1, 0.1, 0.1)
-    circuit = ft_surface_code.get_circuit_logical_x(noise)
+    circuit = ft_surface_code.get_circuit_logical_z(noise)
 
     # Open the circuit in a web browser
     webbrowser.open(circuit.to_crumble_url(skip_detectors=False), new=2)
