@@ -26,6 +26,7 @@ from mqt.qecc.codes import (
     construct_quantum_hamming_code,
 )
 from mqt.qecc.codes.pauli import InvalidPauliError, Pauli, StabilizerTableau
+from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
 from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -507,3 +508,33 @@ def test_css_code_from_file_empty_line(tmp_path) -> None:  # type: ignore[no-unt
 
     assert code.n == 7
     assert code.k == 1
+
+
+@pytest.mark.parametrize(("x_distance", "z_distance"), [(3, 3), (7, 3), (5, 7)])
+def test_rotated_surface_code_params(x_distance: int, z_distance: int) -> None:
+    """Test the RotatedSurfaceCode class."""
+    code = RotatedSurfaceCode(x_distance=x_distance, z_distance=z_distance)
+    n = x_distance * z_distance
+    assert code.n == n
+    assert code.k == 1
+    assert code.x_distance == x_distance
+    assert code.z_distance == z_distance
+
+    # Check that the stabilizers are generated correctly
+    num_patches = (x_distance - 1) * (z_distance - 1)
+    num_x_stabs = num_patches // 2 + num_patches % 2 + (z_distance - 1)
+    num_z_stabs = num_patches // 2 + (x_distance - 1)
+    assert code.Hx.shape == (num_x_stabs, n)
+    assert code.Hz.shape == (num_z_stabs, n)
+
+
+def test_rotated_surface_code_invalid_distance() -> None:
+    """Test that an error is raised if the distance is not odd."""
+    with pytest.raises(InvalidDistanceError):
+        RotatedSurfaceCode(distance=6)
+    with pytest.raises(InvalidDistanceError):
+        RotatedSurfaceCode(x_distance=4, z_distance=5)
+    with pytest.raises(InvalidDistanceError):
+        RotatedSurfaceCode(x_distance=5, z_distance=4)
+    with pytest.raises(InvalidDistanceError):
+        RotatedSurfaceCode(x_distance=5, z_distance=None)

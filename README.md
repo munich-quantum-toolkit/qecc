@@ -67,7 +67,7 @@ Thank you to all the contributors who have helped make MQT QECC a reality!
 
 ## Getting Started
 
-`mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.qecc/) for Linux, macOS, as well as Windows and supports Python 3.9 to 3.13.
+`mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.qecc/) for Linux, macOS, as well as Windows and supports Python 3.9 to 3.14.
 
 ```console
 (venv) $ pip install mqt.qecc

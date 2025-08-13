@@ -5,44 +5,18 @@
 #
 # Licensed under the MIT License
 
-"""General circuit constructions."""
+"""Utility methods for circuits."""
 
 from __future__ import annotations
 
-from qiskit.circuit import QuantumCircuit, QuantumRegister
+from typing import TYPE_CHECKING
+
 from stim import Circuit
 
+if TYPE_CHECKING:
+    from qiskit.circuit import QuantumCircuit
+
 from .definitions import STIM_MEASUREMENTS
-
-
-def reorder_qubits(circ: QuantumCircuit, qubit_mapping: dict[int, int]) -> QuantumCircuit:
-    """Reorders the qubits in a QuantumCircuit based on the given mapping.
-
-    Parameters:
-        circuit: The original quantum circuit.
-        qubit_mapping: A dictionary mapping original qubit indices to new qubit indices.
-
-    Returns:
-        A new quantum circuit with qubits reordered.
-    """
-    # Validate the qubit_mapping
-    if sorted(qubit_mapping.keys()) != list(range(len(circ.qubits))) or sorted(qubit_mapping.values()) != list(
-        range(len(circ.qubits))
-    ):
-        msg = "Invalid qubit_mapping: It must be a permutation of the original qubit indices."
-        raise ValueError(msg)
-
-    # Create a new quantum register
-    num_qubits = len(circ.qubits)
-    new_register = QuantumRegister(num_qubits, "q")
-    new_circuit = QuantumCircuit(new_register)
-
-    # Remap instructions based on the qubit_mapping
-    for instruction, qubits, clbits in circ.data:
-        new_qubits = [new_register[qubit_mapping[circ.find_bit(q)[0]]] for q in qubits]
-        new_circuit.append(instruction, new_qubits, clbits)
-
-    return new_circuit
 
 
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
@@ -195,3 +169,48 @@ def measured_qubits(circ: Circuit) -> list[int]:
             measured_qubits.extend(q.qubit_value for q in instr.targets_copy())
 
     return measured_qubits
+
+
+def compose_circuits(
+    circ1: Circuit, circ2: Circuit, wiring: dict[int, int] | None = None
+) -> tuple[Circuit, dict[int, int], dict[int, int]]:
+    """Compose two Stim circuits.
+
+    The circuits are composed only along the qubits that are connected by the `wiring` dict.
+    All other qubits are assumed to be unconnected.
+    If wire is None, then the circuits are simply vertically stacked.
+
+    Args:
+        circ1: The first stim circuit.
+        circ2: The second stim circuit.
+        wiring: Optional dict mapping outputs of `circ1` to inputs of `circ2`.
+
+    Returns:
+        A tuple containing the composed stim circuit and two mappings:
+        - mapping1: Maps qubits of circ1 to the composed circuit.
+        - mapping2: Maps qubits of circ2 to the composed circuit.
+    """
+    if wiring is None:
+        wiring = {}
+
+    connected = wiring.keys()
+    non_connected_circ1 = set(range(circ1.num_qubits)) - set(connected)
+    non_connected_circ2 = set(range(circ2.num_qubits)) - set(wiring.values())
+    # map non-connected of circ1 to the first n_connected qubits
+    non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
+    # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
+    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
+    # map connected qubits to the last n_connected qubits
+    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
+    connected_mapping2 = {
+        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
+    }
+
+    mapping1 = {**non_connected_mapping1, **connected_mapping1}
+    mapping2 = {**non_connected_mapping2, **connected_mapping2}
+
+    composed = circ1.copy()
+    composed = relabel_qubits(composed, mapping1)
+    circ2_relabelled = relabel_qubits(circ2, mapping2)
+    composed += circ2_relabelled
+    return composed, mapping1, mapping2

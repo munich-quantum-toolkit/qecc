@@ -62,7 +62,7 @@ n_samples = 1000000
 sampler = cat_state.compile_sampler()
 samples = sampler.sample(n_samples).astype(int)
 
-error_weights = np.min(np.vstack((samples.sum(axis=1), 8 - samples.sum(axis=1))), axis=0)  # at most 4 bits can flipe
+error_weights = np.min(np.vstack((samples.sum(axis=1), 8 - samples.sum(axis=1))), axis=0)  # at most 4 bits can flip
 hist = np.histogram(error_weights, bins=range(4 + 2))[0]/n_samples
 
 x = np.arange(w // 2 + 1)

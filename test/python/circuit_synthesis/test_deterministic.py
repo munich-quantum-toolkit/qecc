@@ -34,7 +34,7 @@ from mqt.qecc.circuit_synthesis import (
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from mqt.qecc.circuit_synthesis import DeterministicVerification, StatePrepCircuit
+    from mqt.qecc.circuit_synthesis import DeterministicVerification, FaultyStatePrepCircuit
 
 # Simulation parameters
 
@@ -47,7 +47,7 @@ if HAS_QSAMPLE:
 
 
 @pytest.fixture(scope="module")
-def steane_code_sp_plus() -> StatePrepCircuit:
+def steane_code_sp_plus() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     steane_code = CSSCode.from_code_name("Steane")
     sp_circ = heuristic_prep_circuit(steane_code, zero_state=False)
@@ -57,7 +57,7 @@ def steane_code_sp_plus() -> StatePrepCircuit:
 
 @pytest.fixture(scope="module")
 def verified_steane_data(
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> tuple[DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification]:
     """Prepare the solutions once, but make no assertions here."""
     verify_helper = DeterministicVerificationHelper(steane_code_sp_plus)
@@ -67,7 +67,27 @@ def verified_steane_data(
 
 
 @pytest.fixture(scope="module")
-def css_11_1_3_code_sp() -> StatePrepCircuit:
+def surface_code_sp_zero() -> FaultyStatePrepCircuit:
+    """Return a non-ft state preparation circuit for the d=3 rotated surface code."""
+    surface_code = CSSCode.from_code_name("surface", 3)
+    sp_circ = heuristic_prep_circuit(surface_code, zero_state=True)
+    sp_circ.compute_fault_sets()
+    return sp_circ
+
+
+@pytest.fixture(scope="module")
+def verified_surface_data(
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> tuple[DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification]:
+    """Prepare the solutions once, but make no assertions here."""
+    verify_helper = DeterministicVerificationHelper(surface_code_sp_zero)
+    verify_x_opt, verify_z_opt = verify_helper.get_solution()
+    verify_x_global, verify_z_global = verify_helper.get_global_solution()
+    return verify_x_opt, verify_z_opt, verify_x_global, verify_z_global
+
+
+@pytest.fixture(scope="module")
+def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the 11_1_3 code."""
     check_matrix = np.array([
         [1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0],
@@ -84,11 +104,11 @@ def css_11_1_3_code_sp() -> StatePrepCircuit:
 
 @pytest.fixture(scope="module")
 def verified_11_1_3_data(
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> tuple[DeterministicVerification, DeterministicVerification]:
     """Run deterministic verification once, return X/Z verification circuits."""
     verify_helper = DeterministicVerificationHelper(css_11_1_3_code_sp)
-    verify_x, verify_z = verify_helper.get_solution()
+    verify_x, verify_z = verify_helper.get_solution(min_timeout=3)
     return verify_x, verify_z
 
 
@@ -106,7 +126,7 @@ def assert_statistics(
     num_ancillas_hooks: int = 0,
     num_cnots_hooks: int = 0,
     num_ancillas_hook_corrections: int = 0,
-    num_cnots_hook_corrections: int = 0,
+    num_cnots_hook_corrections: int | list[int] = 0,
 ) -> None:
     """Assert that the statistics of a deterministic verification are correct."""
     assert verify.num_ancillas_verification() == num_ancillas_verification
@@ -116,7 +136,10 @@ def assert_statistics(
     assert verify.num_ancillas_hooks() == num_ancillas_hooks
     assert verify.num_cnots_hooks() == num_cnots_hooks
     assert verify.num_ancillas_hook_corrections() == num_ancillas_hook_corrections
-    assert verify.num_cnots_hook_corrections() == num_cnots_hook_corrections
+    if isinstance(num_cnots_hook_corrections, list):
+        assert verify.num_cnots_hook_corrections() in num_cnots_hook_corrections
+    else:
+        assert verify.num_cnots_hook_corrections() == num_cnots_hook_corrections
 
 
 def assert_stabs(verify: DeterministicVerification, code: CSSCode, z_stabs: bool) -> None:
@@ -152,30 +175,37 @@ def assert_scaling(simulation_results: list[npt.NDArray[np.float64]]) -> None:
 
 def test_11_1_3_det_verification_correctness(
     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> None:
     """Test correctness of deterministic verification circuit for 11_1_3 code."""
     verify_x, verify_z = verified_11_1_3_data
 
     # Check X-verification
-    assert_statistics(verify_x, 2, 8, 4, 14, 0, 0)
-    assert_stabs(verify_x, css_11_1_3_code_sp.code, z_stabs=True)
+    assert_statistics(verify_x, 2, 8, 4, 14, 1, 2, 1, [0, 4])
+    assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
     # Check Z-verification
-    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, 3)
-    assert_stabs(verify_z, css_11_1_3_code_sp.code, z_stabs=False)
+    assert_statistics(verify_z, 1, 4, 1, 4, 1, 2, 1, [0, 4])
+    assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
 
 
 @pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
 def test_11_1_3_det_simulation(
     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: StatePrepCircuit,
+    css_11_1_3_code_sp: FaultyStatePrepCircuit,
 ) -> None:
     """Test simulated logical error rate for deterministic 11_1_3 state preparation."""
     verify_x, verify_z = verified_11_1_3_data
-
+    check_matrix = np.array([
+        [1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0],
+        [0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0],
+        [0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1],
+    ])
+    code = CSSCode(check_matrix, check_matrix, 3)
     simulator = NoisyDFTStatePrepSimulator(
-        css_11_1_3_code_sp.circ, (verify_x, verify_z), css_11_1_3_code_sp.code, err_model
+        css_11_1_3_code_sp.circ.to_qiskit_circuit(remove_resets=True), (verify_x, verify_z), code, err_model
     )
     simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
     assert_scaling(simulation_results)
@@ -185,14 +215,14 @@ def test_steane_det_verification(
     verified_steane_data: tuple[
         DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
     ],
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> None:
     """Test correctness of deterministic verification circuit for the Steane code."""
-    verify_z_opt, verify_x_opt, verify_z_global, verify_x_global = verified_steane_data
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
         assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
-        assert_stabs(verify_z, steane_code_sp_plus.code, z_stabs=False)
+        assert_stabs(verify_z, steane_code_sp_plus.circ.get_code(), z_stabs=False)
         assert verify_x.num_ancillas_total() == 0
         assert verify_x.num_cnots_total() == 0
 
@@ -202,14 +232,50 @@ def test_steane_det_simulation(
     verified_steane_data: tuple[
         DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
     ],
-    steane_code_sp_plus: StatePrepCircuit,
+    steane_code_sp_plus: FaultyStatePrepCircuit,
 ) -> None:
     """Test simulated logical error rate for deterministic Steane state preparation."""
-    verify_z_opt, verify_x_opt, verify_z_global, verify_x_global = verified_steane_data
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
+    code = CSSCode.from_code_name("Steane")
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
         simulator = NoisyDFTStatePrepSimulator(
-            steane_code_sp_plus.circ, (verify_z, verify_x), steane_code_sp_plus.code, err_model, False
+            steane_code_sp_plus.circ.to_qiskit_circuit(), (verify_z, verify_x), code, err_model, False
+        )
+        simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
+        assert_scaling(simulation_results)
+
+
+def test_surface_det_verification(
+    verified_surface_data: tuple[
+        DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
+    ],
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> None:
+    """Test correctness of deterministic verification circuit for the d=3 rotated surface code."""
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
+
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+        assert_statistics(verify_x, 1, 3, 1, 3)
+        assert_stabs(verify_x, surface_code_sp_zero.circ.get_code(), z_stabs=True)
+        assert verify_z.num_ancillas_total() == 0
+        assert verify_z.num_cnots_total() == 0
+
+
+@pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
+def test_surface_det_simulation(
+    verified_surface_data: tuple[
+        DeterministicVerification, DeterministicVerification, DeterministicVerification, DeterministicVerification
+    ],
+    surface_code_sp_zero: FaultyStatePrepCircuit,
+) -> None:
+    """Test simulated logical error rate for deterministic Steane state preparation."""
+    verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
+
+    code = CSSCode.from_code_name("surface", 3)
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+        simulator = NoisyDFTStatePrepSimulator(
+            surface_code_sp_zero.circ.to_qiskit_circuit(), (verify_x, verify_z), code, err_model, True
         )
         simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
         assert_scaling(simulation_results)

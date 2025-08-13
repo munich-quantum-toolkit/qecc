@@ -102,7 +102,7 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
                 to be solved.
             num_dets: The number of detectors in the circuit. The number of detection event
                 bits in each shot.
-            num_obs: The number of observables in the circuit. The number of preDicted bits
+            num_obs: The number of observables in the circuit. The number of predicted bits
                 in each shot.
             dem_path: The file path where the detector error model should be read from,
                 e.g. using `stim.DetectorErrorModel.from_file`. The error mechanisms

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 import pytest
 import stim
+import z3
 from ldpc import mod2
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
@@ -21,17 +22,25 @@ from stim import Flow, PauliString
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
+    compose_circuits,
     measured_qubits,
     qiskit_to_stim_circuit,
     unmeasured_qubits,
 )
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
+    EliminationCNOTSynthesizer,
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
     measure_flagged,
     measure_stab_unflagged,
+    odd_overlap,
+    symbolic_scalar_mult,
+    symbolic_vector_add,
+    symbolic_vector_eq,
+    vars_to_stab,
 )
+from mqt.qecc.codes.css_code import CSSCode
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -81,6 +90,18 @@ def full_matrix() -> MatrixTest:
     return MatrixTest(np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8), 3, 2)
 
 
+@pytest.fixture
+def single_row_matrix() -> MatrixTest:
+    """Return a matrix with a single row."""
+    return MatrixTest(np.array([[1, 0, 1, 0]], dtype=np.int8), 1, 1)
+
+
+@pytest.fixture
+def single_column_matrix() -> MatrixTest:
+    """Return a matrix with a single ."""
+    return MatrixTest(np.array([[1], [0], [1], [1]], dtype=np.int8), 0, 0)
+
+
 class MeasurementTest(NamedTuple):
     """Class containing all information for a measurement test."""
 
@@ -101,7 +122,7 @@ def _make_measurement_test(n: int, stab: list[int]) -> MeasurementTest:
     return MeasurementTest(qc, stab_qubits, ancilla, measurement_bit)
 
 
-@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix"])
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
 def test_min_column_ops(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
     """Check correct number of column operations are returned."""
     fixture = request.getfixturevalue(test_vals)
@@ -117,7 +138,7 @@ def test_min_column_ops(test_vals: MatrixTest, request) -> None:  # type: ignore
     assert check_correct_elimination(matrix, reduced, ops)
 
 
-@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix"])
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
 def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
     """Check correct number of parallel eliminations are returned."""
     fixture = request.getfixturevalue(test_vals)
@@ -134,6 +155,37 @@ def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # t
 
     n_parallel_layers = get_n_parallel_layers(ops)
     assert n_parallel_layers <= max_parallel_steps
+
+
+@pytest.mark.parametrize("test_vals", ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"])
+def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
+    """Test heuristic Gaussian elimination method."""
+    fixture = request.getfixturevalue(test_vals)
+    matrix = fixture.matrix
+    unused_code = CSSCode()
+    ge_false = EliminationCNOTSynthesizer(matrix, code=unused_code, parallel_elimination=False)
+    ge_true = EliminationCNOTSynthesizer(matrix, code=unused_code)
+    ge_false.greedy_synthesis()
+    ge_true.greedy_synthesis()
+    res_seq = (ge_false.matrix, ge_false.eliminations)
+    res_parallel = (ge_true.matrix, ge_true.eliminations)
+
+    assert res_seq is not None
+    reduced_seq, ops_seq = res_seq
+
+    assert res_parallel is not None
+    reduced_parallel, ops_parallel = res_parallel
+
+    assert check_correct_elimination(matrix, reduced_seq, ops_seq)
+    assert check_correct_elimination(matrix, reduced_parallel, ops_parallel)
+
+    n_parallel_layers_seq = get_n_parallel_layers(ops_seq)
+    assert n_parallel_layers_seq <= fixture.max_parallel_steps
+
+    n_parallel_layers_parallel = get_n_parallel_layers(ops_parallel)
+    assert n_parallel_layers_parallel <= fixture.max_parallel_steps
+
+    assert n_parallel_layers_parallel <= n_parallel_layers_seq
 
 
 def correct_stabilizer_propagation(
@@ -236,6 +288,144 @@ def test_compact_stim_circuit() -> None:
     assert len(compacted) == 2
 
 
+class TestSymbolicVectorOperations:
+    """Test class for symbolic vector operations, including ~odd_overlap~."""
+
+    x = z3.Bool("x")
+    y = z3.Bool("y")
+
+    @pytest.mark.parametrize(
+        ("lhs", "rhs", "expected_result"),
+        [
+            (np.array([True, False, True]), np.array([False, True, False]), z3.unsat),
+            (np.array([True, False, True]), np.array([True, False, True]), z3.sat),
+            (np.array([x, y, z3.Not(x)]), np.array([x, y, z3.Not(x)]), z3.sat),
+            (np.array([x, y, z3.Not(x)]), np.array([y, x, y]), z3.unsat),
+            (np.array([True, False, x]), np.array([True, False, x]), z3.sat),
+            (np.array([True, False, x]), np.array([False, True, x]), z3.unsat),
+            (np.array([], dtype=bool), np.array([], dtype=bool), z3.sat),
+        ],
+    )
+    def test_symbolic_vector_eq(self, lhs, rhs, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_vector_eq~."""
+        # Test equal vectors
+        solver = z3.Solver()
+        solver.add(symbolic_vector_eq(lhs, rhs))
+        assert solver.check() == expected_result
+
+    def test_symbolic_vector_eq_different_lengths(self):
+        """Test symbolic_vector_eq with vectors of different lengths."""
+        lhs = np.array([True, False, self.x])
+        rhs = np.array([True, False])
+        with pytest.raises(ValueError, match=r"Vectors must have the same length for equality check."):
+            symbolic_vector_eq(lhs, rhs)
+
+    @pytest.mark.parametrize(
+        ("v_sym", "v_con", "expected_result"),
+        [
+            # Empty constant vector
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([0, 0, 0, 0, 0], dtype=np.int8), z3.unsat),
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([1, 0, 1, 0, 0], dtype=np.int8), z3.sat),
+            (np.array([z3.Bool(f"x{i}") for i in range(5)]), np.array([1, 0, 1, 0, 1], dtype=np.int8), z3.sat),
+            # Mixed boolean and symbolic values
+            (
+                np.array([True, z3.Bool("x1"), False, z3.Bool("x3"), True]),
+                np.array([1, 1, 0, 1, 0], dtype=np.int8),
+                z3.sat,
+            ),
+            (np.array([True, x, x]), np.array([False, True, True]), z3.unsat),
+        ],
+    )
+    def test_odd_overlap(self, v_sym, v_con, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~odd_overlap~."""
+        solver = z3.Solver()
+        solver.add(odd_overlap(v_sym, v_con))
+        assert solver.check() == expected_result, f"Test failed for v_sym={v_sym}, v_con={v_con}"
+
+    @pytest.mark.parametrize(
+        ("v", "scalar", "expected_result"),
+        [
+            # Empty vector
+            (np.array([], dtype=np.int8), True, np.array([])),
+            # Scalar multiplication with True
+            (np.array([1, 0, 1], dtype=np.int8), True, np.array([True, False, True])),
+            # Scalar multiplication with False
+            (np.array([1, 0, 1], dtype=np.int8), False, np.array([False, False, False])),
+            # Scalar multiplication with a Z3 variable (x)
+            (np.array([1, 0, 1], dtype=np.int8), x, np.array([x, False, x])),
+            # Scalar multiplication with a Z3 variable (y)
+            (np.array([1, 0, 0, 1], dtype=np.int8), y, np.array([y, False, False, y])),
+        ],
+    )
+    def test_symbolic_scalar_mult(self, v, scalar, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_scalar_mult~."""
+        result = symbolic_scalar_mult(v, scalar)
+        assert np.array_equal(result, expected_result), f"Test failed for v={v}, scalar={scalar}"
+
+    @pytest.mark.parametrize(
+        ("v1", "v2", "expected_result"),
+        [
+            # Empty vectors
+            (np.array([]), np.array([]), np.array([])),
+            # Addition of boolean vectors
+            (np.array([True, False, True]), np.array([False, True, False]), np.array([True, True, True])),
+            # Addition of symbolic vectors
+            (
+                np.array([x, y, z3.Not(x)]),
+                np.array([x, y, z3.Not(x)]),
+                np.array([z3.BoolVal(False), z3.BoolVal(False), z3.BoolVal(False)]),
+            ),
+            # Mixed boolean and symbolic vectors
+            (np.array([True, False, x]), np.array([False, True, y]), np.array([True, True, z3.Xor(x, y)])),
+            # Boolean and symbolic simplifications
+            (np.array([True, x, False]), np.array([False, y, True]), np.array([True, z3.Xor(x, y), True])),
+        ],
+    )
+    def test_symbolic_vector_add(self, v1, v2, expected_result):  # noqa: PLR6301
+        """Parameterized test for ~symbolic_vector_add~."""
+        result = symbolic_vector_add(v1, v2)
+        assert np.array_equal(result, expected_result), f"Test failed for v1={v1}, v2={v2}"
+
+    @pytest.mark.parametrize(
+        ("measurement", "generators", "expected_result"),
+        [
+            # Single generator
+            ([True], np.array([[1, 0, 1]], dtype=np.int8), np.array([True, False, True])),
+            # Multiple generators with boolean measurements
+            ([True, False], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([True, False, True])),
+            # Multiple generators with symbolic measurements
+            ([x, y], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([x, y, x])),
+            # Mixed boolean and symbolic measurements
+            ([True, y], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8), np.array([True, y, True])),
+        ],
+    )
+    def test_vars_to_stab_valid_inputs(self, measurement, generators, expected_result):  # noqa: PLR6301
+        """Test ~vars_to_stab~ with valid inputs."""
+        result = vars_to_stab(measurement, generators)
+        assert np.array_equal(result, expected_result), (
+            f"Test failed for measurement={measurement}, generators={generators}"
+        )
+
+    @pytest.mark.parametrize(
+        ("measurement", "generators", "expected_exception", "expected_message"),
+        [
+            # Empty measurement
+            ([], np.array([[1, 0, 1]], dtype=np.int8), ValueError, "Measurement must not be empty"),
+            # Mismatched lengths
+            (
+                [True],
+                np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8),
+                ValueError,
+                "Generators and measurement must have the same length",
+            ),
+        ],
+    )
+    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):  # noqa: PLR6301
+        """Test ~vars_to_stab~ with invalid inputs that raise exceptions."""
+        with pytest.raises(expected_exception, match=expected_message):
+            vars_to_stab(measurement, generators)
+
+
 def test_compact_stim_circuit_empty() -> None:
     """Test compaction method on empty circuit."""
     circ = stim.Circuit()
@@ -323,3 +513,67 @@ def test_measured_qubits(circuit_operations, expected_measured):
     for op, targets in circuit_operations:
         circ.append_operation(op, targets)
     assert measured_qubits(circ) == expected_measured
+
+
+@pytest.mark.parametrize(
+    ("circ1_ops", "circ2_ops", "wiring", "expected_num_qubits", "expected_mapping1", "expected_mapping2"),
+    [
+        # Test case 1: No wiring, circuits are vertically stacked
+        (
+            [("H", [0]), ("CX", [0, 1])],  # circ1 operations
+            [("H", [0]), ("CX", [0, 1])],  # circ2 operations
+            None,  # No wiring
+            4,  # Total qubits in composed circuit
+            {0: 0, 1: 1},  # Mapping for circ1
+            {0: 2, 1: 3},  # Mapping for circ2
+        ),
+        # Test case 2: Wiring connects qubits between circuits
+        (
+            [("H", [0]), ("CX", [0, 1])],
+            [("H", [0]), ("CX", [0, 1])],
+            {1: 0},  # Wiring connects qubit 1 of circ1 to qubit 0 of circ2
+            3,  # Total qubits in composed circuit
+            {0: 0, 1: 2},  # Mapping for circ1
+            {0: 2, 1: 1},  # Mapping for circ2
+        ),
+        # Test case 3: Empty circuits
+        (
+            [],  # circ1 operations
+            [],  # circ2 operations
+            None,  # No wiring
+            0,  # Total qubits in composed circuit
+            {},  # Mapping for circ1
+            {},  # Mapping for circ2
+        ),
+        # Test case 4: Wiring connects all qubits
+        (
+            [("H", [0]), ("CX", [0, 1])],
+            [("H", [0]), ("CX", [0, 1])],
+            {0: 0, 1: 1},  # Wiring connects all qubits
+            2,  # Total qubits in composed circuit
+            {0: 0, 1: 1},  # Mapping for circ1
+            {0: 0, 1: 1},  # Mapping for circ2
+        ),
+    ],
+)
+def test_compose_circuits(circ1_ops, circ2_ops, wiring, expected_num_qubits, expected_mapping1, expected_mapping2):
+    """Parameterized test for compose_circuits."""
+    # Create the first circuit
+    circ1 = stim.Circuit()
+    for op, targets in circ1_ops:
+        circ1.append_operation(op, targets)
+
+    # Create the second circuit
+    circ2 = stim.Circuit()
+    for op, targets in circ2_ops:
+        circ2.append_operation(op, targets)
+
+    # Compose the circuits
+    composed, mapping1, mapping2 = compose_circuits(circ1, circ2, wiring)
+
+    # Check the number of qubits in the composed circuit
+    assert composed.num_qubits == expected_num_qubits
+
+    # Check the mappings
+    assert mapping1 == expected_mapping1
+    assert mapping2 == expected_mapping2
