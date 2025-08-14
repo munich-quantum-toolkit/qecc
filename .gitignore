@@ -176,3 +176,9 @@ node_modules/
 wheelhouse/
 
 pytest.ini
+
+# -----------------------------------------------------------------------------
+# Personal / local development ignore rules
+# (Feel free to add your own scratch or playground folders here)
+# -----------------------------------------------------------------------------
+playground/
