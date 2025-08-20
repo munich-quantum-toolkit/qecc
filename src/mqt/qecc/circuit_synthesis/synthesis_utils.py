@@ -145,10 +145,13 @@ class EliminationCNOTSynthesizer:
         penalty_cnots: list[tuple[int, int]] | None = None,
         guide_by_x: bool = True,
     ) -> None:
-        self.ref_x_fs = ref_x_fs or np.empty((0,), dtype=np.int8)
-        self.ref_z_fs = ref_z_fs or np.empty((0,), dtype=np.int8)
-        self.ref_x_1fs = ref_x_1fs or np.empty((0,), dtype=np.int8)
-        self.ref_z_1fs = ref_z_1fs or np.empty((0,), dtype=np.int8)
+        def _default_array(arr: npt.NDArray[np.int8] | None) -> npt.NDArray[np.int8]:
+            return arr if arr is not None else np.empty((0,), dtype=np.int8)
+
+        self.ref_x_fs = _default_array(ref_x_fs)
+        self.ref_z_fs = _default_array(ref_z_fs)
+        self.ref_x_1fs = _default_array(ref_x_1fs)
+        self.ref_z_1fs = _default_array(ref_z_1fs)
         self.guide_by_x = guide_by_x
         self.failed_cnots: list[tuple[int, int]] = (
             penalty_cnots or []
