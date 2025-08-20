@@ -162,7 +162,7 @@ def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:
     """Test heuristic Gaussian elimination method."""
     fixture = request.getfixturevalue(test_vals)
     matrix = fixture.matrix
-    unused_code = CSSCode()
+    unused_code = CSSCode(n=1)
     ge_false = EliminationCNOTSynthesizer(matrix, code=unused_code, parallel_elimination=False)
     ge_true = EliminationCNOTSynthesizer(matrix, code=unused_code)
     ge_false.greedy_synthesis()
