@@ -5,6 +5,8 @@
 #
 # Licensed under the MIT License
 
+# ruff: noqa: S301, S403
+
 """Estimate logical error rate for CSS state preparation circuits for a given code and physical error rate."""
 
 from __future__ import annotations
