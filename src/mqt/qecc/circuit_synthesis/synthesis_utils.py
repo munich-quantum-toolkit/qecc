@@ -203,7 +203,6 @@ class EliminationCNOTSynthesizer:
         do not cause an overlap of the reference fault set and the fault set of the newly
         created circuit.
         """
-        self._validate_inputs()
         self._ref_based_init(
             ref_x_fs=ref_x_fs,
             ref_z_fs=ref_z_fs,
@@ -212,6 +211,7 @@ class EliminationCNOTSynthesizer:
             penalty_cnots=penalty_cnots,
             guide_by_x=guide_by_x,
         )
+        self._validate_inputs()
         while not self.is_reduced():
             costs_unused = self._mask_out_used_qubits()
             if self._reset_if_stuck(costs_unused):
@@ -248,7 +248,7 @@ class EliminationCNOTSynthesizer:
         """Method decides if the Gaussian elimination has successfully ended.
 
         The matrix is considered reduced when the number of columns actually turned into
-        all-zeros matches the number of linearily depended columns.
+        all-zeros matches the number of linearly depended columns.
         """
         return bool(len(np.where(np.all(self.matrix == 0, axis=0))[0]) == self.matrix.shape[1] - self.rank)
 
