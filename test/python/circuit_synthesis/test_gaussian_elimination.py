@@ -7,9 +7,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 
+if TYPE_CHECKING:  # pragma: no cover
+    import numpy.typing as npt
 from mqt.qecc.circuit_synthesis.synthesis_utils import CandidateAction, EliminationCNOTSynthesizer
 from mqt.qecc.codes.css_code import CSSCode
 
@@ -265,8 +269,8 @@ def test_compute_cost_matrix_off_diagonal_logic(get_instance):
     col_1 = matrix[:, 1]
 
     # Manually calculate the expected value for just one cell.
-    xor_sum = np.sum((col_0 + col_1) % 2)
-    weight_col_1 = np.sum(col_1)
+    xor_sum: npt.NDArray[np.int8] = np.sum((col_0 + col_1) % 2)
+    weight_col_1: npt.NDArray[np.int8] = np.sum(col_1)
     expected_cost_0_1 = xor_sum - weight_col_1
 
     cost_matrix = get_instance._compute_cost_matrix()
