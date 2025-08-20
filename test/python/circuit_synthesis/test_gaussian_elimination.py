@@ -5,6 +5,10 @@
 #
 # Licensed under the MIT License
 
+# ruff: noqa: SLF001
+
+"""Test implementations of EliminationCNOTSynthesizer class."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -109,7 +113,7 @@ def test_mask_out_used_qubits(get_instance):
 def test_reset_if_stuck(
     get_instance,
     monkeypatch,
-    scenario,
+    scenario,  # noqa: ARG001
     initial_used_cols,
     costs_are_positive,
     expected_return,
