@@ -498,9 +498,9 @@ def check_mutually_disjointness_spcs(
             x_fs = _spc.compute_fault_set()
             z_fs = _spc.compute_fault_set(x_errors=False)
             if x_error:
-                if _spc.code.check_fs_overlap(x_fs, px_fs):
+                if _spc.code.check_fs_overlap(x_fs.faults, px_fs):
                     break
-            elif _spc.code.check_fs_overlap(z_fs, pz_fs, x_error=False):
+            elif _spc.code.check_fs_overlap(z_fs.faults, pz_fs, x_error=False):
                 break  # Stop checking if there's an overlap
         else:  # No overlap found, so add pspc
             c_spcs.append(pspc)
