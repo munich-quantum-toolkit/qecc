@@ -526,7 +526,7 @@ def get_fs_based_on_d(spc: FaultyStatePrepCircuit) -> tuple[npt.NDArray[np.int8]
         """Helper function to compute fault sets at a given level."""
         spc.compute_fault_set(level)
         spc.compute_fault_set(level, x_errors=False)
-        return spc.x_fault_sets[level], spc.z_fault_sets[level]
+        return spc.x_fault_sets[level - 1].faults, spc.z_fault_sets[level - 1].faults
 
     def filter_fault_set(fault_set: npt.NDArray[np.int8], threshold: int) -> npt.NDArray[np.int8]:
         """Filter fault sets based on a sum threshold."""
