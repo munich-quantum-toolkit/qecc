@@ -49,6 +49,7 @@ def main() -> None:
 
     args = parser.parse_args()
     code_name = args.code
+    decoder = None
     if "surface" in code_name:
         d = args.distance
         code = CSSCode.from_code_name("surface", d)
@@ -59,7 +60,7 @@ def main() -> None:
         lut_path = (Path("__file__") / "../../eval/luts/decoder_488_7.pickle").resolve()
         if lut_path.exists():
             with lut_path.open("rb") as f:
-                lut = pickle.load(f)
+                decoder = pickle.load(f)
         else:
             msg = "LUT file not found."
             raise ValueError(msg)
@@ -101,7 +102,7 @@ def main() -> None:
         check_circuit=None if args.x_errors else heuristic_prep_circuit(code, zero_state=False).circ,
         p=args.p_error,
         p_idle=args.p_idle_factor * args.p_error,
-        decoder=lut if code_name == "cc_4_8_8_d7" else None,
+        decoder=decoder,
     )
     if args.x_errors:
         res = sim.logical_error_rate(min_errors=args.n_errors)
