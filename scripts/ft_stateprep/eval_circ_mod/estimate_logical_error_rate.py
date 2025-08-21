@@ -81,12 +81,6 @@ def main() -> None:
     prefix = (Path(__file__) / "../circuits/").resolve()
     circ_file_core = f"{code_name}_heuristic_"
 
-    # check if file exists
-    # if not (prefix / code_name / circ_file).exists():
-    #     # create circuit
-    #     # NOTE: error message for missing circuits
-    #     pass
-    # else:
     circuits = []
     # load circuit from file
     for _id in [0, 1, 2, 3]:
