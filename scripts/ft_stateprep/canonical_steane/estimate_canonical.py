@@ -67,6 +67,9 @@ def main() -> None:
         p_l, r_a, num_logical_errors, total_shots, p_l_error, r_a_error = sim.secondary_logical_error_rate(
             min_errors=args.n_errors
         )
+    else:
+        msg = "Error type should be either X or Z."
+        raise ValueError(msg)
 
     print(
         ";".join([
