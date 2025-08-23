@@ -74,7 +74,7 @@ repos:
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.7.0
+    rev: v2.8.0
     hooks:
       - id: license-tools
 
