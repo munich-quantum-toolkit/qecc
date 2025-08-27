@@ -58,7 +58,7 @@ dependencies = [
   "numba>=0.57",
   "scipy>=1.15.2; python_version >= '3.10'",
   "scipy>=1.13.1",
-  "z3-solver>=4.12.2",
+  "z3-solver>=4.15.3",
   "multiprocess >= 0.70.17",
   "ldpc>=0.1.60,<2", # temporary upper cap due to failures seen with ldpc v2
   "stim >= 1.14.0",
