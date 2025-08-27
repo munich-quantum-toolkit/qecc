@@ -18,8 +18,10 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - uses: munich-quantum-toolkit/templates@a8866084f0336008b2d2727a34c9d27ec04694b6 # v1.0.0
+      - uses: munich-quantum-toolkit/templates@prepare-release-1-1-0 # v1.1.0
         with:
           token: ${{ steps.create-token.outputs.token }}
+          name: QECC
           organization: ${{ github.repository_owner }}
+          project-type: pure-python
           repository: ${{ github.event.repository.name }}
