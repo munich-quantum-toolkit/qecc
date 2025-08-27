@@ -956,3 +956,361 @@ def final_matrix_constraint(columns: npt.NDArray[z3.BoolRef | bool], rank: int) 
         [(z3.Not(z3.Or(list(columns[-1, :, col]))), 1) for col in range(columns.shape[2])],
         columns.shape[2] - rank,
     )
+
+
+def _permute_commuting_cnots(
+    trgt_order: dict[int, list[int]], ctrl_order, trgt_perm: dict[int, list[int]], ctrl_perm: dict[int, list[int]]
+) -> list[tuple[int, int]]:
+    """Permute CNOTs according to the given permutations.
+
+    Args:
+        trgt_order: The target order of the CNOTs.
+        ctrl_order: The control order of the CNOTs.
+        trgt_perm: The target permutation.
+        ctrl_perm: The control permutation.
+
+    Returns:
+        The CNOTs in correct order.
+    """
+    n = len(trgt_order) + len(ctrl_order)
+
+    orders = [None for _ in range(n)]
+    for ctrl, trgts in trgt_order.items():
+        perm = trgt_perm[ctrl]
+        orders[ctrl] = [trgts[perm[i]] for i in range(len(trgts))]
+    for trgt, ctrls in ctrl_order.items():
+        perm = ctrl_perm[trgt]
+        orders[trgt] = [ctrls[perm[i]] for i in range(len(ctrls))]
+
+    [0 for _ in range(n)]
+    done = [False for _ in range(n)]
+    cnots = []
+
+    stack = []
+    while not all(done):
+        if len(stack) == 0:
+            for i in range(n):
+                if not done[i]:
+                    stack.append(i)
+                    break
+
+        q1 = stack[-1]
+        q2 = orders[q1][0]
+
+        if q2 in stack:  # conflict -> resolve via cycles
+            q1_idx = orders[q2].index(q1)
+            orders[q2] = orders[q2][q1_idx:] + orders[q2][:q1_idx]
+            # unroll stack to q2
+            stack = stack[: stack.index(q2) + 1]
+
+        if orders[q2][0] == q1:
+            if q1 in trgt_order:
+                cnots.append((q1, q2))
+            else:
+                cnots.append((q2, q1))
+            orders[q1].remove(q2)
+            orders[q2].remove(q1)
+            done[q1] = len(orders[q1]) == 0
+            done[q2] = len(orders[q2]) == 0
+            stack.pop()
+        else:
+            stack.append(q2)
+
+    return cnots
+
+
+def _standard_form_cnots(code: CSSCode, zero_state: bool = True) -> dict[int, list[int]]:
+    """Return the cnots that prepare the +1 eigenstate of the code w.r.t. the Z or X basis using the circuit's standard form.
+
+    Args:
+            code: The CSS code to prepare the state for.
+            zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+    Returns: A list of ctrl, targets tuples.
+    """
+    h = code.Hx.copy() if zero_state else code.Hz.copy()
+    h_red, _rk, _, pivots = mod2.row_echelon(h, full=True)
+
+    cnots = {}
+    for i, pivot in enumerate(pivots):
+        trgts = list(np.where(h_red[i, :])[0])
+        trgts.remove(pivot)
+        cnots[pivot] = trgts
+
+    return cnots
+
+
+def random_steane_type_prep_circuits(
+    code: CSSCode, zero_state: bool = True
+) -> tuple[CNOTCircuit, CNOTCircuit, CNOTCircuit, CNOTCircuit]:
+    """Return four circuits in permuted standard form that prepare the +1 eigenstate of the code w.r.t. the Z or X basis that can implement Steane-type FTSP.
+
+    Args:
+        code: The CSS code to prepare the state for.
+        zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+    Returns: A tuple of four state preparation circuits for the code.
+    """
+    trgt_order = _standard_form_cnots(code, zero_state)
+    c1 = [(x, y) for x, ys in trgt_order.items() for y in ys]
+
+    # obtain three random permutations of the cnots
+    n = code.n
+    p1 = np.random.permutation(len(c1))
+    p2 = np.random.permutation(len(c1))
+    p3 = np.random.permutation(len(c1))
+    c2 = [c1[i] for i in p1]
+    c3 = [c1[i] for i in p2]
+    c4 = [c1[i] for i in p3]
+    ctrls = trgt_order.keys()
+    trgts = list(set(range(n)) - set(ctrls))
+
+    qc1 = CNOTCircuit.from_cnot_list(c1, initialize_x=ctrls, initialize_z=trgts)
+    qc2 = CNOTCircuit.from_cnot_list(c2, initialize_x=ctrls, initialize_z=trgts)
+    qc3 = CNOTCircuit.from_cnot_list(c3, initialize_x=ctrls, initialize_z=trgts)
+    qc4 = CNOTCircuit.from_cnot_list(c4, initialize_x=ctrls, initialize_z=trgts)
+
+    return qc1, qc2, qc3, qc4, [p1, p2, p3]
+
+
+def _canonical_permutation(w: int) -> list[int]:
+    """Return canonical ft5 permutation for weight w."""
+    pi = list(range(w))
+    if w <= 4:
+        return pi
+
+    pi[1], pi[-2] = pi[-2], pi[1]
+
+    # if w <= 5:
+    #     return list(range(w))
+    # offset = w // 2
+    # pi = list(range(w))
+    # if w % 2 == 1:
+    #     pi.remove(offset)
+    # for i in range(offset):
+    #     if i % 2 == 0:
+    #         swap_idx = (i + w // 2) % len(pi)
+    #         pi[i], pi[swap_idx] = (pi[swap_idx], pi[i])
+    #     else:
+    #         pi[i]
+
+    # if w % 2 == 1:
+    #     pi = pi[:offset] + [offset] + pi[offset:]
+
+    return pi
+
+
+def canonical_steane_type_prep_circuits(
+    code: CSSCode, zero_state: bool = True
+) -> tuple[QuantumCircuit, QuantumCircuit, QuantumCircuit, QuantumCircuit]:
+    """Return four circuits in standard form that prepare the +1 eigenstate of the code w.r.t. the Z or X basis that can implement Steane-type FTSP.
+
+    Args:
+            code: The CSS code to prepare the state for.
+            zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+    Returns: A tuple of four state preparation circuits for the code.
+    """
+    n = code.n
+    trgt_order = _standard_form_cnots(code, zero_state)
+    ctrls = list(trgt_order.keys())
+    trgts = [trgt for trgt in range(n) if trgt not in ctrls]
+    ctrl_order = {trgt: [] for trgt in trgts}
+    for ctrl, ctrl_trgts in trgt_order.items():
+        for trgt in ctrl_trgts:
+            ctrl_order[trgt].append(ctrl)
+    for trgt in trgts:
+        ctrl_order[trgt].sort()
+
+    id_trgt = {ctrl: list(range(len(trgt_order[ctrl]))) for ctrl in ctrls}
+    id_ctrl = {trgt: list(range(len(ctrl_order[trgt]))) for trgt in trgts}
+
+    pi_trgt = {ctrl: _canonical_permutation(len(trgt_order[ctrl])) for ctrl in trgt_order}
+    pi_ctrl = {trgt: _canonical_permutation(len(ctrl_order[trgt])) for trgt in trgts}
+
+    c1 = _permute_commuting_cnots(trgt_order, ctrl_order, id_trgt, id_ctrl)
+    c2 = _permute_commuting_cnots(trgt_order, ctrl_order, pi_trgt, id_ctrl)
+    c3 = _permute_commuting_cnots(trgt_order, ctrl_order, id_trgt, pi_ctrl)
+
+    # collect cnots in c3 with same target into groups
+    c3_groups = defaultdict(list)
+    for cnot in c3:
+        c3_groups[cnot[1]].append(cnot[0])
+
+    # we need to find a permutation that fulfills the following for all groups of targets:
+    # - map the first three elements into the second half
+    # - map the last element into the first half
+    # No conflicts should occur
+    lists = list(trgt_order.values())
+
+    pi_swaps = find_swapping_permutation(lists)
+
+    pi = []
+    for x in trgts:
+        if x in pi_swaps:
+            pi.append(pi_swaps[x])
+        else:
+            pi.append(x)
+    # apply pi
+    # use pi to order c3_groups
+    c4 = []
+    for x in pi:
+        c4.extend([(y, x) for y in c3_groups[x]])
+
+    qc1 = CNOTCircuit.from_cnot_list(c1, initialize_x=ctrls, initialize_z=trgts)
+    qc2 = CNOTCircuit.from_cnot_list(c2, initialize_x=ctrls, initialize_z=trgts)
+    qc3 = CNOTCircuit.from_cnot_list(c3, initialize_x=ctrls, initialize_z=trgts)
+    qc4 = CNOTCircuit.from_cnot_list(c4, initialize_x=ctrls, initialize_z=trgts)
+
+    return qc1, qc2, qc3, qc4
+
+
+def find_swapping_permutation(lists: list[list[int]]) -> dict[int, int]:
+    """Given a list of lists of integers, finds an involution π (a permutation
+    composed solely of 2-cycles and fixed points) with the property that for
+    every list xs, π swaps one of the first three elements with one of the
+    last three elements.
+    Parameters:
+        lists (list of list of int): The input lists (each assumed to have 7 integers).
+
+    Returns:
+        dict or None: A dictionary representing the permutation π, where each key maps
+                      to its image under π, or None if no such permutation exists.
+    """
+    # Step 1: Compute candidate pairs for each list.
+    list_candidates = []
+    lists = [lst for lst in lists if len(lst) > 4]
+    for xs in lists:
+        cand = set()
+        for i in range(3):  # first three elements
+            for j in range(len(xs) - 3, len(xs)):  # last three elements
+                # Use sorted tuple to represent an unordered pair
+                if i == j:
+                    continue
+                pair = tuple(sorted((xs[i], xs[j])))
+                cand.add(pair)
+        list_candidates.append(cand)
+
+    # Step 2: Compute the global candidate set (union of all candidate pairs).
+    global_candidates = set()
+    for cand in list_candidates:
+        global_candidates |= cand
+    candidate_edges = list(global_candidates)
+
+    # Collect the full set of numbers (the domain for our permutation).
+    global_numbers = set()
+    for xs in lists:
+        global_numbers |= set(xs)
+
+    # Step 3: Search for a matching (set of disjoint candidate pairs) such that
+    # for every list at least one of its candidate pairs is in the matching.
+    best_matching = None
+
+    def backtrack(i, current_matching, used) -> None:
+        nonlocal best_matching
+        # If all candidate edges have been considered,
+        # check if current matching "covers" every list.
+        if i == len(candidate_edges):
+            for cand in list_candidates:
+                if not any(edge in current_matching for edge in cand):
+                    return
+            best_matching = current_matching.copy()
+            return
+
+        # Option 1: Skip the current candidate edge.
+        backtrack(i + 1, current_matching, used)
+        if best_matching is not None:
+            return  # solution found
+
+        # Option 2: Try to include candidate_edges[i] if neither number is used yet.
+        edge = candidate_edges[i]
+        a, b = edge
+        if a not in used and b not in used:
+            current_matching.add(edge)
+            used.add(a)
+            used.add(b)
+            backtrack(i + 1, current_matching, used)
+            if best_matching is not None:
+                return
+            current_matching.remove(edge)
+            used.remove(a)
+            used.remove(b)
+
+    backtrack(0, set(), set())
+
+    # Step 4: If a matching was found, build the permutation π.
+    if best_matching is None:
+        return None
+    pi = {x: x for x in global_numbers}  # initially, all elements are fixed
+    for a, b in best_matching:
+        pi[a] = b
+        pi[b] = a
+    return pi
+
+
+def ft_standard_form(h, checks):
+    h_red, _, _, pivots = mod2.row_echelon(h, full=True)
+    supports = [np.where(h_red[i, :])[0] for i in range(h_red.shape[0])]
+    # remove pivots from supports
+    supports = [list(support[support != pivots[i]]) for i, support in enumerate(supports)]
+    check_supports = [np.where(checks[i, :])[0] for i in range(checks.shape[0])]
+    qubit_to_checks = {q: np.zeros(len(checks), dtype=np.int8) for q in range(h.shape[1])}
+
+    for i, support in enumerate(check_supports):
+        for q in support:
+            qubit_to_checks[q][i] = 1
+
+    def permutation_to_syndromes(pi: list[int], qubit_to_checks):
+        syndromes = set()
+        current_syndrome = np.zeros(len(checks), dtype=np.int8)
+
+        # iterate in reverse, skip last element
+        for q in reversed(pi):
+            current_syndrome ^= qubit_to_checks[q]
+            syndromes.add(tuple(current_syndrome))
+        return syndromes
+
+    # collect all syndromes of identity permutations of supports
+    syndromes = set()
+
+    for support in supports:
+        syndromes |= permutation_to_syndromes(support[1:-1], qubit_to_checks)
+
+    # for each support, try to find a permutation that generates new syndromes
+    def permute(a, l, r, syndrome, support):
+        if l == r:
+            return a
+        for i in range(l, r + 1):
+            a[l], a[i] = a[i], a[l]
+            syndrome ^= qubit_to_checks[a[l]]
+            if tuple(syndrome) not in syndromes:
+                result = permute(a, l + 1, r, syndrome, support)
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
+                if result is not None:
+                    return result
+            else:
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
+                return None
+        return None
+
+    permutations = []
+    for support in supports:
+        perm = permute(support, 0, len(support) - 1, np.zeros(len(checks), dtype=np.int8), support)
+        if perm is None:
+            pass
+        else:
+            permutations.append(perm)
+
+    # build circuits according to permutations
+    c1 = []
+    c2 = []
+
+    # TODO
+    for i, pivot in enumerate(pivots):
+        c1.extend((pivot, q) for q in supports[i])
+        c2.extend((pivot,) for q in permutations[i])
+
+    ctrls = list(pivots)
+    trgts = [q for q in range(h.shape[1]) if q not in ctrls]
+    qc1 = CNOTCircuit.from_cnot_list(c1, initialize_x=ctrls, initialize_z=trgts)
+    qc2 = CNOTCircuit.from_cnot_list(c2, initialize_x=ctrls, initialize_z=trgts)
+    return qc1, qc2
