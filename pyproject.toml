@@ -99,7 +99,7 @@ Discussions = "https://github.com/munich-quantum-toolkit/qecc/discussions"
 
 [tool.pytest.ini_options]
 minversion = "7.2"
-testpaths = ["test/python"]
+testpaths = ["tests"]
 addopts = [
   "-ra",
   "--strict-markers",
@@ -142,7 +142,7 @@ run.disable_warnings = [
 ]
 
 [tool.mypy]
-files = ["src/mqt", "test/python", "noxfile.py"]
+files = ["src/mqt", "tests", "noxfile.py"]
 mypy_path = ["$MYPY_CONFIG_FILE_DIR/src"]
 python_version = "3.9"
 warn_unused_configs = true
@@ -231,7 +231,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "typing.Set".msg = "Use collections.abc.Set instead."
 
 [tool.ruff.lint.per-file-ignores]
-"test/python/**" = ["T20", "ANN"]
+"tests/**" = ["T20", "ANN"]
 "docs/**" = ["T20"]
 "noxfile.py" = ["T20", "TID251"]
 "*.pyi" = ["D"]  # pydocstyle

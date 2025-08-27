@@ -83,7 +83,7 @@ repos:
     rev: v1.17.1
     hooks:
       - id: mypy
-        files: ^(src/mqt|test/python|noxfile.py)
+        files: ^(src/mqt|tests|noxfile.py)
         args: []
         additional_dependencies:
           - nox
