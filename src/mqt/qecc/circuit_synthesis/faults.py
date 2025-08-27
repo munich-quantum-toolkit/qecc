@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from itertools import product
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -482,3 +484,81 @@ def t_distinct(fs1: PureFaultSet, fs2: PureFaultSet, t: int, stabs: npt.NDArray[
                 return False
     # if no solution was found, the fault sets are t-distinct
     return True
+
+
+def t_distinct_fast(
+    fs1: PureFaultSet, fs2: PureFaultSet, t: int, stabs_opposite: npt.NDArray[np.int8], stabs_same: npt.NDArray[np.int8]
+) -> bool:
+    # map errors to cosets mapping syndromes to faults
+    c1 = defaultdict(list)
+    c2 = defaultdict(list)
+
+    for f in fs1:
+        c1[tuple((stabs_opposite @ f) % 2)].append(f)
+
+    for f in fs2:
+        c2[tuple((stabs_opposite @ f) % 2)].append(f)
+
+    combined_maps_1 = [None for _ in range(t - 1)]
+    combined_maps_2 = [None for _ in range(t - 1)]
+    combined_maps_1[0] = c1
+    combined_maps_2[0] = c2
+
+    for n_errors in range(2, t + 1):
+        for n_errors_1 in range(1, n_errors):
+            n_errors_2 = n_errors - n_errors_1
+            if combined_maps_1[n_errors_1 - 1] is None:
+                combined_maps_1[n_errors_1 - 1] = _combine_faults(c1, combined_maps_1[n_errors_1 - 2])
+            map1 = combined_maps_1[n_errors_1 - 1]
+
+            if combined_maps_2[n_errors_2 - 1] is None:
+                combined_maps_2[n_errors_2 - 1] = _combine_faults(c2, combined_maps_2[n_errors_2 - 2])
+            map2 = combined_maps_2[n_errors_2 - 1]
+
+            if not _ft_t_maps(map1, map2, n_errors, stabs_same):
+                return False
+
+    return True
+
+
+def _ft_t_maps(
+    c1: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+    c2: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+    t: int,
+    stabs: npt.NDArray[np.int8],
+) -> bool:
+    for syndrome, faults1 in c1.items():
+        if syndrome not in c2:
+            continue
+
+        for f1 in faults1:
+            reduced = coset_leader(f1, stabs)
+            if np.sum(reduced) <= t:
+                continue
+            # for f2 in faults2:
+            #     residual = f2^reduced
+            #     if mod2.rank(np.vstack([stabs, residual])) > rk:
+            #         continue
+            #     else:
+            #         print(f"Combining both faults gives fault {residual} with weight {np.sum(residual)}")
+            #         print(f1, f2)
+            return False
+    return True
+
+
+def _combine_faults(
+    map1: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+    map2: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+) -> dict[tuple[int, ...], list[npt.NDArray[np.int8]]]:
+    combined_map = defaultdict(list)
+    for s1, fs1 in map1.items():
+        for s2, fs2 in map2.items():
+            if s1 == s2:
+                continue
+            new_s = tuple((np.array(s1) + np.array(s2)) % 2)
+
+            for f1, f2 in product(fs1, fs2):
+                new_f = f1 ^ f2
+                combined_map[new_s].append(new_f)
+
+    return combined_map
