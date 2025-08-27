@@ -21,6 +21,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Changed
 
+- Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
@@ -37,6 +38,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
+[#482]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 [#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 [#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
 [#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
