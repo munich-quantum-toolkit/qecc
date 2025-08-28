@@ -1,32 +1,36 @@
 name: ✨ Feature request
-description: Suggest an idea
+description: Suggest a new feature or improvement
 title: "✨ <title>"
 body:
   - type: markdown
     attributes:
       value: >
-        **Thank you for wanting to suggest a feature for this project!**
+        **Thanks for helping improve this project by suggesting a feature!**
 
-        ⚠
-        Verify first that your idea is not [already requested on GitHub](https://github.com/cda-tum/qecc/search?q=is%3Aissue&type=issues).
+        ⚠ Before submitting:
+        - Search [existing feature requests](https://github.com/munich-quantum-toolkit/qecc/search?q=is%3Aissue&type=issues) to avoid duplicates
+        - One feature per issue helps us track and implement ideas effectively
 
   - type: textarea
     attributes:
-      label: What's the problem this feature will solve?
+      label: Problem Statement
       description: >-
-        What are you trying to do, that you are unable to achieve as it currently stands?
+        Describe the problem you're facing and why it needs to be solved. What limitations are you encountering?
       placeholder: >-
-        I'm trying to do X and I'm missing feature Y for this to be
-        easily achievable.
+        Currently, when I try to [action/task], I'm unable to [blockers/limitations].
+        This creates problems because [impact/consequences].
     validations:
       required: true
 
   - type: textarea
     attributes:
-      label: Describe the solution you'd like
+      label: Proposed Solution
       description: >
-        Clear and concise description of what you want to happen.
+        Describe your ideal solution. What would the feature look like? How would it work?
       placeholder: >-
-        When I do X, I want to achieve Y in a situation when Z.
+        I'd like to see [feature/change] that would:
+        - [benefit 1]
+        - [benefit 2]
+        - [example usage/scenario]
     validations:
       required: true

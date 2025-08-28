@@ -1,6 +1,3 @@
-<!--- This file has been generated from an external template. Please do not modify it directly. -->
-<!--- Changes should be contributed to https://github.com/munich-quantum-toolkit/templates. -->
-
 ## Description
 
 Please include a summary of the change and, if applicable, which issue is fixed.
@@ -23,3 +20,4 @@ This checklist serves as a reminder of a couple of things that ensure your pull 
 - [ ] The changes follow the project's style guidelines and introduce no new warnings.
 - [ ] The changes are fully tested and pass the CI checks.
 - [ ] I have reviewed my own code changes.
+

@@ -1,0 +1,4 @@
+```{include} ../.github/SUPPORT.md
+
+```
+
