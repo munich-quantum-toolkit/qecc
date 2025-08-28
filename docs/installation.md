@@ -2,6 +2,7 @@
 <!--- Changes should be contributed to https://github.com/munich-quantum-toolkit/templates. -->
 
 # Installation
+
 MQT QECC is a Python package available on [PyPI](https://pypi.org/project/mqt.qecc/).
 It can be installed on all major operating systems with all supported Python versions.
 
