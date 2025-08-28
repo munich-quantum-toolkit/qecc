@@ -23,13 +23,13 @@ self
 :maxdepth: 1
 :caption: User Guide
 
-Installation
+installation
 LightsOutDecoder
 StatePrep
 CatStates
 Encoders
 AnalogInfo
-Publications
+references
 CHANGELOG
 UPGRADING
 ```
@@ -39,9 +39,8 @@ UPGRADING
 :glob:
 :maxdepth: 1
 
-Contributing
-DevelopmentGuide
-Support
+contributing
+support
 ```
 
 ```{toctree}
