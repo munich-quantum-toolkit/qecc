@@ -116,7 +116,7 @@ When discussing the overall MQT project or its ecosystem, cite the MQT Handbook:
 
 ### Peer-Reviewed Research
 
-If you use our tool for your research, we will be thankful if you refer to it by citing the appropriate publication:
+When citing the underlying methods and research, please reference the most relevant peer-reviewed publications from the list below:
 
 [[1]](https://arxiv.org/pdf/2501.05527)
 L. Schmid, T.Peham, L. Berent, M. Müller, and R. Wille.
