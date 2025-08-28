@@ -1257,46 +1257,54 @@ def ft_standard_form(h, checks):
         for q in support:
             qubit_to_checks[q][i] = 1
 
-    def permutation_to_syndromes(pi: list[int], qubit_to_checks):
-        syndromes = set()
+    def permutation_to_syndromes(pi: list[int], qubit_to_checks, pivot):
+        syndromes_local = set()
         current_syndrome = np.zeros(len(checks), dtype=np.int8)
-
+        current_syndrome ^= qubit_to_checks[pivot]
+        current_syndrome ^= qubit_to_checks[pi[-1]]
         # iterate in reverse, skip last element
-        for q in reversed(pi):
+        for q in reversed(pi[1:-1]):
             current_syndrome ^= qubit_to_checks[q]
-            syndromes.add(tuple(current_syndrome))
-        return syndromes
+            syndromes_local.add(tuple(current_syndrome))
+        return syndromes_local
 
     # collect all syndromes of identity permutations of supports
     syndromes = set()
 
-    for support in supports:
-        syndromes |= permutation_to_syndromes(support[1:-1], qubit_to_checks)
+    for i, support in enumerate(supports):
+        syndromes |= permutation_to_syndromes(support, qubit_to_checks, pivots[i])
 
+    # print(syndromes)
     # for each support, try to find a permutation that generates new syndromes
     def permute(a, l, r, syndrome, support):
         if l == r:
             return a
+
         for i in range(l, r + 1):
             a[l], a[i] = a[i], a[l]
             syndrome ^= qubit_to_checks[a[l]]
+
             if tuple(syndrome) not in syndromes:
                 result = permute(a, l + 1, r, syndrome, support)
                 syndrome ^= qubit_to_checks[a[l]]
-                a[l], a[i] = a[i], a[l]  # backtrack
                 if result is not None:
                     return result
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
             else:
                 syndrome ^= qubit_to_checks[a[l]]
                 a[l], a[i] = a[i], a[l]  # backtrack
-                return None
         return None
 
     permutations = []
-    for support in supports:
-        perm = permute(support, 0, len(support) - 1, np.zeros(len(checks), dtype=np.int8), support)
+    for i, support in enumerate(supports):
+        current_syndrome = qubit_to_checks[pivots[i]]
+        # print("Starting backtracking algo")
+        perm = permute(support.copy(), 0, len(support) - 1, current_syndrome, support)
+        # print("Finished backtracking algo")
         if perm is None:
-            pass
+            # print("Could not find permutation, using identity")
+            permutations.append(support)
         else:
             permutations.append(perm)
 
@@ -1304,10 +1312,9 @@ def ft_standard_form(h, checks):
     c1 = []
     c2 = []
 
-    # TODO
     for i, pivot in enumerate(pivots):
         c1.extend((pivot, q) for q in supports[i])
-        c2.extend((pivot,) for q in permutations[i])
+        c2.extend((pivot, q) for q in reversed(permutations[i]))
 
     ctrls = list(pivots)
     trgts = [q for q in range(h.shape[1]) if q not in ctrls]
