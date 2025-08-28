@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections import defaultdict
+from itertools import product
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -1288,7 +1289,7 @@ def ft_standard_form(h, checks):
                 result = permute(a, l + 1, r, syndrome, support)
                 syndrome ^= qubit_to_checks[a[l]]
                 if result is not None:
-                    return result
+                    return result  # found solution -> forward it
                 syndrome ^= qubit_to_checks[a[l]]
                 a[l], a[i] = a[i], a[l]  # backtrack
             else:
@@ -1318,6 +1319,141 @@ def ft_standard_form(h, checks):
 
     ctrls = list(pivots)
     trgts = [q for q in range(h.shape[1]) if q not in ctrls]
+    qc1 = CNOTCircuit.from_cnot_list(c1, initialize_x=ctrls, initialize_z=trgts)
+    qc2 = CNOTCircuit.from_cnot_list(c2, initialize_x=ctrls, initialize_z=trgts)
+    return qc1, qc2
+
+
+def _combine_faults(
+    map1: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+    map2: defaultdict[tuple[int, ...], list[npt.NDArray[np.int8]]],
+) -> dict[tuple[int, ...], list[npt.NDArray[np.int8]]]:
+    combined_map = defaultdict(list)
+    for s1, fs1 in map1.items():
+        for s2, fs2 in map2.items():
+            if s1 == s2:
+                continue
+            new_s = tuple((np.array(s1) + np.array(s2)) % 2)
+
+            for f1, f2 in product(fs1, fs2):
+                new_f = f1 ^ f2
+                combined_map[new_s].append(new_f)
+
+    return combined_map
+
+
+def ft_3_standard_form(h, checks):
+    h_red, _, _, pivots = mod2.row_echelon(h, full=True)
+    supports = [np.where(h_red[i, :])[0] for i in range(h_red.shape[0])]
+    # remove pivots from supports
+    supports = [list(support[support != pivots[i]]) for i, support in enumerate(supports)]
+    check_supports = [np.where(checks[i, :])[0] for i in range(checks.shape[0])]
+    qubit_to_checks = {q: np.zeros(len(checks), dtype=np.int8) for q in range(h.shape[1])}
+
+    for i, support in enumerate(check_supports):
+        for q in support:
+            qubit_to_checks[q][i] = 1
+
+    # def permutation_to_syndromes(pi: list[int], qubit_to_checks, pivot):
+    #     syndromes_local = set()
+    #     current_syndrome = np.zeros(len(checks), dtype=np.int8)
+    #     current_syndrome ^= qubit_to_checks[pivot]
+    #     current_syndrome ^= qubit_to_checks[pi[-1]]
+    #     # iterate in reverse, skip last element
+    #     for q in reversed(pi[1:-1]):
+    #         current_syndrome ^= qubit_to_checks[q]
+    #         syndromes_local.add(tuple(current_syndrome))
+    #     return syndromes_local
+
+    # collect all syndromes of identity permutations of supports
+
+    # for i, support in enumerate(supports): # single faults
+    #     syndromes |= permutation_to_syndromes(support, qubit_to_checks, pivots[i])
+
+    ctrls = list(pivots)
+    trgts = [q for q in range(h.shape[1]) if q not in ctrls]
+
+    c = CNOTCircuit.from_cnot_list(
+        [(pivots[i], q) for i, support in enumerate(supports) for q in support], initialize_x=ctrls, initialize_z=trgts
+    )
+    fs = PureFaultSet.from_cnot_circuit(c)
+    s1 = defaultdict(list)
+    for f in fs:
+        s1[tuple((checks @ f) % 2)].append(f)
+
+    s2 = _combine_faults(s1, s1)  # two faults
+
+    # print(syndromes)
+    # for each support, try to find a permutation that generates new syndromes
+    def permute(a, l, r, syndrome, support, non_ft_cache=None):
+        if non_ft_cache is None:
+            non_ft_cache = set()
+        if l == r:
+            return a
+
+        for i in range(l, r + 1):
+            a[l], a[i] = a[i], a[l]
+            syndrome ^= qubit_to_checks[a[l]]
+
+            ft1 = True
+            ft2 = True
+            s = tuple(syndrome)
+            if s in non_ft_cache:
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
+                continue
+            if s in s1:
+                faults = s1[s]
+                max_w_repr = coset_leader(faults[0], h)
+                for f in faults[1:]:
+                    max_w_repr = np.maximum(max_w_repr, coset_leader(f, h))
+
+                if np.sum(max_w_repr) > 1:
+                    ft1 = False
+                    non_ft_cache.add(s)
+
+            if s in s2:
+                faults = s2[s]
+                max_w_repr = coset_leader(faults[0], h)
+                for f in faults[1:]:
+                    max_w_repr = np.maximum(max_w_repr, coset_leader(f, h))
+
+                if np.sum(max_w_repr) > 2:
+                    ft2 = False
+                    non_ft_cache.add(s)
+
+            if ft1 and ft2:
+                result = permute(a, l + 1, r, syndrome, support)
+                syndrome ^= qubit_to_checks[a[l]]
+                if result is not None:
+                    return result  # found solution -> forward it
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
+            else:
+                syndrome ^= qubit_to_checks[a[l]]
+                a[l], a[i] = a[i], a[l]  # backtrack
+        return None
+
+    permutations = []
+    for i, support in enumerate(supports):
+        current_syndrome = qubit_to_checks[pivots[i]]
+        # print("Starting backtracking algo")
+        perm = permute(support.copy(), 0, len(support) - 1, current_syndrome, support)
+        # print("Finished backtracking algo")
+        if perm is None:
+            # print("Could not find permutation, using identity")
+            permutations.append(support)
+        else:
+            permutations.append(perm)
+
+    # build circuits according to permutations
+    c1 = []
+    c2 = []
+
+    for i, pivot in enumerate(pivots):
+        c1.extend((pivot, q) for q in supports[i])
+        c2.extend((pivot, q) for q in reversed(permutations[i]))
+
     qc1 = CNOTCircuit.from_cnot_list(c1, initialize_x=ctrls, initialize_z=trgts)
     qc2 = CNOTCircuit.from_cnot_list(c2, initialize_x=ctrls, initialize_z=trgts)
     return qc1, qc2
