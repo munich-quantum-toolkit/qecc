@@ -15,10 +15,10 @@
   </a>
 </p>
 
-# MQT QECC: A tool for Quantum Error Correcting Codes
+# MQT QECC - A tool for Quantum Error Correcting Codes
 
-A tool for quantum error correcting codes and numerical simulations.
-It is developed as part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
+MQT QECC is a tool for quantum error correcting codes and numerical simulations.
+It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 
 <p align="center">
   <a href="https://mqt.readthedocs.io/projects/qecc">
@@ -34,15 +34,15 @@ It is developed as part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.read
 - Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological (cat qubit) noise.
 - Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
 
+> [!NOTE]
+> Basic usage for _lattice surgery compilation beyond the surface code_ is described in [`docs/Co3.rst`](https://github.com/munich-quantum-toolkit/qecc/blob/ls-compilation/docs/Co3.rst) in the `ls-compilation` branch.
+> The code quality in the branch is actively being improved.
+
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
 > QECC is now entirely a Python package.
 > For up-to-date software for decoding LDPC codes we refer to [quantumgizmos/ldpc](https://github.com/quantumgizmos/ldpc).
 > If you would still like to use these features, they are available in `mqt.qecc` versions `v2.0.0`.
-
-> [!NOTE]
-> Basic usage for _lattice surgery compilation beyond the surface code_ is described in [`docs/Co3.rst`](https://github.com/munich-quantum-toolkit/qecc/blob/ls-compilation/docs/Co3.rst) in the `ls-compilation` branch.
-> The code quality in the branch is actively being improved.
 
 If you have any questions, feel free to create a [discussion](https://github.com/munich-quantum-toolkit/qecc/discussions) or an [issue](https://github.com/munich-quantum-toolkit/qecc/issues) on [GitHub](https://github.com/munich-quantum-toolkit/qecc).
 
@@ -74,18 +74,18 @@ To support this endeavor, please consider:
 - Starring and sharing our repositories: https://github.com/munich-quantum-toolkit
 - Contributing code, documentation, tests, or examples via issues and pull requests
 - Citing the MQT in your publications (see [Cite This](#cite-this))
-- Citing our research in your publications (see [References](https://mqt.readthedocs.io/projects/problemsolver/en/latest/references.html))
+- Citing our research in your publications (see [References](https://mqt.readthedocs.io/projects/qecc/en/latest/references.html))
 - Using the MQT in research and teaching, and sharing feedback and use cases
 
 ## Getting Started
 
-`mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.problemsolver/).
+`mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.qecc/).
 
 ```console
 (venv) $ pip install mqt.qecc
 ```
 
-**Detailed documentation on all available methods, options, and input formats is available at [ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
+**Detailed documentation and examples are available at [ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
 
 ## System Requirements
 

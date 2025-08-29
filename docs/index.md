@@ -1,15 +1,15 @@
 # Welcome to QECC's documentation
 
-QECC is a tool for quantum error correcting codes developed as part of the [Munich Quantum Toolkit (MQT)](https://mqt.readthedocs.io) by the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the [Technical University of Munich](https://www.tum.de).
+MQT QECC is a tool for quantum error correcting codes.
+It is part of the _{doc}`Munich Quantum Toolkit (MQT) <mqt:index>`_.
 
 We recommend you to start with the {doc}`installation instructions <Installation>`.
 Then proceed to read the {doc}`reference documentation <api/mqt/qecc/index>`.
 If you are interested in the theory behind QECC, have a look at the publications in the {doc}`publication list <references>`.
 
-We appreciate any feedback and contributions to the project. If you want to contribute, you can find more information in
-the {doc}`Contribution <Contributing>` guide. If you are having trouble with the installation or the usage of QECC,
-please let us know at our {doc}`Support <Support>` page or by reaching out to us at
-[quantum.cda@xcit.tum.de](mailto:quantum.cda@xcit.tum.de).
+We appreciate any feedback and contributions to the project.
+If you want to contribute, you can find more information in the {doc}`contribution guide <contributing>`.
+If you are having trouble with the installation or the usage of QECC, please let us know on our {doc}`support page <support>`.
 
 ---
 
@@ -20,8 +20,10 @@ self
 ```
 
 ```{toctree}
-:maxdepth: 1
 :caption: User Guide
+:glob:
+:hidden:
+:maxdepth: 1
 
 installation
 LightsOutDecoder
@@ -37,6 +39,7 @@ UPGRADING
 ```{toctree}
 :caption: Developers
 :glob:
+:hidden:
 :maxdepth: 1
 
 contributing
@@ -44,8 +47,10 @@ support
 ```
 
 ```{toctree}
-:maxdepth: 3
 :caption: API Reference
+:glob:
+:hidden:
+:maxdepth: 3
 
 api/mqt/qecc/index
 ```
