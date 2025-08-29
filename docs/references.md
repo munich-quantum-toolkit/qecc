@@ -1,20 +1,9 @@
-<<<<<<< HEAD
-# Publications
-
-_QECC_ is academic software. Thus, many of its built-in algorithms have been published as scientific papers.
-
-If you use _QECC_ in your work, we would appreciate if you cite the respective paper
-{cite:labelpar}`berent2022software`, {cite:labelpar}`berent2023decoding`, {cite:labelpar}`grurl2023eccframework`, {cite:labelpar}`peham2024automated`, {cite:labelpar}`schmid2024deterministic`.
-
-```{eval-rst}
-.. bibliography::
-=======
 # References
 
 _MQT QECC_ has a strong foundation in peer‑reviewed research.
 Many of its built‑in algorithms are based on methods published in scientific journals and conferences.
 
-_MQT ProblemSolver_ is part of the Munich Quantum Toolkit, which is described in {cite:p}`mqt`.
+_MQT QECC_ is part of the Munich Quantum Toolkit, which is described in {cite:p}`mqt`.
 If you want to cite the Munich Quantum Toolkit, please use the following BibTeX entry:
 
 ```bibtex
@@ -37,5 +26,4 @@ A full list of references is given below.
 
 ```{bibliography}
 
->>>>>>> 02104a2 (Streamline README)
 ```
