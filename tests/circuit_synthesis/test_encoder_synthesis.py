@@ -100,8 +100,6 @@ def _assert_correct_encoding_circuit_non_css(
     paulis = [paulis[i] for i in range(len(paulis)) if i not in message_qs]
 
     circuit_code = StabilizerCode(paulis)
-    print(circuit_code.stabs_as_pauli_strings())
-    print(code.stabs_as_pauli_strings())
     assert code == circuit_code
 
 
