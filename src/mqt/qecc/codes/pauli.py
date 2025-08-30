@@ -217,7 +217,11 @@ class StabilizerTableau:
 
 def is_pauli_string(p: str) -> bool:
     """Check if a string is a valid Pauli string."""
-    return len(p) > 0 and all(c in {"I", "X", "Y", "Z"} for c in p[1:]) and p[0] in {"+", "-", "I", "X", "Y", "Z"}
+    return (
+        len(p) > 0
+        and all(c in {"_", "I", "X", "Y", "Z"} for c in p[1:])
+        and p[0] in {"+", "-", "I", "X", "Y", "Z", "_"}
+    )
 
 
 class InvalidPauliError(ValueError):
