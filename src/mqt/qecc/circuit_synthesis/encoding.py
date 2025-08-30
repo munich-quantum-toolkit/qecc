@@ -15,19 +15,19 @@ import operator
 from typing import TYPE_CHECKING
 
 import numpy as np
+import stim
 import z3
 from ldpc import mod2
 
 from ..codes import InvalidCSSCodeError
+from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
 from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
 
-import stim
-
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
+
     from ..codes.css_code import CSSCode
-    from ..codes.pauli import StabilizerTableau
 
 
 logger = logging.getLogger(__name__)
@@ -272,7 +272,19 @@ def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
             variance = row_ops[0][2]
 
 
-def gottesmann_encoding(tableau: StabilizerTableau) -> stim.Circuit:
+def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
+    """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesmann's book.
+
+    Assumes all signs of the stabilizers are +1.
+
+    Args:
+        tableau: The stabilizer tableau of the code to synthesize the encoding circuit for.
+
+    Returns:
+        stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
+    """
+    if isinstance(tableau, list):
+        tableau = StabilizerTableau.from_pauli_strings(tableau)
     nq = tableau.n
     mat = tableau.tableau.matrix.copy()
     x_part = mat[:, :nq]
@@ -281,6 +293,7 @@ def gottesmann_encoding(tableau: StabilizerTableau) -> stim.Circuit:
     circ = stim.Circuit()
     n_rows = mat.shape[0]
 
+    initialized = []
     for i in range(n_rows):
         # find row with either x_part[row][i] = 1 or z_part[row][i] = 1
         pivot = i
@@ -291,42 +304,46 @@ def gottesmann_encoding(tableau: StabilizerTableau) -> stim.Circuit:
             pivot = i
             column += 1
 
-        print(pivot, column)
-        print(x_part)
-        print(z_part)
+        initialized.append(column)
         # swap to row i
         x_part[pivot], x_part[i] = x_part[i], x_part[pivot]
         z_part[pivot], z_part[i] = z_part[i], z_part[pivot]
-        
+
         if x_part[i][column] == 0:
-            print(f"Applying hadamard to {column} row {i}")
             circ.append("H", [column])
-            x_part[i][column] = 1
-            z_part[i][column] = 0
+            t = x_part[:, column].copy()
+            x_part[:, column] = z_part[:, column]
+            z_part[:, column] = t
 
         # reduce column
         for q in np.where(x_part[i])[0]:
             if q == column:
                 continue
-            circ.append("CX", [column,q])
+            circ.append("CX", [column, q])
             x_part[:, q] ^= x_part[:, column]
+            z_part[:, column] ^= z_part[:, q]
 
         if z_part[i][column] == 1:
             circ.append("S", [column])
             z_part[:, column] ^= x_part[:, column]
-        
+
         for q in np.where(z_part[i])[0]:
             if q == column:
-                continue            
-            circ.append("CZ", [column,q])
+                continue
+            circ.append("CZ", [column, q])
             z_part[:, q] ^= x_part[:, column]
-            
+            z_part[:, column] ^= x_part[:, q]
+
         # reduce stabilizers below row
-        x_part[:,column] = 0
+        x_part[:, column] = 0
         x_part[i, column] = 1
 
+    circ.append("H", initialized)
+    circ = circ.inverse()
 
-    circ.append("H", range(n_rows))
-    return circ.inverse()
-
-        
+    signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
+    for i, sign in enumerate(signs):
+        if sign == -1:
+            circ.insert(0, stim.CircuitInstruction("X", [i]))
+    uninitialized = list(set(range(nq)) - set(initialized))
+    return circ, uninitialized
