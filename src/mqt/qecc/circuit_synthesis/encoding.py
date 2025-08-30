@@ -294,40 +294,54 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
     n_rows = mat.shape[0]
 
     initialized = []
-    for i in range(n_rows):
+    for row in range(n_rows):
         # find row with either x_part[row][i] = 1 or z_part[row][i] = 1
-        pivot = i
-        column = i
-        while x_part[pivot][column] != 1 and z_part[pivot][column] != 1:
-            while pivot < n_rows and x_part[pivot][column] != 1 and z_part[pivot][column] != 1:
-                pivot += 1
-            pivot = i
-            column += 1
+        pivot = row
+        column = row
 
+        while column < nq and x_part[pivot][column] != 1 and z_part[pivot][column] != 1:
+            found_pivot = False
+            for p in range(row, n_rows):
+                if x_part[p][column] == 1 or z_part[p][column] == 1:
+                    pivot = p
+                    found_pivot = True
+                    break
+            if not found_pivot:
+                column += 1
+                pivot = row
+        if column >= nq:
+            # No valid pivot found, invalid tableau
+            msg = "Invalid tableau: could not find a valid pivot."
+            raise ValueError(msg)
         initialized.append(column)
         # swap to row i
-        x_part[pivot], x_part[i] = x_part[i], x_part[pivot]
-        z_part[pivot], z_part[i] = z_part[i], z_part[pivot]
+        t = x_part[pivot].copy()
+        x_part[pivot] = x_part[row]
+        x_part[row] = t
 
-        if x_part[i][column] == 0:
+        t = z_part[pivot].copy()
+        z_part[pivot] = z_part[row]
+        z_part[row] = t
+
+        if x_part[row][column] == 0:
             circ.append("H", [column])
             t = x_part[:, column].copy()
             x_part[:, column] = z_part[:, column]
             z_part[:, column] = t
 
         # reduce column
-        for q in np.where(x_part[i])[0]:
+        for q in np.where(x_part[row])[0]:
             if q == column:
                 continue
             circ.append("CX", [column, q])
             x_part[:, q] ^= x_part[:, column]
             z_part[:, column] ^= z_part[:, q]
 
-        if z_part[i][column] == 1:
+        if z_part[row][column] == 1:
             circ.append("S", [column])
             z_part[:, column] ^= x_part[:, column]
 
-        for q in np.where(z_part[i])[0]:
+        for q in np.where(z_part[row])[0]:
             if q == column:
                 continue
             circ.append("CZ", [column, q])
@@ -336,14 +350,14 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
 
         # reduce stabilizers below row
         x_part[:, column] = 0
-        x_part[i, column] = 1
+        x_part[row, column] = 1
 
     circ.append("H", initialized)
     circ = circ.inverse()
 
     signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
-    for i, sign in enumerate(signs):
+    for row, sign in enumerate(signs):
         if sign == -1:
-            circ.insert(0, stim.CircuitInstruction("X", [i]))
+            circ.insert(0, stim.CircuitInstruction("X", [row]))
     uninitialized = list(set(range(nq)) - set(initialized))
     return circ, uninitialized

@@ -169,10 +169,19 @@ def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # t
 
 @pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit", "steane_code"])
 def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
-    """Check that `gottesman` returns a valid circuit with the correct stabilizers."""
+    """Check that `gottesman_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
     tab = code.generators
     encoder, message_qs = gottesman_encoding_circuit(tab)
     assert encoder is not None
 
     _assert_correct_encoding_circuit_non_css(encoder, message_qs, code)
+
+
+def test_gottesman_encoding_invalid() -> None:
+    """Check that `gottesman_encoding_circuit` fails for invalid stabilizers."""
+    with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
+        gottesman_encoding_circuit(["I"])
+
+    with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
+        gottesman_encoding_circuit(["X", "Z"])
