@@ -96,8 +96,7 @@ def _assert_correct_encoding_circuit_non_css(
     assert len(message_qs) == code.k
     stabs = encoder.to_tableau().to_stabilizers()
 
-    paulis = [Pauli.from_pauli_string(str(s)) for s in stabs]
-    paulis = [paulis[i] for i in range(len(paulis)) if i not in message_qs]
+    paulis = [pauli for i, pauli in enumerate(paulis) if i not in message_qs]
 
     circuit_code = StabilizerCode(paulis)
     assert code == circuit_code
