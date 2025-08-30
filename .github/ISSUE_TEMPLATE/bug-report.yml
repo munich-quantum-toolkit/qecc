@@ -1,43 +1,49 @@
-name: 🐛 Bug report
-description: Something is not working correctly.
-title: "🐛 <title>"
+name: 🐛 Bug Report
+description: Report a problem or unexpected behavior
+title: "🐛 <brief description of the issue>"
 body:
   - type: markdown
     attributes:
       value: >-
-        **Thank you for wanting to report a bug for this project!**
+        **Thanks for taking the time to report an issue!**
 
-        ⚠
-        Verify first that your issue is not [already reported on GitHub](https://github.com/munich-quantum-toolkit/qecc/search?q=is%3Aissue&type=issues).
+        ⚠ Before submitting:
+        1. Search [existing issues](https://github.com/munich-quantum-toolkit/qecc/search?q=is%3Aissue&type=issues) to avoid duplicates
+        2. For questions or discussions, please use our [discussions forum](https://github.com/munich-quantum-toolkit/qecc/discussions)
 
-        If you have general questions, please consider [starting a discussion](https://github.com/munich-quantum-toolkit/qecc/discussions).
   - type: textarea
     attributes:
-      label: Environment information
-      description: >-
-        Please provide information about your environment. For example, OS, mqt.qecc version etc.
+      label: System Information
+      description: Please provide details about your environment
       placeholder: |
-        - OS:
-        - Additional environment information:
+        - Operating system (including version):
+        - MQT QECC version:
+        - Python/C++ version (if applicable):
+        - Any relevant dependencies and their versions:
     validations:
       required: true
+
   - type: textarea
     attributes:
-      label: Description
-      description: A clear and concise description of what the bug is.
+      label: Bug Description
+      description: Provide a clear and detailed explanation of the issue you're experiencing.
+      placeholder: |
+        What happened?
+        What did you expect to happen instead?
+        Include any error messages or unexpected behavior you observed.
     validations:
       required: true
+
   - type: textarea
     attributes:
-      label: Expected behavior
-      description: A clear and concise description of what you expected to happen.
-  - type: textarea
-    attributes:
-      label: How to Reproduce
-      description: Please provide steps to reproduce this bug.
+      label: Steps to Reproduce
+      description: Provide specific steps to reproduce this issue
       placeholder: |
-        1. Get package from '...'
-        2. Then run '...'
-        3. An error occurs.
+        1. Set up environment with '...'
+        2. Configure workflow using '...'
+        3. Execute command '...'
+        4. Observe error/issue: '...'
+
+        Include any relevant code snippets, workflow configurations, or input files that help demonstrate the problem.
     validations:
       required: true
