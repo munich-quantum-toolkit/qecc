@@ -18,6 +18,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. [(#462)] ([**@pehamtom**])
 - Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). [(#462)] ([**@pehamtom**])
 - Added `ComposedNoiseModel` class that allows for composition of noise models. [(#462)] ([**@pehamtom**])
+- Added `gottesman_encoding_circuit` methods that constructs a stim encoding circuit for a given stabilizer code using the method described in Gottesman's "Surviving as a Quantum Computer in a Classical World" Chapter 6.4.1. [(#486)] ([**@pehamtom**])
 
 ### Changed
 
@@ -43,6 +44,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 [#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
 [#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
 [#462]: https://github.com/munich-quantum-toolkit/qecc/pull/462
+[#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
 
 <!-- Contributor -->
 
