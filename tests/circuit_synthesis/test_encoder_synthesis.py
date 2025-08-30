@@ -23,6 +23,7 @@ from mqt.qecc.circuit_synthesis import (
     gottesman_encoding_circuit,
     heuristic_encoding_circuit,
 )
+from mqt.qecc.codes.pauli import Pauli
 
 from .utils import eq_span, in_span
 
@@ -93,8 +94,8 @@ def _assert_correct_encoding_circuit_non_css(
 ) -> None:
     assert encoder.num_qubits == code.n
     assert len(message_qs) == code.k
-    encoder.to_tableau().to_stabilizers()
-
+    stabs = encoder.to_tableau().to_stabilizers()
+    paulis = [Pauli.from_pauli_string(str(s)) for s in stabs]
     paulis = [pauli for i, pauli in enumerate(paulis) if i not in message_qs]
 
     circuit_code = StabilizerCode(paulis)
