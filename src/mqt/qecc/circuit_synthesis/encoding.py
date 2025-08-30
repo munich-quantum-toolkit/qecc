@@ -273,7 +273,7 @@ def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
 
 
 def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
-    """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesmann's book.
+    """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
     Assumes all signs of the stabilizers are +1.
 
