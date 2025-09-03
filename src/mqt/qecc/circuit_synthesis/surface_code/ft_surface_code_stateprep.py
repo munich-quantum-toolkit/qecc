@@ -27,8 +27,7 @@ class FTSurfaceCodeStatePrep:
     """Class to synthesize a fault tolerant state preparation circuit for the rotated surface code."""
 
     def __init__(
-        self, distance: int | tuple[int, int], zero_state: bool = True, kwargs: dict[str, str] | None = None
-    ) -> None:
+        self, distance: int | tuple[int, int]) -> None:
         """Initialize the FT_SurfaceCodeStatePrep class.
 
         Args:
@@ -43,47 +42,30 @@ class FTSurfaceCodeStatePrep:
         else:
             self.distance_x = distance
             self.distance_z = distance
-        self.zero_state = zero_state
         self.n = self.distance_x * self.distance_z
-        self.kwargs = kwargs if kwargs is not None else {}
-        self._generate_circuit()
+        self._generate_patch_circuit()
         self.code = RotatedSurfaceCode(x_distance=self.distance_x, z_distance=self.distance_z)
 
-    def _get_qubit_pos(self, num_patches: int) -> Circuit:
+    def _get_qubit_pos(self, index_offset: int) -> Circuit:
         """Get the qubit positions for the circuit.
 
         Args:
-            num_patches (int): The number of patches in the circuit.
+            index_offset (int): The offset to apply to the qubit indices.
 
         Returns:
             Circuit: The circuit with qubit positions.
         """
         qubit_pos = ""
-        for k in range(num_patches):
-            for col in range(self.distance_x):
-                for row in range(self.distance_z):
-                    qubit_row = row + k * self.distance_z
-                    acutal_row = row + k * (self.distance_z + 1)
-                    qubit_pos += f"QUBIT_COORDS({col},{acutal_row}) {qubit_row * self.distance_x + col}\n"
+        col_offset = 0 if index_offset == 0 else index_offset // self.distance_z + 1
+        for col in range(self.distance_x):
+            for row in range(self.distance_z):
+                col_adjusted = col + col_offset
+                qubit_pos += f"QUBIT_COORDS({col_adjusted},{row}) {row * self.distance_x + col + index_offset}\n"
+        qubit_pos += "R " + " ".join(map(str, range(index_offset, index_offset + self.n))) + "\n"
         return Circuit(qubit_pos)
 
-    def _generate_circuit(self, mirror: bool = False) -> SurfaceCodeRow:
+    def _generate_patch_circuit(self, index_offset: int = 0) -> Circuit:
         """Generate the state preparation circuit."""
-        # Check kwargs for additional parameters
-        if "horizontal_cx_direction" in self.kwargs:
-            horizontal_cx_direction = self.kwargs["horizontal_cx_direction"]
-        else:
-            horizontal_cx_direction = "right"
-        if "vertical_cx_direction" in self.kwargs:
-            vertical_cx_direction = self.kwargs["vertical_cx_direction"]
-        else:
-            vertical_cx_direction = "left"
-
-        if mirror:
-            horizontal_cx_direction = "left" if horizontal_cx_direction == "right" else "right"
-            if vertical_cx_direction != "straight":
-                vertical_cx_direction = "left" if vertical_cx_direction == "right" else "right"
-
         circ_all_rows = SurfaceCodeRow([], [])
 
         for i in list(range(self.distance_z // 2 - 1, -1, -1)) + list(range(self.distance_z // 2, self.distance_z - 1)):
@@ -91,12 +73,12 @@ class FTSurfaceCodeStatePrep:
                 start_qubit_idx=i * self.distance_x,
                 small_stabilizer_left=(i % 2 == 1),
                 direction_down=(i < self.distance_z // 2),
-                vertical_cx_direction=vertical_cx_direction,
-                horizontal_cx_direction=horizontal_cx_direction,
+                vertical_cx_direction="left",
+                horizontal_cx_direction="left",
                 width=self.distance_x,
             )
-
-        return circ_all_rows
+        circ_all_rows.offset(index_offset)
+        return Circuit(circ_all_rows.to_string())
 
     def get_circuit_logical_x(self, noise_model: NoiseModel) -> Circuit:
         """Get the circuit with detectors added.
@@ -104,14 +86,13 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The circuit with detectors.
         """
-        circ = Circuit("R " + " ".join(map(str, range(self.n))) + "\n")
-
-        circ += compact_stim_circuit(Circuit(self._generate_circuit().to_string()))
+        circ : Circuit = compact_stim_circuit(self._generate_patch_circuit())
 
         noisy_circ = noise_model.apply(circ)
-        noisy_circ += Circuit("M " + " ".join(map(str, range(self.n))) + "\n")
+        noisy_circ += Circuit("M " + " ".join(map(str, range(self.n))) + "\n") # TODO check why apply removes measurements
+
         det = self._detectors(self.code.Hz, self.code.Lz)
-        pos = self._get_qubit_pos(1)
+        pos = self._get_qubit_pos(0)
         self.circ_Lx = pos + noisy_circ + det
         return self.circ_Lx
 
@@ -121,25 +102,20 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The circuit with detectors for logical Z.
         """
-        circ = Circuit("RX " + " ".join(map(str, range(2 * self.n))) + "\n")
-        cx_rows = self._generate_circuit()
-        patch1 = Circuit(cx_rows.to_string(skip_hs=True))
-        cx_rows_anc = self._generate_circuit(mirror=True)
-        cx_rows_anc.offset(self.n)
-        patch2 = Circuit(cx_rows_anc.to_string(skip_hs=True))
-        circ += compact_stim_circuit(patch1 + patch2)
+        patch1 = self._generate_patch_circuit()
+        patch1_noisy = self._get_qubit_pos(0) + noise_model.apply(patch1)
+        patch2 = self._get_qubit_pos(self.n) + self._generate_patch_circuit(self.n)
+        # circ += compact_stim_circuit(patch1 + patch2)
         # transversal
         cxs = []
         for i in range(self.n):
-            cxs += [i, i + self.n]
-        circ += Circuit("CX " + " ".join(map(str, cxs)) + "\n")
+            cxs += [i,i + self.n]
+        transversal_circuit = Circuit("CX " + " ".join(map(str, cxs)) + "\n")
+        transversal_circuit += Circuit("MX " + " ".join(map(str, range(0, self.n))) + "\n")
 
-        noisy_circ = noise_model.apply(circ)
-        noisy_circ += Circuit("MX " + " ".join(map(str, range(2 * self.n))) + "\n")
-        det_anc = self._detectors(self.code.Hx, np.array([]), self.n)
+        # det_anc = self._detectors(self.code.Hx, np.array([]), self.n)
         det = self._detectors(self.code.Hx, self.code.Lx)
-        pos = self._get_qubit_pos(2)
-        self.circ_Lz = pos + noisy_circ + det + det_anc
+        self.circ_Lz = patch2 + patch1_noisy  + transversal_circuit + det
         return self.circ_Lz
 
     def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8], offset: int = 0) -> Circuit:
