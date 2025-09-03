@@ -43,7 +43,6 @@ class FTSurfaceCodeStatePrep:
             self.distance_x = distance
             self.distance_z = distance
         self.n = self.distance_x * self.distance_z
-        self._generate_patch_circuit()
         self.code = RotatedSurfaceCode(x_distance=self.distance_x, z_distance=self.distance_z)
 
     def _get_qubit_pos(self, index_offset: int) -> Circuit:
@@ -61,24 +60,33 @@ class FTSurfaceCodeStatePrep:
             for row in range(self.distance_z):
                 col_adjusted = col + col_offset
                 qubit_pos += f"QUBIT_COORDS({col_adjusted},{row}) {row * self.distance_x + col + index_offset}\n"
-        qubit_pos += "R " + " ".join(map(str, range(index_offset, index_offset + self.n))) + "\n"
         return Circuit(qubit_pos)
 
     def _generate_patch_circuit(self, index_offset: int = 0) -> Circuit:
         """Generate the state preparation circuit."""
-        circ_all_rows = SurfaceCodeRow([], [])
+        circ = Circuit()
 
-        for i in list(range(self.distance_z // 2 - 1, -1, -1)) + list(range(self.distance_z // 2, self.distance_z - 1)):
-            circ_all_rows += _generate_row(
-                start_qubit_idx=i * self.distance_x,
-                small_stabilizer_left=(i % 2 == 1),
-                direction_down=(i < self.distance_z // 2),
+        for up, down in zip(list(range(self.distance_z // 2 , self.distance_z - 1)), list(range(self.distance_z // 2 - 1, -1, -1))):
+            down_row = _generate_row(
+                start_qubit_idx=down * self.distance_x,
+                small_stabilizer_left=(down % 2 == 1),
+                direction_down=True,
                 vertical_cx_direction="left",
                 horizontal_cx_direction="left",
                 width=self.distance_x,
             )
-        circ_all_rows.offset(index_offset)
-        return Circuit(circ_all_rows.to_string())
+            up_row = _generate_row(
+                start_qubit_idx=up * self.distance_x,
+                small_stabilizer_left=(up % 2 == 1),
+                direction_down=False,
+                vertical_cx_direction="right",
+                horizontal_cx_direction="right",
+                width=self.distance_x,
+            )
+            both = down_row + up_row
+            both.offset(index_offset)
+            circ += Circuit(both.to_string())
+        return circ
 
     def get_circuit_logical_x(self, noise_model: NoiseModel) -> Circuit:
         """Get the circuit with detectors added.
@@ -102,11 +110,15 @@ class FTSurfaceCodeStatePrep:
         Returns:
             Circuit: The circuit with detectors for logical Z.
         """
-        patch1 = self._generate_patch_circuit()
         # workaround to measure logical Z for 0 state in middle row
         middle_row = self.distance_z // 2
-        hs = Circuit("H " + " ".join(map(str,range(middle_row * self.distance_x, (middle_row + 1) * self.distance_x))) + "\n")
-        patch1_noisy = self._get_qubit_pos(0) + hs + noise_model.apply(patch1)
+        middle_row_qubits = list(range(middle_row * self.distance_x, (middle_row + 1) * self.distance_x))
+        patch1 = Circuit("R " + " ".join(map(str, middle_row_qubits)) + "\n")
+        patch1 += Circuit("H " + " ".join(map(str, middle_row_qubits)) + "\n")
+
+        patch1 += self._generate_patch_circuit()
+
+        patch1_noisy = self._get_qubit_pos(0) + noise_model.apply(patch1)
         measure = Circuit("MX " + " ".join(map(str, range(0, self.n))) + "\n")
 
         det = self._detectors(self.code.Hx, self.code.Lx)
@@ -134,10 +146,11 @@ class FTSurfaceCodeStatePrep:
 class SurfaceCodeRow:
     """Class containing the h and cx gates of a single row of the surface code state preparation circuit."""
 
-    def __init__(self, h_qubits: list[int], cx_qubits: list[int]) -> None:
+    def __init__(self, h_qubits: list[int], cx_qubits: list[int], reset_qubits: list[int]) -> None:
         """Initialize the SurfaceCodeRow class."""
         self.h_qubits = h_qubits
         self.cx_qubits = cx_qubits
+        self.reset_qubits = reset_qubits
 
     # override + operator
     def __add__(self, other: SurfaceCodeRow) -> SurfaceCodeRow:
@@ -145,18 +158,21 @@ class SurfaceCodeRow:
         return SurfaceCodeRow(
             h_qubits=self.h_qubits + other.h_qubits,
             cx_qubits=self.cx_qubits + other.cx_qubits,
+            reset_qubits=self.reset_qubits + other.reset_qubits,
         )
 
     def offset(self, offset: int) -> None:
         """Offset the qubit indices in the row by a given value."""
         self.h_qubits = [i + offset for i in self.h_qubits]
         self.cx_qubits = [i + offset for i in self.cx_qubits]
+        self.reset_qubits = [i + offset for i in self.reset_qubits]
 
     def to_string(self, skip_hs: bool = False) -> str:
         """Return a string representation of the row."""
-        if skip_hs:
-            return f"{'cx ' + ' '.join(map(str, self.cx_qubits))}\n"
-        return f"{'h ' + ' '.join(map(str, self.h_qubits))}\n" + f"{'cx ' + ' '.join(map(str, self.cx_qubits))}\n"
+        circ_str = "R " + " ".join(map(str, self.reset_qubits)) + "\n"
+        if not skip_hs:
+            circ_str += f"{'H ' + ' '.join(map(str, self.h_qubits))}\n"
+        return circ_str + f"{'CX ' + ' '.join(map(str, self.cx_qubits))}\n"
 
 
 def _generate_row(
@@ -177,6 +193,10 @@ def _generate_row(
         vertical_cx_direction (str): One of 'left', 'right', 'straight'.
         width (int): The width of the code patch row.
     """
+    start_reset = start_qubit_idx if direction_down else start_qubit_idx + width
+    end_reset = start_qubit_idx + width if direction_down else start_qubit_idx + 2 * width
+    reset_qubits = list(range(start_reset, end_reset))
+
     # Invert error propagation direction if stabilizer is not build downwards
     if not direction_down:
         if vertical_cx_direction == "left":
@@ -244,4 +264,4 @@ def _generate_row(
     # small stabilizer cx
     qubits_cx_v_second += [small_stabilizer_index, small_stabilizer_index + vertical_step]
 
-    return SurfaceCodeRow(h_qubits=qubits_h, cx_qubits=qubits_cx_h + qubits_cx_v_first + qubits_cx_v_second)
+    return SurfaceCodeRow(h_qubits=qubits_h, cx_qubits=qubits_cx_h + qubits_cx_v_first + qubits_cx_v_second, reset_qubits=reset_qubits)
