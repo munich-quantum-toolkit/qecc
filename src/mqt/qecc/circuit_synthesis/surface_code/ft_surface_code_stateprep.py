@@ -103,19 +103,14 @@ class FTSurfaceCodeStatePrep:
             Circuit: The circuit with detectors for logical Z.
         """
         patch1 = self._generate_patch_circuit()
-        patch1_noisy = self._get_qubit_pos(0) + noise_model.apply(patch1)
-        patch2 = self._get_qubit_pos(self.n) + self._generate_patch_circuit(self.n)
-        # circ += compact_stim_circuit(patch1 + patch2)
-        # transversal
-        cxs = []
-        for i in range(self.n):
-            cxs += [i,i + self.n]
-        transversal_circuit = Circuit("CX " + " ".join(map(str, cxs)) + "\n")
-        transversal_circuit += Circuit("MX " + " ".join(map(str, range(0, self.n))) + "\n")
+        # workaround to measure logical Z for 0 state in middle row
+        middle_row = self.distance_z // 2
+        hs = Circuit("H " + " ".join(map(str,range(middle_row * self.distance_x, (middle_row + 1) * self.distance_x))) + "\n")
+        patch1_noisy = self._get_qubit_pos(0) + hs + noise_model.apply(patch1)
+        measure = Circuit("MX " + " ".join(map(str, range(0, self.n))) + "\n")
 
-        # det_anc = self._detectors(self.code.Hx, np.array([]), self.n)
         det = self._detectors(self.code.Hx, self.code.Lx)
-        self.circ_Lz = patch2 + patch1_noisy  + transversal_circuit + det
+        self.circ_Lz = patch1_noisy + measure + det
         return self.circ_Lz
 
     def _detectors(self, detectors: npt.NDArray[np.int8], logicals: npt.NDArray[np.int8], offset: int = 0) -> Circuit:
