@@ -1,3 +1,6 @@
+# This file has been generated from an external template. Please do not modify it directly.
+# Changes should be contributed to https://github.com/munich-quantum-toolkit/templates.
+
 name: ✨ Feature request
 description: Suggest a new feature or improvement
 title: "✨ <title>"
@@ -15,9 +18,9 @@ body:
     attributes:
       label: Problem Statement
       description: >-
-        Describe the problem you're facing and why it needs to be solved. What limitations are you encountering?
+        Describe the problem you are facing and why it needs to be solved. What limitations are you encountering?
       placeholder: >-
-        Currently, when I try to [action/task], I'm unable to [blockers/limitations].
+        Currently, when I try to [action/task], I am unable to [blockers/limitations].
         This creates problems because [impact/consequences].
     validations:
       required: true
