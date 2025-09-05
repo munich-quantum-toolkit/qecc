@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import random
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
@@ -271,3 +273,195 @@ def transversal_cnot(
     for i in range(w):
         circ.append_operation("CX", [i, permutation[i] + w])
     return circ
+
+
+def binary_tree_fault_gens(w: int, include_full: bool = False):
+    assert w > 0
+    assert (w & (w - 1)) == 0
+    gens = []
+    m = w.bit_length() - 1
+    max_k = m if include_full else m - 1
+    for k in range(max_k + 1):
+        L = 1 << k
+        gens.extend(((1 << L) - 1) << start for start in range(0, w, L))
+    return gens
+
+
+def degree_sets_from_gens(gens: list[int], t: int):
+    S = [set() for _ in range(t + 1)]
+    S[0].add(0)
+    for g in gens:
+        for h in range(t, 0, -1):
+            for s in list(S[h - 1]):
+                S[h].add(s ^ g)
+    return S
+
+
+def bitcount(x: int) -> int:
+    return x.bit_count()
+
+
+def support_bits(mask: int, w: int) -> list[int]:
+    return [i for i in range(w) if (mask >> i) & 1]
+
+
+def ones_indices(mask: int, w: int) -> list[int]:
+    return [j for j in range(w) if (mask >> j) & 1]
+
+
+def apply_perm_mask(mask: int, P: list[int]) -> int:
+    """Forward permutation P: image bits go to new positions P[i]."""
+    out = 0
+    for i, j in enumerate(P):
+        if (mask >> i) & 1:
+            out |= 1 << j
+    return out
+
+
+# ---------- strict t-distinct check (cross-circuit), returns a witness ----------
+
+
+def find_violation_strict(gens1, gens2_img, t: int):
+    """Return (h1,h2,x2, image_mask, target_mask, w) or None."""
+    w = max((g.bit_length() for g in gens1 + gens2_img), default=0)
+    all_ones = (1 << w) - 1
+    S1_by_h = degree_sets_from_gens(gens1, t)
+    S2_by_h = degree_sets_from_gens(gens2_img, t)
+
+    for h2 in range(1, t + 1):
+        for h1 in range(1, t - h2 + 1):
+            S1 = S1_by_h[h1]
+            for x2 in S2_by_h[h2]:
+                y = x2
+                wtmin = min(bitcount(y), bitcount(all_ones ^ y))
+                if wtmin <= h1 + h2:
+                    continue
+                if y in S1:
+                    return (h1, h2, x2, y, y, w)
+                yc = all_ones ^ y
+                if yc in S1:
+                    return (h1, h2, x2, y, yc, w)
+    return None
+
+
+def t_distinct_cat_exact_permutation(gens1, gens2, t: int, P: list[int]) -> bool:
+    gens2_img = [apply_perm_mask(g, P) for g in gens2]
+    return find_violation_strict(gens1, gens2_img, t) is None
+
+
+# ---------- build the "bad images" catalog exactly (as in SAT one-shot) ----------
+
+
+def build_bad_catalog(gens1, gens2, t: int):
+    """For each degree h2 pattern x2 from circuit 2 (before permutation),
+    compute the set of *image masks* that are forbidden: bad_images[x2] = {b1,b2,...}.
+    """
+    w = max(g.bit_length() for g in gens1 + gens2)
+    all_ones = (1 << w) - 1
+
+    S1_by_h = degree_sets_from_gens(gens1, t)
+    S2_by_h = degree_sets_from_gens(gens2, t)
+
+    # bucket S1_by_h by weight for fast selection
+    S1_by_h_by_wt = []
+    for h in range(t + 1):
+        buckets = defaultdict(list)
+        for m in S1_by_h[h]:
+            buckets[bitcount(m)].append(m)
+        S1_by_h_by_wt.append(buckets)
+
+    bad_images = defaultdict(set)  # x2 -> set of forbidden image masks
+    x2_list = []
+    for h2 in range(1, t + 1):
+        for x2 in S2_by_h[h2]:
+            s = bitcount(x2)
+            if s == 0:
+                continue
+            x2_list.append(x2)
+            for h1 in range(1, t - h2 + 1):
+                # equality case: S1 masks with same weight s
+                for b in S1_by_h_by_wt[h1].get(s, []):
+                    if min(s, w - s) > (h1 + h2):
+                        bad_images[x2].add(b)
+                # complement case: need wt(b) == w-s, add ~b as bad image
+                for b in S1_by_h_by_wt[h1].get(w - s, []):
+                    if min(w - s, s) > (h1 + h2):
+                        bad_images[x2].add(all_ones ^ b)
+    return bad_images, x2_list, w
+
+
+# ---------- witness-guided local repair (Moser–Tardos–style) ----------
+
+
+def find_perm_local_search(w: int, t: int, seed=1, restarts=16, max_iters=500000):
+    """Build gens for two balanced 2-ary trees of size w and search a permutation P
+    so that no x2 maps to a forbidden image (strict criterion up to t).
+    Returns (P or None, stats).
+    """
+    rng = random.Random(seed)
+    gens1 = binary_tree_fault_gens(w, include_full=False)
+    gens2 = binary_tree_fault_gens(w, include_full=False)
+
+    bad_images, x2_list, w2 = build_bad_catalog(gens1, gens2, t)
+    assert w == w2
+    all_cols = list(range(w))
+
+    def random_perm():
+        P = list(range(w))
+        rng.shuffle(P)
+        inv = [0] * w
+        for i, j in enumerate(P):
+            inv[j] = i
+        return P, inv
+
+    def image_mask_of_x2(x2, P):
+        return apply_perm_mask(x2, P)
+
+    # fast membership check
+    bad_sets = {x2: set(bs) for x2, bs in bad_images.items()}
+
+    for rs in range(restarts):
+        P, invP = random_perm()
+        it = 0
+        while it < max_iters:
+            it += 1
+            # scan for a violation (sampled scan speeds it up; do full scan if you prefer)
+            found = None
+            for x2 in x2_list:
+                y = image_mask_of_x2(x2, P)
+                if y in bad_sets.get(x2, ()):
+                    found = (x2, y)
+                    break
+            if not found:
+                return P, {"status": "sat", "iters": it, "restarts": rs, "bad_x2": len(bad_sets)}
+
+            x2, y = found
+            S = support_bits(x2, w)
+            T = set(ones_indices(y, w))
+            comp_cols = [c for c in all_cols if c not in T]
+            # Try a few smart swaps to kill the event without creating another for the same x2
+            success = False
+            attempt_budget = 64
+            while attempt_budget > 0:
+                attempt_budget -= 1
+                i = rng.choice(S)
+                c = rng.choice(comp_cols)
+                k = invP[c]  # row currently mapped to column c; since c∉T, k∉S
+                # simulate swap (i <-> k) and test x2's new image
+                old_j_i, old_j_k = P[i], P[k]
+                # new image set is (T - {old_j_i}) ∪ {c}
+                new_y = (y ^ (1 << old_j_i)) | (1 << c)
+                if new_y not in bad_sets.get(x2, ()):
+                    # accept swap
+                    P[i], P[k] = P[k], P[i]
+                    invP[old_j_i], invP[old_j_k] = invP[old_j_k], invP[old_j_i]
+                    success = True
+                    break
+            if not success:
+                # random perturbation: swap two random rows (keeps P a permutation)
+                i1, i2 = rng.sample(range(w), 2)
+                j1, j2 = P[i1], P[i2]
+                P[i1], P[i2] = j2, j1
+                invP[j1], invP[j2] = i2, i1
+        # restart
+    return None, {"status": "unknown", "iters": max_iters, "restarts": restarts}
