@@ -50,6 +50,9 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- Contributor -->
 
+[**@pehamtom**]: https://github.com/pehamtom
+[**@denialhaag**]: https://github.com/denialhaag
+
 <!-- General links -->
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
