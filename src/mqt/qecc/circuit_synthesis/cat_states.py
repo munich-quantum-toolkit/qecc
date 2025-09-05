@@ -287,6 +287,88 @@ def binary_tree_fault_gens(w: int, include_full: bool = False):
     return gens
 
 
+def cat_state_pruned_balanced_circuit(w: int) -> stim.Circuit:
+    """Prepare GHZ_w using a 2^m template with descending strides and
+    prune any CX whose target >= w.
+
+    Order is coarse->fine (stride 2^(m-1) down to 1), so every control
+    has already joined the GHZ spine when it fans out.
+    """
+    if w <= 0:
+        msg = "w must be >= 1"
+        raise ValueError(msg)
+    circ = stim.Circuit()
+    circ.append_operation("H", [0])
+
+    if w == 1:
+        return circ
+
+    m = math.ceil(math.log2(w))
+    W = 1 << m  # template width
+
+    # Descending strides: 2^(m-1), 2^(m-2), ..., 1
+    for stride in (1 << k for k in range(m - 1, -1, -1)):
+        step = 2 * stride
+        for j in range(0, W, step):
+            c = j
+            t = j + stride
+            if c < w and t < w:
+                circ.append_operation("CX", [c, t])
+    return circ
+
+
+# ------------------------------------------------------------
+# Fault generators extracted from a circuit (X on control-before-CX)
+# ------------------------------------------------------------
+
+
+def _cx_forward(mask: int, c: int, t: int) -> int:
+    # Heisenberg: X_c -> X_c X_t ; X_t -> X_t
+    if (mask >> c) & 1:
+        mask ^= 1 << t
+    return mask
+
+
+def fault_gens_from_circuit(circ: stim.Circuit, include_full: bool = False) -> list[int]:
+    """Single-fault outputs for a GHZ fanout circuit:
+      • all singletons (X injected at a leaf at any time before it's touched),
+      • for each CX pair (c,t) in sequence, inject X on c *just before that CX*
+        and propagate through the remaining pairs.
+    Stim may group many disjoint CX pairs in one op; we must flatten them.
+    """
+    # 1) Flatten all CX pairs in program order.
+    w = circ.num_qubits
+    ops: list[tuple[int, int]] = []
+    for op in circ:
+        if op.name != "CX":
+            continue
+        tgts = op.targets_copy()
+        assert len(tgts) % 2 == 0
+        for k in range(0, len(tgts), 2):
+            c = tgts[k].value
+            t = tgts[k + 1].value
+            if c < w and t < w:
+                ops.append((c, t))
+
+    ALL = (1 << w) - 1
+    gens = set()
+
+    # 2) All singletons.
+    gens.update(1 << q for q in range(w))
+
+    # 3) For each CX pair position, inject X on its control just before it, then propagate forward.
+    for idx, (c0, _) in enumerate(ops):
+        mask = 1 << c0
+        for c, t in ops[idx:]:
+            mask = _cx_forward(mask, c, t)
+        if not include_full and mask == ALL:
+            continue
+        gens.add(mask)
+
+    # Deterministic order
+    return sorted(gens)
+
+
 def degree_sets_from_gens(gens: list[int], t: int):
     S = [set() for _ in range(t + 1)]
     S[0].add(0)
@@ -316,9 +398,6 @@ def apply_perm_mask(mask: int, P: list[int]) -> int:
         if (mask >> i) & 1:
             out |= 1 << j
     return out
-
-
-# ---------- strict t-distinct check (cross-circuit), returns a witness ----------
 
 
 def find_violation_strict(gens1, gens2_img, t: int):
@@ -390,25 +469,30 @@ def build_bad_catalog(gens1, gens2, t: int):
     return bad_images, x2_list, w
 
 
-# ---------- witness-guided local repair (Moser–Tardos–style) ----------
-
-
-def find_perm_local_search(w: int, t: int, seed=1, restarts=16, max_iters=500000):
-    """Build gens for two balanced 2-ary trees of size w and search a permutation P
-    so that no x2 maps to a forbidden image (strict criterion up to t).
-    Returns (P or None, stats).
-    """
+def find_perm_local_search(
+    gens1: list[int],
+    gens2: list[int],
+    w: int,
+    t: int,
+    seed=1,
+    restarts=16,
+    max_iters=500000,
+    init_perm: list[int] | None = None,
+):
+    """Same Moser–Tardos-style local repair, but gens1/gens2 are passed in."""
     rng = random.Random(seed)
-    gens1 = binary_tree_fault_gens(w, include_full=False)
-    gens2 = binary_tree_fault_gens(w, include_full=False)
 
     bad_images, x2_list, w2 = build_bad_catalog(gens1, gens2, t)
     assert w == w2
     all_cols = list(range(w))
+    bad_sets = {x2: set(bs) for x2, bs in bad_images.items()}
 
-    def random_perm():
-        P = list(range(w))
-        rng.shuffle(P)
+    def setup_perm():
+        if init_perm is not None:
+            P = init_perm[:]
+        else:
+            P = list(range(w))
+            rng.shuffle(P)
         inv = [0] * w
         for i, j in enumerate(P):
             inv[j] = i
@@ -417,15 +501,12 @@ def find_perm_local_search(w: int, t: int, seed=1, restarts=16, max_iters=500000
     def image_mask_of_x2(x2, P):
         return apply_perm_mask(x2, P)
 
-    # fast membership check
-    bad_sets = {x2: set(bs) for x2, bs in bad_images.items()}
-
     for rs in range(restarts):
-        P, invP = random_perm()
+        P, invP = setup_perm()
         it = 0
         while it < max_iters:
             it += 1
-            # scan for a violation (sampled scan speeds it up; do full scan if you prefer)
+            # find a violating x2 (sampled scan is fine; full scan is also OK)
             found = None
             for x2 in x2_list:
                 y = image_mask_of_x2(x2, P)
@@ -439,26 +520,21 @@ def find_perm_local_search(w: int, t: int, seed=1, restarts=16, max_iters=500000
             S = support_bits(x2, w)
             T = set(ones_indices(y, w))
             comp_cols = [c for c in all_cols if c not in T]
-            # Try a few smart swaps to kill the event without creating another for the same x2
+            # try targeted swaps
             success = False
-            attempt_budget = 64
-            while attempt_budget > 0:
-                attempt_budget -= 1
+            for _ in range(64):
                 i = rng.choice(S)
                 c = rng.choice(comp_cols)
-                k = invP[c]  # row currently mapped to column c; since c∉T, k∉S
-                # simulate swap (i <-> k) and test x2's new image
+                k = invP[c]  # k ∉ S
                 old_j_i, old_j_k = P[i], P[k]
-                # new image set is (T - {old_j_i}) ∪ {c}
                 new_y = (y ^ (1 << old_j_i)) | (1 << c)
                 if new_y not in bad_sets.get(x2, ()):
-                    # accept swap
                     P[i], P[k] = P[k], P[i]
                     invP[old_j_i], invP[old_j_k] = invP[old_j_k], invP[old_j_i]
                     success = True
                     break
             if not success:
-                # random perturbation: swap two random rows (keeps P a permutation)
+                # random shake
                 i1, i2 = rng.sample(range(w), 2)
                 j1, j2 = P[i1], P[i2]
                 P[i1], P[i2] = j2, j1
