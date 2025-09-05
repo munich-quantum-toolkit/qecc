@@ -41,12 +41,12 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 <!-- PR links -->
 
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
-[#482]: https://github.com/munich-quantum-toolkit/qecc/pull/482
-[#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
-[#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
-[#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
-[#462]: https://github.com/munich-quantum-toolkit/qecc/pull/462
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
+[#482]: https://github.com/munich-quantum-toolkit/qecc/pull/482
+[#462]: https://github.com/munich-quantum-toolkit/qecc/pull/462
+[#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
+[#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
+[#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 
 <!-- Contributor -->
 
