@@ -198,7 +198,7 @@ class CatStatePreparationExperiment:
         colors = cmap(np.linspace(0, 1, len(x)))
 
         bar_width = 0.8
-        for xi, yi, err, color in zip(x, hist, hist_err, colors):
+        for xi, yi, err, color in zip(x, hist, hist_err, colors, strict=False):
             ax.bar(
                 xi,
                 yi,
@@ -245,7 +245,7 @@ class CatStatePreparationExperiment:
         hists_err = None
         ras = []
         ra_errs = []
-        for p, n_shots in zip(ps, shots_per_p):
+        for p, n_shots in zip(ps, shots_per_p, strict=False):
             ra, ra_err, hist, hist_err = self.sample_cat_state(p, n_shots, batch_size=100000)
             ras.append(ra)
             ra_errs.append(ra_err)

@@ -135,7 +135,7 @@ def save_code(
 
     matrices: list[csr_matrix] = [hx, hz, mz, lx, lz]
     names = ["hx", "hz", "mz", "lx", "lz"]
-    for mat, name in zip(matrices, names):
+    for mat, name in zip(matrices, names, strict=False):
         if mat is not None:
             path_str = path + name
             try:

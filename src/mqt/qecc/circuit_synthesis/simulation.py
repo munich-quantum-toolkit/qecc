@@ -109,7 +109,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         ctrls = self.data_qubits if self.zero_state else anc_qubits
         trgts = anc_qubits if self.zero_state else self.data_qubits
-        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts) for item in pair])
+        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts, strict=False) for item in pair])
         if self.zero_state:
             noisy_circ.append("MRX", self.data_qubits)
             noisy_circ.append("MRX", anc_qubits)
@@ -321,7 +321,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
                 )
                 for p in ps
             ]
-            p_ls, r_as = zip(*[(p_l, r_a) for p_l, r_a, _, _ in results])
+            p_ls, r_as = zip(*[(p_l, r_a) for p_l, r_a, _, _ in results], strict=False)
 
         if plot_secondary:
             results_secondary = [
@@ -332,7 +332,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
                 )
                 for p in ps
             ]
-            p_ls_secondary, r_as = zip(*[(p_l, r_a) for p_l, r_a, _, _ in results_secondary])
+            p_ls_secondary, r_as = zip(*[(p_l, r_a) for p_l, r_a, _, _ in results_secondary], strict=False)
 
         # Create a figure with a consistent size
         plt.figure(figsize=(12, 6))
