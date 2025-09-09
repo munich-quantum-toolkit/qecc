@@ -89,7 +89,7 @@ To support this endeavor, please consider:
 
 ## System Requirements
 
-MQT QECC can be installed on all major operating systems with all supported Python versions.
+MQT QECC can be installed on all major operating systems with all [officially supported Python versions](https://devguide.python.org/versions/).
 Building (and running) is continuously tested under Linux, macOS, and Windows using the [latest available system versions for GitHub Actions](https://github.com/actions/runner-images).
 
 ## Cite This
