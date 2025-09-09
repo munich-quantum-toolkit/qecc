@@ -149,7 +149,10 @@ def run_parallel(path: Path) -> pd.DataFrame:
     results_run = pd.DataFrame()
     verifications = ["heuristic", "optimal", "global"]
     for name, verify, stats in zip(
-        verifications, [verify_heuristic, verify_optimal, verify_global], [stats_heuristic, stats_optimal, stats_global]
+        verifications,
+        [verify_heuristic, verify_optimal, verify_global],
+        [stats_heuristic, stats_optimal, stats_global],
+        strict=False,
     ):
         results_run = pd.concat([
             results_run,

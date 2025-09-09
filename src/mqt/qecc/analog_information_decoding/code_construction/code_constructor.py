@@ -131,7 +131,7 @@ def save_code(
     path = create_outpath(codename)
     ms = [hx, hz, mx, mz, lx, lz] if lx is not None and lz is not None else [hx, hz, mx, mz]
     names: list[str] = ["hx", "hz", "mx", "mz", "lx", "lz"]
-    for mat, name in zip(ms, names):
+    for mat, name in zip(ms, names, strict=False):
         if mat is not None:
             np.savetxt(path + name + ".txt", mat, fmt="%i")
             sio.mmwrite(

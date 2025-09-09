@@ -374,7 +374,9 @@ class NoisyDFTStatePrepSimulator:
         circuit.append({"init": set(range(self._ancilla_index, self._ancilla_index + num_ancillas))})
 
         flag_ancilla_index = self._ancilla_index + len(verification_stabilizers)
-        for stabilizer, flagged in zip(verification_stabilizers, [bool(hook) for hook in hook_corrections]):
+        for stabilizer, flagged in zip(
+            verification_stabilizers, [bool(hook) for hook in hook_corrections], strict=False
+        ):
             stabilizer_sup = _support_int(stabilizer)
             if not z_stabs:
                 circuit.append({"H": {self._ancilla_index}})

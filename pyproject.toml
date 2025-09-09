@@ -38,7 +38,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -47,7 +46,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Typing :: Typed",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "qiskit[qasm3-import]>=1.0.0",
   "numpy>=2.1; python_version >= '3.13'",
@@ -56,8 +55,7 @@ dependencies = [
   "numba>=0.61; python_version >= '3.13'",
   "numba>=0.59; python_version >= '3.12'",
   "numba>=0.57",
-  "scipy>=1.15.2; python_version >= '3.10'",
-  "scipy>=1.13.1",
+  "scipy>=1.15.2",
   "z3-solver>=4.15.3",
   "multiprocess >= 0.70.17",
   "ldpc>=0.1.60,<2", # temporary upper cap due to failures seen with ldpc v2
@@ -122,9 +120,6 @@ filterwarnings = [
   'ignore:.*Conditioned gates in qasm2 will be loaded as an IfElseOp starting in Qiskit 2.0.*:FutureWarning:',
   'ignore:.*``qiskit.circuit.singleton.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.c_if.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
-  # Qiskit 2.1 starts to warn about the upcoming Python 3.9 removal in Qiskit 2.3.
-  # We will drop 3.9 support around the same time, at which point this warning filter can be removed
-  'ignore:.*Using Qiskit with Python 3.9 is deprecated as of the 2.1.0 release.*:DeprecationWarning:',
 ]
 
 [tool.coverage]
@@ -144,7 +139,7 @@ run.disable_warnings = [
 [tool.mypy]
 files = ["src/mqt", "tests", "noxfile.py"]
 mypy_path = ["$MYPY_CONFIG_FILE_DIR/src"]
-python_version = "3.9"
+python_version = "3.10"
 warn_unused_configs = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 strict = true
@@ -277,8 +272,7 @@ docs = [
   "sphinxcontrib-svg2pdfconverter>=1.3.0",
   "sphinxext-opengraph>=0.10.0",
   "myst-nb>=1.2.0",
-  "sphinx>=7.4.7",
-  "sphinx>=8.1.3; python_version >= '3.10'",
+  "sphinx>=8.1.3",
   "sphinx>=8.2.3; python_version >= '3.11'",
   "qiskit[qasm3-import,visualization]>=1.0.0",
   "ipywidgets>=8.1.5",

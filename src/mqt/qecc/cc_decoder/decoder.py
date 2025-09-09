@@ -85,7 +85,7 @@ class LightsOut:
             self.preconstruct_parity_constraint(light, switches)
 
         if weights is not None and len(weights) > 0:
-            for switch, weight in zip(self.switch_vars, weights):
+            for switch, weight in zip(self.switch_vars, weights, strict=False):
                 self.optimizer.add_soft(Not(switch), weight)
         else:
             for switch in self.switch_vars:

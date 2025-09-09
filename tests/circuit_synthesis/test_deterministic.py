@@ -220,7 +220,7 @@ def test_steane_det_verification(
     """Test correctness of deterministic verification circuit for the Steane code."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
         assert_stabs(verify_z, steane_code_sp_plus.circ.get_code(), z_stabs=False)
         assert verify_x.num_ancillas_total() == 0
@@ -238,7 +238,7 @@ def test_steane_det_simulation(
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
     code = CSSCode.from_code_name("Steane")
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         simulator = NoisyDFTStatePrepSimulator(
             steane_code_sp_plus.circ.to_qiskit_circuit(), (verify_z, verify_x), code, err_model, False
         )
@@ -255,7 +255,7 @@ def test_surface_det_verification(
     """Test correctness of deterministic verification circuit for the d=3 rotated surface code."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         assert_statistics(verify_x, 1, 3, 1, 3)
         assert_stabs(verify_x, surface_code_sp_zero.circ.get_code(), z_stabs=True)
         assert verify_z.num_ancillas_total() == 0
@@ -273,7 +273,7 @@ def test_surface_det_simulation(
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
     code = CSSCode.from_code_name("surface", 3)
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         simulator = NoisyDFTStatePrepSimulator(
             surface_code_sp_zero.circ.to_qiskit_circuit(), (verify_x, verify_z), code, err_model, True
         )
