@@ -22,12 +22,16 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Changed
 
-- Stop testing on x86 macOS systems ([#499]) ([**@denialhaag**])
 - Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
 - `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. ([#462]) ([**@pehamtom**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
+
+### Removed
+
+- Drop support for Python 3.9 ([#503]) ([**@denialhaag**])
+- Stop testing on x86 macOS systems ([#499]) ([**@denialhaag**])
 
 ## [1.9.0] - 2025-03-14
 
@@ -40,6 +44,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
+[#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
 [#482]: https://github.com/munich-quantum-toolkit/qecc/pull/482
