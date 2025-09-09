@@ -625,7 +625,7 @@ def _set_cover(
     cover: set[frozenset[int]] = set()
 
     while universe:
-        best = max(cands, key=lambda stab: (len(stab & universe), -np.sum(mapping[stab])))  # type: ignore[operator]
+        best = max(cands, key=lambda stab: (len(stab & universe), -np.sum(mapping[stab])))
         cover.add(best)
         universe -= best
     return cover
@@ -899,7 +899,7 @@ def get_hook_errors(measurements: list[npt.NDArray[np.int8]]) -> PureFaultSet:
     return PureFaultSet.from_fault_array(np.array(errors))
 
 
-def final_matrix_constraint(columns: npt.NDArray[z3.BoolRef | bool], rank: int) -> z3.BoolRef:
+def final_matrix_constraint(columns: npt.NDArray[np.bool_], rank: int) -> z3.BoolRef:
     """Return a z3 constraint that the final matrix has exactly rank non-zero columns."""
     assert len(columns.shape) == 3
     return z3.PbEq(

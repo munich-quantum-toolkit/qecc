@@ -268,10 +268,10 @@ class CSSCode(StabilizerCode):
                 msg = f"Invalid stabilizer: {stab}"
                 raise InvalidCSSCodeError(msg)
         # convert to numpy arrays
-        x_stabs = np.array(x_stabs, dtype=np.int8)
-        z_stabs = np.array(z_stabs, dtype=np.int8)
+        x_stabs_array = np.array(x_stabs, dtype=np.int8)
+        z_stabs_array = np.array(z_stabs, dtype=np.int8)
         # check if the code is valid
-        return CSSCode(x_stabs, z_stabs)
+        return CSSCode(x_stabs_array, z_stabs_array)
 
 
 class InvalidCSSCodeError(ValueError):

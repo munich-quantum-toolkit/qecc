@@ -189,7 +189,7 @@ def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8],
 
 
 def _final_matrix_constraint_partially_full_reduction(
-    columns: npt.NDArray[z3.BoolRef | bool], full_reduction_rows: list[int], rank: int
+    columns: npt.NDArray[np.bool_], full_reduction_rows: list[int], rank: int
 ) -> z3.BoolRef:
     assert len(columns.shape) == 3
 

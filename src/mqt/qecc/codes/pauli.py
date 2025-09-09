@@ -91,11 +91,11 @@ class Pauli:
 
     def x_part(self) -> npt.NDArray[np.int8]:
         """Return the X part of the Pauli operator."""
-        return self.symplectic[: self.n]
+        return np.asarray(self.symplectic[: self.n], dtype=np.int8)
 
     def z_part(self) -> npt.NDArray[np.int8]:
         """Return the Z part of the Pauli operator."""
-        return self.symplectic[self.n :]
+        return np.asarray(self.symplectic[self.n :], dtype=np.int8)
 
     def __eq__(self, other: object) -> bool:
         """Check if this Pauli operator is equal to another Pauli operator."""

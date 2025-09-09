@@ -161,9 +161,7 @@ class SingleShotSimulator:
             msg = "analog_tg and analog_info cannot be both True"
             raise ValueError(msg)
 
-    def _single_sample(
-        self,
-    ) -> tuple[bool, bool]:
+    def _single_sample(self) -> tuple[bool, bool]:
         """Simulates a single sample for a given sustainable threshold depth."""
         residual_err: list[NDArray[np.int32]] = [
             np.zeros(self.n).astype(np.int32),  # X-residual error part
@@ -172,7 +170,7 @@ class SingleShotSimulator:
 
         # for single shot simulation we have sus_th_depth number of 'noisy' simulations (residual error carried over)
         # followed by a single round of perfect syndrome extraction after the sustainable threshold loop
-        for _round in range(self.sus_th_depth):
+        for _ in range(self.sus_th_depth):
             x_err, z_err = generate_err(
                 nr_qubits=self.n,
                 channel_probs=self.data_error_channel,
@@ -196,7 +194,7 @@ class SingleShotSimulator:
             self._total_decoding_time += end - start
 
             residual_err = [
-                np.array((x_err + x_decoded) % 2, dtype=np.int32),  # np conversion needed to avoid rt error
+                np.array((x_err + x_decoded) % 2, dtype=np.int32),
                 np.array((z_err + z_decoded) % 2, dtype=np.int32),
             ]
 
@@ -237,8 +235,13 @@ class SingleShotSimulator:
         return is_x_logical_error, is_z_logical_error
 
     def _get_noisy_syndrome(
-        self, x_syndrome: NDArray[np.int32], z_syndrome: NDArray[np.int32]
+        self,
+        x_syndrome: NDArray[np.int32],
+        z_syndrome: NDArray[np.int32],
     ) -> tuple[NDArray[Any], NDArray[Any]]:
+        x_syndrome_w_err: NDArray[Any]
+        z_syndrome_w_err: NDArray[Any]
+
         if self.syndr_err_rate != 0.0:
             if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
                 x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x)

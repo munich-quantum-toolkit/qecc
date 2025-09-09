@@ -81,7 +81,7 @@ class CatStatePreparationExperiment:
     """
 
     def __init__(
-        self, circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[int] | None = None
+        self, circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[np.int_] | None = None
     ) -> None:
         """Initialize the experiment with the two halves of the cat state preparation circuit.
 
@@ -221,7 +221,7 @@ class CatStatePreparationExperiment:
 
     def cat_prep_experiment(
         self, ps: list[float], shots_per_p: int | list[int]
-    ) -> tuple[list[float], list[float], npt.NDArray[np.int_], npt.NDArray[np.int_]]:
+    ) -> tuple[list[float], list[float], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Run a series of cat state preparation experiments.
 
         Args:
@@ -254,12 +254,15 @@ class CatStatePreparationExperiment:
                 hists_err = hist_err
             else:
                 hists = np.vstack((hists, hist))
+                assert hists_err is not None
                 hists_err = np.vstack((hists_err, hist_err))
+        assert hists is not None
+        assert hists_err is not None
         return ras, ra_errs, hists, hists_err
 
 
 def transversal_cnot(
-    circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[int] | None = None
+    circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[np.int_] | None = None
 ) -> stim.Circuit:
     """Perform a transversal CNOT from circ1 to circ2."""
     # this function assumes that circ1 acts on the first w qubits and circ2 on the second w qubits

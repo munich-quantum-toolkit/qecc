@@ -150,18 +150,18 @@ def assert_stabs(verify: DeterministicVerification, code: CSSCode, z_stabs: bool
         checks, checks_other = checks_other, checks
 
     for stab in verify.stabs:
-        assert in_span(checks, stab)
+        assert in_span(checks.astype(np.int_), stab.astype(np.int_))
     for correction in verify.det_correction.values():
         stabs, _ = correction
         for stab in stabs:
-            assert in_span(checks, stab)
+            assert in_span(checks.astype(np.int_), stab.astype(np.int_))
     for hook in verify.hook_corrections:
         if not hook:
             continue
         for correction in hook.values():
             stabs, _ = correction
             for stab in stabs:
-                assert in_span(checks_other, stab)
+                assert in_span(checks_other.astype(np.int_), stab.astype(np.int_))
 
 
 def assert_scaling(simulation_results: list[npt.NDArray[np.float64]]) -> None:

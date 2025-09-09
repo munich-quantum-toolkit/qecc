@@ -107,8 +107,8 @@ def _assert_correct_encoding_circuit(encoder: CNOTCircuit, code: CSSCode) -> Non
     circuit_code = encoder.get_code()
 
     # assert correct propagation of stabilizers
-    assert eq_span(code.Hx, circuit_code.Hx)
-    assert eq_span(code.Hz, circuit_code.Hz)
+    assert eq_span(code.Hx.astype(np.int_), circuit_code.Hx.astype(np.int_))
+    assert eq_span(code.Hz.astype(np.int_), circuit_code.Hz.astype(np.int_))
 
     # assert correct propagation of logicals
     for logical in circuit_code.Lz:

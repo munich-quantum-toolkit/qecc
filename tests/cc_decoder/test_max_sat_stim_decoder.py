@@ -21,7 +21,7 @@ from mqt.qecc.cc_decoder.stim_interface.max_sat_stim_decoder import MaxSatStim
 
 
 @pytest.fixture
-def hamming_code() -> NDArray[bool]:
+def hamming_code() -> NDArray[np.bool_]:
     """Return the hamming code check matrix."""
     return np.array([
         [True, True, False, True, True, False, False],

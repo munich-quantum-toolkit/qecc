@@ -41,7 +41,7 @@ class SinterCompiledDecoderMaxSat(CompiledDecoder):  # type: ignore[misc]
 
     def decode_shots_bit_packed(
         self,
-        bit_packed_detection_event_data: NDArray[NDArray[np.uint8]],
+        bit_packed_detection_event_data: NDArray[np.uint8],
     ) -> NDArray[np.uint8]:
         """Decode bitpacked shots from sinter simulation using batch decoder."""
         predictions, converged_cnt, not_converged_cnt = self.decoder.decode_batch(

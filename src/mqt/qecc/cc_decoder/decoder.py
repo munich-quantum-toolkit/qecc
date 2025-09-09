@@ -70,7 +70,7 @@ class LightsOut:
             constraint = Xor(self.switch_vars[indices[0]], helper_vars[0]) == val
         self.optimizer.add(simplify(constraint))
 
-    def preconstruct_z3_instance(self, weights: npt.NDArray[float] = None) -> None:
+    def preconstruct_z3_instance(self, weights: npt.NDArray[np.float64] | None = None) -> None:
         """Preconstruct the z3 instance for the lights-out problem.
 
         Creates all necessary variables, adds the known parts of the parity constraints.
