@@ -19,7 +19,6 @@ import stim
 import z3
 from ldpc import mod2
 
-from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
 from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
@@ -178,10 +177,6 @@ def depth_optimal_encoding_circuit(
 
 def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
     """Return the stabilizer matrix with the fewest checks, the corresponding logicals and a bool indicating whether X- or Z-checks have been returned."""
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
-        raise InvalidCSSCodeError(msg)
-
     use_x_checks = code.Hx.shape[0] < code.Hz.shape[0]
     checks = code.Hx if use_x_checks else code.Hz
     logicals = code.Lx if use_x_checks else code.Lz

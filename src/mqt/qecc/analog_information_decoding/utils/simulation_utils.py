@@ -228,7 +228,7 @@ def error_channel_setup(
     return channel_probs_x, channel_probs_y, channel_probs_z
 
 
-def build_single_stage_pcm(pcm: NDArray[np.int_], meta: NDArray[np.int_]) -> NDArray[np.int_]:
+def build_single_stage_pcm(pcm: NDArray[np.int32], meta: NDArray[np.int32]) -> NDArray[np.int32]:
     """Build the single statge parity check matrix."""
     id_r = np.identity(meta.shape[1])
     zeros = np.zeros((meta.shape[0], pcm.shape[1]))

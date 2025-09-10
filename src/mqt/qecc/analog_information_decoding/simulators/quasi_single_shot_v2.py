@@ -42,10 +42,10 @@ class QssSimulator:
 
     def __init__(
         self,
-        pcm: NDArray[np.int_],
+        pcm: NDArray[np.int32],
         per: float,
         ser: float,
-        logicals: NDArray[np.int_],
+        logicals: NDArray[np.int32],
         bias: NDArray[np.float64],
         codename: str,
         bp_params: BpParams,
@@ -179,11 +179,11 @@ class QssSimulator:
 
     def _decode_multiround(
         self,
-        syndrome_mat: NDArray[np.int_],
+        syndrome_mat: NDArray[np.int32],
         analog_syndr_mat: NDArray[np.float64],
         last_round: bool = False,
     ) -> tuple[Any, NDArray[np.int32], NDArray[np.float64], int]:
-        return decode_multiround(
+        decoded, syndrome, analog_syndr, bp_iter = decode_multiround(
             syndrome=syndrome_mat,
             pcm=self.H,
             decoder=self.decoder,
@@ -196,6 +196,8 @@ class QssSimulator:
             channel_probs=self.channel_probs,
             decoding_method=self.decoding_method,
         )
+        assert analog_syndr is not None
+        return decoded, syndrome, analog_syndr, bp_iter
 
     def _single_sample(self) -> int:
         # prepare fresh syndrome matrix and error vector

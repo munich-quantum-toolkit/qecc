@@ -336,7 +336,7 @@ def detector_error_model() -> stim.DetectorErrorModel:
         error(0.5) D8 D11""")
 
 
-def test_check_matrix_to_adj_lists(hamming_code: NDArray[bool]) -> None:
+def test_check_matrix_to_adj_lists(hamming_code: NDArray[np.bool]) -> None:
     """Test the matrix to adjacency lists function."""
     expected_qft = {0: [0], 1: [0, 1], 3: [0, 2], 4: [0, 1, 2], 2: [1], 5: [1, 2], 6: [2]}
     expected_ftq = {0: [0, 1, 3, 4], 1: [1, 2, 4, 5], 2: [3, 4, 5, 6]}

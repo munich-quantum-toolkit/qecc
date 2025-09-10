@@ -360,6 +360,7 @@ class SingleShotSimulator:
                 sigma=sigma,
             )
         else:
+            meta_syndr: NDArray[np.int_] | NDArray[np.float64]
             if self.analog_info:
                 meta_bin = (meta_pcm @ get_binary_from_analog(syndrome_w_err)) % 2
                 meta_syndr = get_signed_from_binary(meta_bin)  # for AI decoder we need {-1,+1} syndrome as input
@@ -393,7 +394,7 @@ class SingleShotSimulator:
         meta_syndr = (meta_pcm @ bin_syndr) % 2
         ss_syndr = np.hstack((bin_syndr, meta_syndr))
         # only first n bit are data, return them
-        return decoder.decode(ss_syndr)[: self.n]
+        return np.asarray(decoder.decode(ss_syndr)[: self.n], dtype=np.int32)
 
     def _two_stage_decoding(
         self, x_syndrome_w_err: NDArray[np.float64], z_syndrome_w_err: NDArray[np.float64]
@@ -493,7 +494,7 @@ class SingleShotSimulator:
         analog_channel = get_virtual_check_init_vals(analog_syndrome, sigma)
         decoder.update_channel_probs(np.hstack((bit_err_channel, analog_channel)))
         # only first n bit are data so only return those
-        return decoder.decode(hard_syndrome)[: self.n]
+        return np.asarray(decoder.decode(hard_syndrome)[: self.n], dtype=np.int32)
 
     def _single_stage_setup(
         self,
@@ -512,14 +513,12 @@ class SingleShotSimulator:
 
         # setup single stage matrices (Oscar&Niko method) H = [[H, Im],    H ~ mxn, I ~ mxm, M ~ lxm
         #                                                      [0, M]]
+        self.ss_z_pcm: NDArray[np.int32] | None = None
         if self.z_meta and self.Mz is not None:
-            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz)
-        else:
-            self.ss_z_pcm = None
+            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz.astype(np.int_))
+        self.ss_x_pcm: NDArray[np.int32] | None = None
         if self.x_meta and self.Mx is not None:
             self.ss_x_pcm = build_single_stage_pcm(self.Hx, self.Mx)
-        else:
-            self.ss_x_pcm = None
 
         # X-checks := (Hx|Mx) => Influenced by Z-syndrome error rate
         # ss_x_bpd used to decode X bit errors using Z-side check matrices

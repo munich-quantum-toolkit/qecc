@@ -21,7 +21,6 @@ import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit
 from tqdm import tqdm
 
-from ..codes import InvalidCSSCodeError
 from .circuit_utils import measured_qubits, qiskit_to_stim_circuit, relabel_qubits, unmeasured_qubits
 from .circuits import CNOTCircuit
 from .noise import CircuitLevelNoiseIdlingParallel
@@ -58,10 +57,6 @@ class NoisyNDFTStatePrepSimulator(ABC):
             zero_state: Whether the zero state is prepared or nor.
             decoder: The decoder to use.
         """
-        if code.Hx is None or code.Hz is None:
-            msg = "The code must have both X and Z checks."
-            raise InvalidCSSCodeError(msg)
-
         if isinstance(state_prep_circ, QuantumCircuit):
             self.circ = qiskit_to_stim_circuit(state_prep_circ)
         elif isinstance(state_prep_circ, CNOTCircuit):

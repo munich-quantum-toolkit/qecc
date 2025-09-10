@@ -96,7 +96,7 @@ class DeterministicVerification:
 
     def num_cnots_verification(self) -> int:
         """Return the number of CNOTs needed for the verification."""
-        return np.sum([np.sum(m) for m in self.stabs])
+        return int(np.sum([np.sum(m) for m in self.stabs]))
 
     def num_ancillas_correction(self) -> int:
         """Return the number of ancillas needed for the correction."""
@@ -307,7 +307,7 @@ class DeterministicVerificationHelper:
                     # hook errors are non-trivial
                     # add case of error on hook ancilla
                     hook_errors = PureFaultSet.from_fault_array(
-                        np.vstack((hook_errors, np.zeros(self.num_qubits, dtype=np.int8)))
+                        np.vstack((hook_errors.to_array(), np.zeros(self.num_qubits, dtype=np.int8)))
                     )
                     self._layers[layer_idx][verify_idx].hook_corrections[stab_idx] = {
                         1: deterministic_correction_single_outcome(

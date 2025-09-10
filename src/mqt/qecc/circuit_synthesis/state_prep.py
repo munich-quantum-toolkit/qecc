@@ -19,7 +19,6 @@ import z3
 from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
-from ..codes import InvalidCSSCodeError
 from .circuits import CNOTCircuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis_utils import (
@@ -207,9 +206,6 @@ def heuristic_prep_circuit(
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
     """
     logger.info("Starting heuristic state preparation.")
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
-        raise InvalidCSSCodeError(msg)
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
@@ -369,7 +365,7 @@ def all_gate_optimal_verification_stabilizers(
         # Minimal CNOT solution must be achievable with these
         num_anc = max_ancillas
         min_cnots: int = np.min(np.sum(stabs, axis=1))
-        max_cnots: int = np.sum(stabs)
+        max_cnots = int(np.sum(stabs))
 
         logger.info(
             f"Finding verification stabilizers for {layer + 1} errors with {min_cnots} to {max_cnots} CNOTs using {num_anc} ancillas"

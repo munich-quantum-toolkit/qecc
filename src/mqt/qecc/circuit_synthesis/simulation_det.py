@@ -24,7 +24,6 @@ except ImportError:
     raise ImportError(msg) from ImportError
 
 
-from ..codes import InvalidCSSCodeError
 from .simulation import LutDecoder
 
 if TYPE_CHECKING:
@@ -113,10 +112,6 @@ class NoisyDFTStatePrepSimulator:
             err_model: The error model to use for the simulation.
             zero_state: If True the state preparation circuit prepares the |0> state, otherwise the |+> state.
         """
-        if code.Hx is None or code.Hz is None:
-            msg = "The code must have both X and Z checks."
-            raise InvalidCSSCodeError(msg)
-
         if code.distance >= 5:
             msg = "Only distance <5 CSS codes are supported."
             raise UnsupportedCodeError(msg)
