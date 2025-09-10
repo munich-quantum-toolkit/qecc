@@ -364,7 +364,7 @@ def _column_addition_constraint(
     return z3.And(constraints)
 
 
-def symbolic_vector_eq(v1: npt.NDArray[np.bool_], v2: npt.NDArray[np.bool_]) -> z3.BoolRef:
+def symbolic_vector_eq(v1: npt.NDArray[np.bool_] | list[z3.BoolRef], v2: npt.NDArray[np.bool_]) -> z3.BoolRef:
     """Return assertion that two symbolic vectors should be equal."""
     if len(v1) != len(v2):
         msg = "Vectors must have the same length for equality check."

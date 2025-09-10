@@ -491,8 +491,8 @@ def _verification_circuit(
     x_measurements = measurements_2 if verify_x_first else measurements_1
     return _measure_ft_stabs(
         sp_circ,
-        x_measurements,
-        z_measurements,
+        np.asarray(x_measurements, dtype=np.int8),
+        np.asarray(z_measurements, dtype=np.int8),
         verify_x_first=verify_x_first,
         flag_first_layer=flag_first_layer,
     )
@@ -713,7 +713,12 @@ def _heuristic_layer(
     return measurements
 
 
-def _measure_ft_x(qc: QuantumCircuit, x_measurements: list[npt.NDArray[np.int8]], t: int, flags: bool = False) -> None:
+def _measure_ft_x(
+    qc: QuantumCircuit,
+    x_measurements: npt.NDArray[np.int8],
+    t: int,
+    flags: bool = False,
+) -> None:
     if len(x_measurements) == 0:
         return
     num_x_anc = len(x_measurements)
@@ -733,7 +738,7 @@ def _measure_ft_x(qc: QuantumCircuit, x_measurements: list[npt.NDArray[np.int8]]
             qc.measure(x_anc[i], x_c[i])
 
 
-def _measure_ft_z(qc: QuantumCircuit, z_measurements: list[npt.NDArray[np.int8]], t: int, flags: bool = False) -> None:
+def _measure_ft_z(qc: QuantumCircuit, z_measurements: npt.NDArray[np.int8], t: int, flags: bool = False) -> None:
     if len(z_measurements) == 0:
         return
     num_z_anc = len(z_measurements)
@@ -753,8 +758,8 @@ def _measure_ft_z(qc: QuantumCircuit, z_measurements: list[npt.NDArray[np.int8]]
 
 def _measure_ft_stabs(
     sp_circ: FaultyStatePrepCircuit,
-    x_measurements: list[npt.NDArray[np.int8]],
-    z_measurements: list[npt.NDArray[np.int8]],
+    x_measurements: npt.NDArray[np.int8],
+    z_measurements: npt.NDArray[np.int8],
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
 ) -> QuantumCircuit:

@@ -13,7 +13,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc import mod2
+
+from mqt.qecc import CSSCode
+from mqt.qecc.circuit_synthesis import (
+    DeterministicVerificationHelper,
+    heuristic_prep_circuit,
+)
+
+from .utils import in_span
 
 try:
     from qsample import noise
@@ -23,13 +30,6 @@ try:
     HAS_QSAMPLE = True
 except ImportError:
     HAS_QSAMPLE = False
-
-
-from mqt.qecc import CSSCode
-from mqt.qecc.circuit_synthesis import (
-    DeterministicVerificationHelper,
-    heuristic_prep_circuit,
-)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -112,11 +112,6 @@ def verified_11_1_3_data(
     return verify_x, verify_z
 
 
-def in_span(m: npt.NDArray[np.int_], v: npt.NDArray[np.int_]) -> bool:
-    """Check if a vector is in the row space of a matrix."""
-    return bool(mod2.rank(np.vstack((m, v))) == mod2.rank(m))
-
-
 def assert_statistics(
     verify: DeterministicVerification,
     num_ancillas_verification: int,
@@ -150,18 +145,18 @@ def assert_stabs(verify: DeterministicVerification, code: CSSCode, z_stabs: bool
         checks, checks_other = checks_other, checks
 
     for stab in verify.stabs:
-        assert in_span(checks.astype(np.int_), stab.astype(np.int_))
+        assert in_span(checks, stab)
     for correction in verify.det_correction.values():
         stabs, _ = correction
         for stab in stabs:
-            assert in_span(checks.astype(np.int_), stab.astype(np.int_))
+            assert in_span(checks, stab)
     for hook in verify.hook_corrections:
         if not hook:
             continue
         for correction in hook.values():
             stabs, _ = correction
             for stab in stabs:
-                assert in_span(checks_other.astype(np.int_), stab.astype(np.int_))
+                assert in_span(checks_other, stab)
 
 
 def assert_scaling(simulation_results: list[npt.NDArray[np.float64]]) -> None:

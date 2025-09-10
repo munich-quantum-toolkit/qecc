@@ -42,8 +42,11 @@ if TYPE_CHECKING:
 
 
 Recovery = tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]]
-Recoveries = dict[int, Recovery]
-DeterministicCorrection = dict[int, tuple[list[npt.NDArray[np.int8]], Recoveries]]
+DeterministicCorrection = dict[
+    int,
+    tuple[npt.NDArray[np.int8], dict[int, npt.NDArray[np.int8]]]
+    | tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]],
+]
 Verification = list[npt.NDArray[np.int8]]
 
 
@@ -466,8 +469,8 @@ class DeterministicVerificationHelper:
                         return_all_solutions=compute_all_solutions,
                     )[0]
                 else:
-                    stabs_2_list = heuristic_verification_stabilizers(fault_set, self.checks[1])[0]
-                    stabs_2_list = [stabs_2_list]
+                    stabs_2_list_ = heuristic_verification_stabilizers(fault_set, self.checks[1])[0]
+                    stabs_2_list = [stabs_2_list_]
                 verify_2_list = [DeterministicVerification(stabs_2, {}) for stabs_2 in stabs_2_list]
                 # check if better than normal verification
                 anc_saved = (
@@ -658,7 +661,7 @@ def deterministic_correction(
     logger.info("Fault set has %s faults.", len(fault_set))
     logger.info("Non-deterministic verification stabilizers: %s", nd_d3_verification_stabilizers)
 
-    det_verify = {}
+    det_verify: DeterministicCorrection = {}
     for verify_outcome_int in range(1, 2**num_nd_stabs):
         verify_outcome = _int_to_int8_array(verify_outcome_int, num_nd_stabs)
         logger.info(
@@ -829,8 +832,8 @@ def correction_stabilizers(
 
 def _extract_measurement_and_correction(
     model: z3.Model,
-    gens: list[npt.NDArray[np.int8]],
-    correction_gens: list[npt.NDArray[np.int8]],
+    gens: npt.NDArray[np.int8],
+    correction_gens: npt.NDArray[np.int8],
     n_qubits: int,
     num_anc: int,
     measurement_vars: list[list[z3.BoolRef]],

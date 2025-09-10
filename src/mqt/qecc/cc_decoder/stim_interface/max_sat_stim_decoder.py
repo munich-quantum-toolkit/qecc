@@ -63,7 +63,7 @@ class MaxSatStim:
         """Return log likelihood weighting."""
         return cast("np.float64", np.log([(1 - x) / x])[0])
 
-    def decode(self, syndrome: NDArray[np.int_]) -> tuple[NDArray[np.int_], int]:
+    def decode(self, syndrome: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], int]:
         """Decode the syndrome and return a prediction of which observables were flipped.
 
         Args:
@@ -88,7 +88,7 @@ class MaxSatStim:
         *,
         bit_packed_shots: bool = False,
         bit_packed_predictions: bool = False,
-    ) -> tuple[NDArray[np.int_], int, int]:
+    ) -> tuple[NDArray[np.uint8], int, int]:
         """Decode a batch of shots of syndrome data by iterating over each shot.
 
         Parameters
@@ -107,9 +107,9 @@ class MaxSatStim:
         converged_cnt = 0
         if bit_packed_shots:
             shots = np.unpackbits(shots, axis=1, bitorder="little")[:, : self.num_detectors]
-        predictions = np.zeros((shots.shape[0], self._matrices.observables_matrix.shape[0]), dtype=bool)
+        predictions = np.zeros((shots.shape[0], self._matrices.observables_matrix.shape[0]), dtype=np.uint8)
         for i in range(shots.shape[0]):
-            predictions[i, :], convergence_bool = self.decode(shots[i, :].astype(np.int_))
+            predictions[i, :], convergence_bool = self.decode(shots[i, :])
             if convergence_bool == 1:
                 converged_cnt += 1
             else:

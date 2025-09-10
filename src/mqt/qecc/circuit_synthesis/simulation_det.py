@@ -344,7 +344,7 @@ class NoisyDFTStatePrepSimulator:
 
     def _create_stab_measurement_circuit(
         self,
-        verification_stabilizers: list[npt.NDArray[np.int8]],
+        verification_stabilizers: list[npt.NDArray[np.int8]] | npt.NDArray[np.int8],
         z_stabs: bool,
         hook_corrections: list[DeterministicCorrection] | None = None,
         noisy: bool = True,
@@ -357,6 +357,9 @@ class NoisyDFTStatePrepSimulator:
             hook_corrections: Whether to apply hook corrections for the stabilizers.
             noisy: If True the circuit is noisy, otherwise it is noiseless (used for decoding).
         """
+        if not isinstance(verification_stabilizers, list):
+            verification_stabilizers = [verification_stabilizers]
+
         num_stabs = len(verification_stabilizers)
         if num_stabs == 0:
             return qs.Circuit([{"I": {0}}], noisy=False)

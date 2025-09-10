@@ -602,21 +602,21 @@ class LutDecoder:
 
     @staticmethod
     def _generate_lut(
-        checks: np.ndarray, chunk_size: int = 2**20, num_workers: int = 8, print_progress: bool = False
-    ) -> dict[bytes, np.ndarray]:
+        checks: npt.NDArray[np.int8], chunk_size: int = 2**20, num_workers: int = 8, print_progress: bool = False
+    ) -> dict[bytes, npt.NDArray[np.int8]]:
         """Generate a lookup table (LUT) for error correction by processing the state space in chunks, in parallel, and displaying a progress bar.
 
         Parameters:
-            checks (np.ndarray): The stabilizer check matrix (binary).
-            chunk_size (int): Number of states processed per chunk.
-            num_workers (int): Number of parallel worker processes (default: use available cores).
-            print_progress (bool): Whether to print progress information.
+            checks: The stabilizer check matrix (binary).
+            chunk_size: Number of states processed per chunk.
+            num_workers: Number of parallel worker processes (default: use available cores).
+            print_progress: Whether to print progress information.
 
         Returns:
-            dict[bytes, np.ndarray]: A LUT mapping syndrome bytes to error state arrays.
+            A LUT mapping syndrome bytes to error state arrays.
         """
         n_qubits = checks.shape[1]
-        global_lut: dict[bytes, np.ndarray] = {}
+        global_lut: dict[bytes, npt.NDArray[np.int8]] = {}
 
         # Process weights in increasing order so that lower-weight errors take precedence.
         for weight in range(n_qubits):
@@ -631,7 +631,7 @@ class LutDecoder:
             # Split the combinations into chunks.
             chunks = _chunked_iterable(comb_iter, chunk_size)
 
-            weight_dict: dict[bytes, int] = {}
+            weight_dict: dict[bytes, npt.NDArray[np.int8]] = {}
             with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
                 d2 = weight_dict.copy()
                 futures = [
@@ -670,7 +670,10 @@ def _chunked_iterable(iterable: Iterator[tuple[int, ...]], chunk_size: int) -> G
 
 
 def _process_combinations_chunk(
-    chunk: list[tuple[int, ...]], checks: npt.NDArray[np.int8], n_qubits: int, weight_map: dict[bytes, int]
+    chunk: list[tuple[int, ...]],
+    checks: npt.NDArray[np.int8],
+    n_qubits: int,
+    weight_map: dict[bytes, npt.NDArray[np.int8]],
 ) -> dict[bytes, npt.NDArray[np.int8]]:
     """Process a chunk of combinations.
 
