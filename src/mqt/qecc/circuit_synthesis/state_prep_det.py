@@ -39,9 +39,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .state_prep import (
-        FaultyStatePrepCircuit,
-    )
+    from .state_prep import FaultyStatePrepCircuit
 
 
 Recovery = tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]]

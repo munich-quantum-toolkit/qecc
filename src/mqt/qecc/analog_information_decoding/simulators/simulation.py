@@ -42,9 +42,7 @@ from ..utils.simulation_utils import (
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-    from ..utils.data_utils import (
-        BpParams,
-    )
+    from ..utils.data_utils import BpParams
 
 
 class SingleShotSimulator:
