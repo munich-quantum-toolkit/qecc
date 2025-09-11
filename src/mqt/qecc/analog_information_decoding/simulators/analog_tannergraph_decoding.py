@@ -19,13 +19,16 @@ from ldpc import bposd_decoder
 
 from ..utils import simulation_utils
 from ..utils.data_utils import (
-    BpParams,
     calculate_error_rates,
     is_converged,
 )
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import (
+        BpParams,
+    )
 
 
 class AnalogTannergraphDecoder:

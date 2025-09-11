@@ -21,7 +21,6 @@ from ldpc import mod2
 
 from .faults import PureFaultSet, coset_leader
 from .state_prep import (
-    FaultyStatePrepCircuit,
     all_gate_optimal_verification_stabilizers,
     get_hook_errors,
     heuristic_verification_stabilizers,
@@ -39,6 +38,10 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from .state_prep import (
+        FaultyStatePrepCircuit,
+    )
 
 
 Recovery = tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]]

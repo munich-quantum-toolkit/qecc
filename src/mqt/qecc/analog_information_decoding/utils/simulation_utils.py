@@ -18,10 +18,12 @@ import numpy as np
 from ldpc.mod2 import rank
 from scipy.special import erfc, erfcinv
 
-from .data_utils import BpParams, calculate_error_rates, replace_inf
+from .data_utils import calculate_error_rates, replace_inf
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from .data_utils import BpParams
 
 
 def set_seed(value: float) -> None:

@@ -19,7 +19,6 @@ import numpy as np
 from ldpc.osd import bposd_decoder
 
 from ..utils.data_utils import (
-    BpParams,
     calculate_error_rates,
     is_converged,
     replace_inf,
@@ -42,6 +41,10 @@ from ..utils.simulation_utils import (
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import (
+        BpParams,
+    )
 
 
 class SingleShotSimulator:

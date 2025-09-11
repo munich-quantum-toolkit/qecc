@@ -15,7 +15,7 @@ import numpy as np
 from ldpc.osd import bposd_decoder
 from pymatching import Matching
 
-from ..utils.data_utils import BpParams, _check_convergence
+from ..utils.data_utils import _check_convergence
 from ..utils.simulation_utils import (
     error_channel_setup,
     generate_err,
@@ -35,6 +35,8 @@ from .memory_experiment_v2 import (
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import BpParams
 
 
 class QssSimulator:
