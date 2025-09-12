@@ -489,11 +489,17 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
                 combined.cx(self._data_range, self._first_ancilla_range)
             else:
                 combined.cx(self._first_ancilla_range, self._data_range)
-        else:
+        elif zero_state:
             combined.cx(self._data_range, self._first_ancilla_range)
             combined.cx(self._second_ancilla_range, self._third_ancilla_range)
             combined.cx(self._second_ancilla_range, self._data_range)
             combined.h(self._second_ancilla_range)  # second ancilla is measured in X basis
+        else:
+            combined.cx(self._first_ancilla_range, self._data_range)
+            combined.cx(self._third_ancilla_range, self._second_ancilla_range)
+            combined.cx(self._data_range, self._second_ancilla_range)
+            combined.h(self._first_ancilla_range)  # first ancilla is measured in X basis
+            combined.h(self._third_ancilla_range)  # third ancilla is measured in X basis
 
         combined.barrier()  # need the barrier to retain order of measurements
 
@@ -532,7 +538,7 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         qubit_to_meas = {q: i for i, q in enumerate(measured)}
         idx1 = [qubit_to_meas[q] for q in self.anc_1]
         anc_1 = samples[:, idx1]
-        check_anc_1 = (anc_1 @ self.z_checks.T) % 2
+        check_anc_1 = anc_1 @ self.z_checks.T % 2 if self.zero_state else anc_1 @ self.x_checks.T % 2
 
         if not self.has_one_ancilla:
             idx2 = [qubit_to_meas[q] for q in self.anc_2]
@@ -540,8 +546,12 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
             anc_2 = samples[:, idx2]
             anc_3 = samples[:, idx3]
 
-            check_anc_2 = (anc_2 @ self.x_checks.T) % 2
-            check_anc_3 = (anc_3 @ self.z_checks.T) % 2
+            if self.zero_state:
+                check_anc_2 = (anc_2 @ self.x_checks.T) % 2
+                check_anc_3 = (anc_3 @ self.z_checks.T) % 2
+            else:
+                check_anc_2 = (anc_2 @ self.z_checks.T) % 2
+                check_anc_3 = (anc_3 @ self.x_checks.T) % 2
             index_array = np.where(np.all(np.hstack((check_anc_1, check_anc_2, check_anc_3)) == 0, axis=1))[0]
         else:
             index_array = np.where(np.all(check_anc_1 == 0, axis=1))[0]
