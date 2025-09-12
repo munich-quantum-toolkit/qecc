@@ -264,10 +264,10 @@ class EliminationCNOTSynthesizer:
 
     def _cnot_is_valid_against_references(self, i: int, j: int) -> tuple[bool, dict[str, npt.NDArray[np.int8]]]:
         found_cnot: bool = False
-        new_x_error, _next_x_propagation_matrix = get_next_error(
+        new_x_error, next_x_propagation_matrix = get_next_error(
             propagation_matrix=self.x_propagation_matrix.copy(), cnot_gate=(int(i), int(j))
         )
-        new_z_error, _next_z_propagation_matrix = get_next_error(
+        new_z_error, next_z_propagation_matrix = get_next_error(
             propagation_matrix=self.z_propagation_matrix.copy(), cnot_gate=(int(i), int(j)), x_error=False
         )
 
@@ -301,6 +301,9 @@ class EliminationCNOTSynthesizer:
             found_cnot = not z_overlap
             if not found_cnot:
                 self.overlapping_errors_z.add(new_z_error_tuple)
+        if found_cnot:
+            self.x_propagation_matrix = next_x_propagation_matrix
+            self.z_propagation_matrix = next_z_propagation_matrix
         return found_cnot, {
             "new_x_error": new_x_error,
             "new_z_error": new_z_error,
