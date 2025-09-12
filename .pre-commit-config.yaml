@@ -70,7 +70,7 @@ repos:
     rev: 1.19.1
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==24.*]
+        additional_dependencies: [black==25.*]
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
@@ -130,7 +130,7 @@ repos:
 
   # Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2025.09.11
+    rev: 2025.09.12
     hooks:
       - id: validate-pyproject
 
