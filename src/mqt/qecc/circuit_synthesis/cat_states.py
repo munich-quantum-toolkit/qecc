@@ -9,13 +9,14 @@
 
 from __future__ import annotations
 
-import random
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import stim
+import math
+import z3
+import random
 
 from .circuit_utils import relabel_qubits
 from .noise import CircuitLevelNoise
@@ -76,123 +77,143 @@ def cat_state_line(w: int) -> stim.Circuit:
 
 
 class CatStatePreparationExperiment:
-    """Class for running cat state preparation experiments based on post-selection.
+    """Cat-state prep with post-selection, allowing ancilla size w2 ≤ data size w1.
 
-    One way to initialize cat states is to prepare two copies, connect them with a transversal CNOT, measure the ancilla qubits and post-select on the results.
-    The performance of this method depends very much on the circuits and how the cnots are connected.
+    Qubit layout in the combined circuit:
+      data:   0 .. w1-1
+      ancilla: w1 .. w1+w2-1
+
+    Transversal CX copies X from data -> ancilla on the first w2 data qubits:
+      pairs: (data[i], ancilla[w1 + permutation[i]]) for i=0..w2-1
+    """
+
+class CatStatePreparationExperiment:
+    """
+    Cat-state prep with post-selection, allowing ancilla size w2 ≤ data size w1.
+
+    Layout:
+      data:    0 .. w1-1
+      ancilla: w1 .. w1+w2-1
+
+    Wiring (one parallel layer):
+      pairs: (controls[i], w1 + permutation[i])  for i=0..w2-1
     """
 
     def __init__(
-        self, circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[int] | None = None
+        self,
+        circ1: stim.Circuit,                       # data-prep circuit, size w1
+        circ2: stim.Circuit,                       # ancilla-prep circuit, size w2 (can be < w1)
+        permutation: Sequence[int] | None = None,  # perm over 0..w2-1 (ancilla targets)
+        controls: Sequence[int] | None = None,     # length-w2 list of data controls (subset of 0..w1-1)
     ) -> None:
-        """Initialize the experiment with the two halves of the cat state preparation circuit.
+        w1 = circ1.num_qubits
+        w2 = circ2.num_qubits
+        if w1 < 1 or w2 < 1:
+            raise ValueError("Both circuits must have at least one qubit.")
+        if w2 > w1:
+            raise ValueError("Ancilla (w2) must be ≤ data (w1).")
 
-        Args:
-            circ1: The first half of the cat state preparation circuit preparing the data qubits. Qubits are assumed to be from 0 to n_qubits-1.
-            circ2: The second half of the cat state preparation circuit preparing the ancilla states. Qubits are assumed to be from 0 to n_qubits-1.
-            permutation: The permutation to apply to the transversal CNOTs connecting the two halves.
-        """
-        assert circ1.num_qubits == circ2.num_qubits, "The two circuits must have the same number of qubits."
-        self.w = circ1.num_qubits
-        self.circ = transversal_cnot(circ1, relabel_qubits(circ2, self.w), permutation)
-        self.circ.append("MR", range(self.w, self.w * 2))
+        self.w1 = w1
+        self.w2 = w2
+        self.total_qubits = w1 + w2
+
+        # Defaults
+        if controls is None:
+            controls = list(range(w2))                 # first w2 data qubits
+        if permutation is None:
+            permutation = list(range(w2))              # identity on ancilla
+
+        # Build combined circuit:
+        comb = stim.Circuit()
+        comb += circ1
+        comb += relabel_qubits(circ2, w1)             # ancilla shifted to [w1..w1+w2-1]
+
+        # Wiring
+        pairs = build_transversal_pairs(controls, permutation, w1=w1, w2=w2)
+        append_transversal_cnot_pairs(comb, pairs)
+
+        # Measure ancilla now (post-selection later in sampling)
+        comb.append_operation("MR", list(range(w1, w1 + w2)))
+
+        self.circ = comb
+
+    # ---------- noisy variant ----------
 
     def _get_noisy_circ(self, p: float) -> stim.Circuit:
-        """Return a noisy version of the cat state preparation circuit.
-
-        Args:
-            p: The noise parameter.
-
-        Returns:
-            The noisy cat state preparation circuit.
-        """
+        """Return a noisy version of the combined circuit."""
         return CircuitLevelNoise(p, p, p, p).apply(self.circ)
+
+    # ---------- sampling / stats ----------
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None
     ) -> tuple[float, float, npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        """Sample the circuit under circuit-level noise in batches and accumulate statistics.
-
-        Noise statistics are sample by running the circuit and post-selecting on the ancilla qubits. If the ancilla state is not in the all 0 or all 1 state, the sample is discarded. For the samples which are not rejected, the number of errors on the data qubits is counted and a histogram is built.
-
-        Args:
-            p: noise parameter.
-            n_samples: The total number of samples to collect.
-            batch_size: The number of samples to collect in each batch.
-                If None, the batch size is equal to n_samples.
+        """Run with circuit-level noise, post-select on ancilla ∈ {0^w2, 1^w2},
+        and histogram the symmetric error weight on data.
 
         Returns:
-            acceptance_rate: The fraction of samples that were accepted.
-            acceptance_rate_error: The statistical error on the acceptance rate.
-            error_rates: The histogram of error rates.
-            error_rates_error: The statistical error on the error rates.
+            acceptance_rate, acceptance_rate_error,
+            error_rates (length floor(w1/2)+1), error_rates_error
         """
         circ = self._get_noisy_circ(p)
+        # Final, *noise-free* measurement of data qubits (like your previous code)
         circ.append("TICK")
-        circ.append("MR", range(self.w))  # no noise on final measurement
+        circ.append("MR", list(range(self.w1)))
 
         if batch_size is None:
             batch_size = n_samples
-
         if n_samples > 1e7:
             batch_size = int(1e7)
 
         total_samples = 0
         total_accepted = 0
-        w = circ.num_qubits // 2
-        # Prepare an array for histogram counts.
-        # Using bins defined by range(w//2 + 1) produces w//2 bins.
-        hist_total = np.zeros(w // 2 + 1, dtype=int)
 
-        # Determine how many batches you need.
+        # histogram over symmetric data error weights (0..floor(w1/2))
+        max_sym_w = self.w1 // 2
+        hist_total = np.zeros(max_sym_w + 1, dtype=int)
+
+        # number of recorded bits per shot = w2 (ancilla MR) + w1 (data MR) = total_qubits
         n_batches = int(np.ceil(n_samples / batch_size))
-
         for _ in range(n_batches):
-            current_batch = min(batch_size, n_samples - total_samples)
-
+            this_batch = min(batch_size, n_samples - total_samples)
             sampler = circ.compile_sampler()
-            res = sampler.sample(current_batch).astype(int)
-            total_samples += current_batch
+            res = sampler.sample(this_batch).astype(int)  # shape: [this_batch, w2 + w1]
+            total_samples += this_batch
 
-            # Process the ancilla measurements to determine accepted events.
-            anc = res[:, :w]
-            filtered = np.where(np.logical_or(np.all(anc == 1, axis=1), np.all(anc == 0, axis=1)))[0]
-            state = res[filtered, w:]
-            total_accepted += state.shape[0]
+            anc = res[:, : self.w2]         # ancilla measurements first
+            data = res[:, self.w2 : self.w2 + self.w1]  # then data
 
-            # Only update if some accepted events are present in the batch.
-            if state.shape[0] > 0:
-                error_weights = np.min(np.vstack((state.sum(axis=1), w - state.sum(axis=1))), axis=0)
-                hist, _ = np.histogram(error_weights, bins=range(w // 2 + 2))
-                hist_total += hist
+            # post-select: ancilla is all-0 or all-1
+            ok_rows = np.where(np.logical_or(np.all(anc == 0, axis=1), np.all(anc == 1, axis=1)))[0]
+            if ok_rows.size == 0:
+                continue
 
-        # Compute overall acceptance rate and its binomial error.
-        acceptance_rate = total_accepted / total_samples
-        acceptance_rate_error = np.sqrt(acceptance_rate * (1 - acceptance_rate) / total_samples)
+            data_ok = data[ok_rows, :]
+            total_accepted += data_ok.shape[0]
 
-        # Compute overall histogram error rates and their errors.
-        error_rates = hist_total / total_samples
-        error_rates_error = np.sqrt(error_rates * (1 - error_rates) / total_samples)
+            # symmetric data weight
+            wts = data_ok.sum(axis=1)
+            sym_wts = np.minimum(wts, self.w1 - wts).astype(int)
+
+            # accumulate histogram
+            hist, _ = np.histogram(sym_wts, bins=np.arange(max_sym_w + 2))
+            hist_total += hist
+
+        acceptance_rate = total_accepted / max(total_samples, 1)
+        acceptance_rate_error = np.sqrt(acceptance_rate * max(1 - acceptance_rate, 0) / max(total_samples, 1))
+
+        error_rates = hist_total / max(total_samples, 1)
+        error_rates_error = np.sqrt(error_rates * np.maximum(1 - error_rates, 0) / max(total_samples, 1))
 
         return acceptance_rate, acceptance_rate_error, error_rates, error_rates_error
+
+    # ---------- plotting ----------
 
     def plot_one_p(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None, ax: plt.Axes | None = None
     ) -> None:
-        """Plot histogram showing probabilities that a certain number of errors occurred in a cat state preparation experiment with a given physical error rate.
-
-        Args:
-            p: physical error rate for the experiment.
-            n_samples: number of samples to take.
-            batch_size: number of samples to take in each batch.
-            ax: matplotlib axis to plot on.
-
-        Returns:
-            None
-        """
         ra, ra_err, hist, hist_err = self.sample_cat_state(p, n_samples, batch_size)
-        w = self.w
-        x = np.arange(w // 2 + 1)
+        x = np.arange(self.w1 // 2 + 1)
         if ax is None:
             _fig, ax = plt.subplots()
 
@@ -202,47 +223,32 @@ class CatStatePreparationExperiment:
         bar_width = 0.8
         for xi, yi, err, color in zip(x, hist, hist_err, colors):
             ax.bar(
-                xi,
-                yi,
-                width=bar_width,
-                color=color,
-                alpha=0.8,
-                edgecolor="black",
-                hatch="//",
-                label=f"Error count {xi}" if xi == 0 else "",
+                xi, yi, width=bar_width, color=color, alpha=0.8, edgecolor="black",
+                hatch="//", label=f"Error count {xi}" if xi == 0 else "",
             )
             ax.errorbar(xi, yi, yerr=err, fmt="none", capsize=5, color="black", linewidth=1.5)
 
-        ax.set_xlabel("Number of errors")
+        ax.set_xlabel("Number of data-qubit errors (symmetric)")
         ax.set_ylabel("Probability")
         ax.set_xticks(x)
         ax.set_yscale("log")
         ax.margins(0.2, 0.2)
-        plt.title(f"Error distribution for w = {self.w}, p = {p:.2f}. Acceptance rate = {ra:.2f} +/- {ra_err:.2f}")
+        plt.title(
+            f"Cat prep: w1={self.w1}, w2={self.w2}, p={p:.3f}. "
+            f"Acceptance = {ra:.3f} ± {ra_err:.3f}"
+        )
         plt.show()
+
+    # ---------- sweep ----------
 
     def cat_prep_experiment(
         self, ps: list[float], shots_per_p: int | list[int]
     ) -> tuple[list[float], list[float], npt.NDArray[np.int_], npt.NDArray[np.int_]]:
-        """Run a series of cat state preparation experiments.
-
-        Args:
-            ps: The noise parameters to use.
-            shots_per_p: The number of shots to take for each noise parameter.
-                If an integer, the same number of shots is used for all noise parameters.
-                If a list, the number of shots is taken from the list for each noise parameter.
-            perm: The permutation
-
-        Returns:
-            ras: The acceptance rates for each noise parameter.
-            ra_errs: The statistical errors on the acceptance rates.
-            hists: The histograms of error rates for each noise parameter.
-            hists_err: The statistical errors on the histograms
-        """
         if isinstance(shots_per_p, list):
             assert len(shots_per_p) == len(ps)
         else:
             shots_per_p = [shots_per_p for _ in range(len(ps))]
+
         hists = None
         hists_err = None
         ras = []
@@ -260,6 +266,7 @@ class CatStatePreparationExperiment:
         return ras, ra_errs, hists, hists_err
 
 
+
 def transversal_cnot(
     circ1: stim.Circuit, circ2: stim.Circuit, permutation: list[int] | npt.NDArray[int] | None = None
 ) -> stim.Circuit:
@@ -274,6 +281,42 @@ def transversal_cnot(
         circ.append_operation("CX", [i, permutation[i] + w])
     return circ
 
+def append_transversal_cnot_pairs(circ: stim.Circuit, pairs: Sequence[tuple[int,int]]) -> None:
+    """Append a (possibly parallel) layer of CX using disjoint pairs."""
+    if not pairs:
+        return
+    flat = []
+    for (c, t) in pairs:
+        flat.extend([c, t])
+    circ.append_operation("CX", flat)
+
+from typing import Sequence, Tuple, List
+
+def build_transversal_pairs(
+    controls: Sequence[int],          # length = w2, subset of 0..w1-1
+    perm_targets: Sequence[int],      # permutation of 0..w2-1
+    w1: int,                          # data size
+    w2: int,                          # ancilla size
+) -> List[Tuple[int, int]]:
+    """
+    Returns list of (control, target) indices for a single parallel CX layer:
+      (controls[i], w1 + perm_targets[i])  for i=0..w2-1
+    """
+    if len(controls) != w2:
+        raise ValueError(f"len(controls) must equal w2; got {len(controls)} vs {w2}")
+    if sorted(set(controls)) != sorted(controls):
+        # we require a set of distinct controls, order matters
+        raise ValueError("controls must be a list of distinct data-qubit indices")
+    if not all(0 <= c < w1 for c in controls):
+        raise ValueError("controls indices must be in 0..w1-1")
+    perm_targets = list(perm_targets)
+    if sorted(perm_targets) != list(range(w2)):
+        raise ValueError("perm_targets must be a permutation of 0..w2-1")
+
+    pairs = [(controls[i], w1 + perm_targets[i]) for i in range(w2)]
+    return pairs
+
+
 
 def binary_tree_fault_gens(w: int, include_full: bool = False):
     assert w > 0
@@ -287,16 +330,49 @@ def binary_tree_fault_gens(w: int, include_full: bool = False):
     return gens
 
 
-def cat_state_pruned_balanced_circuit(w: int) -> stim.Circuit:
-    """Prepare GHZ_w using a 2^m template with descending strides and
+# =========================
+# Bit helpers
+# =========================
+
+def apply_perm_mask(mask: int, P: List[int]) -> int:
+    """Forward permutation: image bits go to positions P[i]."""
+    out = 0
+    for i, j in enumerate(P):
+        if (mask >> i) & 1:
+            out |= 1 << j
+    return out
+
+def bitcount(x: int) -> int:
+    return x.bit_count()
+
+def bits_of_mask(mask: int, w: int) -> List[int]:
+    """Return [0/1]*w (LSB at index 0)."""
+    return [(mask >> j) & 1 for j in range(w)]
+
+def support_bits(mask: int, w: int) -> List[int]:
+    return [i for i in range(w) if (mask >> i) & 1]
+
+def ones_indices(mask: int, w: int) -> List[int]:
+    return [j for j in range(w) if (mask >> j) & 1]
+
+
+# =========================
+# Pruned balanced tree circuits & generators
+# =========================
+
+def cat_state_pruned_balanced_circuit(w: int):
+    """
+    Prepare GHZ_w using a 2^m template with descending strides and
     prune any CX whose target >= w.
 
     Order is coarse->fine (stride 2^(m-1) down to 1), so every control
     has already joined the GHZ spine when it fans out.
     """
+    if stim is None:
+        raise RuntimeError("stim is required for circuit extraction. Install `stim` or use --structure pruned_tree.")
+
     if w <= 0:
-        msg = "w must be >= 1"
-        raise ValueError(msg)
+        raise ValueError("w must be >= 1")
     circ = stim.Circuit()
     circ.append_operation("H", [0])
 
@@ -307,7 +383,7 @@ def cat_state_pruned_balanced_circuit(w: int) -> stim.Circuit:
     W = 1 << m  # template width
 
     # Descending strides: 2^(m-1), 2^(m-2), ..., 1
-    for stride in (1 << k for k in range(m - 1, -1, -1)):
+    for stride in (1 << k for k in range(m - 1, - 1, -1)):
         step = 2 * stride
         for j in range(0, W, step):
             c = j
@@ -316,29 +392,24 @@ def cat_state_pruned_balanced_circuit(w: int) -> stim.Circuit:
                 circ.append_operation("CX", [c, t])
     return circ
 
-
-# ------------------------------------------------------------
-# Fault generators extracted from a circuit (X on control-before-CX)
-# ------------------------------------------------------------
-
-
 def _cx_forward(mask: int, c: int, t: int) -> int:
-    # Heisenberg: X_c -> X_c X_t ; X_t -> X_t
     if (mask >> c) & 1:
-        mask ^= 1 << t
+        mask ^= (1 << t)
     return mask
 
-
-def fault_gens_from_circuit(circ: stim.Circuit, include_full: bool = False) -> list[int]:
-    """Single-fault outputs for a GHZ fanout circuit:
-      • all singletons (X injected at a leaf at any time before it's touched),
+def fault_gens_from_circuit(circ, include_full: bool = False) -> List[int]:
+    """
+    Single-fault outputs for a GHZ fanout circuit:
+      • all singletons (X injected at a leaf at any time before it’s touched),
       • for each CX pair (c,t) in sequence, inject X on c *just before that CX*
         and propagate through the remaining pairs.
     Stim may group many disjoint CX pairs in one op; we must flatten them.
     """
-    # 1) Flatten all CX pairs in program order.
+    if stim is None:
+        raise RuntimeError("stim is required for circuit extraction.")
+
     w = circ.num_qubits
-    ops: list[tuple[int, int]] = []
+    ops: List[Tuple[int, int]] = []
     for op in circ:
         if op.name != "CX":
             continue
@@ -353,23 +424,50 @@ def fault_gens_from_circuit(circ: stim.Circuit, include_full: bool = False) -> l
     ALL = (1 << w) - 1
     gens = set()
 
-    # 2) All singletons.
-    gens.update(1 << q for q in range(w))
+    # all singletons
+    for q in range(w):
+        gens.add(1 << q)
 
-    # 3) For each CX pair position, inject X on its control just before it, then propagate forward.
+    # inject on control just before each CX, then propagate forward
     for idx, (c0, _) in enumerate(ops):
         mask = 1 << c0
-        for c, t in ops[idx:]:
+        for (c, t) in ops[idx:]:
             mask = _cx_forward(mask, c, t)
         if not include_full and mask == ALL:
             continue
         gens.add(mask)
 
-    # Deterministic order
     return sorted(gens)
 
+def pruned_tree_fault_gens(w: int, include_full: bool = False) -> List[int]:
+    """
+    Masked dyadic intervals: produces exactly the generator set you'd
+    get from the pruned balanced tree schedule.
+    """
+    assert w > 0
+    mask_all = (1 << w) - 1
+    m = w.bit_length() - 1  # floor(log2 w)
+    gens = []
+    for k in range(m + 1):
+        L = 1 << k
+        for start in range(0, w, L):
+            gen = (((1 << L) - 1) << start) & mask_all
+            gens.append(gen)
+    # dedupe
+    gens = list(dict.fromkeys(gens))
+    if not include_full:
+        gens = [g for g in gens if g != mask_all]
+    return gens
 
-def degree_sets_from_gens(gens: list[int], t: int):
+
+# =========================
+# Degree sets & bad catalog
+# =========================
+
+@lru_cache(maxsize=None)
+def degree_sets_by_h(gens_key: Tuple[int, ...], t: int):
+    """Return [S_h] for h=0..t where S_h is the set of XORs of exactly h generators."""
+    gens = list(gens_key)
     S = [set() for _ in range(t + 1)]
     S[0].add(0)
     for g in gens:
@@ -378,70 +476,24 @@ def degree_sets_from_gens(gens: list[int], t: int):
                 S[h].add(s ^ g)
     return S
 
+def as_key(gens: List[int]) -> Tuple[int, ...]:
+    return tuple(sorted(set(gens)))
 
-def bitcount(x: int) -> int:
-    return x.bit_count()
-
-
-def support_bits(mask: int, w: int) -> list[int]:
-    return [i for i in range(w) if (mask >> i) & 1]
-
-
-def ones_indices(mask: int, w: int) -> list[int]:
-    return [j for j in range(w) if (mask >> j) & 1]
-
-
-def apply_perm_mask(mask: int, P: list[int]) -> int:
-    """Forward permutation P: image bits go to new positions P[i]."""
-    out = 0
-    for i, j in enumerate(P):
-        if (mask >> i) & 1:
-            out |= 1 << j
-    return out
-
-
-def find_violation_strict(gens1, gens2_img, t: int):
-    """Return (h1,h2,x2, image_mask, target_mask, w) or None."""
-    w = max((g.bit_length() for g in gens1 + gens2_img), default=0)
-    all_ones = (1 << w) - 1
-    S1_by_h = degree_sets_from_gens(gens1, t)
-    S2_by_h = degree_sets_from_gens(gens2_img, t)
-
-    for h2 in range(1, t + 1):
-        for h1 in range(1, t - h2 + 1):
-            S1 = S1_by_h[h1]
-            for x2 in S2_by_h[h2]:
-                y = x2
-                wtmin = min(bitcount(y), bitcount(all_ones ^ y))
-                if wtmin <= h1 + h2:
-                    continue
-                if y in S1:
-                    return (h1, h2, x2, y, y, w)
-                yc = all_ones ^ y
-                if yc in S1:
-                    return (h1, h2, x2, y, yc, w)
-    return None
-
-
-def t_distinct_cat_exact_permutation(gens1, gens2, t: int, P: list[int]) -> bool:
-    gens2_img = [apply_perm_mask(g, P) for g in gens2]
-    return find_violation_strict(gens1, gens2_img, t) is None
-
-
-# ---------- build the "bad images" catalog exactly (as in SAT one-shot) ----------
-
-
-def build_bad_catalog(gens1, gens2, t: int):
-    """For each degree h2 pattern x2 from circuit 2 (before permutation),
-    compute the set of *image masks* that are forbidden: bad_images[x2] = {b1,b2,...}.
+def build_bad_catalog_cached(gens1: List[int], gens2: List[int], t: int):
     """
-    w = max(g.bit_length() for g in gens1 + gens2)
-    all_ones = (1 << w) - 1
+    Precompute:
+      - bad_sets: dict x2 -> set of forbidden images
+      - x2_list: list of all degree-<=t masks from circuit 2 to test
+      - w: width
+    Uses degree_sets_by_h(...) only once per (gens,t) pair (and it’s cached).
+    """
+    w = max((g.bit_length() for g in gens1 + gens2), default=0)
+    ALL = (1 << w) - 1
 
-    S1_by_h = degree_sets_from_gens(gens1, t)
-    S2_by_h = degree_sets_from_gens(gens2, t)
+    S1_by_h = degree_sets_by_h(as_key(gens1), t)
+    S2_by_h = degree_sets_by_h(as_key(gens2), t)
 
-    # bucket S1_by_h by weight for fast selection
+    # bucket S1 by weight for fast lookups
     S1_by_h_by_wt = []
     for h in range(t + 1):
         buckets = defaultdict(list)
@@ -449,8 +501,8 @@ def build_bad_catalog(gens1, gens2, t: int):
             buckets[bitcount(m)].append(m)
         S1_by_h_by_wt.append(buckets)
 
-    bad_images = defaultdict(set)  # x2 -> set of forbidden image masks
-    x2_list = []
+    bad_sets: Dict[int, set] = defaultdict(set)
+    x2_list: List[int] = []
     for h2 in range(1, t + 1):
         for x2 in S2_by_h[h2]:
             s = bitcount(x2)
@@ -458,86 +510,350 @@ def build_bad_catalog(gens1, gens2, t: int):
                 continue
             x2_list.append(x2)
             for h1 in range(1, t - h2 + 1):
-                # equality case: S1 masks with same weight s
+                # equality case
                 for b in S1_by_h_by_wt[h1].get(s, []):
                     if min(s, w - s) > (h1 + h2):
-                        bad_images[x2].add(b)
-                # complement case: need wt(b) == w-s, add ~b as bad image
+                        bad_sets[x2].add(b)
+                # complement case
                 for b in S1_by_h_by_wt[h1].get(w - s, []):
                     if min(w - s, s) > (h1 + h2):
-                        bad_images[x2].add(all_ones ^ b)
-    return bad_images, x2_list, w
+                        bad_sets[x2].add(ALL ^ b)
+    return bad_sets, x2_list, w
 
+def find_violation_from_catalog(P: List[int],
+                                bad_sets: Dict[int, set],
+                                x2_list: List[int]) -> Optional[Tuple[int, int]]:
+    """Return (x2, image) if a forbidden image occurs, else None."""
+    for x2 in x2_list:
+        y = apply_perm_mask(x2, P)
+        if y in bad_sets.get(x2, ()):
+            return (x2, y)
+    return None
+
+def t_distinct_cat_exact_permutation_with_catalog(P: List[int],
+                                                  bad_sets: Dict[int, set],
+                                                  x2_list: List[int]) -> bool:
+    return find_violation_from_catalog(P, bad_sets, x2_list) is None
+
+
+# =========================
+# Catalog-guided local repair
+# =========================
 
 def find_perm_local_search(
-    gens1: list[int],
-    gens2: list[int],
+    gens1: List[int],
+    gens2: List[int],
     w: int,
     t: int,
     seed=1,
     restarts=16,
     max_iters=500000,
-    init_perm: list[int] | None = None,
+    init_perm: Optional[List[int]] = None,
 ):
-    """Same Moser–Tardos-style local repair, but gens1/gens2 are passed in."""
     rng = random.Random(seed)
-
-    bad_images, x2_list, w2 = build_bad_catalog(gens1, gens2, t)
+    bad_sets, x2_list, w2 = build_bad_catalog_cached(gens1, gens2, t)
     assert w == w2
     all_cols = list(range(w))
-    bad_sets = {x2: set(bs) for x2, bs in bad_images.items()}
 
     def setup_perm():
         if init_perm is not None:
             P = init_perm[:]
         else:
-            P = list(range(w))
-            rng.shuffle(P)
+            P = list(range(w)); rng.shuffle(P)
         inv = [0] * w
-        for i, j in enumerate(P):
-            inv[j] = i
+        for i, j in enumerate(P): inv[j] = i
         return P, inv
-
-    def image_mask_of_x2(x2, P):
-        return apply_perm_mask(x2, P)
 
     for rs in range(restarts):
         P, invP = setup_perm()
         it = 0
         while it < max_iters:
             it += 1
-            # find a violating x2 (sampled scan is fine; full scan is also OK)
-            found = None
-            for x2 in x2_list:
-                y = image_mask_of_x2(x2, P)
-                if y in bad_sets.get(x2, ()):
-                    found = (x2, y)
-                    break
-            if not found:
+            vio = find_violation_from_catalog(P, bad_sets, x2_list)
+            if vio is None:
                 return P, {"status": "sat", "iters": it, "restarts": rs, "bad_x2": len(bad_sets)}
-
-            x2, y = found
+            x2, y = vio
             S = support_bits(x2, w)
             T = set(ones_indices(y, w))
             comp_cols = [c for c in all_cols if c not in T]
-            # try targeted swaps
             success = False
             for _ in range(64):
                 i = rng.choice(S)
                 c = rng.choice(comp_cols)
                 k = invP[c]  # k ∉ S
-                old_j_i, old_j_k = P[i], P[k]
-                new_y = (y ^ (1 << old_j_i)) | (1 << c)
+                old_i, old_k = P[i], P[k]
+                new_y = (y ^ (1 << old_i)) | (1 << c)  # (T - {old_i}) ∪ {c}
                 if new_y not in bad_sets.get(x2, ()):
                     P[i], P[k] = P[k], P[i]
-                    invP[old_j_i], invP[old_j_k] = invP[old_j_k], invP[old_j_i]
+                    invP[old_i], invP[old_k] = invP[old_k], invP[old_i]
                     success = True
                     break
             if not success:
-                # random shake
                 i1, i2 = rng.sample(range(w), 2)
                 j1, j2 = P[i1], P[i2]
                 P[i1], P[i2] = j2, j1
                 invP[j1], invP[j2] = i2, i1
-        # restart
     return None, {"status": "unknown", "iters": max_iters, "restarts": restarts}
+
+
+# =========================
+# SAT-guided local repair
+# =========================
+
+def parity_xor(xs):
+    if z3 is None:
+        raise RuntimeError("z3 is required for --method sat.")
+    if not xs:
+        return z3.BoolVal(False)
+    acc = xs[0]
+    for t in xs[1:]:
+        acc = z3.Xor(acc, t)
+    return acc
+
+def mask_weight_bools(bits):
+    if z3 is None:
+        raise RuntimeError("z3 is required for --method sat.")
+    return z3.Sum([z3.If(b, 1, 0) for b in bits])
+
+@lru_cache(maxsize=None)
+def _cached_gen_bits(gens_key: Tuple[int, ...], w: int):
+    gens = list(gens_key)
+    return [[b for b in bits_of_mask(g, w)] for g in gens]
+
+def _key_for_gens(gens: List[int]) -> Tuple[int, ...]:
+    return tuple(sorted(set(gens)))
+
+def sat_find_counterexample_for_perm_from_gens(
+    P: List[int],
+    w: int,
+    t: int,
+    gens1: List[int],
+    gens2: List[int],
+    seed=1,
+):
+    if z3 is None:
+        raise RuntimeError("z3 is required for --method sat.")
+
+    z3.set_param('sat.random_seed', seed)
+
+    g1_key = _key_for_gens(gens1)
+    g2_key = _key_for_gens(gens2)
+    G1_bits = _cached_gen_bits(g1_key, w)
+    G2_bits = _cached_gen_bits(g2_key, w)
+    n1 = len(G1_bits)
+    n2 = len(G2_bits)
+
+    invP = [0] * w
+    for i, j in enumerate(P):
+        invP[j] = i
+
+    splits = [(h1, h2) for h2 in range(1, t + 1) for h1 in range(1, t - h2 + 1)]
+    random.Random(seed).shuffle(splits)
+
+    for h1, h2 in splits:
+        Sbase = z3.Solver()
+
+        u = [z3.Bool(f"u_{h1}_{i}") for i in range(n1)]  # circuit A
+        v = [z3.Bool(f"v_{h2}_{j}") for j in range(n2)]  # circuit B
+
+        Sbase.add(z3.PbEq([(u[i], 1) for i in range(n1)], h1))
+        Sbase.add(z3.PbEq([(v[j], 1) for j in range(n2)], h2))
+
+        x1_bits = []
+        for j in range(w):
+            terms1 = [u[i] for i in range(n1) if G1_bits[i][j]]
+            x1_bits.append(parity_xor(terms1))
+
+        y_bits = []
+        for j in range(w):
+            r = invP[j]
+            terms2 = [v[k] for k in range(n2) if G2_bits[k][r]]
+            y_bits.append(parity_xor(terms2))
+
+        s = mask_weight_bools(y_bits)
+        Sbase.add(s >= (h1 + h2 + 1))
+        Sbase.add(s <= (w - (h1 + h2 + 1)))
+
+        # Case A: y == x1
+        Sa = z3.Solver(); Sa.add(Sbase.assertions())
+        for j in range(w):
+            Sa.add(y_bits[j] == x1_bits[j])
+        if Sa.check() == z3.sat:
+            M = Sa.model()
+            x2_mask = 0
+            for j in range(n2):
+                if z3.is_true(M[v[j]]):
+                    x2_mask ^= gens2[j]
+            y_mask = apply_perm_mask(x2_mask, P)
+            return {'h1': h1, 'h2': h2, 'x2_mask': x2_mask, 'y_mask': y_mask, 'complement': False}
+
+        # Case B: y == ~x1
+        Sb = z3.Solver(); Sb.add(Sbase.assertions())
+        for j in range(w):
+            Sb.add(y_bits[j] == z3.Not(x1_bits[j]))
+        if Sb.check() == z3.sat:
+            M = Sb.model()
+            x2_mask = 0
+            for j in range(n2):
+                if z3.is_true(M[v[j]]):
+                    x2_mask ^= gens2[j]
+            y_mask = apply_perm_mask(x2_mask, P)
+            return {'h1': h1, 'h2': h2, 'x2_mask': x2_mask, 'y_mask': y_mask, 'complement': True}
+
+    return None  # no split found ⇒ permutation is t-fault-tolerant
+
+def repair_once_by_swap(P: List[int], w: int, witness, rng=None, tries=128):
+    if rng is None:
+        rng = random.Random()
+    x2 = witness['x2_mask']
+    y  = witness['y_mask']
+    S = [i for i in range(w) if (x2 >> i) & 1]
+    T = {j for j in range(w) if (y  >> j) & 1}
+
+    inv = [0] * w
+    for i, j in enumerate(P):
+        inv[j] = i
+
+    outside = [c for c in range(w) if c not in T]
+    if not S or not outside:
+        return False
+
+    for _ in range(tries):
+        i = rng.choice(S)
+        c = rng.choice(outside)
+        k = inv[c]  # k ∉ S
+        P[i], P[k] = P[k], P[i]
+        return True
+    return False
+
+def sat_guided_local_repair_from_gens(
+    gens1: list[int],
+    gens2: list[int],
+    w: int,
+    t: int,
+    P_init: list[int] | None = None,
+    max_iter:int=1000,
+    seed:int=0,
+):
+    rng = random.Random(seed)
+    if P_init is None:
+        P = list(range(w)); rng.shuffle(P)
+    else:
+        P = P_init[:]
+
+    it = 0
+    while it < max_iter:
+        it += 1
+        wit = sat_find_counterexample_for_perm_from_gens(
+            P, w, t, gens1=gens1, gens2=gens2, seed=rng.randrange(1 << 30)
+        )
+        if wit is None:
+            return True, P, {'iters': it}
+        ok = repair_once_by_swap(P, w, wit, rng=rng)
+        if not ok:
+            i1, i2 = rng.sample(range(w), 2)
+            P[i1], P[i2] = P[i2], P[i1]
+    return False, P, {'iters': it}
+
+
+def _support_bits(mask: int, w: int) -> list[int]:
+    out = []
+    i = 0
+    m = mask
+    while m:
+        if m & 1:
+            out.append(i)
+        m >>= 1
+        i += 1
+    return out
+
+def cegar_permutation_sat(
+    gens1: list[int],
+    gens2: list[int],
+    w: int,
+    t: int,
+    seed: int = 1,
+    symmetry_fix: bool = True,
+    max_rounds: int = 200000,
+    batch_clauses: int = 1,
+):
+    """
+    CEGAR over the permutation polytope:
+      - Vars X_{i,j} are Bool, rows/cols one-hot.
+      - Iterate: get model P; if no violation, SAT -> return P.
+        Otherwise add blocking clause forbidding this exact assignment on the violating support S:
+            not(AND_{i in S} X_{i, P[i]})
+        (Optionally add a few clauses per round with batch_clauses>1.)
+
+    Returns:
+      (perm, stats) on SAT,
+      (None, {'status':'unsat',...}) on UNSAT,
+      (None, {'status':'unknown',...}) if round limit hit.
+    """
+    rng = random.Random(seed)
+    # Precompute catalog once
+    bad_sets, x2_list, w2 = build_bad_catalog_cached(gens1, gens2, t)
+    assert w == w2
+
+    # Z3 variables
+    X = [[z3.Bool(f"X_{i}_{j}") for j in range(w)] for i in range(w)]
+    S = z3.Solver()
+
+    # Latin constraints: one-hot rows and cols
+    for i in range(w):
+        S.add(z3.PbEq([(X[i][j], 1) for j in range(w)], 1))
+    for j in range(w):
+        S.add(z3.PbEq([(X[i][j], 1) for i in range(w)], 1))
+
+    # Symmetry break to speed up (optional)
+    if symmetry_fix and w > 0:
+        S.add(X[0][0])
+
+    def model_to_perm(M) -> list[int]:
+        P = [-1] * w
+        for i in range(w):
+            for j in range(w):
+                if z3.is_true(M[X[i][j]]):
+                    P[i] = j
+                    break
+        return P
+
+    rounds = 0
+    added_clauses = 0
+    while True:
+        rounds += 1
+        if rounds > max_rounds:
+            return None, {"status": "unknown", "rounds": rounds - 1, "added_clauses": added_clauses}
+
+        chk = S.check()
+        if chk != z3.sat:
+            return None, {"status": "unsat", "rounds": rounds - 1, "added_clauses": added_clauses}
+
+        P = model_to_perm(S.model())
+        # Check for a violation under current P
+        vio = find_violation_from_catalog(P, bad_sets, x2_list)
+        if vio is None:
+            return P, {"status": "sat", "rounds": rounds - 1, "added_clauses": added_clauses}
+
+        # Learn blocking clause(s)
+        # Always block the current witness; optionally add a few more from random scan
+        blocked = 0
+        for _ in range(max(1, batch_clauses)):
+            if _ == 0:
+                x2, y = vio
+            else:
+                # Try to find another violation quickly by random probing
+                # (keeps clause learning aggressive without re-solving)
+                x2 = rng.choice(x2_list)
+                y = apply_perm_mask(x2, P)
+                if y not in bad_sets.get(x2, ()):
+                    continue
+
+            S_set = _support_bits(x2, w)          # rows in support
+            # Under model P, each row i maps to column P[i]
+            lits = [z3.Not(X[i][P[i]]) for i in S_set]
+            S.add(z3.Or(lits))
+            added_clauses += 1
+            blocked += 1
+
+        # On next loop, solver will return a different permutation (or UNSAT)
