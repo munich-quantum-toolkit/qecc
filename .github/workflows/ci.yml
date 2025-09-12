@@ -74,11 +74,7 @@ jobs:
           allowed-skips: >-
             ${{
               fromJSON(needs.change-detection.outputs.run-python-tests)
-              && '' || 'python-tests,python-coverage,'
-            }}
-            ${{
-              fromJSON(needs.change-detection.outputs.run-python-tests)
-              && '' || 'python-linter,'
+              && '' || 'python-tests,python-coverage,python-linter,'
             }}
             ${{
               fromJSON(needs.change-detection.outputs.run-cd)
