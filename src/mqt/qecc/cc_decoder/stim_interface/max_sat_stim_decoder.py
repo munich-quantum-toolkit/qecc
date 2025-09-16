@@ -63,22 +63,19 @@ class MaxSatStim:
         """Return log likelihood weighting."""
         return cast("np.float64", np.log([(1 - x) / x])[0])
 
-    def decode(self, syndrome: NDArray[int]) -> tuple[NDArray[int], int]:
+    def decode(self, syndrome: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], int]:
         """Decode the syndrome and return a prediction of which observables were flipped.
 
-        Parameters
-        ----------
-        syndrome : NDArray
-            A single shot of syndrome data. This should be a binary array with a length equal to the
-            number of detectors in the `stim.Circuit` or `stim.DetectorErrorModel`. E.g. the syndrome might be
-            one row of shot data sampled from a `stim.CompiledDetectorSampler`.
+        Args:
+            syndrome: A single shot of syndrome data. This should be a binary array with a length equal to the
+                number of detectors in the `stim.Circuit` or `stim.DetectorErrorModel`. E.g. the syndrome might be
+                one row of shot data sampled from a `stim.CompiledDetectorSampler`.
 
         Returns:
-        -------
-        NDArray
-            A binary numpy array `predictions` which predicts which observables were flipped.
-            Its length is equal to the number of observables in the `stim.Circuit` or `stim.DetectorErrorModel`.
-            `predictions[i]` is 1 if the decoder predicts observable `i` was flipped and 0 otherwise.
+            - A binary numpy array `predictions` which predicts which observables were flipped.
+              Its length is equal to the number of observables in the `stim.Circuit` or `stim.DetectorErrorModel`.
+              `predictions[i]` is 1 if the decoder predicts observable `i` was flipped and 0 otherwise.
+            - An integer representing whether the decoder converged.
         """
         lights = [bool(b) for b in syndrome]
         estimate, converge, _ = self.problem.solve(lights)
@@ -87,11 +84,11 @@ class MaxSatStim:
 
     def decode_batch(
         self,
-        shots: NDArray[int],
+        shots: NDArray[np.uint8],
         *,
         bit_packed_shots: bool = False,
         bit_packed_predictions: bool = False,
-    ) -> tuple[NDArray[int], int, int]:
+    ) -> tuple[NDArray[np.uint8], int, int]:
         """Decode a batch of shots of syndrome data by iterating over each shot.
 
         Parameters
@@ -110,7 +107,7 @@ class MaxSatStim:
         converged_cnt = 0
         if bit_packed_shots:
             shots = np.unpackbits(shots, axis=1, bitorder="little")[:, : self.num_detectors]
-        predictions = np.zeros((shots.shape[0], self._matrices.observables_matrix.shape[0]), dtype=bool)
+        predictions = np.zeros((shots.shape[0], self._matrices.observables_matrix.shape[0]), dtype=np.uint8)
         for i in range(shots.shape[0]):
             predictions[i, :], convergence_bool = self.decode(shots[i, :])
             if convergence_bool == 1:

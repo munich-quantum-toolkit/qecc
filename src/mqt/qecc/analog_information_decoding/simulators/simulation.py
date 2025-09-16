@@ -19,7 +19,6 @@ import numpy as np
 from ldpc.osd import bposd_decoder
 
 from ..utils.data_utils import (
-    BpParams,
     calculate_error_rates,
     is_converged,
     replace_inf,
@@ -42,6 +41,8 @@ from ..utils.simulation_utils import (
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import BpParams
 
 
 class SingleShotSimulator:
@@ -161,9 +162,7 @@ class SingleShotSimulator:
             msg = "analog_tg and analog_info cannot be both True"
             raise ValueError(msg)
 
-    def _single_sample(
-        self,
-    ) -> tuple[bool, bool]:
+    def _single_sample(self) -> tuple[bool, bool]:
         """Simulates a single sample for a given sustainable threshold depth."""
         residual_err: list[NDArray[np.int32]] = [
             np.zeros(self.n).astype(np.int32),  # X-residual error part
@@ -172,7 +171,7 @@ class SingleShotSimulator:
 
         # for single shot simulation we have sus_th_depth number of 'noisy' simulations (residual error carried over)
         # followed by a single round of perfect syndrome extraction after the sustainable threshold loop
-        for _round in range(self.sus_th_depth):
+        for _ in range(self.sus_th_depth):
             x_err, z_err = generate_err(
                 nr_qubits=self.n,
                 channel_probs=self.data_error_channel,
@@ -196,7 +195,7 @@ class SingleShotSimulator:
             self._total_decoding_time += end - start
 
             residual_err = [
-                np.array((x_err + x_decoded) % 2, dtype=np.int32),  # np conversion needed to avoid rt error
+                np.array((x_err + x_decoded) % 2, dtype=np.int32),
                 np.array((z_err + z_decoded) % 2, dtype=np.int32),
             ]
 
@@ -237,8 +236,13 @@ class SingleShotSimulator:
         return is_x_logical_error, is_z_logical_error
 
     def _get_noisy_syndrome(
-        self, x_syndrome: NDArray[np.int32], z_syndrome: NDArray[np.int32]
+        self,
+        x_syndrome: NDArray[np.int32],
+        z_syndrome: NDArray[np.int32],
     ) -> tuple[NDArray[Any], NDArray[Any]]:
+        x_syndrome_w_err: NDArray[Any]
+        z_syndrome_w_err: NDArray[Any]
+
         if self.syndr_err_rate != 0.0:
             if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
                 x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x)
@@ -357,6 +361,7 @@ class SingleShotSimulator:
                 sigma=sigma,
             )
         else:
+            meta_syndr: NDArray[np.int_] | NDArray[np.float64]
             if self.analog_info:
                 meta_bin = (meta_pcm @ get_binary_from_analog(syndrome_w_err)) % 2
                 meta_syndr = get_signed_from_binary(meta_bin)  # for AI decoder we need {-1,+1} syndrome as input
@@ -390,7 +395,7 @@ class SingleShotSimulator:
         meta_syndr = (meta_pcm @ bin_syndr) % 2
         ss_syndr = np.hstack((bin_syndr, meta_syndr))
         # only first n bit are data, return them
-        return decoder.decode(ss_syndr)[: self.n]
+        return np.asarray(decoder.decode(ss_syndr)[: self.n], dtype=np.int32)
 
     def _two_stage_decoding(
         self, x_syndrome_w_err: NDArray[np.float64], z_syndrome_w_err: NDArray[np.float64]
@@ -490,7 +495,7 @@ class SingleShotSimulator:
         analog_channel = get_virtual_check_init_vals(analog_syndrome, sigma)
         decoder.update_channel_probs(np.hstack((bit_err_channel, analog_channel)))
         # only first n bit are data so only return those
-        return decoder.decode(hard_syndrome)[: self.n]
+        return np.asarray(decoder.decode(hard_syndrome)[: self.n], dtype=np.int32)
 
     def _single_stage_setup(
         self,
@@ -509,14 +514,12 @@ class SingleShotSimulator:
 
         # setup single stage matrices (Oscar&Niko method) H = [[H, Im],    H ~ mxn, I ~ mxm, M ~ lxm
         #                                                      [0, M]]
+        self.ss_z_pcm: NDArray[np.int32] | None = None
         if self.z_meta and self.Mz is not None:
-            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz)
-        else:
-            self.ss_z_pcm = None
+            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz.astype(np.int_))
+        self.ss_x_pcm: NDArray[np.int32] | None = None
         if self.x_meta and self.Mx is not None:
             self.ss_x_pcm = build_single_stage_pcm(self.Hx, self.Mx)
-        else:
-            self.ss_x_pcm = None
 
         # X-checks := (Hx|Mx) => Influenced by Z-syndrome error rate
         # ss_x_bpd used to decode X bit errors using Z-side check matrices

@@ -20,6 +20,8 @@ from .pauli import Pauli, StabilizerTableau
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+    from mqt.qecc.codes.symplectic import SymplecticVector
+
 
 class StabilizerCode:
     """A class for representing stabilizer codes."""
@@ -84,7 +86,7 @@ class StabilizerCode:
             and rnk == mod2.rank(np.vstack((self.generators.as_matrix(), other.generators.as_matrix())))
         )
 
-    def get_syndrome(self, error: Pauli | str) -> npt.NDArray:
+    def get_syndrome(self, error: Pauli | str) -> npt.NDArray[np.int8]:
         """Compute the syndrome of the error.
 
         Args:
@@ -92,7 +94,8 @@ class StabilizerCode:
         """
         if isinstance(error, str):
             error = Pauli.from_pauli_string(error)
-        return (self.generators.tableau @ error.symplectic).vector
+        vector: SymplecticVector = self.generators.tableau @ error.symplectic
+        return vector.vector
 
     def stabs_as_pauli_strings(self) -> list[str]:
         """Return the stabilizers as Pauli strings."""

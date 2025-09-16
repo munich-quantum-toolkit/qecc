@@ -19,7 +19,7 @@ import z3
 from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
-from ..codes import InvalidCSSCodeError
+from ..codes.css_code import InvalidCSSCodeError
 from .circuits import CNOTCircuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis_utils import (
@@ -207,9 +207,6 @@ def heuristic_prep_circuit(
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
     """
     logger.info("Starting heuristic state preparation.")
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
-        raise InvalidCSSCodeError(msg)
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
@@ -247,8 +244,8 @@ def heuristic_reference_prep_circuit(
     if penalty_cnots is None:
         penalty_cnots = []
     logger.info("Starting heuristic state preparation.")
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
+    if code.Hx is None or code.Hz is None:  # type: ignore[redundant-expr]
+        msg = "The code must have both X and Z stabilizers defined."  # type: ignore[unreachable]
         raise InvalidCSSCodeError(msg)
 
     checks = code.Hx if zero_state else code.Hz
@@ -404,7 +401,8 @@ def all_gate_optimal_verification_stabilizers(
     """
     n_layers = len(fault_sets)
     layers: list[list[list[npt.NDArray[np.int8]]]] = [[] for _ in range(n_layers)]
-    max_ancillas = stabs.shape[0]
+    if max_ancillas is None:
+        max_ancillas = stabs.shape[0]
 
     # Find the optimal circuit for every number of errors in the preparation circuit
     for layer in range(n_layers):
@@ -419,7 +417,7 @@ def all_gate_optimal_verification_stabilizers(
         # Minimal CNOT solution must be achievable with these
         num_anc = max_ancillas
         min_cnots: int = np.min(np.sum(stabs, axis=1))
-        max_cnots: int = np.sum(stabs)
+        max_cnots = int(np.sum(stabs))
 
         logger.info(
             f"Finding verification stabilizers for {layer + 1} errors with {min_cnots} to {max_cnots} CNOTs using {num_anc} ancillas"
@@ -545,8 +543,8 @@ def _verification_circuit(
     x_measurements = measurements_2 if verify_x_first else measurements_1
     return _measure_ft_stabs(
         sp_circ,
-        x_measurements,
-        z_measurements,
+        np.asarray(x_measurements, dtype=np.int8),
+        np.asarray(z_measurements, dtype=np.int8),
         verify_x_first=verify_x_first,
         flag_first_layer=flag_first_layer,
     )
@@ -675,7 +673,7 @@ def _set_cover(
     cover: set[frozenset[int]] = set()
 
     while universe:
-        best = max(cands, key=lambda stab: (len(stab & universe), -np.sum(mapping[stab])))  # type: ignore[operator]
+        best = max(cands, key=lambda stab: (len(stab & universe), -np.sum(mapping[stab])))
         cover.add(best)
         universe -= best
     return cover
@@ -767,7 +765,12 @@ def _heuristic_layer(
     return measurements
 
 
-def _measure_ft_x(qc: QuantumCircuit, x_measurements: list[npt.NDArray[np.int8]], t: int, flags: bool = False) -> None:
+def _measure_ft_x(
+    qc: QuantumCircuit,
+    x_measurements: npt.NDArray[np.int8],
+    t: int,
+    flags: bool = False,
+) -> None:
     if len(x_measurements) == 0:
         return
     num_x_anc = len(x_measurements)
@@ -787,7 +790,7 @@ def _measure_ft_x(qc: QuantumCircuit, x_measurements: list[npt.NDArray[np.int8]]
             qc.measure(x_anc[i], x_c[i])
 
 
-def _measure_ft_z(qc: QuantumCircuit, z_measurements: list[npt.NDArray[np.int8]], t: int, flags: bool = False) -> None:
+def _measure_ft_z(qc: QuantumCircuit, z_measurements: npt.NDArray[np.int8], t: int, flags: bool = False) -> None:
     if len(z_measurements) == 0:
         return
     num_z_anc = len(z_measurements)
@@ -807,8 +810,8 @@ def _measure_ft_z(qc: QuantumCircuit, z_measurements: list[npt.NDArray[np.int8]]
 
 def _measure_ft_stabs(
     sp_circ: FaultyStatePrepCircuit,
-    x_measurements: list[npt.NDArray[np.int8]],
-    z_measurements: list[npt.NDArray[np.int8]],
+    x_measurements: npt.NDArray[np.int8],
+    z_measurements: npt.NDArray[np.int8],
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
 ) -> QuantumCircuit:
@@ -949,7 +952,7 @@ def get_hook_errors(measurements: list[npt.NDArray[np.int8]]) -> PureFaultSet:
     return PureFaultSet.from_fault_array(np.array(errors))
 
 
-def final_matrix_constraint(columns: npt.NDArray[z3.BoolRef | bool], rank: int) -> z3.BoolRef:
+def final_matrix_constraint(columns: npt.NDArray[np.bool_], rank: int) -> z3.BoolRef:
     """Return a z3 constraint that the final matrix has exactly rank non-zero columns."""
     assert len(columns.shape) == 3
     return z3.PbEq(

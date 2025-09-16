@@ -18,14 +18,12 @@ import numpy as np
 from ldpc import bposd_decoder
 
 from ..utils import simulation_utils
-from ..utils.data_utils import (
-    BpParams,
-    calculate_error_rates,
-    is_converged,
-)
+from ..utils.data_utils import calculate_error_rates, is_converged
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import BpParams
 
 
 class AnalogTannergraphDecoder:
@@ -97,7 +95,9 @@ class AnalogTannergraphDecoder:
     def decode(self, analog_syndrome: NDArray[np.float64]) -> NDArray[np.int32]:
         """Decode a given analog syndrome."""
         self._set_analog_syndrome(analog_syndrome)
-        return self.bposd_decoder.decode(simulation_utils.get_binary_from_analog(analog_syndrome))
+        return np.asarray(
+            self.bposd_decoder.decode(simulation_utils.get_binary_from_analog(analog_syndrome)), dtype=np.int32
+        )
 
 
 class AtdSimulator:

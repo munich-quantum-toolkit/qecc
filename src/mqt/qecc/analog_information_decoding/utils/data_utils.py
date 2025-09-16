@@ -196,12 +196,12 @@ def product_dict(**kwargs: Any) -> Any:  # noqa: ANN401
     keys = kwargs.keys()
     vals = kwargs.values()
     for instance in itertools.product(*vals):
-        yield dict(zip(keys, instance))
+        yield dict(zip(keys, instance, strict=False))
 
 
 def zip_dict(**kwargs: dict[str, Any]) -> Any:  # noqa: ANN401
     """Create a iterator of dictionaries where each dictionary contains the zip() of the values associated with each key in the input dictionary."""
-    return (dict(zip(kwargs.keys(), values)) for values in zip(*kwargs.values()))
+    return (dict(zip(kwargs.keys(), values, strict=False)) for values in zip(*kwargs.values(), strict=False))
 
 
 def _update_error_rates(success_cnt: int, runs: int, code_k: int) -> tuple[float, float, float, float]:

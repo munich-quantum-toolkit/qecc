@@ -141,6 +141,7 @@ def test_analog_ss_simulator_setup(
         single_stage_analog_simulator.x_apcm, np.hstack([pcm, np.identity(pcm.shape[0], dtype=np.int32)])
     )
     assert single_stage_analog_simulator.x_meta is True
+    assert single_stage_analog_simulator.ss_x_pcm is not None
     assert np.array_equal(single_stage_analog_simulator.ss_x_pcm, build_single_stage_pcm(pcm, mcm))
 
 

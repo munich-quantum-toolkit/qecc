@@ -117,6 +117,7 @@ def test_decode_multiround_syndr_err(
     )
     assert np.array_equal(res[0], np.array([0, 0, 0]))  # estimate is all zeros
     assert np.array_equal(res[1], syndrome)
+    assert res[2] is not None
     assert np.array_equal(res[2], analog_syndr)
 
 
@@ -148,4 +149,5 @@ def test_decode_multiround_data_err(
     )
     assert np.array_equal(res[0], np.array([1, 0, 0]))  # data error on qubit 1
     assert np.array_equal(res[1], syndrome)
+    assert res[2] is not None
     assert np.array_equal(res[2], analog_syndr)

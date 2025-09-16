@@ -16,7 +16,7 @@ import numpy as np
 
 from .css_code import CSSCode
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     import numpy.typing as npt
 
 
@@ -39,7 +39,7 @@ class ColorCode(CSSCode):
         self.faces_to_qubits: dict[int, list[int]] = {}
         self.lattice_type = lattice_type
         self.add_qubits()
-        self.H: npt.NDArray[np.int_] = np.zeros((len(self.ancilla_qubits), len(self.data_qubits)), dtype=int)
+        self.H = np.zeros((len(self.ancilla_qubits), len(self.data_qubits)), dtype=np.int8)
         self.construct_layout()
         CSSCode.__init__(self, self.H, self.H, distance)
         self.L = self.Lz
@@ -64,7 +64,7 @@ class ColorCode(CSSCode):
         """Compute the logical operators of the code."""
         self.L = self._compute_logical(self.H, self.H)
 
-    def get_syndrome(self, error: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:
+    def get_syndrome(self, error: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:  # type: ignore [override]
         """Compute the syndrome of the error."""
         return self.H @ error % 2
 

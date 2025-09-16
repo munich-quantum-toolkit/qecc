@@ -159,8 +159,8 @@ class EliminationCNOTSynthesizer:
         self.x_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.z_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.backtrack_required: bool = False
-        self.overlapping_errors_x: set[npt.NDArray[np.int8]] = set()
-        self.overlapping_errors_z: set[npt.NDArray[np.int8]] = set()
+        self.overlapping_errors_x: set[tuple[np.int8, ...]] = set()
+        self.overlapping_errors_z: set[tuple[np.int8, ...]] = set()
         self.stack: list[
             tuple[
                 npt.NDArray[np.int8],
@@ -262,7 +262,7 @@ class EliminationCNOTSynthesizer:
             return CandidateAction.RESTART_SEARCH
         return CandidateAction.EVALUATE
 
-    def _cnot_is_valid_against_references(self, i: int, j: int) -> tuple[bool, dict[str, npt.NDArray[np.int8]]]:
+    def _cnot_is_valid_against_references(self, i: int, j: int) -> tuple[bool, dict[str, npt.NDArray[np.int8] | bool]]:
         found_cnot: bool = False
         new_x_error, next_x_propagation_matrix = get_next_error(
             propagation_matrix=self.x_propagation_matrix.copy(), cnot_gate=(int(i), int(j))
@@ -311,7 +311,7 @@ class EliminationCNOTSynthesizer:
             "z_overlap": z_overlap,
         }
 
-    def _commit_to_cnot(self, i: int, j: int, new_errors: dict[str, npt.NDArray[np.int8]]) -> None:
+    def _commit_to_cnot(self, i: int, j: int, new_errors: dict[str, npt.NDArray[np.int8] | bool]) -> None:
         self.stack.append((
             self.x_propagation_matrix.copy(),
             self.z_propagation_matrix.copy(),
@@ -399,7 +399,7 @@ class EliminationCNOTSynthesizer:
         m = np.zeros((self.matrix.shape[1], self.matrix.shape[1]), dtype=bool)  # type: npt.NDArray[np.bool_]
         m[self.used_columns, :] = True
         m[:, self.used_columns] = True
-        return np.ma.array(self.costs, mask=m)  # type: ignore[no-untyped-call]
+        return np.ma.array(self.costs, mask=m)  # type: ignore[no-any-return, no-untyped-call]
 
     def _get_candidate_pairs(self, costs_unused: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
         # Get all valid (i, j) pairs sorted by cost
@@ -425,7 +425,7 @@ class EliminationCNOTSynthesizer:
         return overlap
 
     @staticmethod
-    def _check_error_existence(error: npt.NDArray[np.int8], error_memory: set[npt.NDArray[np.int8]]) -> bool:
+    def _check_error_existence(error: npt.NDArray[np.int8], error_memory: set[tuple[np.int8, ...]]) -> bool:
         # INFO: Quickly check if new error is known to cause overlap. This saves another long overlap check.
         error_tuple = tuple(error.flatten())
         return error_tuple in error_memory
@@ -731,8 +731,8 @@ def build_css_circuit_from_cnot_list(n: int, cnots: list[tuple[int, int]], hadam
 
 
 def _column_addition_constraint(
-    columns: npt.NDArray[z3.BoolRef | bool],
-    col_add_vars: npt.NDArray[z3.BoolRef],
+    columns: npt.NDArray[np.bool_],
+    col_add_vars: npt.NDArray[np.bool_],
 ) -> z3.BoolRef:
     assert len(columns.shape) == 3
     max_parallel_steps = col_add_vars.shape[0]
@@ -767,7 +767,7 @@ def _column_addition_constraint(
     return z3.And(constraints)
 
 
-def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]) -> z3.BoolRef:
+def symbolic_vector_eq(v1: npt.NDArray[np.bool_] | list[z3.BoolRef], v2: npt.NDArray[np.bool_]) -> z3.BoolRef:
     """Return assertion that two symbolic vectors should be equal."""
     if len(v1) != len(v2):
         msg = "Vectors must have the same length for equality check."
@@ -800,7 +800,7 @@ def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.Bo
     return z3.And(constraints)
 
 
-def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int8]) -> z3.BoolRef:
+def odd_overlap(v_sym: npt.NDArray[np.bool_], v_con: npt.NDArray[np.int8]) -> z3.BoolRef:
     """Return True if the overlap of symbolic vector with constant vector is odd."""
     if np.array_equal(v_con, np.zeros(len(v_con), dtype=np.int8)):
         return z3.BoolVal(False)
@@ -813,14 +813,12 @@ def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int
     return constraint
 
 
-def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[z3.BoolRef]:
+def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[np.bool_]:
     """Multiply a concrete vector by a symbolic scalar."""
     return np.array([a if s == 1 else False for s in v])
 
 
-def symbolic_vector_add(
-    v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]
-) -> npt.NDArray[z3.BoolRef | bool]:
+def symbolic_vector_add(v1: npt.NDArray[np.bool_], v2: npt.NDArray[np.bool_]) -> npt.NDArray[np.bool_]:
     """Add two symbolic vectors."""
     v_new = [False for _ in range(len(v1))]
     for i in range(len(v1)):
@@ -1625,9 +1623,7 @@ def measure_three_flagged_12(
     qc.measure(ancilla, measurement_bit)
 
 
-def vars_to_stab(
-    measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
-) -> npt.NDArray[z3.BoolRef | bool]:
+def vars_to_stab(measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.bool_]:
     """Compute the stabilizer measured giving the generators and the measurement variables."""
     if not measurement:
         msg = "Measurement must not be empty"

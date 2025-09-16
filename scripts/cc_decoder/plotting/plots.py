@@ -152,7 +152,7 @@ def generate_plots(results_dir: Path, results_file: Path) -> None:
         per_metrics[p][d] = result[ler_k]
     for d, mdata in sorted(metrics.items()):
         (mdata["p"], mdata[ler_k], mdata["avg_total_time"], mdata[ler_eb_k]) = zip(
-            *sorted(zip(mdata["p"], mdata[ler_k], mdata["avg_total_time"], mdata[ler_eb_k]))
+            *sorted(zip(mdata["p"], mdata[ler_k], mdata["avg_total_time"], mdata[ler_eb_k], strict=False)), strict=False
         )
 
         # sum over all logical to get overall ler+ebs
@@ -223,7 +223,7 @@ def generate_plots_tn(results_dir: Path, results_file: Path) -> None:
     _fig, ax = plt.subplots(2, 2, figsize=(12, 10))
     # add data
     for code, xys in sorted(code_to_xys.items()):
-        ax[0][0].plot(*zip(*xys), "x-", label=f"d={code}")
+        ax[0][0].plot(*zip(*xys, strict=False), "x-", label=f"d={code}")
     ax[0][0].set_xlabel("Physical error rate")
     ax[0][0].set_ylabel("Logical error rate")
     ax[0][0].legend()
@@ -239,7 +239,7 @@ def generate_plots_tn(results_dir: Path, results_file: Path) -> None:
         xys.sort(key=operator.itemgetter(0))
 
     for code, xys in sorted(code_to_xys.items()):
-        ax[1][0].plot(*zip(*xys), "x-", label=f"d={code}")
+        ax[1][0].plot(*zip(*xys, strict=False), "x-", label=f"d={code}")
     ax[1][0].set_xlabel("Physical error rate")
     ax[1][0].set_ylabel("Average time per run (µs)")  # noqa: RUF001
     ax[1][0].legend()
@@ -339,7 +339,7 @@ def generate_plots_comp(results_dir: Path, results_file: Path) -> None:
                 (
                     mdata["p"],
                     mdata["avg_total_time"],
-                ) = zip(*sorted(zip(mdata["p"], mdata["avg_total_time"])))
+                ) = zip(*sorted(zip(mdata["p"], mdata["avg_total_time"], strict=False)), strict=False)
                 ax[0].plot(
                     mdata["p"],
                     mdata["avg_total_time"],

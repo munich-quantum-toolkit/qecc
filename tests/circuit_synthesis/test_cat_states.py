@@ -60,7 +60,7 @@ def test_line(w: int) -> None:
     assert _is_cat_state(circ)
 
 
-def _fit_improvement(x: npt.NDArray[float], y: npt.NDArray[float]) -> float:
+def _fit_improvement(x: npt.NDArray[np.float64], y: npt.NDArray[np.float64]) -> float:
     fit_quad = np.polyfit(x, y, 2)
     fit_cube = np.polyfit(x, y, 3)
 
@@ -72,7 +72,7 @@ def _fit_improvement(x: npt.NDArray[float], y: npt.NDArray[float]) -> float:
     return (rss2 - rss3) / rss2
 
 
-def _pure_coeff_and_rss(x: npt.NDArray[float], y: npt.NDArray[float], degree: int) -> tuple[float, float]:
+def _pure_coeff_and_rss(x: npt.NDArray[np.float64], y: npt.NDArray[np.float64], degree: int) -> tuple[float, float]:
     # closed-form least squares for y ≃ c * x**degree
     x_d = x**degree
     c = np.dot(x_d, y) / np.dot(x_d, x_d)
@@ -87,8 +87,8 @@ def test_cat_state_experiment_nonft() -> None:
     perm = [0, 1, 2, 3, 4, 5]  # identity permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = np.arange(0.01, 0.1, 0.01)
-    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=2000000)
+    ps = np.arange(0.01, 0.1, 0.01, dtype=np.float64)
+    _, _, errs, _ = sim.cat_prep_experiment(ps.tolist(), shots_per_p=2000000)
 
     # In the given circuit structure, single errors can lead to weight 3 errors.
     # Since c1 and c2 prepare the circuit in the same way, such errors cancel out and won't be detected.
@@ -115,8 +115,8 @@ def test_cat_state_experiment_ft() -> None:
     perm = [0, 4, 2, 3, 1, 5]  # ft permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = np.arange(0.01, 0.1, 0.01)
-    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=1000000)
+    ps = np.arange(0.01, 0.1, 0.01, dtype=np.float64)
+    _, _, errs, _ = sim.cat_prep_experiment(ps.tolist(), shots_per_p=1000000)
 
     # In the given circuit structure, single errors can lead to weight 3 errors.
     # Since c1 and c2 are connected via a permuted CNOT such errors won't cancel out and won't be detected.

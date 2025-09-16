@@ -61,7 +61,7 @@ class ConcatenatedCode(StabilizerCode):
         if not isinstance(other, ConcatenatedCode):
             return NotImplemented
         return self.outer_code == other.outer_code and all(
-            c1 == c2 for c1, c2 in zip(self.inner_codes, other.inner_codes)
+            c1 == c2 for c1, c2 in zip(self.inner_codes, other.inner_codes, strict=False)
         )
 
     def __hash__(self) -> int:

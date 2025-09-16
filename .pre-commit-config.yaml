@@ -59,22 +59,22 @@ repos:
 
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.9
+    rev: v0.13.0
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
   # Also run Black on examples in the documentation
   - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.19.1
+    rev: 1.20.0
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==24.*]
+        additional_dependencies: [black==25.*]
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.7.0
+    rev: v2.8.0
     hooks:
       - id: license-tools
 
@@ -83,7 +83,7 @@ repos:
     rev: v1.17.1
     hooks:
       - id: mypy
-        files: ^(src/mqt|test/python|noxfile.py)
+        files: ^(src/mqt|tests|noxfile.py)
         args: []
         additional_dependencies:
           - nox
@@ -93,7 +93,7 @@ repos:
 
   # Check for spelling
   - repo: https://github.com/crate-ci/typos
-    rev: v1.35.4
+    rev: v1.36.2
     hooks:
       - id: typos
 
@@ -122,7 +122,7 @@ repos:
 
   # Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.33.2
+    rev: 0.33.3
     hooks:
       - id: check-dependabot
       - id: check-github-workflows
@@ -130,6 +130,24 @@ repos:
 
   # Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2025.06.23
+    rev: 2025.09.12
     hooks:
       - id: validate-pyproject
+
+  # Tidy up BibTeX files
+  - repo: https://github.com/FlamingTempura/bibtex-tidy
+    rev: v1.14.0
+    hooks:
+      - id: bibtex-tidy
+        args:
+          [
+            "--align=20",
+            "--curly",
+            "--months",
+            "--blank-lines",
+            "--sort",
+            "--strip-enclosing-braces",
+            "--sort-fields",
+            "--trailing-commas",
+            "--remove-empty-fields",
+          ]

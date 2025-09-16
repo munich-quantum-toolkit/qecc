@@ -15,10 +15,11 @@ import operator
 from typing import TYPE_CHECKING
 
 import numpy as np
+import stim
 import z3
 from ldpc import mod2
 
-from ..codes import InvalidCSSCodeError
+from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
 from .synthesis_utils import (
     EliminationCNOTSynthesizer,
@@ -29,6 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
     from ..codes.css_code import CSSCode
+
 
 logger = logging.getLogger(__name__)
 
@@ -179,10 +181,6 @@ def depth_optimal_encoding_circuit(
 
 def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
     """Return the stabilizer matrix with the fewest checks, the corresponding logicals and a bool indicating whether X- or Z-checks have been returned."""
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
-        raise InvalidCSSCodeError(msg)
-
     use_x_checks = code.Hx.shape[0] < code.Hz.shape[0]
     checks = code.Hx if use_x_checks else code.Hz
     logicals = code.Lx if use_x_checks else code.Lz
@@ -190,7 +188,7 @@ def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8],
 
 
 def _final_matrix_constraint_partially_full_reduction(
-    columns: npt.NDArray[z3.BoolRef | bool], full_reduction_rows: list[int], rank: int
+    columns: npt.NDArray[np.bool_], full_reduction_rows: list[int], rank: int
 ) -> z3.BoolRef:
     assert len(columns.shape) == 3
 
@@ -271,3 +269,94 @@ def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
             m[i] = (m[i] + m[j]) % 2
             reduced = False
             variance = row_ops[0][2]
+
+
+def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
+    """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
+
+    Assumes all signs of the stabilizers are +1.
+
+    Args:
+        tableau: The stabilizer tableau of the code to synthesize the encoding circuit for.
+
+    Returns:
+        stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
+    """
+    if isinstance(tableau, list):
+        tableau = StabilizerTableau.from_pauli_strings(tableau)
+    nq = tableau.n
+    mat = tableau.tableau.matrix.copy()
+    x_part = mat[:, :nq]
+    z_part = mat[:, nq:]
+
+    circ = stim.Circuit()
+    n_rows = mat.shape[0]
+
+    initialized = []
+    for row in range(n_rows):
+        # find row with either x_part[row][i] = 1 or z_part[row][i] = 1
+        pivot = row
+        column = row
+
+        while column < nq and x_part[pivot][column] != 1 and z_part[pivot][column] != 1:
+            found_pivot = False
+            for p in range(row, n_rows):
+                if x_part[p][column] == 1 or z_part[p][column] == 1:
+                    pivot = p
+                    found_pivot = True
+                    break
+            if not found_pivot:
+                column += 1
+                pivot = row
+        if column >= nq:
+            # No valid pivot found, invalid tableau
+            msg = "Invalid tableau: could not find a valid pivot."
+            raise ValueError(msg)
+        initialized.append(column)
+        # swap to row i
+        t = x_part[pivot].copy()
+        x_part[pivot] = x_part[row]
+        x_part[row] = t
+
+        t = z_part[pivot].copy()
+        z_part[pivot] = z_part[row]
+        z_part[row] = t
+
+        if x_part[row][column] == 0:
+            circ.append("H", [column])
+            t = x_part[:, column].copy()
+            x_part[:, column] = z_part[:, column]
+            z_part[:, column] = t
+
+        # reduce column
+        for q in np.where(x_part[row])[0]:
+            if q == column:
+                continue
+            circ.append("CX", [column, q])
+            x_part[:, q] ^= x_part[:, column]
+            z_part[:, column] ^= z_part[:, q]
+
+        if z_part[row][column] == 1:
+            circ.append("S", [column])
+            z_part[:, column] ^= x_part[:, column]
+
+        for q in np.where(z_part[row])[0]:
+            if q == column:
+                continue
+            circ.append("CZ", [column, q])
+            z_part[:, q] ^= x_part[:, column]
+            z_part[:, column] ^= x_part[:, q]
+
+        # reduce stabilizers below row
+        x_part[:, column] = 0
+        x_part[row, column] = 1
+
+    circ.append("H", initialized)
+    circ = circ.inverse()
+
+    signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
+    for row, sign in enumerate(signs):
+        if sign == -1:
+            circ.insert(0, stim.CircuitInstruction("X", [row]))
+    uninitialized = list(set(range(nq)) - set(initialized))
+    return circ, uninitialized
