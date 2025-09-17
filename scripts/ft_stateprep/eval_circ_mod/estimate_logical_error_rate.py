@@ -99,7 +99,7 @@ def main() -> None:
         decoder=decoder,
     )
     p = args.p_error
-    noise = CircuitLevelNoiseIdlingParallel(p, p, p, p, p * args.p_idle_factor)
+    noise = CircuitLevelNoiseIdlingParallel(p, p, p * 2 / 3, p, p * args.p_idle_factor)
     if args.x_errors:
         res = sim.logical_error_rate(noise=noise, min_errors=args.n_errors)
     else:
