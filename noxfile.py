@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Nox sessions."""
 
 from __future__ import annotations
@@ -5,7 +12,6 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import sys
 from typing import TYPE_CHECKING
 
 import nox
@@ -14,22 +20,13 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 nox.needs_version = ">=2024.3.2"
-nox.options.default_venv_backend = "uv|virtualenv"
+nox.options.default_venv_backend = "uv"
 
 nox.options.sessions = ["lint", "tests", "minimums"]
 
-PYTHON_ALL_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
-
-# The following lists all the build requirements for building the package.
-# Note that this includes transitive build dependencies of package dependencies,
-# since we use `--no-build-isolation` to install the package in editable mode
-# and get better caching performance. This only concerns dependencies that are
-# not available via wheels on PyPI (i.e., only as source distributions).
-BUILD_REQUIREMENTS = [
-    "scikit-build-core>=0.10.1",
-    "setuptools_scm>=8.1",
-    "pybind11>=2.13.5",
-]
+# TODO(denialhaag): Add 3.14 when all dependencies support it
+#   https://github.com/munich-quantum-toolkit/qecc/issues/464
+PYTHON_ALL_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 if os.environ.get("CI", None):
     nox.options.error_on_missing_interpreters = True
@@ -49,27 +46,26 @@ def _run_tests(
     *,
     install_args: Sequence[str] = (),
     run_args: Sequence[str] = (),
-    extras: Sequence[str] = (),
 ) -> None:
-    posargs = list(session.posargs)
-    env = {}
-    if os.environ.get("CI", None) and sys.platform == "win32":
-        env["SKBUILD_CMAKE_ARGS"] = "-T ClangCL"
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
 
-    if shutil.which("cmake") is None and shutil.which("cmake3") is None:
-        session.install("cmake")
-    if shutil.which("ninja") is None:
-        session.install("ninja")
+    if "--cov" in session.posargs:
+        # try to use the lighter-weight `sys.monitoring` coverage core
+        env["COVERAGE_CORE"] = "sysmon"
 
-    extras_ = ["test", *extras]
-    if "--cov" in posargs:
-        extras_.append("coverage")
-        posargs.append("--cov-config=pyproject.toml")
-
-    session.install(*BUILD_REQUIREMENTS, *install_args, env=env)
-    install_arg = f"-ve.[{','.join(extras_)}]"
-    session.install("--no-build-isolation", install_arg, *install_args, env=env)
-    session.run("pytest", *run_args, *posargs, env=env)
+    session.run(
+        "uv",
+        "run",
+        "--no-dev",
+        "--group",
+        "test",
+        *install_args,
+        "pytest",
+        *run_args,
+        *session.posargs,
+        "--cov-config=pyproject.toml",
+        env=env,
+    )
 
 
 @nox.session(reuse_venv=True, python=PYTHON_ALL_VERSIONS)
@@ -86,7 +82,9 @@ def minimums(session: nox.Session) -> None:
         install_args=["--resolution=lowest-direct"],
         run_args=["-Wdefault"],
     )
-    session.run("uv", "pip", "list")
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    session.run("uv", "tree", "--frozen", env=env)
+    session.run("uv", "lock", "--refresh", env=env)
 
 
 @nox.session(reuse_venv=True)
@@ -97,25 +95,27 @@ def docs(session: nox.Session) -> None:
     args, posargs = parser.parse_known_args(session.posargs)
 
     serve = args.builder == "html" and session.interactive
-    extra_installs = ["sphinx-autobuild"] if serve else []
-    session.install(*BUILD_REQUIREMENTS, *extra_installs)
-    session.install("--no-build-isolation", "-ve.[docs]")
-    session.chdir("docs")
+    if serve:
+        session.install("sphinx-autobuild")
 
-    if args.builder == "linkcheck":
-        session.run("sphinx-build", "-b", "linkcheck", ".", "_build/linkcheck", *posargs)
-        return
-
-    shared_args = (
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    shared_args = [
         "-n",  # nitpicky mode
         "-T",  # full tracebacks
         f"-b={args.builder}",
-        ".",
-        f"_build/{args.builder}",
+        "docs",
+        f"docs/_build/{args.builder}",
         *posargs,
-    )
+    ]
 
-    if serve:
-        session.run("sphinx-autobuild", *shared_args)
-    else:
-        session.run("sphinx-build", "--keep-going", *shared_args)
+    session.run(
+        "uv",
+        "run",
+        "--no-dev",
+        "--group",
+        "docs",
+        "--frozen",
+        "sphinx-autobuild" if serve else "sphinx-build",
+        *shared_args,
+        env=env,
+    )

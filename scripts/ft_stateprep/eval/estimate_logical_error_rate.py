@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Estimate logical error rate for CSS state preparation circuits for a given code and physical error rate."""
 
 from __future__ import annotations
@@ -29,6 +36,7 @@ def main() -> None:
         help="Code for which to estimate logical error rate. Available codes: " + ", ".join(available_codes),
     )
     parser.add_argument("-p", "--p_error", type=float, help="Physical error rate")
+    parser.add_argument("-p_idle_factor", "--p_idle_factor", type=float, default=0.01, help="Idling error rate")
     parser.add_argument("--zero_state", default=True, action="store_true", help="Synthesize logical |0> state.")
     parser.add_argument(
         "--plus_state", default=False, dest="zero_state", action="store_false", help="Synthesize logical |+> state."
@@ -91,7 +99,12 @@ def main() -> None:
         qc = QuantumCircuit.from_qasm_file(prefix / code_name / circ_file)
 
     sim = NoisyNDFTStatePrepSimulator(
-        qc, code=code, p=args.p_error, zero_state=args.zero_state, parallel_gates=not args.no_parallel_gates
+        qc,
+        code=code,
+        p=args.p_error,
+        p_idle=args.p_idle_factor * args.p_error,
+        zero_state=args.zero_state,
+        parallel_gates=not args.no_parallel_gates,
     )
     res = sim.logical_error_rate(min_errors=args.n_errors)
     print(",".join([str(x) for x in res]))

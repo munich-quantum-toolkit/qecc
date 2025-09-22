@@ -1,10 +1,16 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 [build-system]
 requires = [
-  "scikit-build-core>=0.10.1",
-  "setuptools-scm>=8.1",
-  "pybind11>=2.13.5",
+  "hatchling>=1.27.0",
+  "hatch-vcs>=0.4.0"
 ]
-build-backend = "scikit_build_core.build"
+build-backend = "hatchling.build"
 
 [project]
 name = "mqt.qecc"
@@ -19,7 +25,8 @@ authors = [
     { name = "Ludwig Schmid", email = "ludwig.s.schmid@tum.de" },
 ]
 keywords = ["MQT", "quantum-computing", "error-correction", "MaxSAT", "QLDPC"]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE.md"]
 
 classifiers = [
     "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
@@ -28,8 +35,6 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: C++",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -38,152 +43,106 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Development Status :: 5 - Production/Stable",
     "Typing :: Typed",
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "z3-solver>=4.12",
-    "qecsim",
-    "ldpc>=0.1.53,<2",  # temporary upper cap due to failures seen with ldpc v2
-    "numpy>=1.26; python_version > '3.11'",
-    "numpy>=1.24; python_version <= '3.11'",
-    "qiskit[qasm3-import]>=1.0.0",
-    "qiskit-aer>=0.15.0",
-    "stim >= 1.13.0",
-    "multiprocess >= 0.70.16",
-    "bposd>=1.6",
-    "numba>=0.59; python_version > '3.11'",
-    "numba>=0.57; python_version <= '3.11'",
-    "pymatching>=2.2.1",
-    "qsample>=0.0.2",
-    "urllib3>=1.26.20", # Required by qsample (to be removed)
-    "fastcore>=1.7.10" # Required by qsample (to be removed)
+  "qiskit[qasm3-import]>=1.0.0",
+  "numpy>=2.1; python_version >= '3.13'",
+  "numpy>=1.26; python_version >= '3.12'",
+  "numpy>=1.24.1",
+  "numba>=0.61; python_version >= '3.13'",
+  "numba>=0.59; python_version >= '3.12'",
+  "numba>=0.57",
+  "scipy>=1.15.2; python_version >= '3.10'",
+  "scipy>=1.13.1",
+  "z3-solver>=4.15.3",
+  "multiprocess >= 0.70.17",
+  "ldpc>=0.1.60,<2", # temporary upper cap due to failures seen with ldpc v2
+  "stim >= 1.14.0",
+  "pymatching>=2.2.2",
+  "bposd>=1.6",
+  "qecsim>=1.0b9",
+  "sinter>=1.14.0",
+  "tqdm>=4.66.2"
 ]
 dynamic = ["version"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/mqt"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/mqt/qecc/_version.py"
+
 [project.optional-dependencies]
-test = ["pytest>=7.2", "pytest-console-scripts>=1.4", "pytest-mock>=3.7"]
-coverage = ["mqt.qecc[test]", "pytest-cov>=4"]
-docs = [
-    "furo>=2023.9.10",
-    "setuptools-scm>=8.1",
-    "sphinxcontrib-bibtex>=2.4.2",
-    "sphinx-copybutton>=0.5",
-    "ipykernel",
-    "nbsphinx",
-    "sphinxext-opengraph>=0.9",
-    "sphinx-autodoc-typehints",
-    "qiskit[visualization]",
+qsample = [
+  "qsample>=0.0.2",
+  "urllib3>=2.3.0",
+  "fastcore>=1.8.1",
 ]
-visualization = ["matplotlib", "scipy"]
-dev = ["mqt.qecc[coverage, docs, visualization]"]
+
+[project.urls]
+Homepage = "https://github.com/munich-quantum-toolkit/qecc"
+Documentation = "https://mqt.readthedocs.io/projects/qecc"
+Issues = "https://github.com/munich-quantum-toolkit/qecc/issues"
+Discussions = "https://github.com/munich-quantum-toolkit/qecc/discussions"
 
 [project.scripts]
-"ecc_qiskit_wrapper" = "mqt.qecc.ecc_qiskit_wrapper:main"
 "mqt.qecc.cc-decoder" = "mqt.qecc.cc_decoder.cli:cli"
 "mqt.qecc.cc-decoder-plot" = "mqt.qecc.cc_decoder.plots:main"
 
-[project.urls]
-Homepage = "https://github.com/cda-tum/mqt-qecc"
-Documentation = "https://mqt.readthedocs.io/projects/qecc"
-Issues = "https://github.com/cda-tum/mqt-qecc/issues"
-Discussions = "https://github.com/cda-tum/mqt-qecc/discussions"
-
-[tool.scikit-build]
-# Protect the configuration against future changes in scikit-build-core
-minimum-version = "build-system.requires"
-
-# Set the wheel install directory
-wheel.install-dir = "mqt/qecc"
-
-# Explicitly set the package directory
-wheel.packages = ["src/mqt"]
-
-# Set required Ninja version
-ninja.version = ">=1.10"
-
-# Setuptools-style build caching in a local directory
-build-dir = "build/{wheel_tag}/{build_type}"
-
-# Only build the Python bindings target
-build.targets = ["pyqecc"]
-
-# Only install the Python package component
-install.components = ["mqt-qecc_Python"]
-
-metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
-sdist.include = ["src/mqt/qecc/_version.py"]
-sdist.exclude = [
-    "**/.github",
-    "**/doc",
-    "**/docs",
-    "**/meta",
-    "**/plots",
-    "**/test",
-    "**/tests",
-]
-
-[tool.scikit-build.cmake.define]
-BUILD_MQT_QECC_TESTS = "OFF"
-BUILD_MQT_QECC_BINDINGS = "ON"
-ENABLE_IPO = "ON"
-
-[[tool.scikit-build.overrides]]
-if.python-version = ">=3.13"
-if.abi-flags = "t"
-if.platform-system = "win32"
-inherit.cmake.define = "append"
-cmake.define.DISABLE_GIL = "1"
-
-
-[tool.check-sdist]
-sdist-only = ["src/mqt/qecc/_version.py"]
-git-only = [
-    "docs/*",
-    "examples/*",
-    "test/*",
-    ".idea/*",
-]
-
-
-[tool.setuptools_scm]
-write_to = "src/mqt/qecc/_version.py"
 
 [tool.pytest.ini_options]
 minversion = "7.2"
-testpaths = ["test/python"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "--showlocals"]
+testpaths = ["tests"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--showlocals",
+  "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
+  "--dist=loadgroup", # Ensure that certain tests are run on the same worker
+]
 log_cli_level = "INFO"
 xfail_strict = true
 filterwarnings = [
   "error",
-  "ignore:.*pkg_resources.*:DeprecationWarning:",
+  "ignore:pkg_resources is deprecated:UserWarning", # Due to qsample, do not remove!
+  "ignore:Deprecated call to `pkg_resources\\.declare_namespace\\('.+'\\)`\\.:DeprecationWarning", # Due to qsample, do not remove!
   "ignore:.*The retworkx package is deprecated*:DeprecationWarning:pymatching",
-  'ignore:.*qiskit.providers.provider.Provider.*:DeprecationWarning:',
   'ignore::DeprecationWarning:.*(simpleeval).*',
-  'ignore::RuntimeWarning:.*(qsample).*',
-  'ignore:.*invalid escape sequence.*::.*qsample.*',
-  'ignore:.*invalid escape sequence.*::.*latextools.*',
   # Qiskit 1.3 deprecations
   'ignore:.*``qiskit.dagcircuit.dagcircuit.DAGCircuit.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.condition`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*Conditioned gates in qasm2 will be loaded as an IfElseOp starting in Qiskit 2.0.*:FutureWarning:',
   'ignore:.*``qiskit.circuit.singleton.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.c_if.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
+  # Qiskit 2.1 starts to warn about the upcoming Python 3.9 removal in Qiskit 2.3.
+  # We will drop 3.9 support around the same time, at which point this warning filter can be removed
+  'ignore:.*Using Qiskit with Python 3.9 is deprecated as of the 2.1.0 release.*:DeprecationWarning:',
 ]
 
 [tool.coverage]
 run.source = ["mqt.qecc"]
 report.exclude_also = [
-    '\.\.\.',
-    'if TYPE_CHECKING:',
-    'raise AssertionError',
-    'raise NotImplementedError',
+  '\.\.\.',
+  'if TYPE_CHECKING:',
+  'raise AssertionError',
+  'raise NotImplementedError',
+  'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
+  '@overload'  # Overloads are only for static typing
+]
+run.disable_warnings = [
+  "no-sysmon",
 ]
 
 [tool.mypy]
-files = ["src/mqt", "test/python", "noxfile.py"]
+files = ["src/mqt", "tests", "noxfile.py"]
 mypy_path = ["$MYPY_CONFIG_FILE_DIR/src"]
 python_version = "3.9"
 warn_unused_configs = true
@@ -199,7 +158,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "qsample.*", "pandas.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*"]
 ignore_missing_imports = true
 
 
@@ -272,7 +231,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "typing.Set".msg = "Use collections.abc.Set instead."
 
 [tool.ruff.lint.per-file-ignores]
-"test/python/**" = ["T20", "ANN"]
+"tests/**" = ["T20", "ANN"]
 "docs/**" = ["T20"]
 "noxfile.py" = ["T20", "TID251"]
 "*.pyi" = ["D"]  # pydocstyle
@@ -283,6 +242,7 @@ isort.required-imports = ["from __future__ import annotations"]
 ]
 "*/cc_decoder/plots.py" = ["T201"]
 "scripts/*" = ["T201"]
+"lifted_hgp.py" = ["EXE002"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -294,40 +254,44 @@ wille = "wille"
 ser = "ser"
 aer = "aer"
 anc = "anc"
+arange = "arange"
+nd = "nd"
 
 
 [tool.repo-review]
 ignore = ["GH200"]
 
 
-[tool.cibuildwheel]
-build = "cp3*"
-skip = "*-musllinux*"
-archs = "auto64"
-test-command = "python -c \"from mqt import qecc\""
-test-skip = ["cp313*"] # skip testing on Python 3.13 until our dependencies are ready
-build-frontend = "build[uv]"
-enable = ["cpython-freethreading"]
-manylinux-x86_64-image = "manylinux_2_28"
-manylinux-aarch64-image = "manylinux_2_28"
-manylinux-ppc64le-image = "manylinux_2_28"
-manylinux-s390x-image = "manylinux_2_28"
-
-[tool.cibuildwheel.linux]
-environment = { DEPLOY = "ON" }
-
-[tool.cibuildwheel.macos]
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
-
-[tool.cibuildwheel.windows]
-before-build = "uv pip install delvewheel>=1.7.3"
-repair-wheel-command = "delvewheel repair -v -w {dest_dir} {wheel} --namespace-pkg mqt"
-environment = { CMAKE_ARGS = "-T ClangCL" }
-
-[[tool.cibuildwheel.overrides]]
-select = "*-macosx_arm64"
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
-
-
 [tool.uv]
+required-version = ">=0.5.20"
 reinstall-package = ["mqt.qecc"]
+
+[dependency-groups]
+docs = [
+  "furo>=2024.8.6",
+  "setuptools-scm>=8.2",
+  "sphinx-autoapi>=3.6.0",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx-design>=0.6.1",
+  "sphinxcontrib-bibtex>=2.6.3",
+  "sphinxcontrib-svg2pdfconverter>=1.3.0",
+  "sphinxext-opengraph>=0.10.0",
+  "myst-nb>=1.2.0",
+  "sphinx>=7.4.7",
+  "sphinx>=8.1.3; python_version >= '3.10'",
+  "sphinx>=8.2.3; python_version >= '3.11'",
+  "qiskit[qasm3-import,visualization]>=1.0.0",
+  "ipywidgets>=8.1.5",
+]
+test = [
+  "pytest>=8.3.5",
+  "pytest-console-scripts>=1.4.1",
+  "pytest-cov>=6.1.1",
+  "pytest-mock>=3.14.0",
+  "pytest-sugar>=1.0.0",
+  "pytest-xdist>=3.7.0",
+]
+dev = [
+  {include-group = "docs"},
+  {include-group = "test"},
+]

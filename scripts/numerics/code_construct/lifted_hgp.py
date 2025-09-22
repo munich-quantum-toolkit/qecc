@@ -1,4 +1,11 @@
-"""Generate the lifted hypergraph product of the protographs a and b. From Roffe's LDPC library."""  # noqa: EXE002
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
+"""Generate the lifted hypergraph product of the protographs a and b. From Roffe's LDPC library."""
 
 from __future__ import annotations
 

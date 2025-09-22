@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Methods for synthesizing encoding circuits for CSS codes."""
 
 from __future__ import annotations
@@ -8,30 +15,27 @@ import operator
 from typing import TYPE_CHECKING
 
 import numpy as np
+import stim
 import z3
 from ldpc import mod2
 from qiskit import QuantumCircuit
 
 from ..codes import InvalidCSSCodeError
-from .synthesis_utils import (
-    build_css_circuit_from_cnot_list,
-    heuristic_gaussian_elimination,
-    optimal_elimination,
-    symbolic_vector_add,
-    symbolic_vector_eq,
-)
+from ..codes.pauli import StabilizerTableau
+from .circuits import CNOTCircuit
+from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
     from ..codes import CSSCode, StabilizerCode
+    from ..codes.css_code import CSSCode
+
 
 logger = logging.getLogger(__name__)
 
 
-def heuristic_encoding_circuit(
-    code: CSSCode, optimize_depth: bool = True, balance_checks: bool = False
-) -> QuantumCircuit:
+def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balance_checks: bool = False) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
     Args:
@@ -76,7 +80,6 @@ def heuristic_encoding_circuit(
                 checks[row, encoding_qubit] = 0
 
     cnots = cnots[::-1]
-
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
@@ -438,7 +441,7 @@ def gate_optimal_encoding_circuit(
     max_gates: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> QuantumCircuit:
+) -> CNOTCircuit | None:
     """Synthesize an encoding circuit for the given CSS code using the minimal number of gates.
 
     Args:
@@ -486,7 +489,7 @@ def depth_optimal_encoding_circuit(
     max_depth: int = 10,
     min_timeout: int = 1,
     max_timeout: int = 3600,
-) -> QuantumCircuit:
+) -> CNOTCircuit | None:
     """Synthesize an encoding circuit for the given CSS code using minimal depth.
 
     Args:
@@ -683,7 +686,7 @@ def _final_matrix_constraint_partially_full_reduction(
 
 def _build_css_encoder_from_cnot_list(
     n_checks: int, checks_and_logicals: npt.NDArray[np.int8], cnots: list[tuple[int, int]], use_x_checks: bool
-) -> tuple[QuantumCircuit, list[int]]:
+) -> CNOTCircuit:
     encoding_qubits = np.where(checks_and_logicals[n_checks:, :].sum(axis=0) != 0)[0]
     if use_x_checks:
         hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) != 0)[0]
@@ -692,8 +695,8 @@ def _build_css_encoder_from_cnot_list(
         cnots = [(j, i) for i, j in cnots]
 
     hadamards = np.setdiff1d(hadamards, encoding_qubits)
-    circ = build_css_circuit_from_cnot_list(checks_and_logicals.shape[1], cnots, list(hadamards))
-    return circ, encoding_qubits
+    non_hadamards = [i for i in range(checks_and_logicals.shape[1]) if i not in hadamards and i not in encoding_qubits]
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
 def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
@@ -731,3 +734,94 @@ def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
             m[i] = (m[i] + m[j]) % 2
             reduced = False
             variance = row_ops[0][2]
+
+
+def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
+    """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
+
+    Assumes all signs of the stabilizers are +1.
+
+    Args:
+        tableau: The stabilizer tableau of the code to synthesize the encoding circuit for.
+
+    Returns:
+        stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
+    """
+    if isinstance(tableau, list):
+        tableau = StabilizerTableau.from_pauli_strings(tableau)
+    nq = tableau.n
+    mat = tableau.tableau.matrix.copy()
+    x_part = mat[:, :nq]
+    z_part = mat[:, nq:]
+
+    circ = stim.Circuit()
+    n_rows = mat.shape[0]
+
+    initialized = []
+    for row in range(n_rows):
+        # find row with either x_part[row][i] = 1 or z_part[row][i] = 1
+        pivot = row
+        column = row
+
+        while column < nq and x_part[pivot][column] != 1 and z_part[pivot][column] != 1:
+            found_pivot = False
+            for p in range(row, n_rows):
+                if x_part[p][column] == 1 or z_part[p][column] == 1:
+                    pivot = p
+                    found_pivot = True
+                    break
+            if not found_pivot:
+                column += 1
+                pivot = row
+        if column >= nq:
+            # No valid pivot found, invalid tableau
+            msg = "Invalid tableau: could not find a valid pivot."
+            raise ValueError(msg)
+        initialized.append(column)
+        # swap to row i
+        t = x_part[pivot].copy()
+        x_part[pivot] = x_part[row]
+        x_part[row] = t
+
+        t = z_part[pivot].copy()
+        z_part[pivot] = z_part[row]
+        z_part[row] = t
+
+        if x_part[row][column] == 0:
+            circ.append("H", [column])
+            t = x_part[:, column].copy()
+            x_part[:, column] = z_part[:, column]
+            z_part[:, column] = t
+
+        # reduce column
+        for q in np.where(x_part[row])[0]:
+            if q == column:
+                continue
+            circ.append("CX", [column, q])
+            x_part[:, q] ^= x_part[:, column]
+            z_part[:, column] ^= z_part[:, q]
+
+        if z_part[row][column] == 1:
+            circ.append("S", [column])
+            z_part[:, column] ^= x_part[:, column]
+
+        for q in np.where(z_part[row])[0]:
+            if q == column:
+                continue
+            circ.append("CZ", [column, q])
+            z_part[:, q] ^= x_part[:, column]
+            z_part[:, column] ^= x_part[:, q]
+
+        # reduce stabilizers below row
+        x_part[:, column] = 0
+        x_part[row, column] = 1
+
+    circ.append("H", initialized)
+    circ = circ.inverse()
+
+    signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
+    for row, sign in enumerate(signs):
+        if sign == -1:
+            circ.insert(0, stim.CircuitInstruction("X", [row]))
+    uninitialized = list(set(range(nq)) - set(initialized))
+    return circ, uninitialized

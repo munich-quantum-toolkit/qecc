@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Quasi single shot simulator."""
 
 from __future__ import annotations
@@ -142,7 +149,7 @@ class QssSimulator:
         self.check_block_size = self.num_qubits * (self.repetitions)
 
         channel_probs: NDArray[np.float64] = np.zeros(self.H3D.shape[1]).astype(np.float64)
-        # The bits corresponding to the columns of the diagonal H-bock of H3D are initialized with the bit channel
+        # The bits corresponding to the columns of the diagonal H-block of H3D are initialized with the bit channel
         channel_probs[: self.check_block_size] = np.array(self.data_err_channel.tolist() * (self.repetitions))
 
         # The remaining bits (corresponding to the identity block of H3D)

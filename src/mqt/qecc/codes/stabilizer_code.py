@@ -1,7 +1,15 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Class for representing general stabilizer codes."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -173,6 +181,29 @@ class StabilizerCode:
         z_logicals = ["I" * i + "Z" + "I" * (n - i - 1) for i in range(n)]
         x_logicals = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> StabilizerCode:
+        """Load a Stabilizer code from a file.
+
+        The file should have one line per stabilizer generator as a string.
+
+        For the 5-qubit perfect code, this would be:
+        IXXZZ
+        ZIXXZ
+        ZZIXX
+        XZZIX
+
+        Args:
+            file_path: The path to the file containing the code.
+
+        Returns:
+            StabilizerCode: The stabilizer code.
+        """
+        with Path(file_path).open(encoding="utf-8") as f:
+            lines = f.readlines()
+        generators = [line.strip() for line in lines]
+        return cls(generators)
 
 
 class InvalidStabilizerCodeError(ValueError):

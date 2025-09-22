@@ -14,9 +14,41 @@
   align-items: center;
   margin-top: 0.5rem;
 }
+
 .acknowledgement {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+/* override the default background color for literal strings */
+body:not([data-theme="light"]) .highlight .sa,
+.highlight .sb,
+.highlight .sc,
+.highlight .dl,
+.highlight .sd,
+.highlight .s2,
+.highlight .se,
+.highlight .sh,
+.highlight .si,
+.highlight .sx,
+.highlight .sr,
+.highlight .s1,
+.highlight .ss,
+.highlight .s1,
+.highlight .s {
+  background-color: #00000001;
+}
+
+/* provide dark mode overrides for mystnb variables */
+body:not([data-theme="light"]) {
+  --mystnb-source-bg-color: #131416;
+  --mystnb-stdout-bg-color: #1a1c1e;
+  --mystnb-stderr-bg-color: #442222;
+  --mystnb-traceback-bg-color: #202020;
+}
+
+body:not([data-theme="light"]) .highlight .gp {
+  color: #c65d09;
 }

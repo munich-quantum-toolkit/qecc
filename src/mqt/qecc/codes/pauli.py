@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Class for working with representations of Pauli operators."""
 
 from __future__ import annotations
@@ -277,7 +284,7 @@ class StabilizerTableau:
 
     def apply_y(self, qubit) -> None:
         """Apply the Y gate to the stabilizer tableau."""
-        self.phase = (self.phase + self.tableau[:, qubit] + self.tableau[:, qubit + self.n])
+        self.phase = self.phase + self.tableau[:, qubit] + self.tableau[:, qubit + self.n]
 
     def copy(self) -> StabilizerTableau:
         """Return a copy of the stabilizer tableau."""
@@ -290,7 +297,11 @@ class StabilizerTableau:
 
 def is_pauli_string(p: str) -> bool:
     """Check if a string is a valid Pauli string."""
-    return len(p) > 0 and all(c in {"I", "X", "Y", "Z"} for c in p[1:]) and p[0] in {"+", "-", "I", "X", "Y", "Z"}
+    return (
+        len(p) > 0
+        and all(c in {"_", "I", "X", "Y", "Z"} for c in p[1:])
+        and p[0] in {"+", "-", "I", "X", "Y", "Z", "_"}
+    )
 
 
 class InvalidPauliError(ValueError):

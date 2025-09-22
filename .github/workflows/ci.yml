@@ -14,48 +14,66 @@ concurrency:
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-change-detection.yml@v1.5
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
-  cpp-tests:
-    name: 🇨‌ Test
+  python-linter:
+    name: 🐍 Lint
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-cpp-ci.yml@v1.5
-
-  cpp-linter:
-    name: 🇨‌ Lint
-    needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-linter)
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-cpp-linter.yml@v1.5
+    if: fromJSON(needs.change-detection.outputs.run-python-tests)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
   python-tests:
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-python-ci.yml@v1.5
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14, windows-2022]
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
+    with:
+      runs-on: ${{ matrix.runs-on }}
+
+  python-coverage:
+    name: 🐍 Coverage
+    needs: [change-detection, python-tests]
+    if: fromJSON(needs.change-detection.outputs.run-python-tests)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
+    permissions:
+      contents: read
+      id-token: write
 
   code-ql:
     name: 📝 CodeQL
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-code-ql)
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-code-ql.yml@v1.5
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-code-ql-python.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
-  cd:
+  build-sdist:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-python-packaging.yml@v1.5
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
-  required-checks-pass: # This job does nothing and is only used for branch protection
+  build-wheel:
+    name: 🚀 CD
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-cd)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
+
+  # this job does nothing and is only used for branch protection
+  required-checks-pass:
     name: 🚦 Check
     if: always()
     needs:
       - change-detection
-      - cpp-tests
-      - cpp-linter
+      - python-linter
       - python-tests
+      - python-coverage
       - code-ql
-      - cd
+      - build-sdist
+      - build-wheel
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
@@ -63,16 +81,8 @@ jobs:
         with:
           allowed-skips: >-
             ${{
-              fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && '' || 'cpp-tests,'
-            }}
-            ${{
-              fromJSON(needs.change-detection.outputs.run-cpp-linter)
-              && '' || 'cpp-linter,'
-            }}
-            ${{
               fromJSON(needs.change-detection.outputs.run-python-tests)
-              && '' || 'python-tests,'
+              && '' || 'python-linter,python-tests,python-coverage,'
             }}
             ${{
               fromJSON(needs.change-detection.outputs.run-code-ql)
@@ -80,6 +90,6 @@ jobs:
             }}
             ${{
               fromJSON(needs.change-detection.outputs.run-cd)
-              && '' || 'cd,'
+              && '' || 'build-sdist,build-wheel'
             }}
           jobs: ${{ toJSON(needs) }}

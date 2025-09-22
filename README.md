@@ -1,45 +1,24 @@
 [![PyPI](https://img.shields.io/pypi/v/mqt.qecc?logo=pypi&style=flat-square)](https://pypi.org/project/mqt.qecc/)
 ![OS](https://img.shields.io/badge/os-linux%20%7C%20macos%20%7C%20windows-blue?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![CI](https://img.shields.io/github/actions/workflow/status/cda-tum/mqt-qecc/ci.yml?branch=main&style=flat-square&logo=github&label=ci)](https://github.com/cda-tum/mqt-qecc/actions/workflows/ci.yml)
-[![CD](https://img.shields.io/github/actions/workflow/status/cda-tum/mqt-qecc/cd.yml?style=flat-square&logo=github&label=cd)](https://github.com/cda-tum/mqt-qecc/actions/workflows/cd.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/munich-quantum-toolkit/qecc/ci.yml?branch=main&style=flat-square&logo=github&label=ci)](https://github.com/munich-quantum-toolkit/qecc/actions/workflows/ci.yml)
+[![CD](https://img.shields.io/github/actions/workflow/status/munich-quantum-toolkit/qecc/cd.yml?style=flat-square&logo=github&label=cd)](https://github.com/munich-quantum-toolkit/qecc/actions/workflows/cd.yml)
 [![Documentation](https://img.shields.io/readthedocs/qecc?logo=readthedocs&style=flat-square)](https://mqt.readthedocs.io/projects/qecc)
-[![codecov](https://img.shields.io/codecov/c/github/cda-tum/mqt-qecc?style=flat-square&logo=codecov)](https://codecov.io/gh/cda-tum/mqt-qecc)
+[![codecov](https://img.shields.io/codecov/c/github/munich-quantum-toolkit/qecc?style=flat-square&logo=codecov)](https://codecov.io/gh/munich-quantum-toolkit/qecc)
 
 <p align="center">
   <a href="https://mqt.readthedocs.io">
    <picture>
-     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/mqt_light.png" width="60%">
-     <img src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/mqt_dark.png" width="60%">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/logo-mqt-dark.svg" width="60%">
+      <img src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/logo-mqt-light.svg" width="60%" alt="MQT Logo">
    </picture>
   </a>
 </p>
 
-# MQT QECC: A tool for Quantum Error Correcting Codes written in C++
+# MQT QECC - A tool for Quantum Error Correcting Codes
 
-A tool for quantum error correcting codes and numerical simulations developed as part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io) by the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the [Technical University of Munich](https://www.tum.de/).
-It builds upon [MQT Core](https://github.com/cda-tum/mqt-core), which forms the backbone of the MQT.
-
-The tool can be used to:
-
-- Decode quantum LDPC codes and conduct respective numerical simulations.
-  - At the moment the general QLDPC
-    decoder [[2]](https://ieeexplore.ieee.org/abstract/document/9682738)
-    and a heuristic (which improves the runtime of the algorithm) [[1]](https://arxiv.org/abs/2209.01180) are
-    implemented.
-    Currently, open-source software by Joschka Roffe et
-    al.: [[3]](https://github.com/quantumgizmos/bias_tailored_qldpc) is used to construct codes (toric, lifted product
-    and
-    hypergraph product).
-- Decode (triangular) color codes and conduct respective numerical simulations.
-  - The decoder is based on an analogy to the classical LightsOut puzzle and formulated as a MaxSAT problem. The SMT solver
-    Z3 is used to determine minimal solutions of the MaxSAT problem, resulting in minimum-weight decoding estimates.
-- Apply error correction to quantum circuits.
-  - The framework allows to apply different QECC schemes to quantum circuits and either exports the resulting
-    circuits or simulates them using Qiskit [[4]](https://qiskit.org/). Currently, six different ECCs are supported
-    with varying extent of functionality.
-- WIP: Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological
-  (cat qubit) noise.
+MQT QECC is a tool for quantum error correcting codes and numerical simulations.
+It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 
 <p align="center">
   <a href="https://mqt.readthedocs.io/projects/qecc">
@@ -47,133 +26,136 @@ The tool can be used to:
   </a>
 </p>
 
-If you have any questions, feel free to contact us via [quantum.cda@xcit.tum.de](mailto:quantum.cda@xcit.tum.de) or by
-creating an issue on [GitHub](https://github.com/cda-tum/mqt-qecc/issues).
+## Key Features
+
+- Decode (triangular) color codes and conduct respective numerical simulations.
+  - The decoder is based on an analogy to the classical LightsOut puzzle and formulated as a MaxSAT problem.
+    The SMT solver Z3 is used to determine minimal solutions of the MaxSAT problem, resulting in minimum-weight decoding estimates.
+- Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological (cat qubit) noise.
+- Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
+
+> [!NOTE]
+> Basic usage for _lattice surgery compilation beyond the surface code_ is described in [`docs/Co3.rst`](https://github.com/munich-quantum-toolkit/qecc/blob/ls-compilation/docs/Co3.rst) in the `ls-compilation` branch.
+> The code quality in the branch is actively being improved.
+
+> [!WARNING]
+> The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
+> QECC is now entirely a Python package.
+> For up-to-date software for decoding LDPC codes we refer to [quantumgizmos/ldpc](https://github.com/quantumgizmos/ldpc).
+> If you would still like to use these features, they are available in `mqt.qecc` versions `v2.0.0`.
+
+If you have any questions, feel free to create a [discussion](https://github.com/munich-quantum-toolkit/qecc/discussions) or an [issue](https://github.com/munich-quantum-toolkit/qecc/issues) on [GitHub](https://github.com/munich-quantum-toolkit/qecc).
+
+## Contributors and Supporters
+
+The _[Munich Quantum Toolkit (MQT)](https://mqt.readthedocs.io)_ is developed by the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the [Technical University of Munich](https://www.tum.de/) and supported by the [Munich Quantum Software Company (MQSC)](https://munichquantum.software).
+Among others, it is part of the [Munich Quantum Software Stack (MQSS)](https://www.munich-quantum-valley.de/research/research-areas/mqss) ecosystem, which is being developed as part of the [Munich Quantum Valley (MQV)](https://www.munich-quantum-valley.de) initiative.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-logo-banner-dark.svg" width="90%">
+    <img src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-logo-banner-light.svg" width="90%" alt="MQT Partner Logos">
+  </picture>
+</p>
+
+Thank you to all the contributors who have helped make MQT QECC a reality!
+
+<p align="center">
+<a href="https://github.com/munich-quantum-toolkit/qecc/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=munich-quantum-toolkit/qecc" />
+</a>
+</p>
+
+The MQT will remain free, open-source, and permissively licensed—now and in the future.
+We are firmly committed to keeping it open and actively maintained for the quantum computing community.
+
+To support this endeavor, please consider:
+
+- Starring and sharing our repositories: https://github.com/munich-quantum-toolkit
+- Contributing code, documentation, tests, or examples via issues and pull requests
+- Citing the MQT in your publications (see [Cite This](#cite-this))
+- Citing our research in your publications (see [References](https://mqt.readthedocs.io/projects/qecc/en/latest/references.html))
+- Using the MQT in research and teaching, and sharing feedback and use cases
 
 ## Getting Started
 
-QECC is available via [PyPI](https://pypi.org/project/mqt.qecc/) for Linux, macOS, as well as Windows and supports Python 3.9 to 3.13.
+`mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.qecc/).
 
 ```console
 (venv) $ pip install mqt.qecc
 ```
 
-The following code gives an example on the usage:
+**Detailed documentation and examples are available at [ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
 
-### Example for decoding quantum LDPC codes
+## System Requirements
 
-```python3
-from mqt.qecc import *
-import numpy as np
+MQT QECC can be installed on all major operating systems with all supported Python versions.
+Building (and running) is continuously tested under Linux, macOS, and Windows using the [latest available system versions for GitHub Actions](https://github.com/actions/runner-images).
 
-H = [[1, 0, 0, 1, 0, 1, 1], [0, 1, 0, 1, 1, 0, 1], [0, 0, 1, 0, 1, 1, 1]]
-code = Code(H, H)
-decoder = UFHeuristic()
-decoder.set_code(code)
-x_err = sample_iid_pauli_err(code.N, 0.05)
-decoder.decode(code.get_x_syndrome(x_err))
-result = decoder.result
-print(result)
-residual_err = np.array(x_err) ^ np.array(result.estimate)
-print(code.is_x_stabilizer(residual_err))
+## Cite This
+
+Please cite the work that best fits your use case.
+
+### The Munich Quantum Toolkit (the project)
+
+When discussing the overall MQT project or its ecosystem, cite the MQT Handbook:
+
+```bibtex
+@inproceedings{mqt,
+  title        = {The {{MQT}} Handbook: {{A}} Summary of Design Automation Tools and Software for Quantum Computing},
+  shorttitle   = {{The MQT Handbook}},
+  author       = {Wille, Robert and Berent, Lucas and Forster, Tobias and Kunasaikaran, Jagatheesan and Mato, Kevin and Peham, Tom and Quetschlich, Nils and Rovara, Damian and Sander, Aaron and Schmid, Ludwig and Schoenberger, Daniel and Stade, Yannick and Burgholzer, Lukas},
+  year         = 2024,
+  booktitle    = {IEEE International Conference on Quantum Software (QSW)},
+  doi          = {10.1109/QSW62656.2024.00013},
+  eprint       = {2405.17543},
+  eprinttype   = {arxiv},
+  addendum     = {A live version of this document is available at \url{https://mqt.readthedocs.io}}
+}
 ```
 
-### Example for decoding color codes
+### Peer-Reviewed Research
 
-Simply running the following code will perform a numerical analysis of the MaxSAT color code decoder for an instance of
-the distance-21 triangular color code with a bit-flip error rate of 0.01 and 1000 simulations.
+When citing the underlying methods and research, please reference the most relevant peer-reviewed publications from the list below:
 
-```python3
-from mqt.qecc.cc_decoder import decoder
+[[1]](https://arxiv.org/pdf/2501.05527)
+L. Schmid, T.Peham, L. Berent, M. Müller, and R. Wille.
+Deterministic Fault-Tolerant State Preparation for Near-Term Quantum Error Correction: Automatic Synthesis Using Boolean Satisfiability
 
-d = 21  # distance of the triangular code to simulate
-p = 0.01  # (bit-flip) error rate
-nr_sims = 1000  # number of simulations to run
-decoder.run(distance=d, error_rate=p, nr_sims=nr_sims)
-```
+[[2]](https://arxiv.org/pdf/2408.11894)
+T. Peham, L. Schmid, L. Berent, M. Müller, and R. Wille.
+Automated Synthesis of Fault-Tolerant State Preparation Circuits for Quantum Error Correction Codes
+_PRX Quantum 6, 020330_, 2025.
 
-### Example for applying error correction to a circuit
+[[3]](https://arxiv.org/pdf/2311.01328)
+L. Berent, T. Hillmann, J. Eisert, R. Wille, and J. Roffe.
+Analog information decoding of bosonic quantum LDPC codes.
+_PRX Quantum 5, 020349_, 2024.
 
-```python3
-from mqt import qecc
+[[4]](https://arxiv.org/pdf/2303.14237)
+L. Berent, L. Burgholzer, P. J. Derks, J. Eisert, and R. Wille.
+Decoding quantum color codes with MaxSAT.
+_Quantum 8, 1506_, 2024.
 
-file = "path/to/qasm/file.qasm"  # Path to the OpenQASM file the quantum circuit shall be loaded from
-ecc = "Q7Steane"  # Error correction code that shall be applied to the quantum circuit
-ecc_frequency = 100  # After how many times a qubit is used, error correction is applied
+[[5]](https://arxiv.org/pdf/2301.05731)
+T. Grurl, C. Pichler, J. Fuss, and R. Wille.
+Automatic Implementation and Evaluation of Error-Correcting Codes for Quantum Computing: An Open-Source Framework for Quantum Error-Correction.
+_International Conference on VLSI Design and International Conference on Embedded Systems (VLSID)_, 2023.
 
-result = qecc.apply_ecc(file, ecc, ecc_frequency)
+[[6]](https://arxiv.org/pdf/2209.01180)
+L. Berent, L. Burgholzer, and R. Wille.
+Software Tools for Decoding Quantum Low-Density Parity Check Codes.
+_Asia and South Pacific Design Automation Conference (ASP-DAC)_, 2023.
 
-# print the resulting circuit as OpenQASM string
-print(result["circ"])
-```
-
-A wrapper script for applying error correction to quantum circuits (provided as OpenQASM) and performing a
-noise-aware quantum circuit simulation (using Qiskit) is provided. The script can be used like this:
-
-```bash
-$ (venv) ecc_qiskit_wrapper -ecc Q7Steane -fq 100 -m D -p 0.0001 -n 2000 -fs aer_simulator_stabilizer -s 0 -f  ent_simple1000_n2.qasm
-_____Trying to simulate with D (prob=0.0001, shots=2000, n_qubits=17, error correction=Q7Steane) Error______
-State |00> probability 0.515
-State |01> probability 0.0055
-State |10> probability 0.0025
-State |11> probability 0.477
-```
-
-**Detailed documentation on all available methods, options, and input formats is available
-at [ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
-
-## System Requirements and Building
-
-The implementation is compatible with any C++17 compiler, a minimum CMake version of 3.19, and Python 3.9+.
-Please refer to the [documentation](https://mqt.readthedocs.io/projects/qecc) on how to build the project.
-
-Building (and running) is continuously tested under Linux and macOS using the
-[latest available system versions for GitHub Actions](https://github.com/actions/virtual-environments).
-Windows support is currently experimental.
-
-## Reference
-
-If you use our tool for your research, we will be thankful if you refer to it by citing the appropriate publication:
-
-- [![a](https://img.shields.io/static/v1?label=arXiv&message=2311.01328&color=inactive&style=flat-square)](https://arxiv.org/abs/2311.01328)
-  L. Berent, T. Hillmann, J. Eisert, R. Wille, and J. Roffe, "Analog information decoding of bosonic quantum LDPC codes".
-
-- [![a](https://img.shields.io/static/v1?label=arXiv&message=2303.14237&color=inactive&style=flat-square)](https://arxiv.org/abs/2303.14237)
-  L. Berent, L. Burgholzer, P.J. Derks, J. Eisert, and R. Wille, "Decoding quantum color codes with MaxSAT".
-
-  The dataset used in the paper evaluation on decoding quantum color codes is available on Zenodo:
-  [![a](https://img.shields.io/static/v1?label=DOI&message=10.5281/zenodo.7760135&color=inactive&style=flat-square)](https://doi.org/10.5281/zenodo.7760135)
-
-- [![a](https://img.shields.io/static/v1?label=arXiv&message=2301.05731&color=inactive&style=flat-square)](https://arxiv.org/pdf/2301.05731)
-  T. Grurl, C. Pichler, J. Fuss and R. Wille, "Automatic Implementation and Evaluation of Error-Correcting Codes for
-  Quantum Computing: An Open-Source Framework for Quantum Error-Correction," in International Conference on VLSI
-  Design and International Conference on Embedded Systems (VLSID), 2023
-
-- [![a](https://img.shields.io/static/v1?label=arXiv&message=2209.01180&color=inactive&style=flat-square)](https://arxiv.org/abs/2209.01180)
-  L. Berent, L. Burgholzer, and R.
-  Wille, "[Software Tools for Decoding Quantum Low-Density Parity Check Codes](https://arxiv.org/abs/2209.01180),"
-  in Asia and South Pacific Design Automation Conference (ASP-DAC), 2023
+---
 
 ## Acknowledgements
 
-The Munich Quantum Toolkit has been supported by the European
-Research Council (ERC) under the European Union's Horizon 2020 research and innovation program (grant agreement
-No. 101001318), the Bavarian State Ministry for Science and Arts through the Distinguished Professorship Program, as well as the
-Munich Quantum Valley, which is supported by the Bavarian state government with funds from the Hightech Agenda Bayern Plus.
+The Munich Quantum Toolkit has been supported by the European Research Council (ERC) under the European Union's Horizon 2020 research and innovation program (grant agreement No. 101001318), the Bavarian State Ministry for Science and Arts through the Distinguished Professorship Program, as well as the Munich Quantum Valley, which is supported by the Bavarian state government with funds from the Hightech Agenda Bayern Plus.
 
 <p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/tum_dark.svg" width="28%">
-<img src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/tum_light.svg" width="28%" alt="TUM Logo">
-</picture>
-<picture>
-<img src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/logo-bavaria.svg" width="16%" alt="Coat of Arms of Bavaria">
-</picture>
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/erc_dark.svg" width="24%">
-<img src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/erc_light.svg" width="24%" alt="ERC Logo">
-</picture>
-<picture>
-<img src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/logo-mqv.svg" width="28%" alt="MQV Logo">
-</picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-funding-footer-dark.svg" width="90%">
+    <img src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-funding-footer-light.svg" width="90%" alt="MQT Funding Footer">
+  </picture>
 </p>

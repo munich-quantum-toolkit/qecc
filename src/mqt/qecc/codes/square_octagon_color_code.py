@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Square Octagon Color Code. Created by Peter-Jan Derks."""
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ class SquareOctagonColorCode(ColorCode):
         # additionally to ancilla_qubits (on squares) we have the ones on octagons
         self.octagon_ancilla_qubits: set[tuple[int, int]] = set()
         self.square_ancilla_qubits: set[tuple[int, int]] = set()
-        super().__init__(distance=distance, lattice_type=LatticeType.SQUARE_OCTAGON)
+        super().__init__(lattice_type=LatticeType.SQUARE_OCTAGON, distance=distance)
 
     def add_qubits(self) -> None:
         """Add qubits to the code."""

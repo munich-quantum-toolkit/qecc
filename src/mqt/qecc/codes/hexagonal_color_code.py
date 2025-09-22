@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Hexagonal Color Code class.
 
 Created by Peter-Jan Derks
@@ -14,7 +21,7 @@ class HexagonalColorCode(ColorCode):
 
     def __init__(self, distance: int) -> None:
         """Hexagonal Color Code initialization from base class."""
-        super().__init__(distance=distance, lattice_type=LatticeType.HEXAGON)
+        super().__init__(lattice_type=LatticeType.HEXAGON, distance=distance)
 
     def add_qubits(self) -> None:
         """Add qubits to the code."""

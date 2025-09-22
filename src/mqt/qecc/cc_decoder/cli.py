@@ -1,10 +1,18 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Command line interface for the CC decoder."""
 
 from __future__ import annotations
 
 import argparse
 
-from . import decoder, tn_decoder
+from . import decoder
+from .comparison import tn_decoder
 
 
 def cli() -> None:

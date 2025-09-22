@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Construction of Bivariate Bicycle LDPC codes from https://arxiv.org/abs/2308.07915."""
 
 from __future__ import annotations
@@ -36,7 +43,7 @@ def construct_bb_code(n: int) -> CSSCode:
     else:
         msg = f"No bb code with n = {n}."
         raise InvalidCSSCodeError(msg)
-    return CSSCode(d, x, z)
+    return CSSCode(x, z, d)
 
 
 def _shift_matrix(l_: int) -> npt.NDArray[np.int8]:

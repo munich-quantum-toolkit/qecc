@@ -1,50 +1,21 @@
 name: CD
 on:
-  push:
-    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
-
-permissions:
-  attestations: write
-  contents: read
-  id-token: write
+  pull_request:
+    paths:
+      - .github/workflows/cd.yml
 
 jobs:
-  # Builds the sdist and wheels on all supported platforms and uploads the resulting
-  # wheels as GitHub artifacts `dev-cibw-*`, `test-cibw-*`, or `cibw-*`, depending on
-  # whether the workflow is triggered from a PR, a push to main, or a release, respectively.
-  python-packaging:
+  build-sdist:
     name: 🐍 Packaging
-    uses: cda-tum/mqt-workflows/.github/workflows/reusable-python-packaging.yml@v1.5
-    with:
-      # Do not include local version information on pushes to main to facilitate TestPyPI uploads.
-      no-local-version: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-      # Do not build emulated wheels on pushes to main to reduce runner load for CD.
-      build-emulated-wheels: ${{ github.ref != 'refs/heads/main' || github.event_name != 'push' }}
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
-  # Downloads the previously generated artifacts and deploys to TestPyPI on pushes to main
-  deploy-test-pypi:
-    name: 🚀 Deploy to Test PyPI
-    runs-on: ubuntu-latest
-    environment:
-      name: test-pypi
-      url: https://test.pypi.org/p/mqt.qecc
-    needs: [python-packaging]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: test-cibw-*
-          path: dist
-          merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          attestations: true
+  build-wheel:
+    name: 🐍 Packaging
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@d42342e610318ddf1fcd2371be987faa47caedf0 # v1.16
 
-  # Downloads the previously generated artifacts and deploys to PyPI on published releases.
   deploy:
     if: github.event_name == 'release' && github.event.action == 'published'
     name: 🚀 Deploy to PyPI
@@ -52,17 +23,19 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/p/mqt.qecc
-    needs: [python-packaging]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    needs: [build-sdist, build-wheel]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           pattern: cibw-*
           path: dist
           merge-multiple: true
       - name: Generate artifact attestation for sdist and wheel(s)
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: "dist/*"
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          attestations: true

@@ -1,9 +1,8 @@
 ignore:
-  - "**/python"
   - "test/**/*"
-  - "src/mqt/qecc/cc_decoder/plots.py"
   - "src/mqt/qecc/analog_information_decoding/utils/data_utils.py"
   - "src/mqt/qecc/analog_information_decoding/code_construction/*"
+  - "src/mqt/qecc/circuit_synthesis/simulation_det.py"
 
 coverage:
   range: 60..90
@@ -24,10 +23,6 @@ flag_management:
         target: 90%
         threshold: 1%
   individual_flags:
-    - name: cpp
-      paths:
-        - "include"
-        - "src"
     - name: python
       paths:
         - "src/mqt/**/*.py"
@@ -38,12 +33,6 @@ flag_management:
         - type: patch
           target: 95%
           threshold: 1%
-
-parsers:
-  gcov:
-    branch_detection:
-      conditional: no
-      loop: no
 
 comment:
   layout: "reach, diff, flags, files"

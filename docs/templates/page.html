@@ -33,44 +33,54 @@
   Arts through the Distinguished Professorship Program, as well as the Munich
   Quantum Valley, which is supported by the Bavarian state government with funds
   from the Hightech Agenda Bayern Plus.
-  <div class="acknowledgements-logos">
-    <div class="acknowledgement only-light">
+
+  <div style="margin-top: 0.5em">
+    <div class="only-light" align="center">
       <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/tum_light.svg"
-        alt="TUM Logo"
+        src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-funding-footer-light.svg"
+        width="90%"
+        alt="MQT Funding Footer"
       />
     </div>
-    <div class="acknowledgement only-dark">
+    <div class="only-dark" align="center">
       <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/tum_dark.svg"
-        alt="TUM Logo"
-      />
-    </div>
-    <div class="acknowledgement">
-      <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/logo-bavaria.svg"
-        alt="Coat of Arms of Bavaria"
-        style="width: 65%"
-      />
-    </div>
-    <div class="acknowledgement only-light">
-      <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/erc_light.svg"
-        alt="ERC Logo"
-      />
-    </div>
-    <div class="acknowledgement only-dark">
-      <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/erc_dark.svg"
-        alt="ERC Logo"
-      />
-    </div>
-    <div class="acknowledgement">
-      <img
-        src="https://raw.githubusercontent.com/cda-tum/mqt/main/docs/_static/logo-mqv.svg"
-        alt="MQV Logo"
+        src="https://raw.githubusercontent.com/munich-quantum-toolkit/.github/refs/heads/main/docs/_static/mqt-funding-footer-dark.svg"
+        width="90%"
+        alt="MQT Funding Footer"
       />
     </div>
   </div>
 </div>
-{% endblock footer %}
+<div class="bottom-of-page">
+  <div class="left-details">
+    {%- if show_copyright %}
+    <div class="copyright">
+      {%- if hasdoc('copyright') %} {% trans path=pathto('copyright'),
+      copyright=copyright|e -%}
+      <a href="{{ path }}">Copyright</a> &#169; {{ copyright }} {%- endtrans %}
+      {%- else %} {% trans copyright=copyright|e -%} Copyright &#169; {{
+      copyright }} {%- endtrans %} {%- endif %}
+    </div>
+    {%- endif %} {%- if last_updated -%}
+    <div class="last-updated">
+      {% trans last_updated=last_updated|e -%} Last updated on {{ last_updated
+      }} {%- endtrans -%}
+    </div>
+    {%- endif %}
+  </div>
+  <div class="right-details">
+    {% if theme_footer_icons or READTHEDOCS -%}
+    <div class="icons">
+      {% if theme_footer_icons -%} {% for icon_dict in theme_footer_icons -%}
+      <a
+        class="muted-link {{ icon_dict.class }}"
+        href="{{ icon_dict.url }}"
+        aria-label="{{ icon_dict.name }}"
+      >
+        {{- icon_dict.html -}}
+      </a>
+      {% endfor %} {%- endif %} {%- endif %}
+    </div>
+  </div>
+  {% endblock footer %}
+</div>
