@@ -9,11 +9,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import stim
 from qiskit.circuit import QuantumCircuit
-from stim import Circuit, StabilizerTableau, SymplecticMatrix
+from stim import Circuit
 
 from .definitions import STIM_MEASUREMENTS
+
+if TYPE_CHECKING:
+    from ..codes.pauli import StabilizerTableau
+    from ..codes.symplectic import SymplecticMatrix
 
 
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:

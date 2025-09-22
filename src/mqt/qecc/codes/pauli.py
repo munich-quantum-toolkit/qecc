@@ -114,10 +114,6 @@ class Pauli:
         """Return a hash of the Pauli operator."""
         return hash((self.symplectic, self.phase))
 
-    def __str__(self) -> str:
-        """Return a string representation of the Pauli operator."""
-        return ("+" if self.phase == 0 else "-").join([self[i] for i in range(self.n)])
-
 
 class StabilizerTableau:
     """Class representing a stabilizer tableau."""
@@ -167,6 +163,11 @@ class StabilizerTableau:
 
         paulis = [Pauli.from_pauli_string(p) for p in pauli_strings]
         return cls.from_paulis(paulis)
+
+    @classmethod
+    def empty(cls, n: int) -> StabilizerTableau:
+        """Create a new empty stabilizer tableau."""
+        return cls(SymplecticMatrix.empty(n), np.zeros(0, dtype=np.int8))
 
     @classmethod
     def identity(cls, n: int) -> StabilizerTableau:

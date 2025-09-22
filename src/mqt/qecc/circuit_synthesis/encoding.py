@@ -23,7 +23,12 @@ from qiskit import QuantumCircuit
 from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
-from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
+from .synthesis_utils import (
+    heuristic_gaussian_elimination,
+    optimal_elimination,
+    symbolic_vector_add,
+    symbolic_vector_eq,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -88,7 +93,7 @@ def depth_optimal_encoding_circuit_non_css(
     max_depth: int,
     max_two_qubit_gates: int | None = None,
     exact_two_qubit_count: bool = False,
-) -> tuple[QuantumCircuit, int]:
+) -> tuple[stim.Circuit, int]:
     """Synthesize an encoding circuit for the given stabilizer code with at most `max_depth` depth.
 
     Args:
