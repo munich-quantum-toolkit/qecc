@@ -508,7 +508,7 @@ class TestSymbolicVectorOperations:
             ),
         ],
     )
-    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message) -> None:
+    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):
         """Test ~vars_to_stab~ with invalid inputs that raise exceptions."""
         with pytest.raises(expected_exception, match=expected_message):
             vars_to_stab(measurement, generators)
