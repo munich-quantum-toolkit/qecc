@@ -22,6 +22,7 @@ from stim import Flow, PauliString
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
+    compose_compact_stim_circuits,
     compose_circuits,
     measured_qubits,
     qiskit_to_stim_circuit,
@@ -320,6 +321,22 @@ def test_compact_stim_circuit() -> None:
     assert len(compacted) == 2
     compacted = compact_stim_circuit(circ, scheduling_method="alap")
     assert len(compacted) == 2
+
+
+def test_compose_compact_stim_circuits() -> None:
+    """Test compaction method."""
+    circ1 = stim.Circuit()
+    circ1.append("H", [0])
+    circ1.append("CX", [0, 1])
+    circ2 = stim.Circuit()
+    circ2.append("CX", [2, 3])
+
+    compacted1 = compose_compact_stim_circuits([circ1, circ2], align="start")
+    assert len(compacted1) == 2
+    assert compacted1 == stim.Circuit("H 0\nCX 2 3 0 1")
+    compacted2 = compose_compact_stim_circuits([circ1, circ2], align="end")
+    assert len(compacted2) == 2
+    assert compacted2 == stim.Circuit("H 0\nCX 0 1 2 3")
 
 
 class TestSymbolicVectorOperations:

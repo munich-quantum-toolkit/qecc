@@ -83,6 +83,41 @@ def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circ
     return compact_circ
 
 
+def compose_compact_stim_circuits(
+    circs: list[Circuit], align: str = "start"
+) -> Circuit:
+    """Compose and compact multiple stim circuits.
+
+    Args:
+        circs: List of stim circuits to compose and compact.
+        align: Either "start" (align at the start) or "end" (align at the end).
+
+    Returns:
+        A composed and compacted stim circuit.
+    """
+    if align not in ("start", "end"):
+        raise ValueError("align must be 'start' or 'end'.")
+
+    composed_layers: list[Circuit] = []
+    for circ in circs:
+        layers = collect_circuit_layers(circ, "asap" if align == "start" else "alap")
+        if align == "end":
+            layers = layers[::-1]
+        for i, layer_circ in enumerate(layers):
+            if i < len(composed_layers):
+                composed_layers[i] += layer_circ
+            else:
+                composed_layers.append(layer_circ)
+
+    if align == "end":
+        composed_layers = composed_layers[::-1]
+
+    compose_circ = Circuit()
+    for layer in composed_layers:
+        compose_circ += layer
+    return compose_circ
+
+
 def collect_circuit_layers(
     circ: Circuit, scheduling_method: str = "asap"
 ) -> list[Circuit]:
