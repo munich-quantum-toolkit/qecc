@@ -73,7 +73,9 @@ def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circ
     """Move circuit instructions to the front and ignore TICKS.
 
     Args:
-         circ: stim circuit to compact
+        circ: stim circuit to compact
+        scheduling_method: Either "asap" (as soon as possible) or "alap" (as late as possible).
+
     Returns:
          A compacted stim circuit.
     """
@@ -83,9 +85,7 @@ def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circ
     return compact_circ
 
 
-def compose_compact_stim_circuits(
-    circs: list[Circuit], align: str = "start"
-) -> Circuit:
+def compose_compact_stim_circuits(circs: list[Circuit], align: str = "start") -> Circuit:
     """Compose and compact multiple stim circuits.
 
     Args:
@@ -95,8 +95,9 @@ def compose_compact_stim_circuits(
     Returns:
         A composed and compacted stim circuit.
     """
-    if align not in ("start", "end"):
-        raise ValueError("align must be 'start' or 'end'.")
+    if align not in {"start", "end"}:
+        msg = "align must be 'start' or 'end'."
+        raise ValueError(msg)
 
     composed_layers: list[Circuit] = []
     for circ in circs:
@@ -110,7 +111,7 @@ def compose_compact_stim_circuits(
                 composed_layers.append(layer_circ)
 
     if align == "end":
-        composed_layers = composed_layers[::-1]
+        composed_layers.reverse()
 
     compose_circ = Circuit()
     for layer in composed_layers:
@@ -118,9 +119,7 @@ def compose_compact_stim_circuits(
     return compose_circ
 
 
-def collect_circuit_layers(
-    circ: Circuit, scheduling_method: str = "asap"
-) -> list[Circuit]:
+def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> list[Circuit]:
     """Collect all layers that can be executed in parallel.
 
     Args:
@@ -130,8 +129,9 @@ def collect_circuit_layers(
     Returns:
         list of circuit layers. All instructions in one layer can be executed in parallel. It holds that circ=sum(collect_circuit_layers(circ)).
     """
-    if scheduling_method not in ("asap", "alap"):
-        raise ValueError("scheduling_method must be 'asap' or 'alap'.")
+    if scheduling_method not in {"asap", "alap"}:
+        msg = "scheduling_method must be 'asap' or 'alap'."
+        raise ValueError(msg)
 
     # Copy the circuit and separate all instructions by ticks
     circ_cpy = Circuit()
@@ -187,7 +187,7 @@ def collect_circuit_layers(
             circ.pop(gate_idx - n_deleted)
 
     if scheduling_method == "alap":
-        layers = layers[::-1]  # Reverse the layers back for ALAP scheduling
+        layers.reverse()  # Reverse the layers back for ALAP scheduling
 
     return layers
 
@@ -246,17 +246,11 @@ def compose_circuits(
     # map non-connected of circ1 to the first n_connected qubits
     non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
     # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
-    non_connected_mapping2 = {
-        q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)
-    }
+    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
     # map connected qubits to the last n_connected qubits
-    connected_mapping1 = {
-        q: i + len(non_connected_circ1) + len(non_connected_circ2)
-        for i, q in enumerate(connected)
-    }
+    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
     connected_mapping2 = {
-        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2)
-        for i, q in enumerate(connected)
+        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
     }
 
     mapping1 = {**non_connected_mapping1, **connected_mapping1}
