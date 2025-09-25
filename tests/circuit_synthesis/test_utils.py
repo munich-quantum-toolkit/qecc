@@ -22,8 +22,8 @@ from stim import Flow, PauliString
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
-    compose_compact_stim_circuits,
     compose_circuits,
+    compose_compact_stim_circuits,
     measured_qubits,
     qiskit_to_stim_circuit,
     unmeasured_qubits,
@@ -90,9 +90,7 @@ def identity_matrix() -> MatrixTest:
 def full_matrix() -> MatrixTest:
     """Return a 4x4 matrix with all ones."""
     return MatrixTest(
-        np.array(
-            [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8
-        ),
+        np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8),
         3,
         2,
     )
@@ -211,16 +209,11 @@ def correct_stabilizer_propagation(
     circ = qiskit_to_stim_circuit(qc)
     pauli = "Z" if z_measurement else "X"
     anc_idx = qc.find_bit(ancilla).index
-    initial_pauli = PauliString(
-        "_" * (anc_idx) + "Z" + "_" * (len(qc.qubits) - anc_idx - 1)
-    )
+    initial_pauli = PauliString("_" * (anc_idx) + "Z" + "_" * (len(qc.qubits) - anc_idx - 1))
     final_pauli = PauliString(
-        "".join([pauli if q in stab else "_" for q in qc.qubits])
-        + "_" * (len(qc.qubits) - anc_idx - 1)
+        "".join([pauli if q in stab else "_" for q in qc.qubits]) + "_" * (len(qc.qubits) - anc_idx - 1)
     )
-    f = Flow(
-        input=initial_pauli, output=final_pauli, measurements=[qc.num_ancillas - 1]
-    )
+    f = Flow(input=initial_pauli, output=final_pauli, measurements=[qc.num_ancillas - 1])
     return bool(circ.has_flow(f))
 
 
@@ -234,15 +227,9 @@ def test_one_flag_measurements(w: int, z_measurement: bool) -> None:
     ancilla = z_test.ancilla
     measurement_bit = z_test.measurement_bit
 
-    measure_flagged(
-        qc, stab, ancilla, measurement_bit, t=1, z_measurement=z_measurement
-    )
-    assert qc.depth() == len(stab) + 3 + 2 * int(
-        not z_measurement
-    )  # 6 CNOTs + Measurement + 2 possible hadamards
-    assert (
-        qc.count_ops().get("cx", 0) == len(stab) + 2
-    )  # CNOTs from measurement + 2 flagging CNOTs
+    measure_flagged(qc, stab, ancilla, measurement_bit, t=1, z_measurement=z_measurement)
+    assert qc.depth() == len(stab) + 3 + 2 * int(not z_measurement)  # 6 CNOTs + Measurement + 2 possible hadamards
+    assert qc.count_ops().get("cx", 0) == len(stab) + 2  # CNOTs from measurement + 2 flagging CNOTs
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
 
 
@@ -256,9 +243,7 @@ def test_two_flag_measurements(w: int, z_measurement: bool) -> None:
     ancilla = z_test.ancilla
     measurement_bit = z_test.measurement_bit
 
-    measure_flagged(
-        qc, stab, ancilla, measurement_bit, t=2, z_measurement=z_measurement
-    )
+    measure_flagged(qc, stab, ancilla, measurement_bit, t=2, z_measurement=z_measurement)
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
 
 
@@ -272,9 +257,7 @@ def test_three_flag_measurements(w: int, z_measurement: bool) -> None:
     ancilla = z_test.ancilla
     measurement_bit = z_test.measurement_bit
 
-    measure_flagged(
-        qc, stab, ancilla, measurement_bit, t=3, z_measurement=z_measurement
-    )
+    measure_flagged(qc, stab, ancilla, measurement_bit, t=3, z_measurement=z_measurement)
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
 
 
@@ -302,9 +285,7 @@ def test_w_flag(w: int, z_measurement: bool) -> None:
     ancilla = z_test.ancilla
     measurement_bit = z_test.measurement_bit
 
-    measure_flagged(
-        qc, stab, ancilla, measurement_bit, t=w, z_measurement=z_measurement
-    )
+    measure_flagged(qc, stab, ancilla, measurement_bit, t=w, z_measurement=z_measurement)
     assert correct_stabilizer_propagation(qc, stab, ancilla, z_measurement)
 
 
@@ -368,9 +349,7 @@ class TestSymbolicVectorOperations:
         """Test symbolic_vector_eq with vectors of different lengths."""
         lhs = np.array([True, False, self.x])
         rhs = np.array([True, False])
-        with pytest.raises(
-            ValueError, match=r"Vectors must have the same length for equality check."
-        ):
+        with pytest.raises(ValueError, match=r"Vectors must have the same length for equality check."):
             symbolic_vector_eq(lhs, rhs)
 
     @pytest.mark.parametrize(
@@ -405,9 +384,7 @@ class TestSymbolicVectorOperations:
         """Parameterized test for ~odd_overlap~."""
         solver = z3.Solver()
         solver.add(odd_overlap(v_sym, v_con))
-        assert solver.check() == expected_result, (
-            f"Test failed for v_sym={v_sym}, v_con={v_con}"
-        )
+        assert solver.check() == expected_result, f"Test failed for v_sym={v_sym}, v_con={v_con}"
 
     @pytest.mark.parametrize(
         ("v", "scalar", "expected_result"),
@@ -431,9 +408,7 @@ class TestSymbolicVectorOperations:
     def test_symbolic_scalar_mult(self, v, scalar, expected_result):  # noqa: PLR6301
         """Parameterized test for ~symbolic_scalar_mult~."""
         result = symbolic_scalar_mult(v, scalar)
-        assert np.array_equal(result, expected_result), (
-            f"Test failed for v={v}, scalar={scalar}"
-        )
+        assert np.array_equal(result, expected_result), f"Test failed for v={v}, scalar={scalar}"
 
     @pytest.mark.parametrize(
         ("v1", "v2", "expected_result"),
@@ -469,9 +444,7 @@ class TestSymbolicVectorOperations:
     def test_symbolic_vector_add(self, v1, v2, expected_result):  # noqa: PLR6301
         """Parameterized test for ~symbolic_vector_add~."""
         result = symbolic_vector_add(v1, v2)
-        assert np.array_equal(result, expected_result), (
-            f"Test failed for v1={v1}, v2={v2}"
-        )
+        assert np.array_equal(result, expected_result), f"Test failed for v1={v1}, v2={v2}"
 
     @pytest.mark.parametrize(
         ("measurement", "generators", "expected_result"),
@@ -528,9 +501,7 @@ class TestSymbolicVectorOperations:
             ),
         ],
     )
-    def test_vars_to_stab_exceptions(
-        self, measurement, generators, expected_exception, expected_message
-    ):  # noqa: PLR6301
+    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):
         """Test ~vars_to_stab~ with invalid inputs that raise exceptions."""
         with pytest.raises(expected_exception, match=expected_message):
             vars_to_stab(measurement, generators)
@@ -557,9 +528,7 @@ def test_collect_circuit_layers_asap() -> None:
     # Two layers: RX+H first (parallel), then CX
     assert len(layers) == 2
     # RX 0 and H 2 can be in either order in the same layer
-    assert layers[0] == stim.Circuit("RX 0\nH 2") or layers[0] == stim.Circuit(
-        "H 2\nRX 0"
-    )
+    assert layers[0] == stim.Circuit("RX 0\nH 2") or layers[0] == stim.Circuit("H 2\nRX 0")
     assert layers[1] == stim.Circuit("CX 0 1")
 
 
@@ -576,9 +545,7 @@ def test_collect_circuit_layers_alap() -> None:
     # Two layers: CX first, then RX+H
     assert len(layers) == 2
     assert layers[0] == stim.Circuit("RX 0")
-    assert layers[1] == stim.Circuit("CX 0 1\nH 2") or layers[1] == stim.Circuit(
-        "H 2\nCX 0 1"
-    )
+    assert layers[1] == stim.Circuit("CX 0 1\nH 2") or layers[1] == stim.Circuit("H 2\nCX 0 1")
 
 
 def test_invalid_scheduling_method() -> None:
