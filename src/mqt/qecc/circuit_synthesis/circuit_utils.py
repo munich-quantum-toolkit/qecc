@@ -69,7 +69,7 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
     return stim_circuit
 
 
-def compact_stim_circuit(circ: Circuit) -> Circuit:
+def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circuit:
     """Move circuit instructions to the front and ignore TICKS.
 
     Args:
@@ -78,20 +78,26 @@ def compact_stim_circuit(circ: Circuit) -> Circuit:
          A compacted stim circuit.
     """
     compact_circ = Circuit()
-    for layer in collect_circuit_layers(circ):
+    for layer in collect_circuit_layers(circ, scheduling_method):
         compact_circ += layer
     return compact_circ
 
 
-def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
+def collect_circuit_layers(
+    circ: Circuit, scheduling_method: str = "asap"
+) -> list[Circuit]:
     """Collect all layers that can be executed in parallel.
 
     Args:
         circ: Stim circuit to process.
+        scheduling_method: Either "asap" (as soon as possible) or "alap" (as late as possible).
 
     Returns:
         list of circuit layers. All instructions in one layer can be executed in parallel. It holds that circ=sum(collect_circuit_layers(circ)).
     """
+    if scheduling_method not in ("asap", "alap"):
+        raise ValueError("scheduling_method must be 'asap' or 'alap'.")
+
     # Copy the circuit and separate all instructions by ticks
     circ_cpy = Circuit()
     for instr in circ:
@@ -99,6 +105,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
             qubits = [q.qubit_value for q in grp]
             circ_cpy.append_operation(instr.name, qubits)
             circ_cpy.append_operation("TICK", [])
+
+    if scheduling_method == "alap":
+        circ_cpy = circ_cpy[::-1]  # Reverse the circuit for ALAP scheduling
 
     # Now work with the copied circuit
     circ = circ_cpy
@@ -141,6 +150,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
         # Remove the instructions that were added to the layer
         for n_deleted, gate_idx in enumerate(instr_to_delete):
             circ.pop(gate_idx - n_deleted)
+
+    if scheduling_method == "alap":
+        layers = layers[::-1]  # Reverse the layers back for ALAP scheduling
 
     return layers
 
@@ -199,11 +211,17 @@ def compose_circuits(
     # map non-connected of circ1 to the first n_connected qubits
     non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
     # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1
-    non_connected_mapping2 = {q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)}
+    non_connected_mapping2 = {
+        q: i + len(non_connected_circ1) for i, q in enumerate(non_connected_circ2)
+    }
     # map connected qubits to the last n_connected qubits
-    connected_mapping1 = {q: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)}
+    connected_mapping1 = {
+        q: i + len(non_connected_circ1) + len(non_connected_circ2)
+        for i, q in enumerate(connected)
+    }
     connected_mapping2 = {
-        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2) for i, q in enumerate(connected)
+        wiring[q]: i + len(non_connected_circ1) + len(non_connected_circ2)
+        for i, q in enumerate(connected)
     }
 
     mapping1 = {**non_connected_mapping1, **connected_mapping1}
