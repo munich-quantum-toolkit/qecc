@@ -18,7 +18,7 @@ import numpy as np
 import stim
 import z3
 from ldpc import mod2
-from qiskit import QuantumCircuit
+import time
 
 from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
@@ -107,6 +107,8 @@ def depth_optimal_encoding_circuit_non_css(
     """
     n = code.n
     stabs = code.symplectic
+    assert code.x_logicals is not None and code.z_logicals is not None, "Logical operators must be provided."
+
     z_logicals = code.z_logicals.tableau.matrix
     x_logicals = code.x_logicals.tableau.matrix
     bit_width = 3
@@ -169,12 +171,12 @@ def depth_optimal_encoding_circuit_non_css(
             tqgs_q1_tar = [cxs[t][q2][q1] for q2 in range(n)]
             is_ctrl = z3.Or(tqgs_q1_ctrl)
             is_tar = z3.Or(tqgs_q1_tar)
-            tqgs_q1_ctrl + tqgs_q1_tar
-            tqgs_q1_ctrl + tqgs_q1_tar + tqgs_q1_cz
+            # tqgs_q1_ctrl + tqgs_q1_tar
+            # tqgs_q1_ctrl + tqgs_q1_tar + tqgs_q1_cz
             # if a gate is not a single-qubit gate, then the appropriate variables must be set
             s.add(z3.Implies(sqgs[t][q1] == CXCTRL, z3.Or(tqgs_q1_ctrl)))
             s.add(z3.Implies(sqgs[t][q1] == CXTAR, z3.Or(tqgs_q1_tar)))
-            s.add(z3.Implies(sqgs[t][q1] == CZ | sqgs[t][q1] == CZ2, z3.Or(tqgs_q1_cz)))
+            s.add(z3.Implies(z3.Or(sqgs[t][q1] == CZ, sqgs[t][q1] == CZ2), z3.Or(tqgs_q1_cz)))
             # a qubit can be either control or target, not both
             s.add(z3.Not(z3.And(is_ctrl, is_tar)))
             # a qubit can be the control of at most one CNOT
@@ -368,18 +370,18 @@ def depth_optimal_encoding_circuit_non_css(
                 )
 
     # tableau symmetry, SEEMS TO MAKE IT WORSE
-    for t in range(1, max_depth + 1):
-        # no two rows can be the same
-        for i in range(tableaus_x[t].shape[0]):
-            for j in range(i + 1, tableaus_x[t].shape[0]):
-                s.add(
-                    z3.Not(
-                        z3.And(
-                            symbolic_vector_eq(tableaus_x[t][i], tableaus_x[t][j]),
-                            symbolic_vector_eq(tableaus_z[t][i], tableaus_z[t][j]),
-                        )
-                    )
-                )
+    # for t in range(1, max_depth + 1):
+    #     # no two rows can be the same
+    #     for i in range(tableaus_x[t].shape[0]):
+    #         for j in range(i + 1, tableaus_x[t].shape[0]):
+    #             s.add(
+    #                 z3.Not(
+    #                     z3.And(
+    #                         symbolic_vector_eq(tableaus_x[t][i], tableaus_x[t][j]),
+    #                         symbolic_vector_eq(tableaus_z[t][i], tableaus_z[t][j]),
+    #                     )
+    #                 )
+    #             )
 
     # final matrix constraints
     s.add(
@@ -408,22 +410,22 @@ def depth_optimal_encoding_circuit_non_css(
         m = s.model()
 
         # extract circuit
-        qc = QuantumCircuit(n)
+        circ = stim.Circuit()
 
         for t in range(max_depth):
             for q1 in range(n):
                 if m[sqgs[t][q1]] == 1:
-                    qc.h(q1)
+                    circ.append("H", [q1])
                 elif m[sqgs[t][q1]] == 2:
-                    qc.sdg(q1)
+                    circ.append("S_DAG", [q1])
                 elif m[sqgs[t][q1]] == 3:
-                    qc.sxdg(q1)
+                    circ.append("SQRT_X_DAG", [q1])
+                # elif m[sqgs[t][q1]] == 4:
                 for q2 in range(n):
                     if m[cxs[t][q1][q2]]:
-                        qc.cx(q1, q2)
+                        circ.append("CX", [q1, q2])
                     if q2 > q1 and m[czs[t][q1][q2]]:
-                        qc.cz(q1, q2)
-            qc.barrier()
+                        circ.append("CZ", [q1, q2])
 
         # check where hadamards need to be applied
         final_tableau_x = np.array([
@@ -431,11 +433,31 @@ def depth_optimal_encoding_circuit_non_css(
         ]).astype(int)
         first_layer_hadamards = np.where(np.array(final_tableau_x).sum(axis=0) >= 1)[0]
         if len(first_layer_hadamards) > 0:
-            qc.h(first_layer_hadamards)
+            circ.append("H", first_layer_hadamards)
         # figure out messaging qubits
         final_logicals_x = np.array([[bool(m[log_x_x[-1][i, q]]) for q in range(n)] for i in range(code.k)]).astype(int)
         encoding_qubits = np.where(final_logicals_x.sum(axis=0) == 1)[0]
-        return qc.inverse(), encoding_qubits
+
+        circ = circ.inverse()
+        stabs_numpy = circ.to_tableau().to_numpy()
+        x_part = stabs_numpy[2].astype(int)
+        z_part = stabs_numpy[3].astype(int)
+        signs = stabs_numpy[-1].astype(int)
+        tableau = np.hstack((x_part, z_part, np.array([signs]).T))
+        if not np.all(tableau[:,-1]==0):
+            ker = mod2.nullspace(tableau)
+            assert ker[-1,-1] == 1, "Last entry of kernel vector must be 1."
+            correction_symplectic = ker[-1]
+            z_part = correction_symplectic[:n]
+            x_part = correction_symplectic[n:-1]
+            for i, (x, z) in enumerate(zip(x_part, z_part)):
+                if x == 1 and z == 1:
+                    circ.append("Y", [i])
+                elif x == 1:
+                    circ.append("X", [i])
+                elif z == 1:
+                    circ.append("Z", [i])
+        return circ, encoding_qubits
 
     return "UNSAT"
 

@@ -22,6 +22,7 @@ from mqt.qecc.circuit_synthesis import (
     gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
     heuristic_encoding_circuit,
+    depth_optimal_encoding_circuit_non_css
 )
 from mqt.qecc.codes.pauli import Pauli
 
@@ -80,13 +81,19 @@ def css_6_2_2_code() -> CSSCode:
 @pytest.fixture
 def non_css_5_qubit() -> StabilizerCode:
     """Return the 5-qubit code."""
-    return StabilizerCode(["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"])
+    stabs = ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"]
+    x_logicals = ["XXXXX"]
+    z_logicals = ["ZZZZZ"]
+    return StabilizerCode(stabs, x_logicals=x_logicals, z_logicals=z_logicals)
 
 
 @pytest.fixture
 def non_css_8_qubit() -> StabilizerCode:  # from https://arxiv.org/abs/quant-ph/9705052
     """Return a non-CSS 8-qubit code."""
-    return StabilizerCode(["XXXXXXXX", "ZZZZZZZZ", "IXIXYZYZ", "IXZYIXZY", "IYXZXZIY"])
+    stabs = ["XXXXXXXX", "ZZZZZZZZ", "IXIXYZYZ", "IXZYIXZY", "IYXZXZIY"]
+    x_logicals = ["XXIIIZIZ", "XIXZIIZI", "XIIZXZII"]
+    z_logicals = ["IZIZIZIZ", "IIZZIIZZ", "IIIIZZZZ"]
+    return StabilizerCode(stabs, x_logicals=x_logicals, z_logicals=z_logicals)
 
 
 def _assert_correct_encoding_circuit_non_css(
@@ -184,3 +191,51 @@ def test_gottesman_encoding_invalid() -> None:
 
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
         gottesman_encoding_circuit(["X", "Z"])
+
+
+@pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit"])
+def test_depth_optimal_encoding_non_css_consistent(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
+    """Check that `depth_optimal_encoding_circuit_non_css` returns a valid circuit with the correct stabilizers."""
+    code = request.getfixturevalue(code)
+
+    encoder, message_qs = depth_optimal_encoding_circuit_non_css(code, max_depth=10)
+    assert encoder is not None
+    assert encoder.num_qubits == code.n
+
+    # Assert correct propagation of stabilizers and logicals
+    stabs = encoder.to_tableau().to_stabilizers()
+    paulis = [str(s) for s in stabs]
+    paulis = [pauli for i, pauli in enumerate(paulis) if i not in message_qs]
+
+    circuit_code = StabilizerCode(paulis)
+    assert code == circuit_code
+
+
+@pytest.mark.parametrize("code", ["non_css_5_qubit"])
+def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
+    """Check edge cases for `depth_optimal_encoding_circuit_non_css`."""
+    code = request.getfixturevalue(code)
+
+    # Test with minimal depth
+    encoder, message_qs = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
+    assert encoder is not None
+    assert encoder.num_qubits == code.n
+
+    # Test with maximal depth
+    encoder, message_qs = depth_optimal_encoding_circuit_non_css(code, max_depth=20)
+    assert encoder is not None
+    assert encoder.num_qubits == code.n
+
+
+@pytest.mark.skipif(
+    os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
+    reason="Too slow for CI on Windows or MacOS",
+)
+@pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit"])
+def test_depth_optimal_encoding_non_css_timeout(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
+    """Check that `depth_optimal_encoding_circuit_non_css` respects timeout constraints."""
+    code = request.getfixturevalue(code)
+
+    # Test with a short timeout
+    encoder = depth_optimal_encoding_circuit_non_css(code, max_depth=10, max_two_qubit_gates=5)
+    assert encoder is not None

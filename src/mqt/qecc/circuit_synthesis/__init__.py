@@ -17,6 +17,7 @@ from .encoding import (
     gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
     heuristic_encoding_circuit,
+    depth_optimal_encoding_circuit_non_css,
 )
 from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
@@ -59,4 +60,5 @@ __all__ = [
     "heuristic_verification_stabilizers",
     "naive_verification_circuit",
     "qiskit_to_stim_circuit",
+    "depth_optimal_encoding_circuit_non_css"
 ]
