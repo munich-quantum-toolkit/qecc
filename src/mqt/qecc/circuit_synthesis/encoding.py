@@ -88,6 +88,9 @@ def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balan
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
+z3.set_param('sat.cardinality.solver', True)
+z3.set_param('sat.threads', 4)        # if you want some parallelism
+
 def depth_optimal_encoding_circuit_non_css(
     code: StabilizerCode,
     max_depth: int,
@@ -171,14 +174,17 @@ def depth_optimal_encoding_circuit_non_css(
             tqgs_q1_tar = [cxs[t][q2][q1] for q2 in range(n)]
             is_ctrl = z3.Or(tqgs_q1_ctrl)
             is_tar = z3.Or(tqgs_q1_tar)
+            is_cz = z3.Or(tqgs_q1_cz)
             # tqgs_q1_ctrl + tqgs_q1_tar
             # tqgs_q1_ctrl + tqgs_q1_tar + tqgs_q1_cz
             # if a gate is not a single-qubit gate, then the appropriate variables must be set
-            s.add(z3.Implies(sqgs[t][q1] == CXCTRL, z3.Or(tqgs_q1_ctrl)))
-            s.add(z3.Implies(sqgs[t][q1] == CXTAR, z3.Or(tqgs_q1_tar)))
-            s.add(z3.Implies(z3.Or(sqgs[t][q1] == CZ, sqgs[t][q1] == CZ2), z3.Or(tqgs_q1_cz)))
+            s.add((sqgs[t][q1] == CXCTRL) == z3.Or(tqgs_q1_ctrl))
+            s.add((sqgs[t][q1] == CXTAR) == z3.Or(tqgs_q1_tar))
+            s.add(z3.Or(sqgs[t][q1] == CZ, sqgs[t][q1] == CZ2) == z3.Or(tqgs_q1_cz))
             # a qubit can be either control or target, not both
             s.add(z3.Not(z3.And(is_ctrl, is_tar)))
+            s.add(z3.Not(z3.And(is_ctrl, is_cz)))
+            s.add(z3.Not(z3.And(is_tar, is_cz)))
             # a qubit can be the control of at most one CNOT
             s.add(z3.PbLe([(cxs[t][q1][q2], 1) for q2 in range(n)], 1))
             # a qubit can be the target of at most one CNOT
@@ -216,94 +222,78 @@ def depth_optimal_encoding_circuit_non_css(
             )
 
     # gate constraints
+    # --- Helper: elementwise ITE over a Bool vector ---
+    def symbolic_vector_ite(cond: z3.BoolRef, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        # returns cond ? a : b  (elementwise If)
+        assert a.shape == b.shape
+        m = a.shape[0]
+        return np.array([z3.If(cond, a[i], b[i]) for i in range(m)], dtype=object)
+
+    # --- GATE CONSTRAINTS (functional, aggregated) ---
     tableaus_x = [np.vstack((stab_x[t], log_x_x[t], log_z_x[t])) for t in range(max_depth + 1)]
     tableaus_z = [np.vstack((stab_z[t], log_x_z[t], log_z_z[t])) for t in range(max_depth + 1)]
+
     for t in range(1, max_depth + 1):
-        for q1 in range(n):
-            # single-qubit gates
-            s.add(
-                z3.Implies(
-                    sqgs[t - 1][q1] == IDENTITY,
-                    z3.And(
-                        symbolic_vector_eq(tableaus_x[t][:, q1], tableaus_x[t - 1][:, q1]),
-                        symbolic_vector_eq(tableaus_z[t][:, q1], tableaus_z[t - 1][:, q1]),
-                    ),
-                )
-            )  # I
-            s.add(
-                z3.Implies(
-                    sqgs[t - 1][q1] == HADAMARD,
-                    z3.And(
-                        symbolic_vector_eq(tableaus_x[t][:, q1], tableaus_z[t - 1][:, q1]),
-                        symbolic_vector_eq(tableaus_z[t][:, q1], tableaus_x[t - 1][:, q1]),
-                    ),
-                )
-            )  # H
-            s.add(
-                z3.Implies(
-                    sqgs[t - 1][q1] == SGATE,
-                    z3.And(
-                        symbolic_vector_eq(
-                            symbolic_vector_add(tableaus_x[t - 1][:, q1], tableaus_z[t - 1][:, q1]),
-                            tableaus_z[t][:, q1],
-                        ),
-                        symbolic_vector_eq(tableaus_x[t][:, q1], tableaus_x[t - 1][:, q1]),
-                    ),
-                )
-            )  # S
-            s.add(
-                z3.Implies(
-                    sqgs[t - 1][q1] == SQRTX,
-                    z3.And(
-                        symbolic_vector_eq(
-                            symbolic_vector_add(tableaus_x[t - 1][:, q1], tableaus_z[t - 1][:, q1]),
-                            tableaus_x[t][:, q1],
-                        ),
-                        symbolic_vector_eq(tableaus_z[t][:, q1], tableaus_z[t - 1][:, q1]),
-                    ),
-                )
-            )  # SqrtX
+        tm1 = t - 1
 
-            # two-qubit gates
-            for q2 in range(n):
-                s.add(
-                    z3.Implies(
-                        cxs[t - 1][q1][q2],
-                        z3.And(
-                            symbolic_vector_eq(tableaus_x[t][:, q1], tableaus_x[t - 1][:, q1]),
-                            symbolic_vector_eq(
-                                tableaus_x[t][:, q2],
-                                symbolic_vector_add(tableaus_x[t - 1][:, q1], tableaus_x[t - 1][:, q2]),
-                            ),
-                            symbolic_vector_eq(tableaus_z[t][:, q2], tableaus_z[t - 1][:, q2]),
-                            symbolic_vector_eq(
-                                tableaus_z[t][:, q1],
-                                symbolic_vector_add(tableaus_z[t - 1][:, q1], tableaus_z[t - 1][:, q2]),
-                            ),
-                        ),
-                    )
-                )  # CX
+        # First, compute the 1q-transformed columns X1/Z1 for all qubits in this layer.
+        X1_cols = [None] * n
+        Z1_cols = [None] * n
+        for q in range(n):
+            Xprev = tableaus_x[tm1][:, q]
+            Zprev = tableaus_z[tm1][:, q]
 
-            for q2 in range(q1 + 1, n):
-                s.add(
-                    z3.Implies(
-                        czs[t - 1][q1][q2],
-                        z3.And(
-                            symbolic_vector_eq(tableaus_x[t][:, q1], tableaus_x[t - 1][:, q1]),
-                            symbolic_vector_eq(tableaus_x[t][:, q2], tableaus_x[t - 1][:, q2]),
-                            symbolic_vector_eq(
-                                tableaus_z[t][:, q1],
-                                symbolic_vector_add(tableaus_z[t - 1][:, q1], tableaus_x[t - 1][:, q2]),
-                            ),
-                            symbolic_vector_eq(
-                                tableaus_z[t][:, q2],
-                                symbolic_vector_add(tableaus_x[t - 1][:, q1], tableaus_z[t - 1][:, q2]),
-                            ),
-                        ),
-                    )
-                )  # CZ
+            isH  = (sqgs[tm1][q] == HADAMARD)
+            isS  = (sqgs[tm1][q] == SGATE)
+            isSX = (sqgs[tm1][q] == SQRTX)
 
-    # symmetry breaking
+            # H: swap X/Z on column q
+            Xh = Zprev
+            Zh = Xprev
+            Xcol = symbolic_vector_ite(isH, Xh, Xprev)
+            Zcol = symbolic_vector_ite(isH, Zh, Zprev)
+
+            # S or SQRT-X: Z_q ^= X_q   (use the post-H value Xcol)
+            col_sum = symbolic_vector_add(Zcol, Xcol)
+            Zcol = symbolic_vector_ite(isS, col_sum, Zcol)
+            Xcol = symbolic_vector_ite(isSX, col_sum, Xcol)
+
+            X1_cols[q] = Xcol
+            Z1_cols[q] = Zcol
+
+        # Then, fold all 2q gates into a single equality per column.
+        for q in range(n):
+            Xcol = X1_cols[q]
+            Zcol = Z1_cols[q]
+
+            # CNOT target: X_q ^= X1_cols[ctrl]
+            # build nested ITE over all possible ctrl indices r
+            for r in range(n):
+                if r == q:
+                    continue
+                touch = cxs[tm1][r][q]    # r -> q
+                Xcol = symbolic_vector_ite(touch, symbolic_vector_add(Xcol, tableaus_x[tm1][:, r]), Xcol)
+
+            # CNOT control: Z_q ^= Z1_cols[target]
+            for r in range(n):
+                if r == q:
+                    continue
+                touch = cxs[tm1][q][r]    # q -> r
+                Zcol = symbolic_vector_ite(touch, symbolic_vector_add(Zcol, tableaus_z[tm1][:, r]), Zcol)
+
+            # CZ: Z_q ^= X1_cols[partner]   (undirected; your czs is upper-triangular)
+            for r in range(n):
+                if r == q:
+                    continue
+                u, v = (r, q) if r < q else (q, r)
+                touch = czs[tm1][u][v]
+                Zcol = symbolic_vector_ite(touch, symbolic_vector_add(Zcol, tableaus_x[tm1][:, r]), Zcol)
+
+            # Final equalities for column q
+            s.add(symbolic_vector_eq(tableaus_x[t][:, q], Xcol))
+            s.add(symbolic_vector_eq(tableaus_z[t][:, q], Zcol))
+
+
     # gate symmetry
     for t in range(1, max_depth):
         for q in range(n):
