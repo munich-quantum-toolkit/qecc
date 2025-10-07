@@ -143,8 +143,12 @@ def test_atd_simulator_syndrome_error_channels_setup(atd_simulator_sigma: AtdSim
         nr_qubits=1,
     )
     assert atd_simulator_sigma.syndr_err_rate == simulation_utils.get_error_rate_from_sigma(sigma=sigma)
-    assert atd_simulator_sigma.x_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl[0][0] + expect_chnl[1][0])
-    assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl[2][0] + expect_chnl[1][0])
+    assert atd_simulator_sigma.x_sigma == simulation_utils.get_sigma_from_syndr_er(
+        expect_chnl[0][0] + expect_chnl[1][0]
+    )
+    assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(
+        expect_chnl[2][0] + expect_chnl[1][0]
+    )
 
 
 def test_atd_simulator_syndrome_error_channels_setup_ser(atd_simulator_ser: AtdSimulator) -> None:
