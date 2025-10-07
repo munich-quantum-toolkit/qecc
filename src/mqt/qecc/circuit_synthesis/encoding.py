@@ -18,7 +18,6 @@ import numpy as np
 import stim
 import z3
 from ldpc import mod2
-import time
 
 from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
@@ -26,14 +25,12 @@ from .circuits import CNOTCircuit
 from .synthesis_utils import (
     heuristic_gaussian_elimination,
     optimal_elimination,
-    symbolic_vector_add,
-    symbolic_vector_eq,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
-    from ..codes import CSSCode, StabilizerCode
+    from ..codes import CSSCode
     from ..codes.css_code import CSSCode
 
 
@@ -88,368 +85,477 @@ def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balan
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
-z3.set_param('sat.cardinality.solver', True)
-z3.set_param('sat.threads', 4)        # if you want some parallelism
+z3.set_param("sat.cardinality.solver", True)
+z3.set_param("sat.threads", 4)  # if you want some parallelism
+
+from ortools.sat.python import cp_model
+
 
 def depth_optimal_encoding_circuit_non_css(
-    code: StabilizerCode,
+    code,
     max_depth: int,
     max_two_qubit_gates: int | None = None,
     exact_two_qubit_count: bool = False,
-) -> tuple[stim.Circuit, int]:
-    """Synthesize an encoding circuit for the given stabilizer code with at most `max_depth` depth.
-
-    Args:
-         code: The stabilizer code to synthesize the encoding circuit for.
-         max_depth: The maximum depth of the circuit.
-         max_two_qubit_gates: The maximum number of two-qubit gates in the circuit. If None, no limit is set.
-         exact_two_qubit_count: Whether the number of two-qubit gates should be exactly `max_two_qubit_gates`.
-
-    Returns:
-         A tuple containing the synthesized encoding circuit and the qubits that are used to encode the logical qubits.
+):
+    """OR-Tools (CP-SAT) version of your Z3 model.
+    Matches gate codes: I=0, H=1, S=2, SQRTX=3, CXCTRL=4, CXTAR=5, CZ=6, CZ2=7.
     """
     n = code.n
-    stabs = code.symplectic
-    assert code.x_logicals is not None and code.z_logicals is not None, "Logical operators must be provided."
+    k = code.k
+    m = n - k
+    assert code.x_logicals is not None
+    assert code.z_logicals is not None
 
-    z_logicals = code.z_logicals.tableau.matrix
-    x_logicals = code.x_logicals.tableau.matrix
-    bit_width = 3
+    # Constants (just for readability)
+    I, H, Sg, SX, CXCTRL, CXTAR, CZ, CZ2 = 0, 1, 2, 3, 4, 5, 6, 7
 
-    # Gate constants
-    IDENTITY = z3.BitVecVal(0, bit_width)
-    HADAMARD = z3.BitVecVal(1, bit_width)
-    SGATE = z3.BitVecVal(2, bit_width)
-    SQRTX = z3.BitVecVal(3, bit_width)
-    CXCTRL = z3.BitVecVal(4, bit_width)
-    CXTAR = z3.BitVecVal(5, bit_width)
-    CZ = z3.BitVecVal(6, bit_width)
-    CZ2 = z3.BitVecVal(7, bit_width)
+    # ----------------------------------------------------------------------
+    # Helpers
+    # ----------------------------------------------------------------------
+    def xor_eq(model: cp_model.CpModel, a, b, c, cond=None) -> None:
+        """Enforce c == a XOR b. If cond provided, enforce only when cond is True."""
+        # CNF for c <-> a xor b
+        clauses = [
+            [a, b, c.Not()],  # a ∨ b ∨ ¬c
+            [a, b.Not(), c],  # a ∨ ¬b ∨ c
+            [a.Not(), b, c],  # ¬a ∨ b ∨ c
+            [a.Not(), b.Not(), c.Not()],  # ¬a ∨ ¬b ∨ ¬c
+        ]
+        for list in clauses:
+            ct = model.AddBoolOr(list)
+            if cond is not None:
+                ct.OnlyEnforceIf(cond)
 
-    # create variables
-    sqgs = [
-        [z3.BitVec(f"sqg_{t}_{q}", bit_width) for q in range(n)] for t in range(max_depth)
-    ]  # I=0, H=1, S=2, SqrtX = 3, CXCtrl=4, CXTar=5, CZ=6|7
-    czs = [[{q2: z3.Bool(f"cz_{t}_{q1}_{q2}") for q2 in range(q1 + 1, n)} for q1 in range(n)] for t in range(max_depth)]
-    cxs = [[[z3.Bool(f"cx_{t}_{q1}_{q2}") for q2 in range(n)] for q1 in range(n)] for t in range(max_depth)]
+    def eq_if(model: cp_model.CpModel, a, b, cond) -> None:
+        """A == b only if cond is True."""
+        model.Add(a == b).OnlyEnforceIf(cond)
 
-    stab_x = [
-        np.array([[z3.Bool(f"stab_x_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.n - code.k)])
-        for t in range(max_depth + 1)
-    ]
-    stab_z = [
-        np.array([[z3.Bool(f"stab_z_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.n - code.k)])
-        for t in range(max_depth + 1)
-    ]
-    log_x_x = [
-        np.array([[z3.Bool(f"log_x_x_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.k)])
-        for t in range(max_depth + 1)
-    ]
-    log_x_z = [
-        np.array([[z3.Bool(f"log_x_z_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.k)])
-        for t in range(max_depth + 1)
-    ]
-    log_z_x = [
-        np.array([[z3.Bool(f"log_z_x_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.k)])
-        for t in range(max_depth + 1)
-    ]
-    log_z_z = [
-        np.array([[z3.Bool(f"log_z_z_{t}_{stab}_{q}") for q in range(n)] for stab in range(code.k)])
-        for t in range(max_depth + 1)
-    ]
+    def or_equal(model: cp_model.CpModel, out, list) -> None:
+        """Out <-> Or(list)."""
+        if not list:
+            model.Add(out == 0)
+            return
+        # Or(list) => out
+        # out => Or(list)
+        for L in list:
+            model.AddImplication(L, out)
+        model.Add(sum(list) >= 1).OnlyEnforceIf(out)
+        model.Add(sum(list) == 0).OnlyEnforceIf(out.Not())
 
-    stab_x[0][:, :] = stabs[:, :n].astype(bool)
-    stab_z[0][:, :] = stabs[:, n:].astype(bool)
-    log_x_x[0][:, :] = x_logicals[:, :n].astype(bool)
-    log_x_z[0][:, :] = x_logicals[:, n:].astype(bool)
-    log_z_x[0][:, :] = z_logicals[:, :n].astype(bool)
-    log_z_z[0][:, :] = z_logicals[:, n:].astype(bool)
+    # ----------------------------------------------------------------------
+    # Model
+    # ----------------------------------------------------------------------
+    model = cp_model.CpModel()
 
-    s = z3.Solver()
-    # consistency
+    # Gate code per layer/qubit
+    sqgs = [[model.NewIntVar(0, 7, f"sqg_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+
+    # Convenience: code==const booleans (reified equalities)
+    isI = [[model.NewBoolVar(f"isI_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isH = [[model.NewBoolVar(f"isH_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isS = [[model.NewBoolVar(f"isS_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isSX = [[model.NewBoolVar(f"isSX_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isCXc = [[model.NewBoolVar(f"isCXc_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isCXt = [[model.NewBoolVar(f"isCXt_{t}_{q}") for q in range(n)] for t in range(max_depth)]
+    isCZr = [
+        [model.NewBoolVar(f"isCZr_{t}_{q}") for q in range(n)] for t in range(max_depth)
+    ]  # CZ role (either 6 or 7)
+
+    def bind_code(bv, code, lit) -> None:
+        model.Add(bv == code).OnlyEnforceIf(lit)
+        model.Add(bv != code).OnlyEnforceIf(lit.Not())
+
     for t in range(max_depth):
-        for q1 in range(n):
-            tqgs_q1_cz = list(czs[t][q1].values()) + [czs[t][q2][q1] for q2 in range(q1)]
-            tqgs_q1_ctrl = cxs[t][q1]
-            tqgs_q1_tar = [cxs[t][q2][q1] for q2 in range(n)]
-            is_ctrl = z3.Or(tqgs_q1_ctrl)
-            is_tar = z3.Or(tqgs_q1_tar)
-            is_cz = z3.Or(tqgs_q1_cz)
-            # tqgs_q1_ctrl + tqgs_q1_tar
-            # tqgs_q1_ctrl + tqgs_q1_tar + tqgs_q1_cz
-            # if a gate is not a single-qubit gate, then the appropriate variables must be set
-            s.add((sqgs[t][q1] == CXCTRL) == z3.Or(tqgs_q1_ctrl))
-            s.add((sqgs[t][q1] == CXTAR) == z3.Or(tqgs_q1_tar))
-            s.add(z3.Or(sqgs[t][q1] == CZ, sqgs[t][q1] == CZ2) == z3.Or(tqgs_q1_cz))
-            # a qubit can be either control or target, not both
-            s.add(z3.Not(z3.And(is_ctrl, is_tar)))
-            s.add(z3.Not(z3.And(is_ctrl, is_cz)))
-            s.add(z3.Not(z3.And(is_tar, is_cz)))
-            # a qubit can be the control of at most one CNOT
-            s.add(z3.PbLe([(cxs[t][q1][q2], 1) for q2 in range(n)], 1))
-            # a qubit can be the target of at most one CNOT
-            s.add(z3.PbLe([(cxs[t][q2][q1], 1) for q2 in range(n)], 1))
-            # a qubit can be involved in at most one CZ
-            s.add(z3.PbLe([(cz, 1) for cz in tqgs_q1_cz], 1))
-
-    # at most max_two_qubit_gates two-qubit gates
-    if max_two_qubit_gates is not None:
-        if not exact_two_qubit_count:
-            s.add(
-                z3.PbLe(
-                    [(z3.Or(sqgs[t][q] == CXCTRL, sqgs[t][q] == CZ), 1) for q in range(n) for t in range(max_depth)],
-                    max_two_qubit_gates,
-                )
-            )
-            s.add(
-                z3.PbLe(
-                    [(z3.Or(sqgs[t][q] == CXTAR, sqgs[t][q] == CZ2), 1) for q in range(n) for t in range(max_depth)],
-                    max_two_qubit_gates,
-                )
-            )
-        else:
-            s.add(
-                z3.PbEq(
-                    [(z3.Or(sqgs[t][q] == CXCTRL, sqgs[t][q] == CZ), 1) for q in range(n) for t in range(max_depth)],
-                    max_two_qubit_gates,
-                )
-            )
-            s.add(
-                z3.PbEq(
-                    [(z3.Or(sqgs[t][q] == CXTAR, sqgs[t][q] == CZ2), 1) for q in range(n) for t in range(max_depth)],
-                    max_two_qubit_gates,
-                )
-            )
-
-    # gate constraints
-    # --- Helper: elementwise ITE over a Bool vector ---
-    def symbolic_vector_ite(cond: z3.BoolRef, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        # returns cond ? a : b  (elementwise If)
-        assert a.shape == b.shape
-        m = a.shape[0]
-        return np.array([z3.If(cond, a[i], b[i]) for i in range(m)], dtype=object)
-
-    # --- GATE CONSTRAINTS (functional, aggregated) ---
-    tableaus_x = [np.vstack((stab_x[t], log_x_x[t], log_z_x[t])) for t in range(max_depth + 1)]
-    tableaus_z = [np.vstack((stab_z[t], log_x_z[t], log_z_z[t])) for t in range(max_depth + 1)]
-
-    for t in range(1, max_depth + 1):
-        tm1 = t - 1
-
-        # First, compute the 1q-transformed columns X1/Z1 for all qubits in this layer.
-        X1_cols = [None] * n
-        Z1_cols = [None] * n
         for q in range(n):
-            Xprev = tableaus_x[tm1][:, q]
-            Zprev = tableaus_z[tm1][:, q]
+            bind_code(sqgs[t][q], I, isI[t][q])
+            bind_code(sqgs[t][q], H, isH[t][q])
+            bind_code(sqgs[t][q], Sg, isS[t][q])
+            bind_code(sqgs[t][q], SX, isSX[t][q])
+            # 2q roles are grouped:
+            # CXCTRL, CXTAR, CZ or CZ2
+            # We'll derive isCZr by (sqg in {CZ,CZ2})
+            tmp_cz = model.NewBoolVar(f"isCZ_{t}_{q}")
+            tmp_cz2 = model.NewBoolVar(f"isCZ2_{t}_{q}")
+            bind_code(sqgs[t][q], CXCTRL, isCXc[t][q])
+            bind_code(sqgs[t][q], CXTAR, isCXt[t][q])
+            bind_code(sqgs[t][q], CZ, tmp_cz)
+            bind_code(sqgs[t][q], CZ2, tmp_cz2)
+            # isCZr <-> tmp_cz OR tmp_cz2
+            or_equal(model, isCZr[t][q], [tmp_cz, tmp_cz2])
 
-            isH  = (sqgs[tm1][q] == HADAMARD)
-            isS  = (sqgs[tm1][q] == SGATE)
-            isSX = (sqgs[tm1][q] == SQRTX)
+            # Exclusivity: exactly one of the 8 codes
+            model.Add(
+                sum([isI[t][q], isH[t][q], isS[t][q], isSX[t][q], isCXc[t][q], isCXt[t][q], tmp_cz, tmp_cz2]) == 1
+            )
 
-            # H: swap X/Z on column q
-            Xh = Zprev
-            Zh = Xprev
-            Xcol = symbolic_vector_ite(isH, Xh, Xprev)
-            Zcol = symbolic_vector_ite(isH, Zh, Zprev)
+    # 2q gate variables
+    cxs = [[[model.NewBoolVar(f"cx_{t}_{u}_{v}") for v in range(n)] for u in range(n)] for t in range(max_depth)]
+    czs = [
+        [{v: model.NewBoolVar(f"cz_{t}_{u}_{v}") for v in range(u + 1, n)} for u in range(n)] for t in range(max_depth)
+    ]
 
-            # S or SQRT-X: Z_q ^= X_q   (use the post-H value Xcol)
-            col_sum = symbolic_vector_add(Zcol, Xcol)
-            Zcol = symbolic_vector_ite(isS, col_sum, Zcol)
-            Xcol = symbolic_vector_ite(isSX, col_sum, Xcol)
-
-            X1_cols[q] = Xcol
-            Z1_cols[q] = Zcol
-
-        # Then, fold all 2q gates into a single equality per column.
+    # Per-layer: each qubit participates in at most one 2q gate (matching)
+    for t in range(max_depth):
         for q in range(n):
-            Xcol = X1_cols[q]
-            Zcol = Z1_cols[q]
-
-            # CNOT target: X_q ^= X1_cols[ctrl]
-            # build nested ITE over all possible ctrl indices r
-            for r in range(n):
-                if r == q:
-                    continue
-                touch = cxs[tm1][r][q]    # r -> q
-                Xcol = symbolic_vector_ite(touch, symbolic_vector_add(Xcol, tableaus_x[tm1][:, r]), Xcol)
-
-            # CNOT control: Z_q ^= Z1_cols[target]
-            for r in range(n):
-                if r == q:
-                    continue
-                touch = cxs[tm1][q][r]    # q -> r
-                Zcol = symbolic_vector_ite(touch, symbolic_vector_add(Zcol, tableaus_z[tm1][:, r]), Zcol)
-
-            # CZ: Z_q ^= X1_cols[partner]   (undirected; your czs is upper-triangular)
+            incident = []
+            incident += [cxs[t][q][r] for r in range(n) if r != q]
+            incident += [cxs[t][r][q] for r in range(n) if r != q]
             for r in range(n):
                 if r == q:
                     continue
                 u, v = (r, q) if r < q else (q, r)
-                touch = czs[tm1][u][v]
-                Zcol = symbolic_vector_ite(touch, symbolic_vector_add(Zcol, tableaus_x[tm1][:, r]), Zcol)
+                if u < v:
+                    incident.append(czs[t][u][v])
+            if incident:
+                model.Add(sum(incident) <= 1)
 
-            # Final equalities for column q
-            s.add(symbolic_vector_eq(tableaus_x[t][:, q], Xcol))
-            s.add(symbolic_vector_eq(tableaus_z[t][:, q], Zcol))
+    # Bidirectional consistency (your fix)
+    for t in range(max_depth):
+        for q in range(n):
+            # compute Or of incident edges
+            inc_ctrl = [cxs[t][q][r] for r in range(n) if r != q]
+            inc_targ = [cxs[t][r][q] for r in range(n) if r != q]
+            inc_cz = list(czs[t][q].values()) + [czs[t][u][q] for u in range(q)]
 
+            or_equal(model, isCXc[t][q], inc_ctrl)
+            or_equal(model, isCXt[t][q], inc_targ)
+            or_equal(model, isCZr[t][q], inc_cz)
 
-    # gate symmetry
+            # If any 2q incident, forbid 1q codes; if 1q code, forbid 2q incident
+            any2q = model.NewBoolVar(f"any2q_{t}_{q}")
+            or_equal(model, any2q, inc_ctrl + inc_targ + inc_cz)
+            is1q = model.NewBoolVar(f"is1q_{t}_{q}")
+            or_equal(model, is1q, [isI[t][q], isH[t][q], isS[t][q], isSX[t][q]])
+
+            # any2q => not(1q)
+            model.Add(is1q == 0).OnlyEnforceIf(any2q)
+            # 1q => no incident 2q
+            for e in inc_ctrl + inc_targ + inc_cz:
+                model.Add(e == 0).OnlyEnforceIf(is1q)
+
+    # "No two single-qubit gates in a row" (excluding I)
     for t in range(1, max_depth):
         for q in range(n):
-            # no two single-qubit gates in a row
-            is_sqg_t = z3.Or(sqgs[t][q] == HADAMARD, sqgs[t][q] == SGATE, sqgs[t][q] == SQRTX)
-            is_sqg_t_minus_1 = z3.Or(sqgs[t - 1][q] == HADAMARD, sqgs[t - 1][q] == SGATE, sqgs[t - 1][q] == SQRTX)
-            s.add(z3.Implies(is_sqg_t, z3.Not(is_sqg_t_minus_1)))
+            # If H/S/SX at t then NONE of H/S/SX at t-1
+            model.Add(isH[t - 1][q] == 0).OnlyEnforceIf(isH[t][q])
+            model.Add(isS[t - 1][q] == 0).OnlyEnforceIf(isH[t][q])
+            model.Add(isSX[t - 1][q] == 0).OnlyEnforceIf(isH[t][q])
 
-            # if an idling qubit is followed by a single-qubit gate, the gate could be applied first, USUALLY MAKES IT WORSE
-            # s.add(z3.Implies(sqgs[t-1][q] == IDENTITY, z3.Not(is_sqg_t)))
+            model.Add(isH[t - 1][q] == 0).OnlyEnforceIf(isS[t][q])
+            model.Add(isS[t - 1][q] == 0).OnlyEnforceIf(isS[t][q])
+            model.Add(isSX[t - 1][q] == 0).OnlyEnforceIf(isS[t][q])
 
-        for q1 in range(n):
-            for q2 in range(q1 + 1, n):
-                # the same two-qubit gate can't be applied in a row
-                s.add(z3.Implies(cxs[t][q1][q2], z3.Not(cxs[t - 1][q1][q2])))
-                s.add(z3.Implies(cxs[t][q2][q1], z3.Not(cxs[t - 1][q2][q1])))
-                s.add(z3.Implies(czs[t][q1][q2], z3.Not(czs[t - 1][q1][q2])))
+            model.Add(isH[t - 1][q] == 0).OnlyEnforceIf(isSX[t][q])
+            model.Add(isS[t - 1][q] == 0).OnlyEnforceIf(isSX[t][q])
+            model.Add(isSX[t - 1][q] == 0).OnlyEnforceIf(isSX[t][q])
 
-    for t in range(2, max_depth):
-        for q1 in range(n):
-            # A two-qubit gate cant be sandwhiched by commuting gates
-            tqgs_q1_cz = list(czs[t][q1].values()) + [czs[t][q2][q1] for q2 in range(q1)]
-            s.add(
-                z3.Not(
-                    z3.And(
-                        sqgs[t - 2][q1] == SGATE, z3.Or(z3.Or(cxs[t - 1][q1]), z3.Or(tqgs_q1_cz)), sqgs[t][q1] == SGATE
-                    )
-                )
-            )
-            s.add(
-                z3.Not(
-                    z3.And(
-                        sqgs[t - 2][q1] == SQRTX, z3.Or([cxs[t - 1][q2][q1] for q2 in range(n)]), sqgs[t][q1] == SQRTX
-                    )
-                )
-            )
+    # the same 2q gate can't be applied in a row
+    for t in range(1, max_depth):
+        for u in range(n):
+            for v in range(u + 1, n):
+                model.AddImplication(cxs[t][u][v], cxs[t - 1][u][v].Not())
+                model.AddImplication(cxs[t][v][u], cxs[t - 1][v][u].Not())
+                model.AddImplication(czs[t][u][v], czs[t - 1][u][v].Not())
 
-            # CZ gates can't be sandwhiched by hadamards on either qubit
-            s.add(z3.Not(z3.And(sqgs[t - 2][q1] == HADAMARD, z3.Or(tqgs_q1_cz), sqgs[t][q1] == HADAMARD)))
+    # Two-qubit budget
+    if max_two_qubit_gates is not None:
+        twoq = []
+        for t in range(max_depth):
+            for u in range(n):
+                twoq.extend(cxs[t][u][v] for v in range(n) if u != v)
+            for u in range(n):
+                twoq.extend(czs[t][u][v] for v in range(u + 1, n))
+        if exact_two_qubit_count:
+            model.Add(sum(twoq) == max_two_qubit_gates)
+        else:
+            model.Add(sum(twoq) <= max_two_qubit_gates)
 
-            # The target of a CNOT can't be sandwhiched by hadamards
-            s.add(
-                z3.Not(
-                    z3.And(
-                        sqgs[t - 2][q1] == HADAMARD,
-                        z3.Or([cxs[t - 1][q2][q1] for q2 in range(n)]),
-                        sqgs[t][q1] == HADAMARD,
-                    )
-                )
-            )
+    # ----------------------------------------------------------------------
+    # Tableau variables: Bool for each entry
+    # Order rows: stabilizers (m), X-logicals (k), Z-logicals (k)
+    # ----------------------------------------------------------------------
+    def make_tableau():
+        return [
+            np.array([[model.NewBoolVar(f"tx_{t}_{r}_{q}") for q in range(n)] for r in range(m + 2 * k)], dtype=object),
+            np.array([[model.NewBoolVar(f"tz_{t}_{r}_{q}") for q in range(n)] for r in range(m + 2 * k)], dtype=object),
+        ]
 
-            # A two-qubit gate can't be sandwhiched by hadamards on all qubits
-            for q2 in range(n):
-                s.add(
-                    z3.Not(
-                        z3.And(
-                            sqgs[t - 2][q1] == HADAMARD,
-                            sqgs[t - 2][q2] == HADAMARD,
-                            cxs[t - 1][q1][q2],
-                            sqgs[t][q1] == HADAMARD,
-                            sqgs[t][q2] == HADAMARD,
-                        )
-                    )
-                )
+    # initialize t=0 with constants
+    S = code.symplectic.astype(int)
+    LX = code.x_logicals.tableau.matrix.astype(int)
+    LZ = code.z_logicals.tableau.matrix.astype(int)
 
-    # tableau symmetry, SEEMS TO MAKE IT WORSE
-    # for t in range(1, max_depth + 1):
-    #     # no two rows can be the same
-    #     for i in range(tableaus_x[t].shape[0]):
-    #         for j in range(i + 1, tableaus_x[t].shape[0]):
-    #             s.add(
-    #                 z3.Not(
-    #                     z3.And(
-    #                         symbolic_vector_eq(tableaus_x[t][i], tableaus_x[t][j]),
-    #                         symbolic_vector_eq(tableaus_z[t][i], tableaus_z[t][j]),
-    #                     )
-    #                 )
-    #             )
+    rows_X0 = np.vstack([S[:, :n], LX[:, :n], LZ[:, :n]])  # (m+2k) x n
+    rows_Z0 = np.vstack([S[:, n:], LX[:, n:], LZ[:, n:]])  # (m+2k) x n
 
-    # final matrix constraints
-    s.add(
-        z3.PbEq(
-            [(z3.Or([stab_z[-1][i, q] for i in range(code.n - code.k)]), 1) for q in range(n)]
-            + [(z3.Or([stab_x[-1][i, q] for i in range(code.n - code.k)]), 1) for q in range(n)],
-            code.n - code.k,
-        )
+    Tx = []
+    Tz = []
+    for t in range(max_depth + 1):
+        x, z = make_tableau()
+        Tx.append(x)
+        Tz.append(z)
+
+    for r in range(m + 2 * k):
+        for q in range(n):
+            model.Add(Tx[0][r, q] == rows_X0[r, q])
+            model.Add(Tz[0][r, q] == rows_Z0[r, q])
+
+    # ----------------------------------------------------------------------
+    # Gate semantics (reified)
+    # ----------------------------------------------------------------------
+    # Single-qubit
+    for t in range(1, max_depth + 1):
+        tm1 = t - 1
+        for q in range(n):
+            for r in range(m + 2 * k):
+                # Identity
+                eq_if(model, Tx[t][r, q], Tx[tm1][r, q], isI[tm1][q])
+                eq_if(model, Tz[t][r, q], Tz[tm1][r, q], isI[tm1][q])
+
+                # H: swap
+                eq_if(model, Tx[t][r, q], Tz[tm1][r, q], isH[tm1][q])
+                eq_if(model, Tz[t][r, q], Tx[tm1][r, q], isH[tm1][q])
+
+                # S: Z ^= X
+                xor_eq(model, Tz[tm1][r, q], Tx[tm1][r, q], Tz[t][r, q], cond=isS[tm1][q])
+                eq_if(model, Tx[t][r, q], Tx[tm1][r, q], isS[tm1][q])
+
+                # SQRT_X: X ^= Z
+                xor_eq(model, Tx[tm1][r, q], Tz[tm1][r, q], Tx[t][r, q], cond=isSX[tm1][q])
+                eq_if(model, Tz[t][r, q], Tz[tm1][r, q], isSX[tm1][q])
+
+    # Two-qubit (CNOT/CZ)
+    for t in range(1, max_depth + 1):
+        tm1 = t - 1
+
+        # CX(u->v)
+        for u in range(n):
+            for v in range(n):
+                if u == v:
+                    continue
+                e = cxs[tm1][u][v]
+                for r in range(m + 2 * k):
+                    # X_v ^= X_u ; Z_u ^= Z_v ; others unchanged (handled by identity / exclusivity)
+                    xor_eq(model, Tx[tm1][r, v], Tx[tm1][r, u], Tx[t][r, v], cond=e)
+                    xor_eq(model, Tz[tm1][r, u], Tz[tm1][r, v], Tz[t][r, u], cond=e)
+                    # Keep the untouched halves when e is active:
+                    eq_if(model, Tx[t][r, u], Tx[tm1][r, u], e)
+                    eq_if(model, Tz[t][r, v], Tz[tm1][r, v], e)
+
+        # CZ(u,v), with u < v
+        for u in range(n):
+            for v in range(u + 1, n):
+                e = czs[tm1][u][v]
+                for r in range(m + 2 * k):
+                    # X unchanged:
+                    eq_if(model, Tx[t][r, u], Tx[tm1][r, u], e)
+                    eq_if(model, Tx[t][r, v], Tx[tm1][r, v], e)
+                    # Z_u ^= X_v ; Z_v ^= X_u
+                    xor_eq(model, Tz[tm1][r, u], Tx[tm1][r, v], Tz[t][r, u], cond=e)
+                    xor_eq(model, Tz[tm1][r, v], Tx[tm1][r, u], Tz[t][r, v], cond=e)
+
+        # ----------------------------------------------------------------------
+
+    # Final constraints (logicals up to stabilizer multiplications)
+    # ----------------------------------------------------------------------
+    # Helpers for AND/XOR over BoolVars into a BoolVar
+    def and2(a, b, name):
+        v = model.NewBoolVar(name)
+        model.Add(v <= a)
+        model.Add(v <= b)
+        model.Add(v >= a + b - 1)
+        return v
+
+    def xor_list_to_var(list, name):
+        v = model.NewBoolVar(name)
+        if not list:
+            model.Add(v == 0)
+        else:
+            # Enforce v == XOR(list)  via XOR(list + [~v]) == True
+            model.AddBoolXOr([*list, v.Not()])
+        return v
+
+    # Stabilizer halves at final time (rows 0..m-1)
+    # Tx/Tz are (max_depth+1) arrays of shape [(m+2k) x n]
+    Sx_fin = Tx[max_depth]
+    Sz_fin = Tz[max_depth]
+
+    # Witnesses: which stabilizers are multiplied into each logical
+    Wx = [[model.NewBoolVar(f"Wx_{i}_{s}") for s in range(m)] for i in range(k)]
+    Wz = [[model.NewBoolVar(f"Wz_{i}_{s}") for s in range(m)] for i in range(k)]
+
+    # Adjusted logical rows
+    #   X-logical i is at row rx = m + i
+    #   Z-logical i is at row rz = m + k + i
+    LxX_adj = [[None for q in range(n)] for i in range(k)]
+    LxZ_adj = [[None for q in range(n)] for i in range(k)]
+    LzX_adj = [[None for q in range(n)] for i in range(k)]
+    LzZ_adj = [[None for q in range(n)] for i in range(k)]
+
+    for i in range(k):
+        rx = m + i
+        rz = m + k + i
+
+        for q in range(n):
+            # --- X-logical adjusted by Wx:  (LxX', LxZ') = (LxX, LxZ) ⊕ ⨁_s Wx[i,s]*(Sx[s,*], Sz[s,*])
+            terms_x = [and2(Wx[i][s], Sx_fin[s, q], f"ax_{i}_{s}_{q}") for s in range(m)]
+            terms_z = [and2(Wx[i][s], Sz_fin[s, q], f"az_{i}_{s}_{q}") for s in range(m)]
+            acc_x = xor_list_to_var(terms_x, f"accx_{i}_{q}")
+            acc_z = xor_list_to_var(terms_z, f"accz_{i}_{q}")
+
+            LxX_adj[i][q] = xor_list_to_var([Tx[max_depth][rx, q], acc_x], f"LxXadj_{i}_{q}")
+            LxZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rx, q], acc_z], f"LxZadj_{i}_{q}")
+
+            # --- Z-logical adjusted by Wz:  (LzX', LzZ') = (LzX, LzZ) ⊕ ⨁_s Wz[i,s]*(Sx[s,*], Sz[s,*])
+            terms_x2 = [and2(Wz[i][s], Sx_fin[s, q], f"bx_{i}_{s}_{q}") for s in range(m)]
+            terms_z2 = [and2(Wz[i][s], Sz_fin[s, q], f"bz_{i}_{s}_{q}") for s in range(m)]
+            acc_x2 = xor_list_to_var(terms_x2, f"accx2_{i}_{q}")
+            acc_z2 = xor_list_to_var(terms_z2, f"accz2_{i}_{q}")
+
+            LzX_adj[i][q] = xor_list_to_var([Tx[max_depth][rz, q], acc_x2], f"LzXadj_{i}_{q}")
+            LzZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rz, q], acc_z2], f"LzZadj_{i}_{q}")
+
+        # Canonical conditions on the adjusted logicals
+        # X-logical: Z-part == 0, X-part is one-hot
+        model.Add(sum(LxZ_adj[i][q] for q in range(n)) == 0)
+        model.Add(sum(LxX_adj[i][q] for q in range(n)) == 1)
+
+        # Z-logical: X-part == 0, Z-part is one-hot
+        model.Add(sum(LzX_adj[i][q] for q in range(n)) == 0)
+        model.Add(sum(LzZ_adj[i][q] for q in range(n)) == 1)
+
+        # Positions match: enforce equality of the one-hot vectors
+        for q in range(n):
+            model.Add(LxX_adj[i][q] == LzZ_adj[i][q])
+
+    # Stabilizers "up to row ops" — keep your original column-count version
+    col_has_Z = [model.NewBoolVar(f"colHasZ_{q}") for q in range(n)]
+    col_has_X = [model.NewBoolVar(f"colHasX_{q}") for q in range(n)]
+
+    for q in range(n):
+        z_rows = [Tz[max_depth][i, q] for i in range(m)]
+        x_rows = [Tx[max_depth][i, q] for i in range(m)]
+        or_equal(model, col_has_Z[q], z_rows)
+        or_equal(model, col_has_X[q], x_rows)
+
+    # Sum of chosen single-qubit-looking columns equals m
+    model.Add(sum(col_has_Z + col_has_X) == m)
+
+    # ----------------------------------------------------------------------
+    # Solve
+    # ----------------------------------------------------------------------
+    solver = cp_model.CpSolver()
+    # A couple of params that often help
+    solver.parameters.num_search_workers = 8
+    solver.parameters.cp_model_presolve = True
+    solver.parameters.linearization_level = 2
+
+    status = solver.Solve(model)
+    if status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
+        return "UNSAT"
+
+    # ----------------------------------------------------------------------
+    # Extract circuit
+    # ----------------------------------------------------------------------
+    circ = stim.Circuit()
+
+    for t in range(max_depth):
+        for q in range(n):
+            code = solver.Value(sqgs[t][q])
+            if code == H:
+                circ.append("H", [q])
+            elif code == Sg:
+                circ.append("S_DAG", [q])  # match your original and invert later
+            elif code == SX:
+                circ.append("SQRT_X_DAG", [q])
+
+        # 2q
+        for u in range(n):
+            for v in range(n):
+                if u == v:
+                    continue
+                if solver.Value(cxs[t][u][v]) == 1:
+                    circ.append("CX", [u, v])
+        for u in range(n):
+            for v in range(u + 1, n):
+                if solver.Value(czs[t][u][v]) == 1:
+                    circ.append("CZ", [u, v])
+
+    # Optional: add initial Hs derived from final tableau (as in your code)
+    # (We use the model values here.)
+    final_tableau_x = np.array([[int(solver.Value(Tx[max_depth][i, q])) for q in range(n)] for i in range(m)])
+    first_layer_hadamards = np.where(final_tableau_x.sum(axis=0) >= 1)[0]
+    if len(first_layer_hadamards) > 0:
+        circ.append("H", list(first_layer_hadamards))
+
+        # --- Encoding qubits from ADJUSTED logicals (use witness Wx/Wz) ---
+    # Extract final stabs & logical rows from the model as plain ints
+    Sx_fin_val = np.array([[int(solver.Value(Tx[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)
+    Sz_fin_val = np.array([[int(solver.Value(Tz[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)
+
+    LxX_raw = np.array([[int(solver.Value(Tx[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)
+    LxZ_raw = np.array([[int(solver.Value(Tz[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)
+    LzX_raw = np.array(
+        [[int(solver.Value(Tx[max_depth][m + k + i, q])) for q in range(n)] for i in range(k)], dtype=int
+    )
+    LzZ_raw = np.array(
+        [[int(solver.Value(Tz[max_depth][m + k + i, q])) for q in range(n)] for i in range(k)], dtype=int
     )
 
-    # s.add(z3.Not(z3.Or([stab_x[-1][i, q] for i in range(code.n-code.k) for q in range(n)])))
+    Wx_val = np.array([[int(solver.Value(Wx[i][s])) for s in range(m)] for i in range(k)], dtype=int)
+    Wz_val = np.array([[int(solver.Value(Wz[i][s])) for s in range(m)] for i in range(k)], dtype=int)
 
-    # for the logicals we require that the final tableau is full rank and that the logicals are orthogonal to the stabilizers
-    # this means that every row has exactly one x and one z entry for the same qubit
-    s.add([
-        z3.And(
-            z3.PbEq([(x, 1) for x in log_x_x[-1][i]], 1),
-            z3.PbEq([(z, 1) for z in log_z_z[-1][i]], 1),
-            z3.Not(z3.Or(list(log_x_z[-1][i]) + list(log_z_x[-1][i]))),
-        )
-        for i in range(code.k)
-    ])
+    # Adjust: Lx' = Lx ⊕ (Wx · S), Lz' = Lz ⊕ (Wz · S)   over GF(2)
+    # (matrix multiply mod 2; we'll do it explicitly)
+    def adjust(LX_raw, LZ_raw, W, Sx, Sz):
+        LX_adj = LX_raw.copy()
+        LZ_adj = LZ_raw.copy()
+        for i in range(k):
+            for s in range(m):
+                if W[i, s] == 1:
+                    LX_adj[i, :] ^= Sx[s, :]
+                    LZ_adj[i, :] ^= Sz[s, :]
+        return LX_adj, LZ_adj
 
-    # solve
-    if s.check() == z3.sat:
-        m = s.model()
+    LxX_adj, LxZ_adj = adjust(LxX_raw, LxZ_raw, Wx_val, Sx_fin_val, Sz_fin_val)
+    LzX_adj, LzZ_adj = adjust(LzX_raw, LzZ_raw, Wz_val, Sx_fin_val, Sz_fin_val)
 
-        # extract circuit
-        circ = stim.Circuit()
+    # Now each row should be canonical: LxZ_adj[i]==0 and LxX_adj[i] one-hot,
+    # LzX_adj[i]==0 and LzZ_adj[i] one-hot, and positions match.
+    positions = []
+    for i in range(k):
+        # Be defensive in case of numerical oddities
+        if LxX_adj[i].sum() != 1:
+            # fallback: pick argmax (shouldn't happen if constraints are satisfied)
+            pos = int(np.argmax(LxX_adj[i]))
+        else:
+            pos = int(np.flatnonzero(LxX_adj[i])[0])
+        positions.append(pos)
 
-        for t in range(max_depth):
-            for q1 in range(n):
-                if m[sqgs[t][q1]] == 1:
-                    circ.append("H", [q1])
-                elif m[sqgs[t][q1]] == 2:
-                    circ.append("S_DAG", [q1])
-                elif m[sqgs[t][q1]] == 3:
-                    circ.append("SQRT_X_DAG", [q1])
-                # elif m[sqgs[t][q1]] == 4:
-                for q2 in range(n):
-                    if m[cxs[t][q1][q2]]:
-                        circ.append("CX", [q1, q2])
-                    if q2 > q1 and m[czs[t][q1][q2]]:
-                        circ.append("CZ", [q1, q2])
+    encoding_qubits = np.array(positions, dtype=int)
 
-        # check where hadamards need to be applied
-        final_tableau_x = np.array([
-            [bool(m[stab_x[-1][i, q]]) for q in range(n)] for i in range(code.n - code.k)
-        ]).astype(int)
-        first_layer_hadamards = np.where(np.array(final_tableau_x).sum(axis=0) >= 1)[0]
-        if len(first_layer_hadamards) > 0:
-            circ.append("H", first_layer_hadamards)
-        # figure out messaging qubits
-        final_logicals_x = np.array([[bool(m[log_x_x[-1][i, q]]) for q in range(n)] for i in range(code.k)]).astype(int)
-        encoding_qubits = np.where(final_logicals_x.sum(axis=0) == 1)[0]
+    # Invert & sign fix (your original tail)
+    enc_circ = circ.inverse()
+    stabs_numpy = enc_circ.to_tableau().to_numpy()
+    x_part = stabs_numpy[2].astype(int)
+    z_part = stabs_numpy[3].astype(int)
+    signs = stabs_numpy[-1].astype(int)
+    tableau = np.hstack((x_part, z_part, np.array([signs]).T))
+    if not np.all(tableau[:, -1] == 0):
+        ker = mod2.nullspace(tableau)
+        assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
+        correction_symplectic = ker[-1]
+        zc = correction_symplectic[:n]
+        xc = correction_symplectic[n:-1]
+        for i, (xv, zv) in enumerate(zip(xc, zc)):
+            if xv == 1 and zv == 1:
+                enc_circ.append("Y", [i])
+            elif xv == 1:
+                enc_circ.append("X", [i])
+            elif zv == 1:
+                enc_circ.append("Z", [i])
 
-        circ = circ.inverse()
-        stabs_numpy = circ.to_tableau().to_numpy()
-        x_part = stabs_numpy[2].astype(int)
-        z_part = stabs_numpy[3].astype(int)
-        signs = stabs_numpy[-1].astype(int)
-        tableau = np.hstack((x_part, z_part, np.array([signs]).T))
-        if not np.all(tableau[:,-1]==0):
-            ker = mod2.nullspace(tableau)
-            assert ker[-1,-1] == 1, "Last entry of kernel vector must be 1."
-            correction_symplectic = ker[-1]
-            z_part = correction_symplectic[:n]
-            x_part = correction_symplectic[n:-1]
-            for i, (x, z) in enumerate(zip(x_part, z_part)):
-                if x == 1 and z == 1:
-                    circ.append("Y", [i])
-                elif x == 1:
-                    circ.append("X", [i])
-                elif z == 1:
-                    circ.append("Z", [i])
-        return circ, encoding_qubits
-
-    return "UNSAT"
+    return enc_circ, encoding_qubits
 
 
 def gate_optimal_encoding_circuit(
