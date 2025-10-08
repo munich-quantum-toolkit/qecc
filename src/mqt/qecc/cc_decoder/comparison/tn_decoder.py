@@ -23,7 +23,7 @@ def _fix_data(data: dict[str, Any]) -> dict[str, Any]:
     """Fix the data dictionary to be JSON serializable."""
     fixed_data = {}
     for key, value in data.items():
-        if isinstance(value, np.int64):
+        if isinstance(value, np.integer):
             fixed_data[key] = int(value)
         else:
             fixed_data[key] = value
