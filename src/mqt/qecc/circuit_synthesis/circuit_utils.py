@@ -69,29 +69,70 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
     return stim_circuit
 
 
-def compact_stim_circuit(circ: Circuit) -> Circuit:
+def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circuit:
     """Move circuit instructions to the front and ignore TICKS.
 
     Args:
-         circ: stim circuit to compact
+        circ: stim circuit to compact
+        scheduling_method: Either "asap" (as soon as possible) or "alap" (as late as possible).
+
     Returns:
          A compacted stim circuit.
     """
     compact_circ = Circuit()
-    for layer in collect_circuit_layers(circ):
+    for layer in collect_circuit_layers(circ, scheduling_method):
         compact_circ += layer
     return compact_circ
 
 
-def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
+def compose_compact_stim_circuits(circs: list[Circuit], align: str = "start") -> Circuit:
+    """Compose and compact multiple stim circuits.
+
+    Args:
+        circs: List of stim circuits to compose and compact.
+        align: Either "start" (align at the start) or "end" (align at the end).
+
+    Returns:
+        A composed and compacted stim circuit.
+    """
+    if align not in {"start", "end"}:
+        msg = "align must be 'start' or 'end'."
+        raise ValueError(msg)
+
+    composed_layers: list[Circuit] = []
+    for circ in circs:
+        layers = collect_circuit_layers(circ, "asap" if align == "start" else "alap")
+        if align == "end":
+            layers = layers[::-1]
+        for i, layer_circ in enumerate(layers):
+            if i < len(composed_layers):
+                composed_layers[i] += layer_circ
+            else:
+                composed_layers.append(layer_circ)
+
+    if align == "end":
+        composed_layers.reverse()
+
+    compose_circ = Circuit()
+    for layer in composed_layers:
+        compose_circ += layer
+    return compose_circ
+
+
+def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> list[Circuit]:
     """Collect all layers that can be executed in parallel.
 
     Args:
         circ: Stim circuit to process.
+        scheduling_method: Either "asap" (as soon as possible) or "alap" (as late as possible).
 
     Returns:
         list of circuit layers. All instructions in one layer can be executed in parallel. It holds that circ=sum(collect_circuit_layers(circ)).
     """
+    if scheduling_method not in {"asap", "alap"}:
+        msg = "scheduling_method must be 'asap' or 'alap'."
+        raise ValueError(msg)
+
     # Copy the circuit and separate all instructions by ticks
     circ_cpy = Circuit()
     for instr in circ:
@@ -99,6 +140,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
             qubits = [q.qubit_value for q in grp]
             circ_cpy.append_operation(instr.name, qubits)
             circ_cpy.append_operation("TICK", [])
+
+    if scheduling_method == "alap":
+        circ_cpy = circ_cpy[::-1]  # Reverse the circuit for ALAP scheduling
 
     # Now work with the copied circuit
     circ = circ_cpy
@@ -141,6 +185,9 @@ def collect_circuit_layers(circ: Circuit) -> list[Circuit]:
         # Remove the instructions that were added to the layer
         for n_deleted, gate_idx in enumerate(instr_to_delete):
             circ.pop(gate_idx - n_deleted)
+
+    if scheduling_method == "alap":
+        layers.reverse()  # Reverse the layers back for ALAP scheduling
 
     return layers
 

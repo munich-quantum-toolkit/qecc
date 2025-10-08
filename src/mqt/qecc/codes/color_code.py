@@ -70,4 +70,4 @@ class ColorCode(CSSCode):
 
     def check_if_logical_error(self, residual: npt.NDArray[np.int_]) -> bool:
         """Check if the residual is a logical error."""
-        return (self.L @ residual % 2).any() is True
+        return bool((self.L @ residual % 2).any())

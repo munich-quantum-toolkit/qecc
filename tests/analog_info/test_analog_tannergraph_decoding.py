@@ -137,26 +137,30 @@ def test_atd_simulator_syndrome_error_channels_setup(atd_simulator_sigma: AtdSim
     """Test AtdSimulator syndrome channel computation and initialization."""
     sigma = 0.1
     ser = simulation_utils.get_error_rate_from_sigma(sigma)
-    expec_chnl = simulation_utils.error_channel_setup(
+    expect_chnl = simulation_utils.error_channel_setup(
         error_rate=ser,
         xyz_error_bias=np.array([0.1, 0.1, 0.1]).astype(np.float64),
         nr_qubits=1,
     )
     assert atd_simulator_sigma.syndr_err_rate == simulation_utils.get_error_rate_from_sigma(sigma=sigma)
-    assert atd_simulator_sigma.x_sigma == simulation_utils.get_sigma_from_syndr_er(expec_chnl[0][0] + expec_chnl[1][0])
-    assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(expec_chnl[2][0] + expec_chnl[1][0])
+    assert atd_simulator_sigma.x_sigma == simulation_utils.get_sigma_from_syndr_er(
+        expect_chnl[0][0] + expect_chnl[1][0]
+    )
+    assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(
+        expect_chnl[2][0] + expect_chnl[1][0]
+    )
 
 
 def test_atd_simulator_syndrome_error_channels_setup_ser(atd_simulator_ser: AtdSimulator) -> None:
     """Test AtdSimulator syndrome error computattion and initialization using error rate."""
     ser = 0.1
-    expec_chnl = simulation_utils.error_channel_setup(
+    expect_chnl = simulation_utils.error_channel_setup(
         error_rate=ser,
         xyz_error_bias=np.array([0.1, 0.1, 0.1]).astype(np.float64),
         nr_qubits=1,
     )
-    assert atd_simulator_ser.x_sigma == simulation_utils.get_sigma_from_syndr_er(expec_chnl[0][0] + expec_chnl[1][0])
-    assert atd_simulator_ser.z_sigma == simulation_utils.get_sigma_from_syndr_er(expec_chnl[2][0] + expec_chnl[1][0])
+    assert atd_simulator_ser.x_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl[0][0] + expect_chnl[1][0])
+    assert atd_simulator_ser.z_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl[2][0] + expect_chnl[1][0])
 
 
 def test_single_sample(atd_simulator_ser: AtdSimulator) -> None:
