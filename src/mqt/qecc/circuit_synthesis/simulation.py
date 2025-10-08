@@ -311,7 +311,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         if plot_primary:
             results = [
                 self.logical_error_rate(
-                    CircuitLevelNoiseIdlingParallel(p, p, p, p, p * p_idle_factor, True),
+                    CircuitLevelNoiseIdlingParallel(p, p, p, p * 2 / 3, p * p_idle_factor, True),
                     min_errors=min_errors,
                 )
                 for p in ps
