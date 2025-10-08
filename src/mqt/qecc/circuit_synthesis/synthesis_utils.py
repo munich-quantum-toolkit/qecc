@@ -8,7 +8,7 @@
 """Utility functions for synthesizing circuits."""
 
 from __future__ import annotations
-
+import inspect
 import functools
 import logging
 from typing import TYPE_CHECKING, Any
@@ -472,8 +472,8 @@ def optimal_elimination(
         raise ValueError(msg)
 
     opt_fun = {
-        "column_ops": gaussian_elimination_min_column_ops,
-        "parallel_ops": gaussian_elimination_min_parallel_eliminations,
+        "column_ops": gaussian_elimination_min_column_ops_or,
+        "parallel_ops": gaussian_elimination_min_parallel_eliminations_or,
     }[optimization_metric]
 
     fun = functools.partial(
@@ -1238,3 +1238,465 @@ def vars_to_stab(
     for i, scalar in enumerate(measurement[1:]):
         measurement_stab = symbolic_vector_add(measurement_stab, symbolic_scalar_mult(generators[i + 1], scalar))
     return measurement_stab
+
+
+# ===== OR-Tools equivalents that mirror the Z3 encoding =====
+from ortools.sat.python import cp_model
+
+# ---------- tiny Booleans helpers (CNF-level) ----------
+
+def _xor_eq(model: cp_model.CpModel, a, b, out, cond=None):
+    """out == a XOR b  (optionally under cond) using 4 CNF clauses."""
+    clauses = [
+        [a, b, out.Not()],
+        [a, b.Not(), out],
+        [a.Not(), b, out],
+        [a.Not(), b.Not(), out.Not()],
+    ]
+    for lits in clauses:
+        ct = model.AddBoolOr(lits)
+        if cond is not None:
+            ct.OnlyEnforceIf(cond)
+
+def _or_equal(model: cp_model.CpModel, out, lits):
+    """out <-> Or(lits)"""
+    if not lits:
+        model.Add(out == 0)
+        return
+    for L in lits:
+        model.AddImplication(L, out)
+    model.Add(sum(lits) >= 1).OnlyEnforceIf(out)
+    model.Add(sum(lits) == 0).OnlyEnforceIf(out.Not())
+
+# ---------- "symbolic" vector algebra, CP-SAT flavor ----------
+
+def symbolic_vector_add_or(
+    model: cp_model.CpModel,
+    v1: np.ndarray,  # array of BoolVar | bool
+    v2: np.ndarray,  # array of BoolVar | bool
+    name: str,
+) -> np.ndarray:
+    """Return BoolVar vector = v1 XOR v2 (entrywise), simplified on constants."""
+    assert len(v1) == len(v2)
+    out = np.empty(len(v1), dtype=object)
+    for i in range(len(v1)):
+        a, b = v1[i], v2[i]
+        out[i] = model.NewBoolVar(f"{name}_{i}")
+        a_is_bool = isinstance(a, (bool, np.bool_))
+        b_is_bool = isinstance(b, (bool, np.bool_))
+        if a_is_bool and b_is_bool:
+            # out == a ^ b
+            if bool(a) ^ bool(b):
+                model.Add(out[i] == 1)
+            else:
+                model.Add(out[i] == 0)
+        elif a_is_bool:
+            if bool(a):
+                # out = ¬b
+                model.AddBoolXOr([out[i], b])
+            else:
+                # out = b
+                model.Add(out[i] == b)
+        elif b_is_bool:
+            if bool(b):
+                model.AddBoolXOr([out[i], a])
+            else:
+                model.Add(out[i] == a)
+        else:
+            _xor_eq(model, a, b, out[i])
+    return out
+
+def symbolic_vector_eq_if(
+    model: cp_model.CpModel,
+    v1: np.ndarray,  # BoolVar | bool
+    v2: np.ndarray,  # BoolVar | bool
+    cond=None,       # BoolVar or None
+) -> None:
+    """Enforce v1 == v2 elementwise, optionally under 'cond'."""
+    assert len(v1) == len(v2)
+    for i in range(len(v1)):
+        a, b = v1[i], v2[i]
+        a_is_bool = isinstance(a, (bool, np.bool_))
+        b_is_bool = isinstance(b, (bool, np.bool_))
+        if a_is_bool and b_is_bool:
+            # (True == False) under cond => cond must be false (or UNSAT)
+            if bool(a) != bool(b):
+                if cond is None:
+                    # immediate contradiction
+                    model.Add(0 == 1)
+                else:
+                    model.Add(cond == 0)
+            # else nothing to add
+        elif a_is_bool:
+            if cond is None:
+                model.Add(b == int(bool(a)))
+            else:
+                model.Add(b == int(bool(a))).OnlyEnforceIf(cond)
+        elif b_is_bool:
+            if cond is None:
+                model.Add(a == int(bool(b)))
+            else:
+                model.Add(a == int(bool(b))).OnlyEnforceIf(cond)
+        else:
+            if cond is None:
+                model.Add(a == b)
+            else:
+                model.Add(a == b).OnlyEnforceIf(cond)
+
+# ---------- column addition semantics (same shape and loop structure as Z3) ----------
+
+def _column_addition_constraint_or(
+    model: cp_model.CpModel,
+    columns: np.ndarray,      # BoolVar shape (D, R, C)
+    col_add_vars: np.ndarray  # BoolVar shape (D-1, C, C)
+):
+    """Exact OR-Tools mirror of your Z3 _column_addition_constraint."""
+    assert len(columns.shape) == 3
+    D, R, C = columns.shape
+    assert col_add_vars.shape == (D - 1, C, C)
+
+    for d in range(1, D):
+        dm1 = d - 1
+        for col_1 in range(C):
+            for col_2 in range(col_1 + 1, C):
+                # col_sum = columns[dm1,:,col_1] XOR columns[dm1,:,col_2]
+                col_sum = symbolic_vector_add_or(
+                    model, columns[dm1, :, col_1], columns[dm1, :, col_2], f"sum_{dm1}_{col_1}_{col_2}"
+                )
+
+                # encode: if add[col_1 -> col_2], then new col_2 = col_sum and col_1 unchanged
+                cond_12 = col_add_vars[dm1, col_1, col_2]
+                symbolic_vector_eq_if(model, columns[d, :, col_2], col_sum, cond_12)
+                symbolic_vector_eq_if(model, columns[d, :, col_1], columns[dm1, :, col_1], cond_12)
+
+                # encode: if add[col_2 -> col_1], then new col_1 = col_sum and col_2 unchanged
+                cond_21 = col_add_vars[dm1, col_2, col_1]
+                symbolic_vector_eq_if(model, columns[d, :, col_1], col_sum, cond_21)
+                symbolic_vector_eq_if(model, columns[d, :, col_2], columns[dm1, :, col_2], cond_21)
+
+# ---------- termination (rank) ----------
+
+def _final_matrix_constraint_or(
+    model: cp_model.CpModel,
+    columns: np.ndarray,  # BoolVar shape (D, R, C)
+    rank: int,
+):
+    """Last matrix has exactly `rank` non-zero columns (identical to the Z3 intent)."""
+    D, R, C = columns.shape
+    last = D - 1
+    nz = []
+    for col in range(C):
+        out = model.NewBoolVar(f"col_nonzero_{last}_{col}")
+        _or_equal(model, out, [columns[last, r, col] for r in range(R)])
+        nz.append(out)
+    model.Add(sum(nz) == rank)
+
+def _infer_rank_from_termination_lambda(termination_criteria, matrix) -> int:
+    """Recover the `rank` captured in: lambda cols: final_matrix_constraint(cols, rank)."""
+    try:
+        clos = getattr(termination_criteria, "__closure__", None)
+        if clos:
+            for cell in clos:
+                val = cell.cell_contents
+                if isinstance(val, (int, np.integer)):
+                    return int(val)
+    except Exception:
+        pass
+    # Safe fallback (matches your usage)
+    return int(mod2.rank(matrix))
+
+# ---------- OR-Tools version: one CNOT per step (gate-optimal) ----------
+
+def gaussian_elimination_min_column_ops_or(
+    matrix: np.ndarray,
+    termination_criteria,   # same signature; we only extract `rank` from its closure
+    max_eliminations: int,
+) -> tuple[np.ndarray, list[tuple[int, int]]] | None:
+    R, C = matrix.shape
+    D = max_eliminations + 1
+    model = cp_model.CpModel()
+
+    # Columns[d, r, c] ∈ {0,1}
+    Columns = np.empty((D, R, C), dtype=object)
+    for d in range(D):
+        for r in range(R):
+            for c in range(C):
+                Columns[d, r, c] = model.NewBoolVar(f"x_{d}_{r}_{c}")
+
+    # init
+    for r in range(R):
+        for c in range(C):
+            model.Add(Columns[0, r, c] == int(matrix[r, c]))
+
+    if max_eliminations > 0:
+        Control = [model.NewIntVar(0, C - 1, f"ctrl_{d}") for d in range(D - 1)]
+        Target  = [model.NewIntVar(0, C - 1, f"targ_{d}") for d in range(D - 1)]
+        for d in range(D - 1):
+            model.Add(Control[d] != Target[d])
+
+        for d in range(1, D):
+            dm1 = d - 1
+
+            # reify Target == c and Control == c as indicators; force exactly one
+            isT = [model.NewBoolVar(f"isT_{dm1}_{c}") for c in range(C)]
+            isC = [model.NewBoolVar(f"isC_{dm1}_{c}") for c in range(C)]
+            for c in range(C):
+                model.Add(Target[dm1] == c).OnlyEnforceIf(isT[c])
+                model.Add(Target[dm1] != c).OnlyEnforceIf(isT[c].Not())
+                model.Add(Control[dm1] == c).OnlyEnforceIf(isC[c])
+                model.Add(Control[dm1] != c).OnlyEnforceIf(isC[c].Not())
+            model.Add(sum(isT) == 1)
+            model.Add(sum(isC) == 1)
+
+            # ctrl bit per row at depth d-1
+            ctrl_bits = [model.NewIntVar(0, 1, f"ctrlbit_{dm1}_{r}") for r in range(R)]
+            ctrl_bools = [model.NewBoolVar(f"ctrlB_{dm1}_{r}") for r in range(R)]
+            for r in range(R):
+                model.AddElement(Control[dm1], [Columns[dm1, r, j] for j in range(C)], ctrl_bits[r])
+                model.Add(ctrl_bits[r] == 1).OnlyEnforceIf(ctrl_bools[r])
+                model.Add(ctrl_bits[r] == 0).OnlyEnforceIf(ctrl_bools[r].Not())
+
+            # updates: if c is NOT target -> copy ; if c IS target -> XOR with ctrlbit
+            for c in range(C):
+                for r in range(R):
+                    model.Add(Columns[d, r, c] == Columns[dm1, r, c]).OnlyEnforceIf(isT[c].Not())
+                    # new ^ old == ctrlbit  ↔ out == a XOR b
+                    _xor_eq(model, Columns[dm1, r, c], ctrl_bools[r], Columns[d, r, c], cond=isT[c])
+
+    # termination (rank)
+    # rank_target = _infer_rank_from_termination_lambda(termination_criteria, matrix)
+    _apply_termination_criteria_or(model, Columns, termination_criteria)
+
+    # solve
+    solver = cp_model.CpSolver()
+    solver.parameters.cp_model_presolve = True
+    solver.parameters.linearization_level = 2
+    solver.parameters.num_search_workers = 8
+
+    status = solver.Solve(model)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+
+    reduced = np.zeros_like(matrix, dtype=np.int8)
+    for r in range(R):
+        for c in range(C):
+            reduced[r, c] = solver.Value(Columns[D - 1, r, c])
+
+    eliminations: list[tuple[int, int]] = []
+    if max_eliminations > 0:
+        for d in range(D - 1):
+            eliminations.append((solver.Value(Control[d]), solver.Value(Target[d])))
+
+    return reduced, eliminations
+
+# ---------- OR-Tools version: multiple disjoint CNOTs per layer (depth-optimal) ----------
+
+def gaussian_elimination_min_parallel_eliminations_or(
+    matrix: np.ndarray,
+    termination_criteria,   # same signature; we only extract `rank`
+    max_parallel_steps: int,
+) -> tuple[np.ndarray, list[tuple[int, int]]] | None:
+    R, C = matrix.shape
+    D = max_parallel_steps + 1
+    model = cp_model.CpModel()
+
+    Columns = np.empty((D, R, C), dtype=object)
+    for d in range(D):
+        for r in range(R):
+            for c in range(C):
+                Columns[d, r, c] = model.NewBoolVar(f"x_{d}_{r}_{c}")
+
+    # init
+    for r in range(R):
+        for c in range(C):
+            model.Add(Columns[0, r, c] == int(matrix[r, c]))
+
+    if max_parallel_steps > 0:
+        Add = np.empty((D - 1, C, C), dtype=object)
+        for d in range(D - 1):
+            for i in range(C):
+                for j in range(C):
+                    Add[d, i, j] = model.NewBoolVar(f"add_{d}_{i}_{j}")
+
+        # no self adds; at most one incident per column per layer
+        for d in range(D - 1):
+            for i in range(C):
+                model.Add(Add[d, i, i] == 0)
+            for u in range(C):
+                incident = [Add[d, u, v] for v in range(C) if v != u] + [Add[d, v, u] for v in range(C) if v != u]
+                if incident:
+                    model.Add(sum(incident) <= 1)
+
+        # encode pairwise semantics exactly like your Z3 helper
+        _column_addition_constraint_or(model, Columns, Add)
+
+        # propagate columns that are NOT involved
+        for d in range(1, D):
+            dm1 = d - 1
+            for col in range(C):
+                involved = model.NewBoolVar(f"involved_{dm1}_{col}")
+                inc_lits = [Add[dm1, col, j] for j in range(C) if j != col] + \
+                           [Add[dm1, i, col] for i in range(C) if i != col]
+                _or_equal(model, involved, inc_lits)
+                for r in range(R):
+                    model.Add(Columns[d, r, col] == Columns[dm1, r, col]).OnlyEnforceIf(involved.Not())
+
+    # termination (rank)
+    _apply_termination_criteria_or(model, Columns, termination_criteria)
+
+    # solve
+    solver = cp_model.CpSolver()
+    solver.parameters.cp_model_presolve = True
+    solver.parameters.linearization_level = 2
+    solver.parameters.num_search_workers = 8
+
+    status = solver.Solve(model)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+
+    reduced = np.zeros_like(matrix, dtype=np.int8)
+    for r in range(R):
+        for c in range(C):
+            reduced[r, c] = solver.Value(Columns[D - 1, r, c])
+
+    eliminations: list[tuple[int, int]] = []
+    if max_parallel_steps > 0:
+        for d in range(D - 1):
+            for i in range(C):
+                for j in range(C):
+                    if i != j and solver.Value(Add[d, i, j]) == 1:
+                        eliminations.append((i, j))
+
+    return reduced, eliminations
+
+
+def _infer_partial_reduction_args(termination_criteria, matrix):
+    """
+    Try to extract (rank, full_reduction_rows) from a closure like:
+        lambda cols: _final_matrix_constraint_partially_full_reduction(cols, full_rows, rank)
+    If not present, returns (rank_from_matrix, None).
+    """
+    rank = None
+    full_rows = None
+
+    clos = getattr(termination_criteria, "__closure__", None)
+    if clos:
+        for cell in clos:
+            val = cell.cell_contents
+            if isinstance(val, (int, np.integer)) and rank is None:
+                rank = int(val)
+            elif isinstance(val, (list, tuple, np.ndarray)):
+                try:
+                    arr = val.tolist() if isinstance(val, np.ndarray) else list(val)
+                    if all(isinstance(x, (int, np.integer)) for x in arr):
+                        full_rows = [int(x) for x in arr]
+                except Exception:
+                    pass
+
+    if rank is None:
+        rank = int(mod2.rank(matrix))
+    return rank, full_rows
+
+def _final_matrix_constraint_partially_full_reduction_or(
+    model: cp_model.CpModel,
+    columns: np.ndarray,           # BoolVar, shape (D, R, C)
+    full_reduction_rows: list[int],
+    rank: int,
+):
+    """
+    OR-Tools version of `_final_matrix_constraint_partially_full_reduction` with relaxed semantics:
+
+    - Let S = all rows except `full_reduction_rows` (stabilizers), L = `full_reduction_rows` (logical).
+    - Exactly (rank - |L|) columns are non-zero across S.
+    - Each logical row picks exactly one pivot column, columns where S is entirely zero.
+      Pivot columns are unique (no two logical rows share one).
+      In a pivot column, the number of ones across logical rows equals the number of chosen pivots for that column.
+      (=> exactly one '1' across L in each pivot column; logical rows can have additional 1s elsewhere.)
+    """
+    assert len(columns.shape) == 3
+    D, R, C = columns.shape
+    last = D - 1
+
+    # Partition rows
+    L = list(full_reduction_rows)
+    S = [r for r in range(R) if r not in L]
+
+    # S_nonzero[c] <-> OR_{r in S} columns[last, r, c]
+    S_nonzero = []
+    for c in range(C):
+        out = model.NewBoolVar(f"S_nz_{c}")
+        lits = [columns[last, r, c] for r in S]
+        if lits:
+            # out <-> Or(lits)
+            for Lr in lits:
+                model.AddImplication(Lr, out)
+            model.Add(sum(lits) >= 1).OnlyEnforceIf(out)
+            model.Add(sum(lits) == 0).OnlyEnforceIf(out.Not())
+        else:
+            # No stabilizer rows: S_nonzero is false
+            model.Add(out == 0)
+        S_nonzero.append(out)
+
+    # Exactly (rank - |L|) non-zero columns among stabilizers
+    model.Add(sum(S_nonzero) == max(rank - len(L), 0))
+
+    # Create S_zero[c] = Not(S_nonzero[c]) as a Bool var (channeling)
+    S_zero = []
+    for c in range(C):
+        z = model.NewBoolVar(f"S_zero_{c}")
+        model.Add(S_nonzero[c] == 0).OnlyEnforceIf(z)
+        model.Add(S_nonzero[c] == 1).OnlyEnforceIf(z.Not())
+        S_zero.append(z)
+
+    # Pivot assignment: p[l_idx][c] indicates that column c is the pivot for logical row L[l_idx]
+    p = [[model.NewBoolVar(f"pivot_l{li}_c{c}") for c in range(C)] for li in range(len(L))]
+
+    # Each logical row chooses exactly one pivot column
+    for li in range(len(L)):
+        model.Add(sum(p[li]) == 1)
+
+    # A column is pivot for at most one logical row
+    for c in range(C):
+        model.Add(sum(p[li][c] for li in range(len(L))) <= 1)
+
+    # If p[l,c] then the column is S-zero and the logical row has a 1 there
+    for li, row in enumerate(L):
+        for c in range(C):
+            model.AddImplication(p[li][c], S_zero[c])
+            model.AddImplication(p[li][c], columns[last, row, c])
+
+    # In S-zero columns, the number of 1s across logical rows equals the number of pivots chosen for that column
+    for c in range(C):
+        sum_L_bits = sum(columns[last, row, c] for row in L)
+        sum_pivots = sum(p[li][c] for li in range(len(L)))
+        # Only enforce in S-zero columns
+        model.Add(sum_L_bits == sum_pivots).OnlyEnforceIf(S_zero[c])
+        # (When S_nonzero[c] == 1, logical bits are unconstrained.)
+
+
+def _apply_termination_criteria_or(
+    model: cp_model.CpModel,
+    columns,                         # np.ndarray of BoolVars
+    termination_criteria,            # user-supplied callable
+) -> None:
+    """
+    Calls the user-supplied termination function in a flexible way:
+      - If it accepts (model, columns), we pass both.
+      - Else we pass (columns) only.
+    If it returns a BoolVar, enforce it to be True. If it returns None,
+    we assume it added constraints directly to 'model'.
+    """
+    try:
+        # Try to introspect arity
+        arity = len(inspect.signature(termination_criteria).parameters)
+    except Exception:
+        arity = 1
+
+    if arity >= 2:
+        ret = termination_criteria(model, columns)
+    else:
+        ret = termination_criteria(columns)
+
+    # If a literal was returned, force it to be true
+    if isinstance(ret, cp_model.IntVar):
+        model.Add(ret == 1)        
