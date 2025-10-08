@@ -25,9 +25,4 @@ def check_and_load_json(file_name: str, results_dir: str) -> dict[str, Any]:
     assert result_file.is_file()
     with result_file.open("r") as f:
         result: dict[str, Any] = json.load(f)
-
-    for file in results_path.iterdir():
-        file.unlink()
-    results_path.rmdir()
-
     return result
