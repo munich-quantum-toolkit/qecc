@@ -37,5 +37,5 @@ jobs:
       - name: Generate artifact attestation for sdist and wheel(s)
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-path: "dist/*"
+          subject-path: dist/*
       - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0

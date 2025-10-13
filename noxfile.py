@@ -30,9 +30,7 @@ nox.needs_version = ">=2025.10.16"
 nox.options.default_venv_backend = "uv"
 
 
-# TODO(denialhaag): Add 3.14 when all dependencies support it
-#   https://github.com/munich-quantum-toolkit/qecc/issues/464
-PYTHON_ALL_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
+PYTHON_ALL_VERSIONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 if os.environ.get("CI", None):
     nox.options.error_on_missing_interpreters = True
