@@ -166,7 +166,7 @@ class QssSimulator:
         self.bp_iterations = 0
         if self.decoding_method == "bposd":
             self.decoder = BpOsdDecoder(
-                pcm=self.H3D.astype(int),
+                self.H3D.astype(np.int_),
                 channel_probs=channel_probs,
                 max_iter=self.bp_params.max_bp_iter,
                 bp_method=self.bp_params.bp_method,

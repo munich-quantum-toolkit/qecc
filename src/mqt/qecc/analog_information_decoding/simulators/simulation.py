@@ -658,7 +658,7 @@ class SingleShotSimulator:
         Note that analog_info and analog_tg cannot be used simultaneously.
         """
         return BpOsdDecoder(
-            pcm=pcm.astype(int),
+            pcm.astype(np.int_),
             channel_probs=channel_probs,
             max_iter=self.bp_params.max_bp_iter,
             bp_method=self.bp_params.bp_method,
