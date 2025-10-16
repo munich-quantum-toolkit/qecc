@@ -59,7 +59,7 @@ class AnalogTannergraphDecoder:
             raise ValueError(msg)
 
         self.bposd_decoder = BpOsdDecoder(
-            self.atg.astype(np.int_),
+            pcm=self.atg.astype(int),
             channel_probs=np.hstack((self.error_channel, np.zeros(self.m))),  # initd as dummy for now
             max_iter=self.bp_params.max_bp_iter,
             bp_method=self.bp_params.bp_method,
