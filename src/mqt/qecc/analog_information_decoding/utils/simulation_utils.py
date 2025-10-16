@@ -68,9 +68,9 @@ def check_logical_err_h(
 
     htr = np.append(ht, residual_err, axis=1)
 
-    rank_ht = rank(check_matrix)  # rank A = rank A.T
+    rank_ht = rank(check_matrix.astype(np.int_))  # rank A = rank A.T
 
-    rank_htr = rank(htr)
+    rank_htr = rank(htr.astype(np.int_))
 
     return (rank_ht < rank_htr) is True
 

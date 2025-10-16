@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc import mod2
+from ldpc.mod2 import mod2_numpy
 
 from .pauli import StabilizerTableau
 from .stabilizer_code import StabilizerCode
@@ -99,10 +99,10 @@ class CSSCode(StabilizerCode):
     @staticmethod
     def _compute_logical(m1: npt.NDArray[np.int8], m2: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Compute the logical matrix L."""
-        ker_m1 = mod2.nullspace(m1)  # compute the kernel basis of m1
-        im_m2_transp = mod2.row_basis(m2)  # compute the image basis of m2
+        ker_m1 = mod2_numpy.nullspace(m1)  # compute the kernel basis of m1
+        im_m2_transp = mod2_numpy.row_basis(m2)  # compute the image basis of m2
         log_stack = np.vstack([im_m2_transp, ker_m1])
-        pivots = mod2.row_echelon(log_stack.T)[3]
+        pivots = mod2_numpy.row_echelon(log_stack.T)[3]
         log_op_indices = [i for i in range(im_m2_transp.shape[0], log_stack.shape[0]) if i in pivots]
         return log_stack[log_op_indices]
 
@@ -120,7 +120,7 @@ class CSSCode(StabilizerCode):
 
     def check_if_x_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
         """Check if the Pauli is a stabilizer."""
-        return bool(mod2.rank(np.vstack((self.Hx, pauli))) == mod2.rank(self.Hx))
+        return bool(mod2_numpy.rank(np.vstack((self.Hx, pauli))) == mod2_numpy.rank(self.Hx))
 
     def check_if_logical_z_error(self, residual: npt.NDArray[np.int8]) -> bool:
         """Check if the residual is a logical error."""
@@ -128,7 +128,7 @@ class CSSCode(StabilizerCode):
 
     def check_if_z_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
         """Check if the Pauli is a stabilizer."""
-        return (self.Hz.shape[0] != 0) and bool(mod2.rank(np.vstack((self.Hz, pauli))) == mod2.rank(self.Hz))
+        return (self.Hz.shape[0] != 0) and bool(mod2_numpy.rank(np.vstack((self.Hz, pauli))) == mod2_numpy.rank(self.Hz))
 
     def stabilizer_eq_x_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
         """Check if two X errors are in the same coset."""
@@ -137,7 +137,7 @@ class CSSCode(StabilizerCode):
         m1 = np.vstack([self.Hx, error_1])
         m2 = np.vstack([self.Hx, error_2])
         m3 = np.vstack([self.Hx, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        return bool(mod2_numpy.rank(m1) == mod2_numpy.rank(m2) == mod2_numpy.rank(m3))
 
     def stabilizer_eq_z_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
         """Check if two Z errors are in the same coset."""
@@ -146,12 +146,12 @@ class CSSCode(StabilizerCode):
         m1 = np.vstack([self.Hz, error_1])
         m2 = np.vstack([self.Hz, error_2])
         m3 = np.vstack([self.Hz, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        return bool(mod2_numpy.rank(m1) == mod2_numpy.rank(m2) == mod2_numpy.rank(m3))
 
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""
         return bool(
-            self.Hx.shape[0] == self.Hz.shape[0] and mod2.rank(self.Hx) == mod2.rank(np.vstack([self.Hx, self.Hz]))
+            self.Hx.shape[0] == self.Hz.shape[0] and mod2_numpy.rank(self.Hx) == mod2_numpy.rank(np.vstack([self.Hx, self.Hz]))
         )
 
     @staticmethod

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc.osd import bposd_decoder
+from ldpc.bposd_decoder import BpOsdDecoder
 
 from mqt.qecc.analog_information_decoding.simulators.memory_experiment_v2 import (
     build_multiround_pcm,
@@ -51,13 +51,13 @@ def channel_probs(repetitions: int, pcm: NDArray[np.int32]) -> NDArray[np.float6
 
 
 @pytest.fixture
-def decoder(channel_probs: NDArray[np.float64], h3d: NDArray[np.int32]) -> bposd_decoder:
+def decoder(channel_probs: NDArray[np.float64], h3d: NDArray[np.int32]) -> BpOsdDecoder:
     """Fixture for decoder."""
-    return bposd_decoder(
-        parity_check_matrix=h3d,
+    return BpOsdDecoder(
+        h3d.astype(np.int_),
         channel_probs=channel_probs,
         max_iter=15,
-        bp_method="msl",
+        bp_method="minimum_sum",
         osd_order=0,
         osd_method="osd0",
         ms_scaling_factor=0.5,

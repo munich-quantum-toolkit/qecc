@@ -58,7 +58,7 @@ dependencies = [
   "scipy>=1.15.2",
   "z3-solver>=4.15.3",
   "multiprocess >= 0.70.17",
-  "ldpc>=0.1.60,<2", # temporary upper cap due to failures seen with ldpc v2
+  "ldpc>=2.3.9",
   "stim >= 1.14.0",
   "pymatching>=2.2.2",
   "bposd>=1.6",
@@ -120,6 +120,7 @@ filterwarnings = [
   'ignore:.*Conditioned gates in qasm2 will be loaded as an IfElseOp starting in Qiskit 2.0.*:FutureWarning:',
   'ignore:.*``qiskit.circuit.singleton.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
   'ignore:.*``qiskit.circuit.instruction.Instruction.c_if.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:',
+  'ignore:.*Comparing a sparse matrix with 1 using != is inefficient.*:scipy.sparse._base.SparseEfficiencyWarning:',
 ]
 
 [tool.coverage]
