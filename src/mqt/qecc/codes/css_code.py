@@ -128,7 +128,9 @@ class CSSCode(StabilizerCode):
 
     def check_if_z_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
         """Check if the Pauli is a stabilizer."""
-        return (self.Hz.shape[0] != 0) and bool(mod2_numpy.rank(np.vstack((self.Hz, pauli))) == mod2_numpy.rank(self.Hz))
+        return (self.Hz.shape[0] != 0) and bool(
+            mod2_numpy.rank(np.vstack((self.Hz, pauli))) == mod2_numpy.rank(self.Hz)
+        )
 
     def stabilizer_eq_x_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
         """Check if two X errors are in the same coset."""
@@ -151,7 +153,8 @@ class CSSCode(StabilizerCode):
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""
         return bool(
-            self.Hx.shape[0] == self.Hz.shape[0] and mod2_numpy.rank(self.Hx) == mod2_numpy.rank(np.vstack([self.Hx, self.Hz]))
+            self.Hx.shape[0] == self.Hz.shape[0]
+            and mod2_numpy.rank(self.Hx) == mod2_numpy.rank(np.vstack([self.Hx, self.Hz]))
         )
 
     @staticmethod

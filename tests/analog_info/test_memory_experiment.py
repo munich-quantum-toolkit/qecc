@@ -94,7 +94,7 @@ def test_move_syndrome() -> None:
 
 
 def test_decode_multiround_syndr_err(
-    pcm: NDArray[np.int32], channel_probs: NDArray[np.float64], repetitions: int, decoder: bposd_decoder
+    pcm: NDArray[np.int32], channel_probs: NDArray[np.float64], repetitions: int, decoder: BpOsdDecoder
 ) -> None:
     """Test decoding of multiround syndrome for three bit repetition code."""
     check_block_size = pcm.shape[1] * repetitions
