@@ -928,11 +928,7 @@ wheels = [
 
 [[package]]
 name = "ipykernel"
-<<<<<<< HEAD
-version = "7.0.0"
-=======
 version = "7.0.1"
->>>>>>> daa2058 (Update ldpc to v2)
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "appnope", marker = "sys_platform == 'darwin'" },
@@ -950,15 +946,9 @@ dependencies = [
     { name = "tornado" },
     { name = "traitlets" },
 ]
-<<<<<<< HEAD
-sdist = { url = "https://files.pythonhosted.org/packages/8a/81/50e62d30cee8e3035bcd46eb1e8768366df135240c0061846c7421ffcd06/ipykernel-7.0.0.tar.gz", hash = "sha256:06aef83f27adbce00b23345aa70f749f907dc4ac6f4a41fe7bf5f780dc506225", size = 173513, upload-time = "2025-10-13T11:23:53.977Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/20/99c49012535eec8ec797d049dec4f89c1d49b6793fa2f53e6e918f4d901f/ipykernel-7.0.0-py3-none-any.whl", hash = "sha256:28793cecaa6a669e3be80eb6d24803202388b6a955929b0a4e13404d8c92062b", size = 118921, upload-time = "2025-10-13T11:23:51.747Z" },
-=======
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4c/9f0024c8457286c6bfd5405a15d650ec5ea36f420ef9bbc58b301f66cfc5/ipykernel-7.0.1.tar.gz", hash = "sha256:2d3fd7cdef22071c2abbad78f142b743228c5d59cd470d034871ae0ac359533c", size = 171460, upload-time = "2025-10-14T16:17:07.325Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/f7/761037905ffdec673533bfa43af8d4c31c859c778dfc3bbb71899875ec18/ipykernel-7.0.1-py3-none-any.whl", hash = "sha256:87182a8305e28954b6721087dec45b171712610111d494c17bb607befa1c4000", size = 118157, upload-time = "2025-10-14T16:17:05.606Z" },
->>>>>>> daa2058 (Update ldpc to v2)
 ]
 
 [[package]]
