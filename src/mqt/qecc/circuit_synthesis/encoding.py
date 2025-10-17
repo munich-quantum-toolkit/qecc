@@ -19,7 +19,6 @@ import stim
 import z3
 from ldpc import mod2
 
-from ortools.sat.python import cp_model
 from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
@@ -88,6 +87,8 @@ def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balan
 
 z3.set_param("sat.cardinality.solver", True)
 z3.set_param("sat.threads", 4)  # if you want some parallelism
+
+from ortools.sat.python import cp_model
 
 
 def depth_optimal_encoding_circuit_non_css(
@@ -581,13 +582,12 @@ def gate_optimal_encoding_circuit(
     assert checks is not None
     n_checks = checks.shape[0]
     checks_and_logicals = np.vstack((checks, logicals))
-    rank = mod2.rank(checks_and_logicals)-len(logicals)
+    rank = mod2.rank(checks_and_logicals)
     termination_criteria = functools.partial(
-        _final_matrix_constraint_partially_full_reduction_or,   # <- OR version
+        _final_matrix_constraint_partially_full_reduction,
         full_reduction_rows=list(range(checks.shape[0], checks.shape[0] + logicals.shape[0])),
         rank=rank,
     )
-
 
     res = optimal_elimination(
         checks_and_logicals,
@@ -630,13 +630,12 @@ def depth_optimal_encoding_circuit(
     assert checks is not None
     n_checks = checks.shape[0]
     checks_and_logicals = np.vstack((checks, logicals))
-    rank = mod2.rank(checks_and_logicals)-len(logicals)
+    rank = mod2.rank(checks_and_logicals)
     termination_criteria = functools.partial(
-        _final_matrix_constraint_partially_full_reduction_or,   # <- OR version
+        _final_matrix_constraint_partially_full_reduction,
         full_reduction_rows=list(range(checks.shape[0], checks.shape[0] + logicals.shape[0])),
         rank=rank,
-)
-
+    )
     res = optimal_elimination(
         checks_and_logicals,
         termination_criteria,
@@ -650,9 +649,118 @@ def depth_optimal_encoding_circuit(
         return None
     reduced_checks_and_logicals, cnots = res
     cnots = cnots[::-1]
-    print(reduced_checks_and_logicals)
 
     return _build_css_encoder_from_cnot_list(n_checks, reduced_checks_and_logicals, cnots, use_x_checks)
+
+
+# def gottesmann_encoding_circuit(code: StabilizerCode) -> QuantumCircuit:
+#     """Construct an encoding circuit for the given stabilizer code using the scheme in Gottesmann's book.
+
+#     Args:
+#             code: The stabilizer code to construct the encoding circuit for.
+
+#     Returns:
+#             The encoding circuit.
+#     """
+#     qc = QuantumCircuit(code.n)
+#     matrix = code.symplectic.copy()
+
+#     def move_to_diagonal(matrix:npt.NDArray[np.int], row: int, col: int) -> None:
+#         if col < code.n:
+#             qc.swap(row, col)
+#             matrix[[row, col]] = matrix[[col, row]]
+#         else:
+#             qc.h(row)
+#             qc.swap(row, col - code.n)
+#             matrix[[row, col]] = matrix[[col, row]]
+#             matrix[row, :] = (matrix[row, :] + matrix[col, :]) % 2
+#     for row in range(code.n-code.k):
+#         # find first non-zero entry in row
+#         col = np.where(matrix[row, :])[0][0]
+#         if row != col:        # move to diagonal
+#             move_to_diagonal(matrix, row, col)
+#         # reduce row
+#         non_zero_x = np.where(matrix[row, :code.n])[0][1:]
+#         non_zero_z = np.where(matrix[row, code.n:])[0]
+#         if row in non_zero_z:
+#             non_zero_z.remove(row)
+#             qc.s(row)
+#         qc.cx(row, non_zero_x)
+#         qc.cz(row, non_zero_z)
+#         matrix[row, :] = 0
+#         matrix[:, row] = 0 # reduce columns (change stabilizer generators)
+#         matrix[row, row] = 1 # reset the 1 entry
+
+#     # perform final hadamards
+#     qc.h(range(code.n-code.k))
+
+#     # correct sign
+#     tableau = StabilizerTableau.identity(code.n)
+#     updated_tableau = apply_clifford_circuit(tableau, qc)
+#     corrections = np.where(updated_tableau.phase == 1)[0]
+
+#     qc = qc.inverse()
+#     qc.x(corrections[:code.n-code.k])
+#     tableau.phase = 0
+
+#     if code.z_logicals is None:
+#         return qc
+
+#     # logicals are given, so compute the difference between the desired logicals and the actual logicals
+#     x_tableau = StabilizerTableau.identity(code.n)
+#     for i in range(code.n-code.k, code.n):
+#         x_tableau.apply_x(i)
+#     x_tableau = apply_clifford_circuit(x_tableau, qc)
+#     z_matrix = tableau.tableau.matrix
+#     x_matrix = x_tableau.tableau.matrix
+#     z_diff = (code.z_logicals.tableau.matrix - z_matrix)%2
+#     x_diff = (code.x_logicals.tableau.matrix - x_matrix)%2
+#     matrix = np.hstack((z_diff, x_diff))
+
+#     right_qc = QuantumCircuit(code.n)
+#     left_qc = QuantumCircuit(code.n)
+#     for row in range(code.n - code.k, code.n):
+#         # find first non-zero entry in row
+#         col = np.where(matrix[row, :])[0][0]
+#         if row != col:        # move to diagonal
+#             move_to_diagonal(matrix, row, col)
+#         # reduce row
+#         non_zero_x = np.where(matrix[row, :code.n])[0][1:]
+#         non_zero_z = np.where(matrix[row, code.n:])[0]
+#         if row in non_zero_z:
+#             non_zero_z.remove(row)
+#             right_qc.s(row)
+#         right_qc.cx(row, non_zero_x)
+#         right_qc.cz(row, non_zero_z)
+#         matrix[row, :] = 0
+#         matrix[row, row] = 1 # reset the 1 entry
+
+#         # reduce column
+#         non_zero_stab = np.where(matrix[row, :code.n])[0][1:]
+#         left_qc.cx(row, non_zero_stab)
+#         # qc.cz(row, non_zero_z)
+#         matrix[:, row] = 0
+#         matrix[row, row] = 1 # reset the 1 entry
+
+#     # perform final hadamards
+#     right_qc.h(range(code.n-code.k, code.n))
+
+# def standard_encoding_circuit(code:StabilizerCode) -> QuantumCircuit:
+#     """Construct an encoding circuit for the given stabilizer code using the standard method.
+
+#     Args:
+#             code: The stabilizer code to construct the encoding circuit for.
+
+#     Returns:
+#             The encoding circuit.
+#     """
+#     stabs = [str(stab) for stab in code.generators.to_pauli_list()]
+#     if code.z_logicals is not None:
+#         logicals = [str(logical) for logical in code.z_logicals.to_pauli_list()]
+#         stabs += logicals
+#     circ = StabilizerState.from_stabilizer_list(stabs).clifford.to_circuit()
+#     message_qubits = list(range(code.n - code.k, code.n))
+#     return
 
 
 def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
@@ -702,15 +810,12 @@ def _final_matrix_constraint_partially_full_reduction(
 def _build_css_encoder_from_cnot_list(
     n_checks: int, checks_and_logicals: npt.NDArray[np.int8], cnots: list[tuple[int, int]], use_x_checks: bool
 ) -> CNOTCircuit:
-    non_zero_log = np.where(checks_and_logicals[n_checks:, :].sum(axis=0) != 0)[0]
+    encoding_qubits = np.where(checks_and_logicals[n_checks:, :].sum(axis=0) != 0)[0]
     if use_x_checks:
         hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) != 0)[0]
-        encoding_qubits = [i for i in non_zero_log if i not in hadamards]
     else:
         hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) == 0)[0]
-        encoding_qubits = [i for i in non_zero_log if i in hadamards]
         cnots = [(j, i) for i, j in cnots]
-
 
     hadamards = np.setdiff1d(hadamards, encoding_qubits)
     non_hadamards = [i for i in range(checks_and_logicals.shape[1]) if i not in hadamards and i not in encoding_qubits]
@@ -843,93 +948,3 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
             circ.insert(0, stim.CircuitInstruction("X", [row]))
     uninitialized = list(set(range(nq)) - set(initialized))
     return circ, uninitialized
-
-
-def _infer_partial_reduction_args(termination_criteria, matrix):
-    """
-    Try to extract (rank, full_reduction_rows) from a closure like:
-        lambda cols: _final_matrix_constraint_partially_full_reduction(cols, full_rows, rank)
-    If not present, returns (rank_from_matrix, None).
-    """
-    rank = None
-    full_rows = None
-
-    clos = getattr(termination_criteria, "__closure__", None)
-    if clos:
-        for cell in clos:
-            val = cell.cell_contents
-            if isinstance(val, (int, np.integer)) and rank is None:
-                rank = int(val)
-            elif isinstance(val, (list, tuple, np.ndarray)):
-                try:
-                    arr = val.tolist() if isinstance(val, np.ndarray) else list(val)
-                    if all(isinstance(x, (int, np.integer)) for x in arr):
-                        full_rows = [int(x) for x in arr]
-                except Exception:
-                    pass
-
-    if rank is None:
-        rank = int(mod2.rank(matrix))
-    return rank, full_rows
-
-def _final_matrix_constraint_partially_full_reduction_or(
-    model: cp_model.CpModel,
-    columns: np.ndarray,           # BoolVar, shape (D, R, C)
-    full_reduction_rows: list[int],
-    rank: int,
-):
-    """
-    OR-Tools version of `_final_matrix_constraint_partially_full_reduction` with relaxed semantics:
-
-    - Let S = all rows except `full_reduction_rows` (stabilizers), L = `full_reduction_rows` (logical).
-    - Exactly (rank - |L|) columns are non-zero across S.
-    - Each logical row picks exactly one pivot column, columns where S is entirely zero.
-      Pivot columns are unique (no two logical rows share one).
-      In a pivot column, the number of ones across logical rows equals the number of chosen pivots for that column.
-      (=> exactly one '1' across L in each pivot column; logical rows can have additional 1s elsewhere.)
-    """
-    assert len(columns.shape) == 3
-    D, R, C = columns.shape
-    last = D - 1
-    L = list(full_reduction_rows)
-    S = [r for r in range(R) if r not in L]
-
-    # S_nonzero[c] <-> OR_{r in S} columns[last, r, c]
-    S_nonzero = [model.NewBoolVar(f"S_nonzero_{c}") for c in range(C)]
-    for c in range(C):
-        lits = [columns[last, r, c] for r in S]
-        if lits:
-            for lit in lits:
-                model.AddImplication(lit, S_nonzero[c])
-            model.Add(sum(lits) >= 1).OnlyEnforceIf(S_nonzero[c])
-            model.Add(sum(lits) == 0).OnlyEnforceIf(S_nonzero[c].Not())
-        else:
-            model.Add(S_nonzero[c] == 0)
-
-    # Exactly s_rank non-zero columns across S
-    model.Add(sum(S_nonzero) == max(rank, 0))
-
-    # S_zero[c] = ~S_nonzero[c] (channel)
-    S_zero = [model.NewBoolVar(f"S_zero_{c}") for c in range(C)]
-    for c in range(C):
-        model.Add(S_nonzero[c] == 0).OnlyEnforceIf(S_zero[c])
-        model.Add(S_nonzero[c] == 1).OnlyEnforceIf(S_zero[c].Not())
-
-    if not L:
-        return
-
-    # In S-zero columns, at most one logical has a 1 (no shared pivot column)
-    for c in range(C):
-        model.Add(sum(columns[last, r, c] for r in L) <= 1).OnlyEnforceIf(S_zero[c])
-
-    # Each logical row has at least one pivot in an S-zero column
-    for r in L:
-        uses = []
-        for c in range(C):
-            u = model.NewBoolVar(f"L{r}_uses_c{c}")
-            # u <-> columns[last, r, c] & S_zero[c]
-            model.Add(u <= columns[last, r, c])
-            model.Add(u <= S_zero[c])
-            model.Add(u >= columns[last, r, c] + S_zero[c] - 1)
-            uses.append(u)
-        model.Add(sum(uses) == 1)

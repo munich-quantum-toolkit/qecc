@@ -242,7 +242,7 @@ def depth_optimal_prep_circuit(
     rank = mod2.rank(checks)
     res = optimal_elimination(
         checks,
-        lambda model, checks: final_matrix_constraint_or(model, checks, rank),
+        lambda checks: final_matrix_constraint(checks, rank),
         "parallel_ops",
         min_param=min_depth,
         max_param=max_depth,
@@ -279,7 +279,7 @@ def gate_optimal_prep_circuit(
     rank = mod2.rank(checks)
     res = optimal_elimination(
         checks,
-        lambda model, checks: final_matrix_constraint_or(model, checks, rank),
+        lambda checks: final_matrix_constraint(checks, rank),
         "column_ops",
         min_param=min_gates,
         max_param=max_gates,
@@ -906,44 +906,3 @@ def final_matrix_constraint(columns: npt.NDArray[z3.BoolRef | bool], rank: int) 
         [(z3.Not(z3.Or(list(columns[-1, :, col]))), 1) for col in range(columns.shape[2])],
         columns.shape[2] - rank,
     )
-
-# OR-Tools equivalent of final_matrix_constraint (adds constraints to the model)
-from ortools.sat.python import cp_model
-import numpy as np
-
-def final_matrix_constraint_or(
-    model: cp_model.CpModel,
-    columns: np.ndarray,  # dtype=object of BoolVar, shape (depth, rows, cols)
-    rank: int,
-):
-    """Add CP-SAT constraints: the last-time-slice matrix has exactly `rank` non-zero columns.
-
-    Mirrors the Z3 intent of:
-        PbEq([(Not(Or(last_column_r)), 1) for each column], C - rank)
-    i.e., exactly `rank` columns are non-zero.
-    """
-    assert len(columns.shape) == 3, "columns must be (depth, rows, cols)"
-    D, R, C = columns.shape
-    last = D - 1
-
-    # For each column, nz[col] <-> OR(rows in that column)
-    nz = []
-    for col in range(C):
-        out = model.NewBoolVar(f"col_nonzero_{last}_{col}")
-        lits = [columns[last, r, col] for r in range(R)]
-
-        if lits:
-            # out <-> Or(lits)
-            for L in lits:
-                model.AddImplication(L, out)
-            model.Add(sum(lits) >= 1).OnlyEnforceIf(out)
-            model.Add(sum(lits) == 0).OnlyEnforceIf(out.Not())
-        else:
-            # Empty column => certainly zero
-            model.Add(out == 0)
-
-        nz.append(out)
-
-    # Exactly `rank` non-zero columns
-    model.Add(sum(nz) == rank)
-    return nz  # optional; sometimes handy to reuse
