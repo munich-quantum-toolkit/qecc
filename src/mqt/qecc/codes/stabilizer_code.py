@@ -83,10 +83,7 @@ class StabilizerCode:
         self_matrix = self.generators.as_matrix()
         other_matrix = other.generators.as_matrix()
         rnk = rank(self_matrix)
-        return bool(
-            rnk == rank(other_matrix)
-            and rnk == rank(np.vstack((self_matrix, other_matrix)))
-        )
+        return bool(rnk == rank(other_matrix) and rnk == rank(np.vstack((self_matrix, other_matrix))))
 
     def get_syndrome(self, error: Pauli | str) -> npt.NDArray[np.int8]:
         """Compute the syndrome of the error.
