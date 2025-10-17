@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import rank
 
 from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
 
@@ -34,7 +34,7 @@ def _is_cat_state(circ: Circuit) -> bool:
         cat_state_tab[i, w + i - 1] = 1
         cat_state_tab[i, w + i] = 1
 
-    return bool(mod2.rank(np.vstack((circ_tab, cat_state_tab))) == w)
+    return bool(rank(np.vstack((circ_tab, cat_state_tab))) == w)
 
 
 @pytest.mark.parametrize("w", [1, 2, 4, 8, 16])

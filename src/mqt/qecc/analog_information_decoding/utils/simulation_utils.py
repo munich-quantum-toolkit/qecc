@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc.mod2 import rank
+from ldpc.mod2.mod2_numpy import rank
 from scipy.special import erfc, erfcinv
 
 from .data_utils import calculate_error_rates, replace_inf
@@ -68,9 +68,9 @@ def check_logical_err_h(
 
     htr = np.append(ht, residual_err, axis=1)
 
-    rank_ht = rank(check_matrix.astype(np.int_))  # rank A = rank A.T
+    rank_ht = rank(check_matrix)  # rank A = rank A.T
 
-    rank_htr = rank(htr.astype(np.int_))
+    rank_htr = rank(htr)
 
     return (rank_ht < rank_htr) is True
 

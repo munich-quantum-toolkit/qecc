@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 import z3
-from ldpc import mod2
+import ldpc.mod2.mod2_numpy as mod2
 
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit

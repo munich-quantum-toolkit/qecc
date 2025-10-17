@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import rank
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -20,9 +20,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def eq_span(a: npt.NDArray[np.int8], b: npt.NDArray[np.int8]) -> bool:
     """Check if two matrices have the same row space."""
-    return (a.shape[1] == b.shape[1]) and (int(mod2.rank(np.vstack((a, b)))) == int(mod2.rank(a)) == int(mod2.rank(b)))
+    return (a.shape[1] == b.shape[1]) and (int(rank(np.vstack((a, b)))) == int(rank(a)) == int(rank(b)))
 
 
 def in_span(m: npt.NDArray[np.int8], v: npt.NDArray[np.int8]) -> bool:
     """Check if a vector is in the row space of a matrix over GF(2)."""
-    return bool(mod2.rank(np.vstack((m, v))) == mod2.rank(m))
+    return bool(rank(np.vstack((m, v))) == rank(m))

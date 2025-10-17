@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 import stim
 import z3
-from ldpc import mod2
+import ldpc.mod2.mod2_numpy as mod2
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
 

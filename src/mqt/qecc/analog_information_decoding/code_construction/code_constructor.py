@@ -19,7 +19,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.sparse as scs
 from bposd.hgp import hgp
-from ldpc import mod2
+import ldpc.mod2.mod2_numpy as mod2
 from scipy import sparse
 
 if TYPE_CHECKING:

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import z3
-from ldpc import mod2
+import ldpc.mod2.mod2_numpy as mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
 from .circuits import CNOTCircuit

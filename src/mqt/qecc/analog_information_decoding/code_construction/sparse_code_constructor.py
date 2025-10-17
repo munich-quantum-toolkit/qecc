@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import scipy.io as sio
 from bposd.hgp import hgp
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import rank
 from scipy import sparse
 from scipy.sparse import coo_matrix, csr_matrix
 
@@ -159,7 +159,7 @@ def run_compute_distances(codename: str) -> None:
 def _compute_distances(hx: NDArray[np.int32], hz: NDArray[np.int32], codename: str) -> None:
     run_compute_distances(codename)
     _, n = hx.shape
-    code_k = n - mod2.rank(hx) - mod2.rank(hz)
+    code_k = n - rank(hx) - rank(hz)
     with Path(f"/codes/generated_codes/{codename}/info.txt").open(encoding="utf-8") as f:
         code_dict: dict[str, Any] = dict(
             line[: line.rfind("#")].split(" = ") for line in f if not line.startswith("#") and line.strip()
@@ -179,7 +179,7 @@ def _store_code_params(hx: csr_matrix, hz: csr_matrix, codename: str) -> None:
     code_dict = {}
     hx, hz = hx.todense(), hz.todense()
     _m, n = hx.shape
-    code_k = n - mod2.rank(hx) - mod2.rank(hz)
+    code_k = n - rank(hx) - rank(hz)
     code_dict["n"] = n
     code_dict["k"] = code_k
     with Path(f"/codes/generated_codes/{codename}/code_params.txt").open("w", encoding="utf-8") as file:
