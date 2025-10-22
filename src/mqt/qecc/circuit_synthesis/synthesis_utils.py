@@ -95,29 +95,30 @@ Objective = Literal["eliminations", "depth"]
 def heuristic_gaussian_elimination(
     matrix: npt.NDArray[np.int8],
     parallel_elimination: bool = True,
-    *,
     objective: Objective = "eliminations",
-    lookahead_layers: int = 0,
-    top_k: int = 4096,
-    top_k_next_layer: int = 10,
+    lookahead_layers: int = 0,  # 0 = greedy, 1 = simulate-to-completion, 2 = two-layer lookahead
+    top_k: int = 4096,  # candidate pool for the first layer
+    top_k_next_layer: int = 10,  # candidate pool for the second layer (only when lookahead_layers=2)
 ) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]]:
     """Gaussian elimination over GF(2) column space with layer-aware lookahead.
 
     - objective="eliminations": minimize total column additions; ties by depth.
     - objective="depth": minimize number of parallel layers; ties by eliminations.
 
-    `parallel_elimination` only affects the greedy mask inside a layer; depth counting
-    follows the conflict rule: a new layer starts iff a step would reuse a column already
-    used in the current (open) layer.
+    `parallel_elimination` only affects greedy masking within a layer; depth counting
+    follows the conflict rule: start a new layer iff the next step would reuse a column
+    already used in the open layer.
     """
     mat = matrix.copy()
     rank = mod2.rank(mat)
 
     # ---------- helpers ----------
     def is_reduced(m: npt.NDArray[np.int8]) -> bool:
+        # exactly 'rank' columns non-zero
         return bool(np.sum(~np.all(m == 0, axis=0)) == rank)
 
     def compute_costs(m: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
+        # cost[i,j] = ones(col_j ^ col_i) - ones(col_j)
         c = np.array(
             [[np.sum((m[:, i] + m[:, j]) % 2) for j in range(m.shape[1])] for i in range(m.shape[1])], dtype=np.int64
         )
@@ -126,7 +127,9 @@ def heuristic_gaussian_elimination(
         return c
 
     def apply_elim_inplace(m: npt.NDArray[np.int8], cst: npt.NDArray[np.int64], i: int, j: int) -> None:
+        # col_j ^= col_i  (GF(2))
         m[:, j] = (m[:, i] + m[:, j]) % 2
+        # incremental cost update for row/col j
         new_weights = np.sum((m[:, j][:, np.newaxis] + m) % 2, axis=0)
         col_weights = np.sum(m, axis=0)
         cst[j, :] = new_weights - col_weights
@@ -152,7 +155,6 @@ def heuristic_gaussian_elimination(
         cf = costs_unused.filled(10**9)
         k_eff = min(k, cf.size - 1) if cf.size > 1 else 1
         idx = np.argpartition(cf.ravel(), k_eff)[:k_eff]
-
         cand = {(i_star, j_star)}
         for t in idx:
             i, j = np.unravel_index(int(t), cf.shape)
@@ -160,8 +162,10 @@ def heuristic_gaussian_elimination(
                 continue
             if costs_full[i, j] < 0:
                 cand.add((int(i), int(j)))
+        # deterministic: by parent-state cost, then indices
         return sorted(cand, key=lambda ij: (costs_full[ij[0], ij[1]], ij[0], ij[1]))
 
+    # ----- simulation primitives (greedy policy identical to main loop) -----
     def greedy_pick(c: npt.NDArray[np.int64], used_mask: list[int]) -> tuple[int, int] | None:
         cu = mask_used(c, used_mask) if parallel_elimination else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))  # type: ignore[no-untyped-call]
         if (cu.count() == 0) or np.all(cu >= 0):
@@ -174,26 +178,28 @@ def heuristic_gaussian_elimination(
         used_mask0: list[int],
         first_move: tuple[int, int] | None,
     ) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int64], list[int], int, int]:
-        """Apply `first_move` (if given), then keep taking greedy steps in THIS layer
-        until we stall (no negative or mask saturated). Returns:
-          (m, c, used_mask, steps_in_this_layer, layers_count_increment).
+        """Apply `first_move` (if any), then keep taking greedy steps in THIS layer
+        until we stall (no negative or mask saturated).
+        Returns: (m, c, used_mask, steps_in_this_layer_total, layers_count_increment).
 
         Depth counting via packing conflict:
-          - Maintain a packing set 'pack' of columns used in the current open layer.
-          - If a step would reuse a column in 'pack', we close the current layer first.
-          - On stall, if current layer has ≥1 step, we close it (count one layer).
+          - Maintain a packing set 'pack' of columns used in the open layer.
+          - If a step would reuse a column in 'pack', close the current layer first.
+          - On stall, if current layer has ≥1 step, close it (count one layer).
         """
         m = m0.copy()
         c = c0.copy()
         used_mask = used_mask0.copy() if parallel_elimination else []
         pack: set[int] = set()
         steps_in_layer = 0
+        steps_in_layer_total = 0  # <- accumulate across potential sublayers due to conflicts
         layers_inc = 0
 
         def close_layer() -> None:
-            nonlocal layers_inc, steps_in_layer
+            nonlocal layers_inc, steps_in_layer, steps_in_layer_total
             if steps_in_layer > 0:
                 layers_inc += 1
+                steps_in_layer_total += steps_in_layer
                 steps_in_layer = 0
             pack.clear()
             if parallel_elimination:
@@ -222,40 +228,7 @@ def heuristic_gaussian_elimination(
             i, j = nxt
             apply_step(i, j)
 
-        return m, c, used_mask, steps_in_layer, layers_inc  # steps_in_layer will be 0 at return
-
-    def count_steps_to_completion(
-        m0: npt.NDArray[np.int8],
-        c0: npt.NDArray[np.int64],
-        used_mask0: list[int],
-        first_move: tuple[int, int] | None,
-    ) -> int:
-        """Fast greedy-to-completion step counter (no depth accounting)."""
-        m = m0.copy()
-        c = c0.copy()
-        used_mask = used_mask0.copy() if parallel_elimination else []
-        steps = 0
-        if first_move is not None:
-            i0, j0 = first_move
-            steps += 1
-            apply_elim_inplace(m, c, i0, j0)
-            if parallel_elimination:
-                used_mask.extend([i0, j0])
-        while not is_reduced(m):
-            nxt = greedy_pick(c, used_mask)
-            if (nxt is None) or (parallel_elimination and len(used_mask) == m.shape[1]):
-                if parallel_elimination and used_mask:
-                    used_mask = []  # end layer
-                    continue
-                m = mod2.row_echelon(m, full=True)[0]
-                c = compute_costs(m)
-                continue
-            i, j = nxt
-            steps += 1
-            apply_elim_inplace(m, c, i, j)
-            if parallel_elimination:
-                used_mask.extend([i, j])
-        return steps
+        return m, c, used_mask, steps_in_layer_total, layers_inc
 
     def simulate_to_completion(
         m0: npt.NDArray[np.int8],
@@ -269,10 +242,12 @@ def heuristic_gaussian_elimination(
         m = m0.copy()
         c = c0.copy()
         used_mask = used_mask0.copy() if parallel_elimination else []
+        total_steps = 0
         total_layers = 0
 
         # finish the current layer (starting with first_move)
-        m, c, used_mask, _d, lay_inc = rollout_current_layer(m, c, used_mask, first_move)
+        m, c, used_mask, steps_inc, lay_inc = rollout_current_layer(m, c, used_mask, first_move)
+        total_steps += steps_inc
         total_layers += lay_inc
 
         while not is_reduced(m):
@@ -282,11 +257,11 @@ def heuristic_gaussian_elimination(
                 m = mod2.row_echelon(m, full=True)[0]
                 c = compute_costs(m)
                 used_mask = [] if parallel_elimination else []
-            # roll out next layer from boundary
-            m, c, used_mask, _d2, lay2 = rollout_current_layer(m, c, used_mask, first_move=None)
-            total_layers += lay2
+            # roll out next layer
+            m, c, used_mask, steps_lay, lay_cnt = rollout_current_layer(m, c, used_mask, first_move=None)
+            total_steps += steps_lay
+            total_layers += lay_cnt
 
-        total_steps = count_steps_to_completion(m0, c0, used_mask0, first_move)
         return total_steps, total_layers
 
     # ---------- main loop ----------
@@ -309,7 +284,7 @@ def heuristic_gaussian_elimination(
             if parallel_elimination and used_mask_main:
                 used_mask_main = []  # end the real layer
                 continue
-            # triangularize if local minimum
+            # local minimum / fully stalled (no open layer) → triangularize
             logger.warning("Local minimum reached. Making matrix triangular.")
             mat = mod2.row_echelon(mat, full=True)[0]
             costs = compute_costs(mat)
@@ -340,10 +315,10 @@ def heuristic_gaussian_elimination(
                 best_key = None
                 best_move = None
                 for ci, cj in cand1:
-                    # finish the rest of *this* layer after taking (ci,cj)
-                    m1, c1, used1, _d, lay_inc1 = rollout_current_layer(mat, costs, used_mask_main, (ci, cj))
+                    # 1) Finish the rest of *this* layer after taking (ci,cj)
+                    m1, c1, used1, steps_inc1, lay_inc1 = rollout_current_layer(mat, costs, used_mask_main, (ci, cj))
 
-                    # candidate set for *next* layer's first move at the boundary
+                    # 2) Candidate set for the *next* layer's first move at the boundary
                     cu2 = (
                         mask_used(c1, used1)
                         if parallel_elimination
@@ -352,27 +327,27 @@ def heuristic_gaussian_elimination(
                     cand2 = topk_candidates(c1, cu2, top_k_next_layer)
 
                     if not cand2:
-                        # nothing obvious for next layer; simulate from boundary with no forced starter
+                        # No obvious next-layer starter; simulate from boundary with no forced starter
                         steps2, layers2 = simulate_to_completion(m1, c1, used1, first_move=None)
-                        primary = steps2 if objective == "eliminations" else (layers2 + lay_inc1)
-                        secondary = (layers2 + lay_inc1) if objective == "eliminations" else steps2
+                        primary = (steps_inc1 + steps2) if objective == "eliminations" else (lay_inc1 + layers2)
+                        secondary = (lay_inc1 + layers2) if objective == "eliminations" else (steps_inc1 + steps2)
                         tie_cost = int(costs[ci, cj])
                         key = (primary, secondary, tie_cost, ci, cj)
                         if (best_key is None) or (key < best_key):
                             best_key, best_move = key, (ci, cj)
                         continue
 
-                    # explore best next-layer starter
+                    # 3) Explore best second-layer starter
                     best2_key = None
                     for ni, nj in cand2:
                         steps2, layers2 = simulate_to_completion(m1, c1, used1, first_move=(ni, nj))
-                        primary = steps2 if objective == "eliminations" else (layers2 + lay_inc1)
-                        secondary = (layers2 + lay_inc1) if objective == "eliminations" else steps2
+                        primary = (steps_inc1 + steps2) if objective == "eliminations" else (lay_inc1 + layers2)
+                        secondary = (lay_inc1 + layers2) if objective == "eliminations" else (steps_inc1 + steps2)
                         tie_cost2 = int(c1[ni, nj])
                         key2 = (primary, secondary, tie_cost2, ni, nj)
                         if (best2_key is None) or (key2 < best2_key):
                             best2_key = key2
-                    # attribute to the original first move
+                    # attribute to original first move; keep parent tie-cost for determinism
                     final_key = (best2_key[0], best2_key[1], int(costs[ci, cj]), ci, cj)  # type: ignore[index]
                     if (best_key is None) or (final_key < best_key):
                         best_key, best_move = final_key, (ci, cj)
