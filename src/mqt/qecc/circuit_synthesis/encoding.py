@@ -37,12 +37,11 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balance_checks: bool = False) -> CNOTCircuit:
+def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kwargs) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
     Args:
         code: The CSS code to synthesize the encoding circuit for.
-        optimize_depth: Whether to optimize the depth of the circuit.
         balance_checks: Whether to balance the entries of the stabilizer matrix via row operations.
 
     Returns:
@@ -56,10 +55,7 @@ def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balan
     if balance_checks:
         _balance_matrix(logicals)
 
-    checks, cnots = heuristic_gaussian_elimination(
-        np.vstack((checks, logicals)),
-        parallel_elimination=optimize_depth,
-    )
+    checks, cnots = heuristic_gaussian_elimination(np.vstack((checks, logicals)), **kwargs)
 
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
     encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]

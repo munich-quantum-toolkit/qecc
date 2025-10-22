@@ -196,14 +196,11 @@ def _build_state_prep_circuit_from_back(
     return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
-def heuristic_prep_circuit(
-    code: CSSCode, optimize_depth: bool = True, zero_state: bool = True
-) -> FaultyStatePrepCircuit:
+def heuristic_prep_circuit(code: CSSCode, zero_state: bool = True, **kwargs) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
     Args:
         code: The CSS code to prepare the state for.
-        optimize_depth: If True, optimize the depth of the circuit. This may lead to a higher number of CNOTs.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
     """
     logger.info("Starting heuristic state preparation.")
@@ -213,7 +210,7 @@ def heuristic_prep_circuit(
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
+    checks, cnots = heuristic_gaussian_elimination(checks, **kwargs)
 
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
     return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import multiprocess
 import numpy as np
@@ -89,73 +89,302 @@ def iterative_search_with_timeout(
     return None, max_param
 
 
+Objective = Literal["eliminations", "depth"]
+
+
 def heuristic_gaussian_elimination(
-    matrix: npt.NDArray[np.int8], parallel_elimination: bool = True
+    matrix: npt.NDArray[np.int8],
+    parallel_elimination: bool = True,
+    *,
+    objective: Objective = "eliminations",
+    lookahead_layers: int = 0,
+    top_k: int = 4096,
+    top_k_next_layer: int = 10,
 ) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]]:
-    """Perform Gaussian elimination on the column space of a matrix using as few eliminations as possible.
+    """Gaussian elimination over GF(2) column space with layer-aware lookahead.
 
-    The algorithm utilizes a greedy heuristic to select the columns to eliminate in order to minimize the number of eliminations required.
+    - objective="eliminations": minimize total column additions; ties by depth.
+    - objective="depth": minimize number of parallel layers; ties by eliminations.
 
-    The matrix is reduced until there are exactly rnk(matrix) columns with non-zero entries.
-
-    Args:
-        matrix: The matrix to perform Gaussian elimination on.
-        parallel_elimination: Whether to prioritize elimination steps that act on disjoint columns.
-
-    Returns:
-        The reduced matrix and a list of the elimination steps taken. The elimination steps are represented as tuples of the form (i, j) where i is the column being eliminated with and j is the column being eliminated.
+    `parallel_elimination` only affects the greedy mask inside a layer; depth counting
+    follows the conflict rule: a new layer starts iff a step would reuse a column already
+    used in the current (open) layer.
     """
-    matrix = matrix.copy()
-    rank = mod2.rank(matrix)
+    mat = matrix.copy()
+    rank = mod2.rank(mat)
 
-    def is_reduced() -> bool:
-        return bool(len(np.where(np.all(matrix == 0, axis=0))[0]) == matrix.shape[1] - rank)
+    # ---------- helpers ----------
+    def is_reduced(m: npt.NDArray[np.int8]) -> bool:
+        return bool(np.sum(~np.all(m == 0, axis=0)) == rank)
 
-    costs = np.array([
-        [np.sum((matrix[:, i] + matrix[:, j]) % 2) for j in range(matrix.shape[1])] for i in range(matrix.shape[1])
-    ])
+    def compute_costs(m: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
+        c = np.array(
+            [[np.sum((m[:, i] + m[:, j]) % 2) for j in range(m.shape[1])] for i in range(m.shape[1])], dtype=np.int64
+        )
+        c -= np.sum(m, axis=0)
+        np.fill_diagonal(c, 1)
+        return c
 
-    costs -= np.sum(matrix, axis=0)
-    np.fill_diagonal(costs, 1)
+    def apply_elim_inplace(m: npt.NDArray[np.int8], cst: npt.NDArray[np.int64], i: int, j: int) -> None:
+        m[:, j] = (m[:, i] + m[:, j]) % 2
+        new_weights = np.sum((m[:, j][:, np.newaxis] + m) % 2, axis=0)
+        col_weights = np.sum(m, axis=0)
+        cst[j, :] = new_weights - col_weights
+        cst[:, j] = new_weights - np.sum(m[:, j])
+        np.fill_diagonal(cst, 1)
 
-    used_columns = []  # type: list[np.int_]
-    eliminations = []  # type: list[tuple[int, int]]
-    while not is_reduced():
-        m = np.zeros((matrix.shape[1], matrix.shape[1]), dtype=bool)  # type: npt.NDArray[np.bool_]
-        m[used_columns, :] = True
-        m[:, used_columns] = True
+    def mask_used(cst: npt.NDArray[np.int64], used_mask: list[int]) -> np.ma.MaskedArray:
+        mm = np.zeros_like(cst, dtype=bool)
+        if used_mask:
+            mm[used_mask, :] = True
+            mm[:, used_mask] = True
+        return np.ma.array(cst, mask=mm)  # type: ignore[no-untyped-call]
 
-        costs_unused = np.ma.array(costs, mask=m)  # type: ignore[no-untyped-call]
-        if np.all(costs_unused >= 0) or len(used_columns) == matrix.shape[1]:  # no more reductions possible
-            if used_columns == []:  # local minimum => get out by making matrix triangular
-                logger.warning("Local minimum reached. Making matrix triangular.")
-                matrix = mod2.row_echelon(matrix, full=True)[0]
-                costs = np.array([
-                    [np.sum((matrix[:, i] + matrix[:, j]) % 2) for j in range(matrix.shape[1])]
-                    for i in range(matrix.shape[1])
-                ])
-                costs -= np.sum(matrix, axis=0)
-                np.fill_diagonal(costs, 1)
-            else:  # try to move onto the next layer
-                used_columns = []
+    def exact_argmin_pair(costs_unused: np.ma.MaskedArray, shape) -> tuple[int, int]:
+        i, j = np.unravel_index(np.argmin(costs_unused), shape)
+        return int(i), int(j)
+
+    def topk_candidates(
+        costs_full: npt.NDArray[np.int64], costs_unused: np.ma.MaskedArray, k: int
+    ) -> list[tuple[int, int]]:
+        """Return up to k best (i,j) by masked costs (ascending), negative-only, including the true argmin."""
+        i_star, j_star = exact_argmin_pair(costs_unused, costs_full.shape)
+        cf = costs_unused.filled(10**9)
+        k_eff = min(k, cf.size - 1) if cf.size > 1 else 1
+        idx = np.argpartition(cf.ravel(), k_eff)[:k_eff]
+
+        cand = {(i_star, j_star)}
+        for t in idx:
+            i, j = np.unravel_index(int(t), cf.shape)
+            if costs_unused.mask[i, j]:
+                continue
+            if costs_full[i, j] < 0:
+                cand.add((int(i), int(j)))
+        return sorted(cand, key=lambda ij: (costs_full[ij[0], ij[1]], ij[0], ij[1]))
+
+    def greedy_pick(c: npt.NDArray[np.int64], used_mask: list[int]) -> tuple[int, int] | None:
+        cu = mask_used(c, used_mask) if parallel_elimination else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))  # type: ignore[no-untyped-call]
+        if (cu.count() == 0) or np.all(cu >= 0):
+            return None
+        return exact_argmin_pair(cu, c.shape)
+
+    def rollout_current_layer(
+        m0: npt.NDArray[np.int8],
+        c0: npt.NDArray[np.int64],
+        used_mask0: list[int],
+        first_move: tuple[int, int] | None,
+    ) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int64], list[int], int, int]:
+        """Apply `first_move` (if given), then keep taking greedy steps in THIS layer
+        until we stall (no negative or mask saturated). Returns:
+          (m, c, used_mask, steps_in_this_layer, layers_count_increment).
+
+        Depth counting via packing conflict:
+          - Maintain a packing set 'pack' of columns used in the current open layer.
+          - If a step would reuse a column in 'pack', we close the current layer first.
+          - On stall, if current layer has ≥1 step, we close it (count one layer).
+        """
+        m = m0.copy()
+        c = c0.copy()
+        used_mask = used_mask0.copy() if parallel_elimination else []
+        pack: set[int] = set()
+        steps_in_layer = 0
+        layers_inc = 0
+
+        def close_layer() -> None:
+            nonlocal layers_inc, steps_in_layer
+            if steps_in_layer > 0:
+                layers_inc += 1
+                steps_in_layer = 0
+            pack.clear()
+            if parallel_elimination:
+                used_mask.clear()
+
+        def apply_step(i: int, j: int) -> None:
+            nonlocal steps_in_layer
+            if (i in pack) or (j in pack):
+                close_layer()
+            apply_elim_inplace(m, c, i, j)
+            pack.update((i, j))
+            if parallel_elimination:
+                used_mask.extend([i, j])
+            steps_in_layer += 1
+
+        if first_move is not None:
+            i0, j0 = first_move
+            apply_step(i0, j0)
+
+        while True:
+            nxt = greedy_pick(c, used_mask)
+            stalled = (nxt is None) or (parallel_elimination and len(used_mask) == m.shape[1])
+            if stalled:
+                close_layer()
+                break
+            i, j = nxt
+            apply_step(i, j)
+
+        return m, c, used_mask, steps_in_layer, layers_inc  # steps_in_layer will be 0 at return
+
+    def count_steps_to_completion(
+        m0: npt.NDArray[np.int8],
+        c0: npt.NDArray[np.int64],
+        used_mask0: list[int],
+        first_move: tuple[int, int] | None,
+    ) -> int:
+        """Fast greedy-to-completion step counter (no depth accounting)."""
+        m = m0.copy()
+        c = c0.copy()
+        used_mask = used_mask0.copy() if parallel_elimination else []
+        steps = 0
+        if first_move is not None:
+            i0, j0 = first_move
+            steps += 1
+            apply_elim_inplace(m, c, i0, j0)
+            if parallel_elimination:
+                used_mask.extend([i0, j0])
+        while not is_reduced(m):
+            nxt = greedy_pick(c, used_mask)
+            if (nxt is None) or (parallel_elimination and len(used_mask) == m.shape[1]):
+                if parallel_elimination and used_mask:
+                    used_mask = []  # end layer
+                    continue
+                m = mod2.row_echelon(m, full=True)[0]
+                c = compute_costs(m)
+                continue
+            i, j = nxt
+            steps += 1
+            apply_elim_inplace(m, c, i, j)
+            if parallel_elimination:
+                used_mask.extend([i, j])
+        return steps
+
+    def simulate_to_completion(
+        m0: npt.NDArray[np.int8],
+        c0: npt.NDArray[np.int64],
+        used_mask0: list[int],
+        first_move: tuple[int, int] | None,
+    ) -> tuple[int, int]:
+        """Full simulation to reduction using greedy policy, starting by finishing the current
+        layer from `first_move`, then iterating layer-by-layer. Returns (total_steps, total_layers).
+        """
+        m = m0.copy()
+        c = c0.copy()
+        used_mask = used_mask0.copy() if parallel_elimination else []
+        total_layers = 0
+
+        # finish the current layer (starting with first_move)
+        m, c, used_mask, _d, lay_inc = rollout_current_layer(m, c, used_mask, first_move)
+        total_layers += lay_inc
+
+        while not is_reduced(m):
+            cu = mask_used(c, used_mask) if parallel_elimination else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))  # type: ignore[no-untyped-call]
+            if (cu.count() == 0) or np.all(cu >= 0):
+                # triangularize at clean boundary (no layer open)
+                m = mod2.row_echelon(m, full=True)[0]
+                c = compute_costs(m)
+                used_mask = [] if parallel_elimination else []
+            # roll out next layer from boundary
+            m, c, used_mask, _d2, lay2 = rollout_current_layer(m, c, used_mask, first_move=None)
+            total_layers += lay2
+
+        total_steps = count_steps_to_completion(m0, c0, used_mask0, first_move)
+        return total_steps, total_layers
+
+    # ---------- main loop ----------
+    costs = compute_costs(mat)
+    used_mask_main: list[int] = []  # for real-run masking (only if parallel_elimination=True)
+    eliminations: list[tuple[int, int]] = []
+
+    while not is_reduced(mat):
+        cu_main = (
+            mask_used(costs, used_mask_main)
+            if parallel_elimination
+            else np.ma.array(costs, mask=np.zeros_like(costs, dtype=bool))
+        )  # type: ignore[no-untyped-call]
+
+        if (
+            (cu_main.count() == 0)
+            or np.all(cu_main >= 0)
+            or (parallel_elimination and len(used_mask_main) == mat.shape[1])
+        ):
+            if parallel_elimination and used_mask_main:
+                used_mask_main = []  # end the real layer
+                continue
+            # triangularize if local minimum
+            logger.warning("Local minimum reached. Making matrix triangular.")
+            mat = mod2.row_echelon(mat, full=True)[0]
+            costs = compute_costs(mat)
             continue
 
-        i, j = np.unravel_index(np.argmin(costs_unused), costs.shape)
-        eliminations.append((int(i), int(j)))
+        if lookahead_layers == 0:
+            i, j = exact_argmin_pair(cu_main, costs.shape)
 
+        else:
+            # ----- first-layer candidate set -----
+            cand1 = topk_candidates(costs, cu_main, top_k)
+
+            if lookahead_layers == 1:
+                # score by full simulation to completion
+                best_key = None
+                best_move = None
+                for ci, cj in cand1:
+                    steps_needed, layers_needed = simulate_to_completion(mat, costs, used_mask_main, (ci, cj))
+                    primary = steps_needed if objective == "eliminations" else layers_needed
+                    secondary = layers_needed if objective == "eliminations" else steps_needed
+                    tie_cost = int(costs[ci, cj])
+                    key = (primary, secondary, tie_cost, ci, cj)  # lexicographic MIN
+                    if (best_key is None) or (key < best_key):
+                        best_key, best_move = key, (ci, cj)
+                i, j = best_move  # type: ignore[assignment]
+
+            else:  # lookahead_layers == 2
+                best_key = None
+                best_move = None
+                for ci, cj in cand1:
+                    # finish the rest of *this* layer after taking (ci,cj)
+                    m1, c1, used1, _d, lay_inc1 = rollout_current_layer(mat, costs, used_mask_main, (ci, cj))
+
+                    # candidate set for *next* layer's first move at the boundary
+                    cu2 = (
+                        mask_used(c1, used1)
+                        if parallel_elimination
+                        else np.ma.array(c1, mask=np.zeros_like(c1, dtype=bool))
+                    )  # type: ignore[no-untyped-call]
+                    cand2 = topk_candidates(c1, cu2, top_k_next_layer)
+
+                    if not cand2:
+                        # nothing obvious for next layer; simulate from boundary with no forced starter
+                        steps2, layers2 = simulate_to_completion(m1, c1, used1, first_move=None)
+                        primary = steps2 if objective == "eliminations" else (layers2 + lay_inc1)
+                        secondary = (layers2 + lay_inc1) if objective == "eliminations" else steps2
+                        tie_cost = int(costs[ci, cj])
+                        key = (primary, secondary, tie_cost, ci, cj)
+                        if (best_key is None) or (key < best_key):
+                            best_key, best_move = key, (ci, cj)
+                        continue
+
+                    # explore best next-layer starter
+                    best2_key = None
+                    for ni, nj in cand2:
+                        steps2, layers2 = simulate_to_completion(m1, c1, used1, first_move=(ni, nj))
+                        primary = steps2 if objective == "eliminations" else (layers2 + lay_inc1)
+                        secondary = (layers2 + lay_inc1) if objective == "eliminations" else steps2
+                        tie_cost2 = int(c1[ni, nj])
+                        key2 = (primary, secondary, tie_cost2, ni, nj)
+                        if (best2_key is None) or (key2 < best2_key):
+                            best2_key = key2
+                    # attribute to the original first move
+                    final_key = (best2_key[0], best2_key[1], int(costs[ci, cj]), ci, cj)  # type: ignore[index]
+                    if (best_key is None) or (final_key < best_key):
+                        best_key, best_move = final_key, (ci, cj)
+
+                i, j = best_move  # type: ignore[assignment]
+
+        eliminations.append((i, j))
+        apply_elim_inplace(mat, costs, i, j)
         if parallel_elimination:
-            used_columns.append(i)
-            used_columns.append(j)
+            used_mask_main.extend([i, j])
 
-        # update matrix
-        matrix[:, j] = (matrix[:, i] + matrix[:, j]) % 2
-        # update costs
-        new_weights = np.sum((matrix[:, j][:, np.newaxis] + matrix) % 2, axis=0)
-        costs[j, :] = new_weights - np.sum(matrix, axis=0)
-        costs[:, j] = new_weights - np.sum(matrix[:, j])
-        np.fill_diagonal(costs, 1)
-
-    return matrix, eliminations
+    return mat, eliminations
 
 
 def gaussian_elimination_min_column_ops(
