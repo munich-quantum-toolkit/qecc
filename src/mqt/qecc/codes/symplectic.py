@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-# from ldpc import mod2
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any

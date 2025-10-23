@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc.osd import bposd_decoder
+from ldpc.bposd_decoder import BpOsdDecoder
 from pymatching import Matching
 
 from ..utils.data_utils import _check_convergence
@@ -165,8 +165,8 @@ class QssSimulator:
             )  # assumes all sigmas are the same
         self.bp_iterations = 0
         if self.decoding_method == "bposd":
-            self.decoder = bposd_decoder(
-                parity_check_matrix=self.H3D,
+            self.decoder = BpOsdDecoder(
+                pcm=self.H3D.astype(np.int_),
                 channel_probs=channel_probs,
                 max_iter=self.bp_params.max_bp_iter,
                 bp_method=self.bp_params.bp_method,

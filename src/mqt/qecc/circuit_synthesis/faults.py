@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import z3
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import row_echelon
 
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 
@@ -154,7 +154,7 @@ class PureFaultSet:
             # If stabilizer matrix is empty, no faults can be removed
             return
 
-        rref, _, _, pivots = mod2.row_echelon(stabs, full=True)
+        rref, _, _, pivots = row_echelon(stabs, full=True)
         # Reduce all faults to their coset representatives
         for i, fault in enumerate(self.faults):
             # Identify the indices of pivot columns where the fault has a 1

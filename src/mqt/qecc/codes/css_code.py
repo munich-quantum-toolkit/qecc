@@ -12,8 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
-from ldpc import mod2
 
 from .pauli import StabilizerTableau
 from .stabilizer_code import StabilizerCode

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import rank
 
 from .pauli import Pauli, StabilizerTableau
 
@@ -52,7 +52,7 @@ class StabilizerCode:
             self.n = n
 
         if self.generators.n_rows != 0:
-            self.k = self.n - mod2.rank(self.generators.as_matrix())
+            self.k = self.n - rank(self.generators.as_matrix())
         else:
             self.k = self.n
 
@@ -80,11 +80,10 @@ class StabilizerCode:
         """Check if two stabilizer codes are equal."""
         if not isinstance(other, StabilizerCode):
             return NotImplemented
-        rnk = mod2.rank(self.generators.as_matrix())
-        return bool(
-            rnk == mod2.rank(other.generators.as_matrix())
-            and rnk == mod2.rank(np.vstack((self.generators.as_matrix(), other.generators.as_matrix())))
-        )
+        self_matrix = self.generators.as_matrix()
+        other_matrix = other.generators.as_matrix()
+        rnk = rank(self_matrix)
+        return bool(rnk == rank(other_matrix) and rnk == rank(np.vstack((self_matrix, other_matrix))))
 
     def get_syndrome(self, error: Pauli | str) -> npt.NDArray[np.int8]:
         """Compute the syndrome of the error.
@@ -108,8 +107,8 @@ class StabilizerCode:
         if isinstance(p2, str):
             p2 = Pauli.from_pauli_string(p2)
         return bool(
-            mod2.rank(np.vstack((self.generators.as_matrix(), p1.as_vector(), p2.as_vector())))
-            == mod2.rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
+            rank(np.vstack((self.generators.as_matrix(), p1.as_vector(), p2.as_vector())))
+            == rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
         )
 
     def _check_code_correct(self) -> None:

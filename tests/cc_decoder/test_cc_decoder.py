@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,6 +20,8 @@ from mqt.qecc.cc_decoder import HexagonalColorCode, code_from_string, decoder
 from .test_utils import check_and_load_json
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     import pytest_mock
     from pytest_console_scripts import ScriptRunner
 
@@ -42,9 +45,10 @@ def nr_sims() -> int:
 
 
 @pytest.fixture
-def results_dir() -> str:
+def results_dir() -> Generator[str]:
     """Return directory to store results."""
-    return "./results/test/"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
 
 
 @pytest.fixture
