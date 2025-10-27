@@ -14,10 +14,10 @@ from functools import partial
 from itertools import product
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import numpy.typing as npt
 import z3
-from ldpc import mod2
 
 from .faults import PureFaultSet, coset_leader
 from .state_prep import (

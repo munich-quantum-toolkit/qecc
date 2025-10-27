@@ -16,7 +16,7 @@ from timeit import default_timer as timer
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc.osd import bposd_decoder
+from ldpc.bposd_decoder import BpOsdDecoder
 
 from ..utils.data_utils import (
     calculate_error_rates,
@@ -657,8 +657,8 @@ class SingleShotSimulator:
         If analog_info is activated, the SoftInfoBpDecoder is used instead of the BPOSD decoder.
         Note that analog_info and analog_tg cannot be used simultaneously.
         """
-        return bposd_decoder(
-            parity_check_matrix=pcm,
+        return BpOsdDecoder(
+            pcm=pcm.astype(np.int_),
             channel_probs=channel_probs,
             max_iter=self.bp_params.max_bp_iter,
             bp_method=self.bp_params.bp_method,

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc.mod2 import rank
+from ldpc.mod2.mod2_numpy import rank
 from scipy.special import erfc, erfcinv
 
 from .data_utils import calculate_error_rates, replace_inf

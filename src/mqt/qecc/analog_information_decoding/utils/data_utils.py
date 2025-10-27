@@ -24,14 +24,13 @@ import numpy as np
 class BpParams:
     """Class to store parameters for BP decoding."""
 
-    bp_method: str = "msl"
+    bp_method: str = "minimum_sum"
     max_bp_iter: int = 30
     osd_order: int = 10
     osd_method: str = "osd_cs"
     ms_scaling_factor: float = 0.75
     schedule: str = "parallel"
     omp_thread_count: int = 1
-    random_serial_schedule: int = 0
     serial_schedule_order: list[int] | None = None
     cutoff: float = np.inf
 

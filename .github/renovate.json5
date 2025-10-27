@@ -37,7 +37,8 @@
     {
       matchManagers: ["pre-commit"],
       addLabels: ["pre-commit"],
-      commitMessagePrefix: "⬆\uFE0F\uD83E\uDE9D"
+      commitMessagePrefix: "⬆\uFE0F\uD83E\uDE9D",
+      versioning: "pep440"
     },
     {
       matchUpdateTypes: ["lockFileMaintenance"],

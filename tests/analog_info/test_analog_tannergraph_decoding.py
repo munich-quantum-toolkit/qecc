@@ -49,7 +49,7 @@ def atd(error_channel: NDArray[np.float64], pcm: NDArray[np.int32]) -> AnalogTan
     """Return distance of the hexagonal color code."""
     return AnalogTannergraphDecoder(
         pcm=pcm,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         error_channel=error_channel,
         sigma=0.1,
         ser=None,
@@ -68,7 +68,7 @@ def atd_simulator_sigma(pcm: NDArray[np.int32], code_params: dict[str, int]) -> 
         data_err_rate=0.1,
         sigma=0.1,
         seed=666,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         decoding_method="atd",
         code_params=code_params,
     )
@@ -88,7 +88,7 @@ def atd_simulator_ser(pcm: NDArray[np.int32], code_params: dict[str, int]) -> At
         data_err_rate=per,
         syndr_err_rate=ser,
         seed=666,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         decoding_method="atd",
         output_path="./res",
         code_params=code_params,
@@ -120,7 +120,7 @@ def test_atd_simulator_data_error_channels_setup(pcm: NDArray[np.int32], code_pa
         data_err_rate=per,
         sigma=sigma,
         seed=666,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         decoding_method="atd",
         code_params=code_params,
     )
