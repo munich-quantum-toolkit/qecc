@@ -273,6 +273,33 @@ class CSSCode(StabilizerCode):
         # check if the code is valid
         return CSSCode(x_stabs, z_stabs)
 
+    def _normalize_logicals(self) -> None:
+        """Normalize the logical operators.
+
+        The basis of logical operators computed by `_compute_logical` do not necessarily
+        represent single-logical qubit operators but might be product operators.
+        This method normalizes the logical operators such that each logical qubit
+        is represented by a pair of logical X and Z operators that anti-commute
+        only with each other, i.e. Lx[i]@Lz[j].T = 1 if i == j else 0.
+        Assumes that `_compute_logical` has already been called to compute `Lx` and `Lz`.
+        """
+        k = self.Lx.shape[0]
+        assert k == self.Lz.shape[0], "Number of X and Z logicals must be the same."
+
+        for i in range(self.k):
+            xl = self.Lx[i]
+            anticommute_x = np.where(xl @ self.Lz.T % 2)[0]
+            first = anticommute_x[0]
+            zl = self.Lz[first]
+            anticommute_z = np.where(zl @ self.Lx.T % 2)[0]
+            for j in anticommute_x[1:]:
+                self.Lz[j] ^= zl
+
+            for j in anticommute_z:
+                if j != i:
+                    self.Lx[j] ^= xl
+            self.Lz[[i, first]] = self.Lz[[first, i]]
+
 
 class InvalidCSSCodeError(ValueError):
     """Raised when the CSS code is invalid."""
