@@ -67,7 +67,23 @@ class CodeSwitchGraph:
         self.G.add_node(node_id, gate=gate_type, qubit=qubit, depth=depth)
         return node_id
 
-    def add_infinite_edge(self, u: str, v: str) -> None:
+    def add_edge_with_capacity(self, u: str, v: str, capacity: float, bidirectional: bool = True) -> None:
+        """Add a directed edge with specified capacity between two nodes.
+
+        Parameters
+        ----------
+        u : str
+            Source node identifier.
+        v : str
+            Target node identifier.
+        capacity : float
+            Edge capacity.
+        """
+        self.G.add_edge(u, v, capacity=capacity)
+        if bidirectional:
+            self.G.add_edge(v, u, capacity=capacity)
+
+    def add_infinite_edge(self, u: str, v: str, bidirectional: bool = True) -> None:
         """Add an edge of infinite capacity between two nodes.
 
         Parameters
@@ -77,10 +93,9 @@ class CodeSwitchGraph:
         v : str
             Target node identifier.
         """
-        self.G.add_edge(u, v, capacity=float("inf"))
-        self.G.add_edge(v, u, capacity=float("inf"))
+        self.add_edge_with_capacity(u, v, capacity=float("inf"), bidirectional=bidirectional)
 
-    def add_regular_edge(self, u: str, v: str, capacity: float = 1.0) -> None:
+    def add_regular_edge(self, u: str, v: str, capacity: float = 1.0, bidirectional: bool = True) -> None:
         """Add a regular (finite-capacity) directed edge.
 
         Parameters
@@ -92,11 +107,16 @@ class CodeSwitchGraph:
         capacity : float, optional
             Edge capacity (default is 1.0).
         """
-        self.G.add_edge(u, v, capacity=capacity)
-        self.G.add_edge(v, u, capacity=capacity)
+        self.add_edge_with_capacity(u, v, capacity=capacity, bidirectional=bidirectional)
 
     def connect_to_code(self, node_id: str, gate_type: str) -> None:
         """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
+
+        Note: Here we fix the convention that the 2D Color Code corresponds to the source (can perform H and CNOT)
+        and the 3D Surface Code corresponds to the sink (can perform T and CNOT). This convention is arbitrary and can be swapped.
+        However, swapping the convention requires to change the one-way transversal CNOT setting:
+        2D Source + 3D Sink  <->  (infinite edge) Control -> Target
+        3D Source + 2D Sink  <->  (infinite edge) Control <- Target
 
         Parameters
         ----------
@@ -107,12 +127,12 @@ class CodeSwitchGraph:
         """
         # Source code can perform T and CNOT gates
         if gate_type == "T":
-            self.add_infinite_edge(self.source, node_id)
+            self.add_infinite_edge(self.sink, node_id)
         # Sink code can perform H and CNOT gates
         if gate_type == "H":
-            self.add_infinite_edge(node_id, self.sink)
+            self.add_infinite_edge(node_id, self.source)
 
-    def add_cnot_links(self, control_node: str, target_node: str) -> None:
+    def add_cnot_links(self, control_node: str, target_node: str, one_way_transversal_cnot: bool = False) -> None:
         """Add bidirectional infinite-capacity edges between two CNOT-related nodes to enforce that both qubits remain in the same code.
 
         Parameters
@@ -122,10 +142,9 @@ class CodeSwitchGraph:
         target_node : str
             Node representing the target qubit's CNOT operation.
         """
-        self.add_infinite_edge(control_node, target_node)
-        self.add_infinite_edge(target_node, control_node)
+        self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
-    def build_from_qiskit(self, circuit: QuantumCircuit) -> None:
+    def build_from_qiskit(self, circuit: QuantumCircuit, one_way_transversal_cnot: bool = False) -> None:
         """Construct the code-switch graph from a Qiskit QuantumCircuit.
 
         Parameters
@@ -158,7 +177,7 @@ class CodeSwitchGraph:
                 ctrl, tgt = qubits
                 node_ctrl = self.add_gate_node("CNOTc", ctrl, depth)
                 node_tgt = self.add_gate_node("CNOTt", tgt, depth)
-                self.add_cnot_links(node_ctrl, node_tgt)
+                self.add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
                 for q, node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
                     if qubit_last_node[q]:
                         self.add_regular_edge(qubit_last_node[q], node)
