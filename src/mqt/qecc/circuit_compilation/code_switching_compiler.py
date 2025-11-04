@@ -146,7 +146,9 @@ class CodeSwitchGraph:
         """
         self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
-    def build_from_qiskit(self, circuit: QuantumCircuit, one_way_transversal_cnot: bool = False) -> None:
+    def build_from_qiskit(
+        self, circuit: QuantumCircuit, one_way_transversal_cnot: bool = False, code_bias: bool = False
+    ) -> None:
         """Construct the code-switch graph from a Qiskit QuantumCircuit.
 
         Parameters
@@ -180,12 +182,30 @@ class CodeSwitchGraph:
                 node_ctrl = self.add_gate_node("CNOTc", ctrl, depth)
                 node_tgt = self.add_gate_node("CNOTt", tgt, depth)
                 self.add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
+                if code_bias:
+                    self.add_bias_edges(node_ctrl)
+                    self.add_bias_edges(node_tgt)
                 for q, node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
                     if qubit_last_node[q]:
                         self.add_regular_edge(qubit_last_node[q], node)
                     qubit_last_node[q] = node
 
-    def compute_min_cut(self) -> tuple[float, set[str], set[str]]:
+    def add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
+        """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
+
+        Parameters
+        ----------
+        biased_code : float
+            Capacity of the biased_code edges to be added.
+        """
+        if biased_code == "SRC":
+            self.add_edge_with_capacity(self.source, node_id, capacity=2.0, edge_type="unary")
+            self.add_edge_with_capacity(self.sink, node_id, capacity=1.0, edge_type="unary")
+        elif biased_code == "SNK":
+            self.add_edge_with_capacity(self.source, node_id, capacity=1.0, edge_type="unary")
+            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0, edge_type="unary")
+
+    def compute_min_cut(self, return_raw_data: bool = False) -> tuple[float, set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
 
         Returns:
@@ -197,4 +217,18 @@ class CodeSwitchGraph:
               - T is the complementary set of nodes.
         """
         cut_value, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
-        return cut_value, S, T
+        num_switches = 0
+        switch_cost = 0
+        seen = set()
+        for u, v, data in self.G.edges(data=True):
+            if data["edge_type"] in {"temporal", "entangling"}:
+                # needed to avoid double counting edges in undirected sense
+                key = tuple(sorted((u, v)))
+                if key not in seen:
+                    if (u in S and v in T) or (v in S and u in T):
+                        num_switches += 1
+                        switch_cost += data["capacity"]
+                    seen.add(key)
+        if return_raw_data:
+            return cut_value, S, T
+        return num_switches, S, T
