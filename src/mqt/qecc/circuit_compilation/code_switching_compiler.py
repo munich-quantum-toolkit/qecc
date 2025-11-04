@@ -67,7 +67,9 @@ class CodeSwitchGraph:
         self.G.add_node(node_id, gate=gate_type, qubit=qubit, depth=depth)
         return node_id
 
-    def add_edge_with_capacity(self, u: str, v: str, capacity: float, bidirectional: bool = True) -> None:
+    def add_edge_with_capacity(
+        self, u: str, v: str, capacity: float, edge_type: str = "temporal", bidirectional: bool = True
+    ) -> None:
         """Add a directed edge with specified capacity between two nodes.
 
         Parameters
@@ -79,9 +81,9 @@ class CodeSwitchGraph:
         capacity : float
             Edge capacity.
         """
-        self.G.add_edge(u, v, capacity=capacity)
+        self.G.add_edge(u, v, capacity=capacity, edge_type=edge_type)
         if bidirectional:
-            self.G.add_edge(v, u, capacity=capacity)
+            self.G.add_edge(v, u, capacity=capacity, edge_type=edge_type)
 
     def add_infinite_edge(self, u: str, v: str, bidirectional: bool = True) -> None:
         """Add an edge of infinite capacity between two nodes.
@@ -107,7 +109,7 @@ class CodeSwitchGraph:
         capacity : float, optional
             Edge capacity (default is 1.0).
         """
-        self.add_edge_with_capacity(u, v, capacity=capacity, bidirectional=bidirectional)
+        self.add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
     def connect_to_code(self, node_id: str, gate_type: str) -> None:
         """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
