@@ -97,7 +97,7 @@ class CodeSwitchGraph:
         """
         self.add_edge_with_capacity(u, v, capacity=float("inf"), bidirectional=bidirectional)
 
-    def add_regular_edge(self, u: str, v: str, capacity: float = 1.0, bidirectional: bool = True) -> None:
+    def add_regular_edge(self, u: str, v: str, capacity: float = 100.0, bidirectional: bool = True) -> None:
         """Add a regular (finite-capacity) directed edge.
 
         Parameters
