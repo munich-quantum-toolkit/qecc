@@ -111,6 +111,21 @@ class CodeSwitchGraph:
         """
         self.add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
+    def add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
+        """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
+
+        Parameters
+        ----------
+        biased_code : float
+            Capacity of the biased_code edges to be added.
+        """
+        if biased_code == "SRC":
+            self.add_edge_with_capacity(self.source, node_id, capacity=2.0, edge_type="unary")
+            self.add_edge_with_capacity(self.sink, node_id, capacity=1.0, edge_type="unary")
+        elif biased_code == "SNK":
+            self.add_edge_with_capacity(self.source, node_id, capacity=1.0, edge_type="unary")
+            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0, edge_type="unary")
+
     def connect_to_code(self, node_id: str, gate_type: str) -> None:
         """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
 
@@ -189,21 +204,6 @@ class CodeSwitchGraph:
                     if qubit_last_node[q]:
                         self.add_regular_edge(qubit_last_node[q], node)
                     qubit_last_node[q] = node
-
-    def add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
-        """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
-
-        Parameters
-        ----------
-        biased_code : float
-            Capacity of the biased_code edges to be added.
-        """
-        if biased_code == "SRC":
-            self.add_edge_with_capacity(self.source, node_id, capacity=2.0, edge_type="unary")
-            self.add_edge_with_capacity(self.sink, node_id, capacity=1.0, edge_type="unary")
-        elif biased_code == "SNK":
-            self.add_edge_with_capacity(self.source, node_id, capacity=1.0, edge_type="unary")
-            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0, edge_type="unary")
 
     def compute_min_cut(self, return_raw_data: bool = False) -> tuple[float, set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
