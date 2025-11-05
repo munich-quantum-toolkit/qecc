@@ -17,6 +17,8 @@ from qiskit.converters import circuit_to_dag
 if TYPE_CHECKING:
     from qiskit import QuantumCircuit
 
+DEFAULT_TEMPORAL_EDGE_CAPACITY = 100.0
+
 
 class CodeSwitchGraph:
     """A directed graph representation of a quantum circuit for code-switching analysis using min-cut / max-flow optimization.
@@ -98,7 +100,9 @@ class CodeSwitchGraph:
         """
         self.add_edge_with_capacity(u, v, capacity=float("inf"), bidirectional=bidirectional)
 
-    def add_regular_edge(self, u: str, v: str, capacity: float = 100.0, bidirectional: bool = True) -> None:
+    def add_regular_edge(
+        self, u: str, v: str, capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY, bidirectional: bool = True
+    ) -> None:
         """Add a regular (finite-capacity) directed edge.
 
         Parameters
