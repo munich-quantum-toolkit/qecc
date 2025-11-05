@@ -26,10 +26,10 @@ class CodeSwitchGraph:
     The graph is constructed such that:
       - Each quantum operation (T, H, CNOT) corresponds to one or more nodes.
       - Source (SRC) and sink (SNK) nodes represent two different codes:
-          * Source-connected nodes (T, CNOT) → operations that can be done transversally in code A.
-          * Sink-connected nodes (H, CNOT) → operations that can be done transversally in code B.
+          * Source-connected nodes (H, CNOT) → operations that can be done transversally in code a 2D Color Code.
+          * Sink-connected nodes (T, CNOT) → operations that can be done transversally in code a 3D Color Code.
       - Infinite-capacity edges enforce code consistency between operations (e.g., CNOT links).
-      - Finite-capacity edges (default 1.0) represent potential code transitions along qubit timelines.
+      - Finite-capacity (temporal) edges represent potential code transitions along qubit timelines.
 
     Attributes:
     ----------
@@ -83,6 +83,10 @@ class CodeSwitchGraph:
             Target node identifier.
         capacity : float
             Edge capacity.
+        edge_type : str, optional
+            Type of the edge (default is "temporal").
+        bidirectional : bool, optional
+            If True, add the reverse edge as well (default is True).
         """
         self.G.add_edge(u, v, capacity=capacity, edge_type=edge_type)
         if bidirectional:
@@ -97,6 +101,8 @@ class CodeSwitchGraph:
             Source node identifier.
         v : str
             Target node identifier.
+        bidirectional : bool, optional
+            If True, add the reverse edge as well (default is True).
         """
         self.add_edge_with_capacity(u, v, capacity=float("inf"), bidirectional=bidirectional)
 
@@ -112,7 +118,9 @@ class CodeSwitchGraph:
         v : str
             Target node identifier.
         capacity : float, optional
-            Edge capacity (default is 1.0).
+            Edge capacity.
+        bidirectional : bool, optional
+            If True, add the reverse edge as well (default is True).
         """
         self.add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
@@ -147,10 +155,10 @@ class CodeSwitchGraph:
         gate_type : str
             Type of the gate (e.g., "H", "T", "CNOT").
         """
-        # Source code can perform T and CNOT gates
+        # Sink code can perform T and CNOT gates
         if gate_type == "T":
             self.add_infinite_edge(self.sink, node_id)
-        # Sink code can perform H and CNOT gates
+        # Source code can perform H and CNOT gates
         if gate_type == "H":
             self.add_infinite_edge(node_id, self.source)
 
@@ -163,6 +171,8 @@ class CodeSwitchGraph:
             Node representing the control qubit's CNOT operation.
         target_node : str
             Node representing the target qubit's CNOT operation.
+        one_way_transversal_cnot : bool, optional
+            If True, allow transversal CNOTs from 3D (control) to 2D (target) besides the usual requirement that both qubits remain in the same code.
         """
         self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
@@ -235,6 +245,8 @@ class CodeSwitchGraph:
             If True, restrict transversal CNOTs to one direction.
         code_bias : bool, optional
             If True, add bias edges for CNOT nodes.
+        idle_bonus : bool, optional
+            If True, apply idle bonuses to temporal edges.
 
         Notes:
         -----
@@ -242,6 +254,7 @@ class CodeSwitchGraph:
         - Temporal ordering along qubit lines is maintained via regular edges.
         - CNOT gates create two linked nodes (control, target) with infinite capacity.
         - Optionally adds code bias edges or one-way transversal CNOT constraints.
+        - Idle bonuses reduce temporal edge capacities for qubits idle over multiple layers.
         """
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
