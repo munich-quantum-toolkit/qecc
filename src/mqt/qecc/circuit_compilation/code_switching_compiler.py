@@ -104,7 +104,7 @@ class CodeSwitchGraph:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
-        self.add_edge_with_capacity(u, v, capacity=float("inf"), bidirectional=bidirectional)
+        self.add_edge_with_capacity(u, v, capacity=float("inf"), edge_type="fixed", bidirectional=bidirectional)
 
     def add_regular_edge(
         self, u: str, v: str, capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY, bidirectional: bool = True
@@ -310,9 +310,8 @@ class CodeSwitchGraph:
         switch_cost = 0
         seen = set()
         for u, v, data in self.G.edges(data=True):
-            if data["edge_type"] in {"temporal", "entangling"}:
+            if data["edge_type"] == "temporal":
                 # needed to avoid double counting edges in undirected sense
-                # BUG: must be repaired for one-way CNOTs (currently counts a valid edge as switch because we only check here if u and v are in different sets)
                 key = tuple(sorted((u, v)))
                 if key not in seen:
                     if (u in S and v in T) or (v in S and u in T):
