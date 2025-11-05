@@ -166,8 +166,64 @@ class CodeSwitchGraph:
         """
         self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
+    @staticmethod
+    def compute_idle_bonus(previous_depth: int, current_depth: int) -> float:
+        """Compute a bonus (capacity reduction) for idling qubits.
+
+        The idea: if a qubit has been idle for several depth layers,
+        we reduce the capacity of the temporal edge between its last
+        and next gate nodes to encourage reuse of that qubit.
+
+        Parameters
+        ----------
+        previous_depth : int
+            The depth index of the previous active gate on the qubit.
+        current_depth : int
+            The depth index of the current active gate on the qubit.
+
+        Returns:
+        -------
+        float
+            The capacity reduction (bonus) to apply. Can be tuned by formula.
+        """
+        idle_length = max(0, current_depth - previous_depth - 1)
+
+        max_bonus = 5
+        proportional_factor = 1
+        return min(max_bonus, proportional_factor * idle_length)
+
+    def _edge_capacity_with_idle_bonus(
+        self, depths: list[int], base_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY
+    ) -> float:
+        """Compute the effective temporal edge capacity.
+
+        Optionally reduced by an idle bonus if the qubit has been inactive for several layers.
+
+        Parameters
+        ----------
+        depths : list[int]
+            The ordered list of depth indices for a given qubit's gates.
+        base_capacity : float, optional
+            The default temporal edge capacity.
+
+        Returns:
+        -------
+        float
+            The adjusted edge capacity, ensuring a lower bound of 1.0.
+        """
+        if len(depths) < 2:
+            return base_capacity
+
+        prev_depth, curr_depth = depths[-2], depths[-1]
+        bonus = self.compute_idle_bonus(prev_depth, curr_depth)
+        return max(1.0, base_capacity - bonus)
+
     def build_from_qiskit(
-        self, circuit: QuantumCircuit, one_way_transversal_cnot: bool = False, code_bias: bool = False
+        self,
+        circuit: QuantumCircuit,
+        one_way_transversal_cnot: bool = False,
+        code_bias: bool = False,
+        idle_bonus: bool = False,
     ) -> None:
         """Construct the code-switch graph from a Qiskit QuantumCircuit.
 
@@ -175,12 +231,17 @@ class CodeSwitchGraph:
         ----------
         circuit : QuantumCircuit
             The input quantum circuit containing H, T, and CX (CNOT) gates.
+        one_way_transversal_cnot : bool, optional
+            If True, restrict transversal CNOTs to one direction.
+        code_bias : bool, optional
+            If True, add bias edges for CNOT nodes.
 
         Notes:
         -----
         - For each gate, a node is created per qubit.
         - Temporal ordering along qubit lines is maintained via regular edges.
         - CNOT gates create two linked nodes (control, target) with infinite capacity.
+        - Optionally adds code bias edges or one-way transversal CNOT constraints.
         """
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
@@ -212,7 +273,12 @@ class CodeSwitchGraph:
                         self.add_bias_edges(node_tgt)
                     for q, gate_node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
                         if qubit_last_node[q]:
-                            self.add_regular_edge(qubit_last_node[q], gate_node)
+                            capacity = (
+                                self._edge_capacity_with_idle_bonus(qubit_activity[q])
+                                if idle_bonus
+                                else DEFAULT_TEMPORAL_EDGE_CAPACITY
+                            )
+                            self.add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
                         qubit_last_node[q] = gate_node
 
     def compute_min_cut(self, return_raw_data: bool = False) -> tuple[float, set[str], set[str]]:
