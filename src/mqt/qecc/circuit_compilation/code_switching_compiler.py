@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import networkx as nx
+from qiskit.converters import circuit_to_dag
 
 if TYPE_CHECKING:
     from qiskit import QuantumCircuit
@@ -177,33 +178,38 @@ class CodeSwitchGraph:
         - Temporal ordering along qubit lines is maintained via regular edges.
         - CNOT gates create two linked nodes (control, target) with infinite capacity.
         """
+        dag = circuit_to_dag(circuit)
+        layers = list(dag.layers())
+        qubit_activity: dict[int, set[int]] = {q: set() for q in range(circuit.num_qubits)}
         qubit_last_node: list[str | None] = [None] * circuit.num_qubits
-        depth = 0
 
-        for depth, instr in enumerate(circuit.data):
-            gate = instr.operation.name.upper()
-            qubits = [circuit.find_bit(q).index for q in instr.qubits]
+        for depth, layer in enumerate(layers):
+            for node in layer["graph"].op_nodes():
+                qubits = [circuit.find_bit(q).index for q in node.qargs]
+                gate = node.name.upper()
+                for qubit_index in qubits:
+                    qubit_activity[qubit_index].add(depth)
 
-            if gate in {"H", "T"}:
-                q = qubits[0]
-                node = self.add_gate_node(gate, q, depth)
-                self.connect_to_code(node, gate)
-                if qubit_last_node[q]:
-                    self.add_regular_edge(qubit_last_node[q], node)
-                qubit_last_node[q] = node
-
-            elif gate == "CX":
-                ctrl, tgt = qubits
-                node_ctrl = self.add_gate_node("CNOTc", ctrl, depth)
-                node_tgt = self.add_gate_node("CNOTt", tgt, depth)
-                self.add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
-                if code_bias:
-                    self.add_bias_edges(node_ctrl)
-                    self.add_bias_edges(node_tgt)
-                for q, node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
+                if gate in {"H", "T"}:
+                    q = qubits[0]
+                    gate_node = self.add_gate_node(gate, q, depth)
+                    self.connect_to_code(gate_node, gate)
                     if qubit_last_node[q]:
-                        self.add_regular_edge(qubit_last_node[q], node)
-                    qubit_last_node[q] = node
+                        self.add_regular_edge(qubit_last_node[q], gate_node)
+                    qubit_last_node[q] = gate_node
+
+                elif gate == "CX":
+                    ctrl, tgt = qubits
+                    node_ctrl = self.add_gate_node("CNOTc", ctrl, depth)
+                    node_tgt = self.add_gate_node("CNOTt", tgt, depth)
+                    self.add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
+                    if code_bias:
+                        self.add_bias_edges(node_ctrl)
+                        self.add_bias_edges(node_tgt)
+                    for q, gate_node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
+                        if qubit_last_node[q]:
+                            self.add_regular_edge(qubit_last_node[q], gate_node)
+                        qubit_last_node[q] = gate_node
 
     def compute_min_cut(self, return_raw_data: bool = False) -> tuple[float, set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
@@ -223,6 +229,7 @@ class CodeSwitchGraph:
         for u, v, data in self.G.edges(data=True):
             if data["edge_type"] in {"temporal", "entangling"}:
                 # needed to avoid double counting edges in undirected sense
+                # BUG: must be repaired for one-way CNOTs (currently counts a valid edge as switch because we only check here if u and v are in different sets)
                 key = tuple(sorted((u, v)))
                 if key not in seen:
                     if (u in S and v in T) or (v in S and u in T):
