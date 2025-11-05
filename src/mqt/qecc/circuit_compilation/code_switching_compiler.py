@@ -180,7 +180,7 @@ class CodeSwitchGraph:
         """
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
-        qubit_activity: dict[int, set[int]] = {q: set() for q in range(circuit.num_qubits)}
+        qubit_activity: dict[int, list[int]] = {q: [] for q in range(circuit.num_qubits)}
         qubit_last_node: list[str | None] = [None] * circuit.num_qubits
 
         for depth, layer in enumerate(layers):
@@ -188,7 +188,7 @@ class CodeSwitchGraph:
                 qubits = [circuit.find_bit(q).index for q in node.qargs]
                 gate = node.name.upper()
                 for qubit_index in qubits:
-                    qubit_activity[qubit_index].add(depth)
+                    qubit_activity[qubit_index].append(depth)
 
                 if gate in {"H", "T"}:
                     q = qubits[0]
