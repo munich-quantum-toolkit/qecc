@@ -9,6 +9,6 @@
 
 from __future__ import annotations
 
-from .code_switching_compiler import CodeSwitchGraph
+from .code_switching_compiler import CodeSwitchGraph, insert_switch_placeholders
 
-__all__ = ["CodeSwitchGraph"]
+__all__ = ["CodeSwitchGraph", "insert_switch_placeholders"]
