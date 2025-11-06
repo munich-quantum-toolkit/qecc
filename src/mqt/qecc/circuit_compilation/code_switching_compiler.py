@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import re
+
 import networkx as nx
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
@@ -291,7 +293,9 @@ class CodeSwitchGraph:
                             self.add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
                         qubit_last_node[q] = gate_node
 
-    def compute_min_cut(self, return_raw_data: bool = False) -> tuple[float, set[str], set[str]]:
+    def compute_min_cut(
+        self, return_raw_data: bool = False
+    ) -> tuple[int, list[tuple[int, int]]] | tuple[float, set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
 
         Returns:
@@ -303,21 +307,39 @@ class CodeSwitchGraph:
               - T is the complementary set of nodes.
         """
         cut_value, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
-        num_switches = 0
-        switch_cost = 0
-        seen = set()
-        for u, v, data in self.G.edges(data=True):
-            if data["edge_type"] == "temporal":
-                # needed to avoid double counting edges in undirected sense
-                key = tuple(sorted((u, v)))
-                if key not in seen:
-                    if (u in S and v in T) or (v in S and u in T):
-                        num_switches += 1
-                        switch_cost += data["capacity"]
-                    seen.add(key)
+        num_switches, switch_positions = self.extract_switch_locations(S, T)
         if return_raw_data:
             return cut_value, S, T
-        return num_switches, S, T
+        return num_switches, switch_positions
+
+    def extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
+        """Return a list of (qubit, depth) pairs where switches should be inserted."""
+        switch_positions = []
+        seen = set()
+        for u, v, data in self.G.edges(data=True):
+            if data.get("edge_type") == "temporal":
+                key = tuple(sorted((u, v)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                if (u in S and v in T) or (v in S and u in T):
+                    # We can take e.g. the 'earlier' node in time as the insertion point
+                    qubit, depth = parse_node_id(u)
+                    switch_positions.append((qubit, depth))
+        return len(switch_positions), switch_positions
+
+
+pattern = re.compile(r".*_q(\d+)_d(\d+)")
+
+
+def parse_node_id(node_id: str) -> tuple[int, int]:
+    """Extract (qubit, depth) from a node_id like 'H_q0_d3'."""
+    match = pattern.match(node_id)
+    if not match:
+        msg = f"Invalid node_id format: {node_id}"
+        raise ValueError(msg)
+    qubit, depth = map(int, match.groups())
+    return qubit, depth
 
 
 def inspect_serial_layers(circuit: QuantumCircuit) -> list[dict[str, object]]:
