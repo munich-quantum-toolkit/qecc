@@ -62,11 +62,12 @@ class StabilizerCode:
 
         self.z_logicals = None
         self.x_logicals = None
-
+        self.compute_logical()
         if z_logicals is not None:
             self.z_logicals = self.get_generators(z_logicals)
         if x_logicals is not None:
             self.x_logicals = self.get_generators(x_logicals)
+
 
         self._check_code_correct()
 
@@ -181,6 +182,155 @@ class StabilizerCode:
         z_logicals = ["I" * i + "Z" + "I" * (n - i - 1) for i in range(n)]
         x_logicals = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
+
+    def compute_logical(self) -> None:
+        """Compute logical Z/X operators from stabilizer generators.
+
+        Finds a basis of the centralizer modulo the stabilizers and canonicalizes it
+        into k symplectic pairs (Z̄_i, X̄_i). Stores results in self.z_logicals/self.x_logicals.
+        """
+        # Trivial code (no stabilizers): identity logicals
+        if self.generators.n_rows == 0:
+            self.z_logicals = StabilizerTableau.from_pauli_strings(
+                ["I"*i + "Z" + "I"*(self.n - i - 1) for i in range(self.n)]
+            )
+            self.x_logicals = StabilizerTableau.from_pauli_strings(
+                ["I"*i + "X" + "I"*(self.n - i - 1) for i in range(self.n)]
+            )
+            return
+
+        import numpy as np  # local import for safety
+
+        n = self.n
+        M = self.generators.tableau.matrix  # (r x 2n) over GF(2)
+        r = M.shape[0]
+
+        # Symplectic form Λ = [[0,I],[I,0]]
+        I = np.eye(n, dtype=np.int8)
+        Z0 = np.zeros((n, n), dtype=np.int8)
+        Lambda = np.block([[Z0, I], [I, Z0]])
+
+        # Centralizer: nullspace of M Λ
+        B = (M @ Lambda) % 2
+        C = mod2.nullspace(B).astype(np.int8)  # rows span centralizer
+
+        if C.size == 0:
+            self.z_logicals = StabilizerTableau.empty(n)
+            self.x_logicals = StabilizerTableau.empty(n)
+            return
+
+        def mod2_rank(A: np.ndarray) -> int:
+            return int(mod2.rank(A % 2))
+
+        # Build basis of the quotient C / span(M) with size 2k = 2(n - r)
+        base = M.copy()
+        base_rank = mod2_rank(base)
+        target = 2 * (n - r)
+
+        logical_basis: list[np.ndarray] = []
+        for v in C:
+            if len(logical_basis) == target:
+                break
+            test = np.vstack((base, v))
+            if mod2_rank(test) > base_rank:
+                logical_basis.append(v.copy())
+                base = test
+                base_rank += 1
+
+        logical_basis = np.array(logical_basis, dtype=np.int8)
+
+        # Fallback: try simple pairwise sums to complete to 2k (rarely needed)
+        if logical_basis.shape[0] != target:
+            rows = C.shape[0]
+            used = base.copy()
+            used_rank = base_rank
+            for i in range(rows):
+                for j in range(i + 1, rows):
+                    v = (C[i] ^ C[j]) % 2
+                    if len(logical_basis) == target:
+                        break
+                    test = np.vstack((used, v))
+                    if mod2_rank(test) > used_rank:
+                        logical_basis.append(v.copy())
+                        used = test
+                        used_rank += 1
+                if len(logical_basis) == target:
+                    break
+            logical_basis = np.array(logical_basis, dtype=np.int8)
+
+        def symp(u: np.ndarray, v: np.ndarray) -> int:
+            return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
+
+        # Symplectic Gram–Schmidt to obtain k pairs (Z_i, X_i)
+        L = logical_basis.copy()
+        vecs = [L[i].copy() for i in range(L.shape[0])]
+        Zs: list[np.ndarray] = []
+        Xs: list[np.ndarray] = []
+
+        def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
+            a = a.copy()
+            for Zp, Xp in zip(Zs, Xs):
+                if symp(a, Xp):
+                    a ^= Zp
+                if symp(a, Zp):
+                    a ^= Xp
+            return a
+
+        used: set[int] = set()
+        k = n - r
+        i = 0
+        while len(Zs) < k and i < len(vecs):
+            if i in used:
+                i += 1
+                continue
+            v = ortho_against_pairs(vecs[i])
+            # Find partner w with symp(v, w) = 1
+            j = None
+            for t in range(len(vecs)):
+                if t == i or t in used:
+                    continue
+                w_cand = ortho_against_pairs(vecs[t])
+                if symp(v, w_cand) == 1:
+                    j = t
+                    w = w_cand
+                    break
+            if j is None:
+                i += 1
+                continue
+
+            v = ortho_against_pairs(v)
+            w = ortho_against_pairs(w)
+            if symp(v, w) != 1:
+                i += 1
+                continue
+
+            # Clean remaining vectors to commute with the new pair
+            for t in range(len(vecs)):
+                if t == i or t == j or t in used:
+                    continue
+                u = vecs[t]
+                if symp(u, w):
+                    u ^= v
+                if symp(u, v):
+                    u ^= w
+                vecs[t] = u
+
+            Zs.append(v)
+            Xs.append(w)
+            used.add(i)
+            used.add(j)
+            i += 1
+
+        if len(Zs) != k or len(Xs) != k:
+            self.z_logicals = StabilizerTableau.empty(n)
+            self.x_logicals = StabilizerTableau.empty(n)
+            return
+
+        z_mat = np.vstack(Zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        x_mat = np.vstack(Xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
+        self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
+
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:
