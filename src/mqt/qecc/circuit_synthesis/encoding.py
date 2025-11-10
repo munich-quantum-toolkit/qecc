@@ -53,15 +53,18 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
     n_checks = checks.shape[0]
 
     if balance_checks:
-        _balance_matrix(logicals)
+        reduce_checks_by_row_ops(checks, logicals)
 
     checks, cnots = heuristic_gaussian_elimination(np.vstack((checks, logicals)), **kwargs)
 
+
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
+
     encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]
     initialization_qubits = np.where(checks[:n_checks, :].sum(axis=0) != 0)[0]
     # remove encoding qubits from initialization qubits
     initialization_qubits = np.setdiff1d(initialization_qubits, encoding_qubits)
+    # TODO: this can fail, need a more robust way
     rows = []  # type: list[int]
     qubit_to_row = {}
     for qubit in initialization_qubits:
@@ -818,41 +821,68 @@ def _build_css_encoder_from_cnot_list(
     return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
-def _balance_matrix(m: npt.NDArray[np.int8]) -> None:
-    """Balance the columns of the matrix.
+def reduce_checks_by_row_ops(
+    checks: npt.NDArray[np.int8],
+    logicals: npt.NDArray[np.int8],
+) -> None:
+    """Try to reduce the total number of 1s in [checks; logicals] by row ops on *checks* only.
 
-    Try to balance the number of 1's in each column via row operations without increasing the row-weight.
+    Allowed operation: for check rows i != j,
+        checks[j] <- checks[j] + checks[i] (mod 2)
+
+    Constraints:
+    - the new row must not have larger weight than *either* of the two rows we used
+      (same guard you had before),
+    - the *global* number of 1s across checks and logicals must strictly decrease.
+
+    The arrays are modified in place.
     """
-    variance = np.var(m.sum(axis=0))
-    reduced = False
+    r, n = checks.shape
+    # logicals can be empty (shape (0, n)), that's fine
 
-    while not reduced:
-        reduced = True
-        # compute row operations that do not increase the row-weights
-        row_ops = []
-        for i, row_1 in enumerate(m):
-            for j, row_2 in enumerate(m):
+    def total_ones() -> int:
+        return int(checks.sum() + logicals.sum())
+
+    improved = True
+    while improved:
+        improved = False
+        current_total = total_ones()
+
+        best_op: tuple[int, int] | None = None
+        best_delta = 0  # positive = global reduction
+
+        # try all check→check additions
+        for i in range(r):
+            row_i = checks[i]
+            w_i = int(row_i.sum())
+            for j in range(r):
                 if i == j:
                     continue
-                s = (row_1 + row_2) % 2
-                if s.sum() > row_1.sum() or s.sum() > row_2.sum():
+                row_j = checks[j]
+                w_j = int(row_j.sum())
+
+                s = (row_j + row_i) % 2
+                w_s = int(s.sum())
+
+                # enforce "don't increase row weight" constraint
+                if w_s > w_j or w_s > w_i:
                     continue
-                # compute associated column weights
-                m[j] = s  # noqa: B909
 
-                new_variance = np.var(m.sum(axis=0))
-                if new_variance < variance:
-                    row_ops.append((i, j, new_variance))
+                # effect on global #ones:
+                # only row_j changes
+                delta = w_j - w_s  # positive = improvement
+                if delta <= 0:
+                    continue
 
-                m[j] = row_2  # noqa: B909
-        # sort by lowest variance
-        row_ops.sort(key=operator.itemgetter(2))
-        # apply best row operation
-        if row_ops:
-            i, j = row_ops[0][:2]
-            m[i] = (m[i] + m[j]) % 2
-            reduced = False
-            variance = row_ops[0][2]
+                if delta > best_delta:
+                    best_delta = delta
+                    best_op = (i, j)
+
+        if best_op is not None:
+            i, j = best_op
+            checks[j] = (checks[j] + checks[i]) % 2
+            improved = True
+
 
 
 def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
