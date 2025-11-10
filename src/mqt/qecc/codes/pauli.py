@@ -118,7 +118,9 @@ class Pauli:
 class StabilizerTableau:
     """Class representing a stabilizer tableau."""
 
-    def __init__(self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase: npt.NDArray[np.int8]) -> None:
+    def __init__(
+        self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase: npt.NDArray[np.int8] | None = None
+    ) -> None:
         """Create a new stabilizer tableau.
 
         Args:
@@ -129,6 +131,8 @@ class StabilizerTableau:
             self.tableau = SymplecticMatrix(tableau)
         else:
             self.tableau = tableau
+        if phase is None:
+            phase = np.zeros((self.tableau.shape[0]), dtype=np.int8)
         if self.tableau.shape[0] != phase.shape[0]:
             msg = "The number of rows in the tableau must match the number of phases."
             raise InvalidPauliError(msg)
