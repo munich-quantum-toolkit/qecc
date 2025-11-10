@@ -324,7 +324,12 @@ class CNOTCircuit:
         pluses = self.get_plus_initialized()
         zeros = self.get_zero_initialized()
         hx, hz = self._propagate_paulis(pluses, zeros)
-        return CSSCode(hx, hz)
+        logicals = self.get_uninitialized()
+        lx, lz = self._propagate_paulis(logicals, logicals)
+        code = CSSCode(hx, hz)
+        code.Lx = lx
+        code.Lz = lz
+        return code
 
     def num_cnots(self) -> int:
         """Get number of CNOT gates in the circuit."""
