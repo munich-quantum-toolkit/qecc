@@ -16,7 +16,8 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
 
-DEFAULT_TEMPORAL_EDGE_CAPACITY = 100.0
+DEFAULT_TEMPORAL_EDGE_CAPACITY = 1000.0
+SWITCHING_LENGTH = 2  # minimum idle length before considering a bonus
 
 
 class CodeSwitchGraph:
@@ -196,6 +197,9 @@ class CodeSwitchGraph:
             The capacity reduction (bonus) to apply. Can be tuned by formula.
         """
         idle_length = max(0, current_depth - previous_depth - 1)
+
+        if idle_length <= SWITCHING_LENGTH:
+            idle_length = 0
 
         max_bonus = 5
         proportional_factor = 1
