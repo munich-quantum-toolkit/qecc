@@ -299,7 +299,7 @@ class CodeSwitchGraph:
 
     def compute_min_cut(
         self, return_raw_data: bool = False
-    ) -> tuple[int, list[tuple[int, int]]] | tuple[float, set[str], set[str]]:
+    ) -> tuple[int, list[tuple[int, int]], set[str], set[str]] | tuple[float, set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
 
         Returns:
@@ -314,7 +314,7 @@ class CodeSwitchGraph:
         num_switches, switch_positions = self.extract_switch_locations(S, T)
         if return_raw_data:
             return cut_value, S, T
-        return num_switches, switch_positions
+        return num_switches, switch_positions, S, T
 
     def extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
         """Return a list of (qubit, depth) pairs where switches should be inserted."""
