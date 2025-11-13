@@ -12,7 +12,7 @@
 # Generate random universal circuits for different system sizes in parallel.
 
 declare -a n_values=("128" "256" "512")
-num_circuits=1
+num_circuits=1000
 export num_circuits
 
 run_and_generate() {
