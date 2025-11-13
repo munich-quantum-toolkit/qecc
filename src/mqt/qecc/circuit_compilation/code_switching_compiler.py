@@ -16,7 +16,7 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
 
-DEFAULT_TEMPORAL_EDGE_CAPACITY = 1000.0
+DEFAULT_TEMPORAL_EDGE_CAPACITY = 1.0
 SWITCHING_LENGTH = 2  # minimum idle length before considering a bonus
 
 
@@ -41,13 +41,15 @@ class CodeSwitchGraph:
         Identifier for the sink node ("SNK").
     """
 
-    def __init__(self) -> None:
+    def __init__(self, edge_cap_ratio: float = 0.001) -> None:
         """Initialize the CodeSwitchGraph with source and sink nodes."""
         self.G: nx.DiGraph = nx.DiGraph()
         self.source: str = "SRC"
         self.sink: str = "SNK"
         self.G.add_node(self.source)
         self.G.add_node(self.sink)
+        self.edge_cap_ratio: float = edge_cap_ratio
+        self.base_unary_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY * self.edge_cap_ratio
 
     def add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
         """Add a node representing a quantum gate operation.
@@ -133,11 +135,13 @@ class CodeSwitchGraph:
             Capacity of the biased_code edges to be added.
         """
         if biased_code == "SRC":
-            self.add_edge_with_capacity(self.source, node_id, capacity=2.0, edge_type="unary")
-            self.add_edge_with_capacity(self.sink, node_id, capacity=1.0, edge_type="unary")
+            self.add_edge_with_capacity(
+                self.source, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary"
+            )
+            self.add_edge_with_capacity(self.sink, node_id, capacity=self.base_unary_capacity, edge_type="unary")
         elif biased_code == "SNK":
-            self.add_edge_with_capacity(self.source, node_id, capacity=1.0, edge_type="unary")
-            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0, edge_type="unary")
+            self.add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
+            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
 
     def connect_to_code(self, node_id: str, gate_type: str) -> None:
         """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
@@ -176,8 +180,7 @@ class CodeSwitchGraph:
         """
         self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
-    @staticmethod
-    def compute_idle_bonus(previous_depth: int, current_depth: int) -> float:
+    def compute_idle_bonus(self, previous_depth: int, current_depth: int) -> float:
         """Compute a bonus (capacity reduction) for idling qubits.
 
         The idea: if a qubit has been idle for several depth layers,
@@ -202,8 +205,7 @@ class CodeSwitchGraph:
             idle_length = 0
 
         max_bonus = 5
-        proportional_factor = 1
-        return min(max_bonus, proportional_factor * idle_length)
+        return min(max_bonus, idle_length) * self.base_unary_capacity
 
     def _edge_capacity_with_idle_bonus(
         self, depths: list[int], base_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY
@@ -229,7 +231,7 @@ class CodeSwitchGraph:
 
         prev_depth, curr_depth = depths[-2], depths[-1]
         bonus = self.compute_idle_bonus(prev_depth, curr_depth)
-        return max(1.0, base_capacity - bonus)
+        return base_capacity - bonus
 
     def build_from_qiskit(
         self,
