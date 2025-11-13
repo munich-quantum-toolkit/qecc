@@ -57,7 +57,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate random universal circuits.")
     parser.add_argument("--n", type=int, required=True, help="Number of qubits.")
     parser.add_argument("--num_circuits", type=int, default=400, help="Number of circuits to generate.")
-    parser.add_argument("--output_dir", type=Path, default=Path("circuits"), help="Base output directory.")
+    parser.add_argument(
+        "--output_dir", type=Path, default=Path("circuits_performance_benchmarking"), help="Base output directory."
+    )
     args = parser.parse_args()
 
     generate_circuits(args.n, args.num_circuits, args.output_dir)
