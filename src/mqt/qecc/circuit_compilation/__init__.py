@@ -10,5 +10,6 @@
 from __future__ import annotations
 
 from .code_switching_compiler import CodeSwitchGraph, insert_switch_placeholders
+from .compilation_utils import random_universal_circuit
 
-__all__ = ["CodeSwitchGraph", "insert_switch_placeholders"]
+__all__ = ["CodeSwitchGraph", "insert_switch_placeholders", "random_universal_circuit"]
