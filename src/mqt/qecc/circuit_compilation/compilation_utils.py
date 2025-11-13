@@ -106,3 +106,75 @@ def random_universal_circuit(
                 last_non_id_gate[q] = gate
 
     return circuit
+
+
+def count_code_switches(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
+    """Count how many code switches are needed for a circuit assuming.
+
+      - Code A supports H, CNOT
+      - Code B supports CNOT, T
+      - CNOT can only occur between qubits in the same code
+      - Each qubit starts in the code of its first gate.
+
+    Returns:
+        int: total number of code switches
+        dict: final code assignment per qubit
+    """
+    # Define transversal capabilities
+    code_a = {"h", "cx"}
+    code_b = {"t", "cx"}
+
+    num_qubits = circuit.num_qubits
+    current_code: list[str | None] = [None] * num_qubits
+    switch_count: int = 0
+
+    # Helper: which codes support a gate
+    def compatible_codes(gate_name: str) -> set[str]:
+        if gate_name in code_a and gate_name in code_b:
+            return {"A", "B"}
+        if gate_name in code_a:
+            return {"A"}
+        if gate_name in code_b:
+            return {"B"}
+        return set()
+
+    for instr in circuit.data:
+        gate = instr.operation.name
+        qubits = [circuit.find_bit(q).index for q in instr.qubits]
+
+        # Skip ID gates, they don't constrain anything
+        if gate == "id":
+            continue
+
+        compat = compatible_codes(gate)
+        if not compat:
+            msg = f"Gate {gate} not supported by any code"
+            raise ValueError(msg)
+
+        # Initialize codes for untouched qubits
+        for q in qubits:
+            if current_code[q] is None:
+                # Assign to one of the compatible codes (deterministically)
+                current_code[q] = next(iter(compat))
+
+        # If it's a multi-qubit gate, ensure code consistency
+        involved_codes = {current_code[q] for q in qubits}
+
+        if len(involved_codes) > 1:
+            # Must synchronize codes before performing CNOT
+            # For simplicity: switch all involved to one common valid code
+            target_code = "A" if "A" in compat else "B"
+            for q in qubits:
+                if current_code[q] != target_code:
+                    current_code[q] = target_code
+                    switch_count += 1
+
+        # Check if qubits are in a valid code for this gate
+        for q in qubits:
+            if current_code[q] not in compat:
+                # Need to switch this qubit's code
+                new_code = ({"A", "B"} - {current_code[q]}).pop()
+                current_code[q] = new_code
+                switch_count += 1
+
+    return switch_count, current_code
