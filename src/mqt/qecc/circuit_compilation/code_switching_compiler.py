@@ -299,9 +299,7 @@ class CodeSwitchGraph:
                             self.add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
                         qubit_last_node[q] = gate_node
 
-    def compute_min_cut(
-        self, return_raw_data: bool = False
-    ) -> tuple[int, list[tuple[int, int]], set[str], set[str]] | tuple[float, set[str], set[str]]:
+    def compute_min_cut(self) -> tuple[int, list[tuple[int, int]], set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
 
         Returns:
@@ -312,10 +310,8 @@ class CodeSwitchGraph:
               - S is the set of nodes reachable from the source,
               - T is the complementary set of nodes.
         """
-        cut_value, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
+        _cut_value, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
         num_switches, switch_positions = self.extract_switch_locations(S, T)
-        if return_raw_data:
-            return cut_value, S, T
         return num_switches, switch_positions, S, T
 
     def extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
