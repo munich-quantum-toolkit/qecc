@@ -154,8 +154,10 @@ def count_code_switches(circuit: QuantumCircuit) -> tuple[int, list[str | None]]
         # Initialize codes for untouched qubits
         for q in qubits:
             if current_code[q] is None:
-                # Assign to one of the compatible codes (deterministically)
-                current_code[q] = next(iter(compat))
+                # Assign to one of the compatible codes (non-deterministically -> set has no order)
+                # current_code[q] = next(iter(compat))
+                # deterministic choice for testing
+                current_code[q] = "A" if "A" in compat else "B"
 
         # If it's a multi-qubit gate, ensure code consistency
         involved_codes = {current_code[q] for q in qubits}
@@ -173,7 +175,8 @@ def count_code_switches(circuit: QuantumCircuit) -> tuple[int, list[str | None]]
         for q in qubits:
             if current_code[q] not in compat:
                 # Need to switch this qubit's code
-                new_code = ({"A", "B"} - {current_code[q]}).pop()
+                # new_code = ({"A", "B"} - {current_code[q]}).pop()
+                new_code = "A" if current_code[q] == "B" else "B"
                 current_code[q] = new_code
                 switch_count += 1
 
