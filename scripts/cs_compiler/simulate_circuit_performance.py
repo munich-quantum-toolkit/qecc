@@ -88,7 +88,7 @@ def main() -> None:
     parser.add_argument("--n", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--output_csv", type=Path, required=True)
-    parser.add_argument("--probs_type", type=str, default="default")
+    parser.add_argument("--distr_type", type=str, default="even")
     args = parser.parse_args()
 
     qc = loads(args.qasm_path.read_text())
@@ -98,7 +98,7 @@ def main() -> None:
         print(f"Seed {args.seed} already done, skipping.")
         return
 
-    result = run_trial(qc, args.n, depth, args.seed, args.probs_type)
+    result = run_trial(qc, args.n, depth, args.seed, args.distr_type)
     append_to_csv(args.output_csv, result)
 
 

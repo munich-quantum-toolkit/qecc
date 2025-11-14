@@ -11,16 +11,18 @@
 #
 # Generate random universal circuits for different system sizes in parallel.
 
-declare -a n_values=("128" "256" "512")
-num_circuits=5
+declare -a n_values=("64" "128" "256" "512")
+declare -a distr_types=("even" "ht_heavy" "cx_heavy")
+num_circuits=10
 export num_circuits
 
 run_and_generate() {
     local n=$1
-    python generate_random_circuits.py --n "$n" --num_circuits "$num_circuits"
+    local distr_type=$2
+    python generate_random_circuits.py --n "$n" --num_circuits "$num_circuits" --distr_type "$distr_type"
 }
 
 export -f run_and_generate
 
 # Run 3 jobs in parallel (adjust --jobs/-j according to your server)
-parallel --jobs 3 run_and_generate ::: ${n_values[@]}
+parallel --jobs 3 run_and_generate ::: "${n_values[@]}" ::: "${distr_types[@]}"
