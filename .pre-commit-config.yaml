@@ -115,7 +115,7 @@ repos:
 
   # Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
-    rev: 2025.11.07
+    rev: 2025.11.10
     hooks:
       - id: sp-repo-review
         additional_dependencies: ["repo-review[cli]"]
