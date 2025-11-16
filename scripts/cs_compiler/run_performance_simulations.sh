@@ -6,8 +6,12 @@
 #
 # Licensed under the MIT License
 
-declare -a n_values=("64" "128" "256" "512")
-declare -a distr_types=("even" "ht_heavy" "cx_heavy")
+# declare -a n_values=("64" "128" "256" "512")
+declare -a n_values=()
+for ((i=64; i<=1024; i+=64)); do
+    n_values+=("$i")
+done
+declare -a distr_types=("even" "cx_heavy")
 base_dir="circuits_performance_benchmarking"
 results_dir="results_performance_benchmarking"
 mkdir -p "$results_dir"
@@ -34,4 +38,4 @@ run_and_simulate() {
 export -f run_and_simulate
 
 # parallelize circuits, not n's
-parallel --jobs 5 run_and_simulate ::: "${n_values[@]}" ::: "${distr_types[@]}" ::: $(seq 0 9)
+parallel --jobs 5 run_and_simulate ::: "${n_values[@]}" ::: "${distr_types[@]}" ::: $(seq 0 99)
