@@ -46,19 +46,30 @@ def generate_circuits(n: int, num_circuits: int, output_dir: Path, gate_distr_ty
 
     print(f"Generating {num_circuits} {gate_distr_type} circuits for n={n}, depth={depth}...")
 
+    skipped = 0
+    generated = 0
+
     for seed in range(num_circuits):
+        filename = folder / f"{n}_{seed}.qasm"
+
+        if filename.exists():
+            print(f"  → Skipping existing circuit: {filename.name}")
+            skipped += 1
+            continue
         qc = random_universal_circuit(
             num_qubits=n, depth=depth, seed=seed, gate_probs=gate_probs_options[gate_distr_type]
         )
-        filename = folder / f"{n}_{seed}.qasm"
 
         with filename.open("w", encoding="utf-8") as f:
             f.write(dumps(qc))
 
+        generated += 1
+
         if seed % 50 == 0:
             print(f"  → Generated {seed}/{num_circuits}")
 
-    print(f"✅ Finished generating circuits for n={n}. Saved in: {folder}")
+    print(f"🟢 Finished: {generated} new circuits generated, {skipped} skipped.")
+    print(f"Saved in: {folder}")
 
 
 def main() -> None:
