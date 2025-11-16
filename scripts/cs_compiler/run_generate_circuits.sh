@@ -11,9 +11,14 @@
 #
 # Generate random universal circuits for different system sizes in parallel.
 
-declare -a n_values=("64" "128" "256" "512")
-declare -a distr_types=("even" "ht_heavy" "cx_heavy")
-num_circuits=10
+# declare -a n_values=("64" "128" "256" "512")
+# declare -a n_values=("64" "128" "192" "256" "320" "384" "448" "512")
+declare -a n_values=()
+for ((i=64; i<=1024; i+=64)); do
+    n_values+=("$i")
+done
+declare -a distr_types=("even" "cx_heavy")
+num_circuits=100
 export num_circuits
 
 run_and_generate() {
