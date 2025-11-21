@@ -141,7 +141,7 @@ class CodeSwitchGraph:
             capacity = self.config.default_temporal_edge_capacity
         self._add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
-    def _add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
+    def _add_bias_edges(self, node_id: str, biased_code: str | None = None) -> None:
         """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
 
         Parameters
@@ -149,6 +149,8 @@ class CodeSwitchGraph:
         biased_code : float
             Capacity of the biased_code edges to be added.
         """
+        if biased_code is None:
+            biased_code = self.config.biased_code
         if biased_code == "SRC":
             self._add_edge_with_capacity(
                 self.source, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary"
