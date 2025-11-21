@@ -94,6 +94,30 @@ def test_same_code_no_switch():
     assert num_switches == 0.0
 
 
+def test_one_way_transversal():
+    """Test capability to cover one-way transversal gates."""
+    qc = QuantumCircuit(2)
+    qc.t(0)
+    qc.h(1)
+    qc.cx(0, 1)
+
+    csg = CodeSwitchGraph()
+    csg.build_from_qiskit(qc)
+    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+
+    # We expect at least one switch due to T gate
+    assert num_switches == 1
+    assert switch_pos == [(0, 0)]  # Switch on qubit 0 at depth 0
+
+    csg = CodeSwitchGraph()
+    csg.build_from_qiskit(qc, one_way_transversal_cnot=True)
+    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+
+    # Now, no switches should be needed
+    assert num_switches == 0
+    assert switch_pos == []  # Switch on qubit 0 at depth 0
+
+
 # =============================================================
 # Stress tests
 
