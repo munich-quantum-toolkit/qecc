@@ -14,6 +14,7 @@ from mqt.qecc.circuit_compilation import (
     CodeSwitchGraph,
     random_universal_circuit,
 )
+from mqt.qecc.circuit_compilation.code_switching_compiler import CompilerConfig
 from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
 
 
@@ -116,6 +117,32 @@ def test_one_way_transversal():
     # Now, no switches should be needed
     assert num_switches == 0
     assert switch_pos == []  # Switch on qubit 0 at depth 0
+
+
+def test_code_bias():
+    """Test code bias effects switching positions."""
+    qc = QuantumCircuit(2)
+    qc.t(0)
+    qc.h(1)
+    qc.cx(0, 1)
+
+    # Check min-cuts build in source bias
+    csg = CodeSwitchGraph()
+    csg.build_from_qiskit(qc)
+    num_switches_source_bias, switch_pos_source_bias, _, _ = csg.compute_min_cut()
+
+    assert num_switches_source_bias == 1
+    assert switch_pos_source_bias == [(0, 0)]
+
+    # To equalize min-cuts build in source bias, change CompilerConfig to bias sink.
+    config = CompilerConfig(biased_code="SNK")
+    csg = CodeSwitchGraph(config=config)
+    csg.build_from_qiskit(qc, code_bias=True)
+    num_switches_sink_bias, switch_pos_sink_bias, _, _ = csg.compute_min_cut()
+
+    assert num_switches_sink_bias == 1
+    assert switch_pos_sink_bias != switch_pos_source_bias
+    assert switch_pos_sink_bias == [(1, 0)]
 
 
 # =============================================================
