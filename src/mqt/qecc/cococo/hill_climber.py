@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Hill Climbing with random restarts for Routing Layouts."""
 
 from __future__ import annotations
@@ -7,16 +14,20 @@ import operator
 import pickle  # noqa: S403
 import random
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, cast
 
-import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 from tqdm import tqdm
-from .types import HistoryTemp
 
-from .utils_routing import BasicRouter
 from .layouts import translate_layout_circuit
+from .utils_routing import BasicRouter
+
+if TYPE_CHECKING:
+    import networkx as nx
+
+    from .types import HistoryTemp
+
+    pos = tuple[int, int]
 
 random.seed(45)
 
@@ -53,7 +64,7 @@ class HillClimbing:
             max_restarts (int): Maximum number of random restarts.
             max_iterations (int): Maximum number of iterations per restart.
             circuit (list[tuple[int,int]]): list of qubits to connect (terminal pairs aka cnots)
-            metric (str): "crossing", "routing", "distance"
+            metric (str): "crossing", "routing"
             possible_factory_positions (list[tuple[int,int]] | None): possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout)
                 ! important: these positions must already respect the "free_rows"!, only the data_qubt_locs are changed depending on free_rows.
             num_factories (int | None): Number of factories to be used (subset of possible_factory_positions).
@@ -63,28 +74,23 @@ class HillClimbing:
             custom_layout (list[list[tuple[int,int]] | nx.Graph] | None): Defaults to None because custom layouts not assumed to be standard. The first list in the list should be
                 a `data_qubits_loc` of the node locations of data qubits and nx.Graph the corresponding graph (possibly differing from the standard networkx hex graph shape)
                 With custom_layout one can avoid using the `free_rows` related stuff.
+
         Raises:
             ValueError: _description_
         """
         # if circuit includes also single ints (i.e. T gates on qubit i), then ensure, that possible_factory_positions and num_factories are not None
         if any(type(el) is int for el in circuit):
-            assert (
-                possible_factory_positions is not None
-            ), "If T gates included in circuit, `possible_factory_positions` must NOT be None."
-            assert (
-                num_factories is not None
-            ), "If T gates included in circuit, `num_factories` must NOT be None."
-            assert (
-                t is not None
-            ), "If T gates included in circuit, `num_factories` must NOT be None."
+            assert possible_factory_positions is not None, (
+                "If T gates included in circuit, `possible_factory_positions` must NOT be None."
+            )
+            assert num_factories is not None, "If T gates included in circuit, `num_factories` must NOT be None."
+            assert t is not None, "If T gates included in circuit, `num_factories` must NOT be None."
             if possible_factory_positions is not None:
-                assert (
-                    len(possible_factory_positions) >= num_factories
-                ), f"`possible_factory_positions` must have more or equal elements than `num_factories`. But {len(possible_factory_positions)} ? {num_factories}"
+                assert len(possible_factory_positions) >= num_factories, (
+                    f"`possible_factory_positions` must have more or equal elements than `num_factories`. But {len(possible_factory_positions)} ? {num_factories}"
+                )
         else:
-            assert (
-                optimize_factories is False
-            ), "If no T gates present, optimize_factories must be false."
+            assert optimize_factories is False, "If no T gates present, optimize_factories must be false."
         self.possible_factory_positions = possible_factory_positions
         self.num_factories = num_factories
         self.optimize_factories = optimize_factories
@@ -95,21 +101,20 @@ class HillClimbing:
         self.use_dag = use_dag
         self.valid_path = valid_path
         if valid_path not in {"cc", "sc"}:
-            raise ValueError("Incorrect value for `valid_path`.")
+            msg = "Incorrect value for `valid_path`."
+            raise ValueError(msg)
 
         # custom layout types
         data_qubit_locs = custom_layout[0]
         self.g = custom_layout[1]
 
         self.data_qubit_locs = data_qubit_locs
-        assert metric in {"crossing", "exact", "distance"}
+        assert metric in {"crossing", "exact"}
         self.metric = metric
         self.circuit = circuit
         if any(type(el) is int for el in circuit):
             flattened_qubit_labels = [
-                num
-                for tup in self.circuit
-                for num in (tup if isinstance(tup, tuple) else (tup,))
+                num for tup in self.circuit for num in (tup if isinstance(tup, tuple) else (tup,))
             ]
         else:
             flattened_qubit_labels = [
@@ -117,36 +122,32 @@ class HillClimbing:
             ]  # isinstance only added for mypy
         self.q = max(flattened_qubit_labels) + 1
         if self.q < len(self.data_qubit_locs):
-            self.data_qubit_locs = self.data_qubit_locs[
-                : self.q
-            ]  # cut-off unnecessary qubit spots.
-        assert (
-            len(list(set(flattened_qubit_labels))) == self.q
-        ), "The available qubits must allow a continuous labeling."
-        assert (
-            len(data_qubit_locs) >= self.q
-        ), "The lattice must be able to host the number of qubits given in the circuit"
+            self.data_qubit_locs = self.data_qubit_locs[: self.q]  # cut-off unnecessary qubit spots.
+        assert len(list(set(flattened_qubit_labels))) == self.q, (
+            "The available qubits must allow a continuous labeling."
+        )
+        assert len(data_qubit_locs) >= self.q, (
+            "The lattice must be able to host the number of qubits given in the circuit"
+        )
         if possible_factory_positions is not None:
-            assert (
-                set(data_qubit_locs) & set(possible_factory_positions) == set()
-            ), "The factory possitions are not allowed to intersect with the logical data qubit locations."
+            assert set(data_qubit_locs) & set(possible_factory_positions) == set(), (
+                "The factory positions are not allowed to intersect with the logical data qubit locations."
+            )
 
-    def evaluate_solution(
-        self, layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]]
-    ) -> int:
+    def evaluate_solution(self, layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]]) -> int:
         """Evaluates the layout=solution according to self.metric."""
         terminal_pairs = translate_layout_circuit(self.circuit, layout)
         # factory_positions: list[tuple[int, int]]
         # if type(layout["factory_positions"]) is list[tuple[int,int]] or list:
         factory_positions_temp = layout["factory_positions"]
         if isinstance(factory_positions_temp, list):
-            factory_positions: list[tuple[int, int]] = factory_positions_temp
+            pass
         else:
             msg = "`layout['factory_positions']` must be of type list[tuple[int,int]] but this is not even a list."
             raise TypeError(msg)
 
-        factory_times = {el: self.t for el in factory_positions_temp}
-        clean_layout = {k: v for k, v in layout.items() if k != "factory_positions"}
+        factory_times = dict.fromkeys(factory_positions_temp, self.t)
+        clean_layout = cast("dict[int, pos] ", {k: v for k, v in layout.items() if k != "factory_positions"})
 
         router: BasicRouter
 
@@ -168,22 +169,11 @@ class HillClimbing:
         cost: int
         if self.metric == "crossing":
             if self.optimize_factories and any(type(el) is int for el in self.circuit):
-                cost = np.sum(
-                    router.count_crossings_per_layer(layers, t_crossings=True)
-                )
-            elif self.optimize_factories is False and any(
-                type(el) is int for el in self.circuit
-            ):
-                cost = np.sum(
-                    router.count_crossings_per_layer(layers, t_crossings=False)
-                )
+                cost = np.sum(router.count_crossings_per_layer(layers, t_crossings=True))
+            elif self.optimize_factories is False and any(type(el) is int for el in self.circuit):
+                cost = np.sum(router.count_crossings_per_layer(layers, t_crossings=False))
             else:
                 cost = np.sum(router.count_crossings_per_layer(layers))
-        elif self.metric == "distance":
-            distances = router.measure_terminal_pair_distances()
-            cost = np.sum(distances)
-            if any(type(el) is int for el in self.circuit):
-                raise NotImplementedError
         elif self.metric == "exact":
             vdp_layers, _ = router.find_total_vdp_layers_dyn(
                 layers,
@@ -192,7 +182,7 @@ class HillClimbing:
                 layout=clean_layout,
                 testing=False,  # testing does not work with adapted layouts
             )
-            cost = len(vdp_layers)
+            cost = len(cast("list[dict[pos | tuple[pos, pos], list[pos]]]", vdp_layers))
         return cost
 
     def gen_random_qubit_assignment(
@@ -203,16 +193,14 @@ class HillClimbing:
         perm = list(range(self.q))
         random.shuffle(perm)
         for i, j in zip(
-            perm, self.data_qubit_locs
+            perm, self.data_qubit_locs, strict=False
         ):  # this also respects custom layouts, because we adapted self.data_qubit_locs in case of layout_type="custom"
             layout.update({i: (int(j[0]), int(j[1]))})  # otherwise might be np.int64
 
         # Add generation of random choice of factory positions
         factory_positions = []
         if any(type(el) is int for el in self.circuit):
-            possible_factory_positions = cast(
-                "list[tuple[int,int]]", self.possible_factory_positions
-            )
+            possible_factory_positions = cast("list[tuple[int,int]]", self.possible_factory_positions)
             num_factories = cast("int", self.num_factories)
             factory_positions = random.sample(possible_factory_positions, num_factories)
         layout.update({"factory_positions": factory_positions})
@@ -249,9 +237,7 @@ class HillClimbing:
 
     def _parallel_hill_climbing(
         self, restart: int
-    ) -> tuple[
-        int, dict[int | str, tuple[int, int] | list[tuple[int, int]]], int, HistoryTemp
-    ]:
+    ) -> tuple[int, dict[int | str, tuple[int, int] | list[tuple[int, int]]], int, HistoryTemp]:
         """Helper method for parallel execution of hill climbing restarts.
 
         Args:
@@ -277,9 +263,7 @@ class HillClimbing:
                 break  # No neighbors, end this restart
 
             # Find the best neighbor
-            neighbor_scores = [
-                (neighbor, self.evaluate_solution(neighbor)) for neighbor in neighbors
-            ]
+            neighbor_scores = [(neighbor, self.evaluate_solution(neighbor)) for neighbor in neighbors]
             best_neighbor, best_neighbor_score = min(
                 neighbor_scores, key=operator.itemgetter(1)
             )  # Min for minimization
@@ -331,9 +315,7 @@ class HillClimbing:
             with multiprocessing.Pool(processes=processes) as pool:
                 results = list(
                     tqdm(
-                        pool.imap(
-                            self._parallel_hill_climbing, range(self.max_restarts)
-                        ),
+                        pool.imap(self._parallel_hill_climbing, range(self.max_restarts)),
                         total=self.max_restarts,
                         desc="Hill Climbing Restarts...",
                     )
@@ -348,9 +330,7 @@ class HillClimbing:
                         best_rep = restart
 
         else:  # sequential
-            for restart in tqdm(
-                range(self.max_restarts), desc="Hill Climbing Restarts..."
-            ):
+            for restart in tqdm(range(self.max_restarts), desc="Hill Climbing Restarts..."):
                 base_seed = 45  # You can change this to any fixed value
                 seed = base_seed + restart
                 random.seed(seed)
@@ -367,10 +347,7 @@ class HillClimbing:
                         break  # No neighbors, end this restart
 
                     # Find the best neighbor
-                    neighbor_scores = [
-                        (neighbor, self.evaluate_solution(neighbor))
-                        for neighbor in neighbors
-                    ]
+                    neighbor_scores = [(neighbor, self.evaluate_solution(neighbor)) for neighbor in neighbors]
                     best_neighbor, best_neighbor_score = min(
                         neighbor_scores, key=operator.itemgetter(1)
                     )  # Change to min for minimization
@@ -393,9 +370,7 @@ class HillClimbing:
                     best_solution, best_score = current_solution, current_score
                     best_rep = restart
 
-        best_solution = cast(
-            "dict[int | str, tuple[int, int] | list[tuple[int, int]]]", best_solution
-        )
+        best_solution = cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]", best_solution)
         best_score = cast("int", best_score)
         best_rep = cast("int", best_rep)
         return best_solution, best_score, best_rep, score_history

@@ -1,19 +1,30 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Misc functions for plotting and Benchmarking."""
 
 from __future__ import annotations
 
 import random
+from typing import TYPE_CHECKING
 
-from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
+from qiskit import QuantumRegister
 from qiskit.circuit.library import CXGate
-from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit
-import qiskit
+
+if TYPE_CHECKING:
+    import qiskit
 
 random.seed(45)
 
 
-def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tuple[qiskit.dagcircuit, list[tuple[int,int]|int]]:
+def create_random_sequential_circuit_dag(
+    j: int, q: int, num_gates: int
+) -> tuple[qiskit._accelerate.circuit.DAGCircuit, list[tuple[int, int]]]:
     """Creates a sequential circuit with j gates per layer on q qubits with at least num_gates in total.
 
     takes layers from perspective of DAG into account
@@ -29,13 +40,11 @@ def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tupl
 
     if q < j // 2:
         msg = "j is too large, cannot fit that many disjoint gates in a layer with q qubits"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     # first layer fully random
-    layer_int_temp = []
-    for l in range(j):
+    layer_int_temp: list[tuple[int, int]] = []
+    for _l in range(j):
         # sample control and target randomly
         flat = [x for pair in layer_int_temp for x in pair]
         while True:
@@ -62,7 +71,7 @@ def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tupl
         temp_noreuse.append(other)
 
     # next layers are done based on the previous layer
-    for i in range(1, num_layers):
+    for _i in range(1, num_layers):
         layer_int_temp = []
 
         temp_reuse_second = []
@@ -82,9 +91,7 @@ def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tupl
             random.shuffle(temp_lst)
             # print("temp lst", temp_lst)
             layer_int_temp.append((temp_lst[0], temp_lst[1]))
-            dag.apply_operation_back(
-                CXGate(), qargs=[qreg[temp_lst[0]], qreg[temp_lst[1]]]
-            )
+            dag.apply_operation_back(CXGate(), qargs=[qreg[temp_lst[0]], qreg[temp_lst[1]]])
         layers_int.append(layer_int_temp)
         pairs += layer_int_temp
         temp_reuse = temp_reuse_second
@@ -95,9 +102,7 @@ def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tupl
 
 def generate_max_parallel_circuit(
     q: int, min_depth: int
-) -> list[
-    tuple[int, int] | int
-]:  # actually only tuples but mypy needs the int elements too
+) -> list[tuple[int, int] | int]:  # actually only tuples but mypy needs the int elements too
     """Circuits with maximally parallelizable layers, i.e. per layer, ALL qubits are used in disjoint gates.
 
     CNOTS only.
@@ -157,16 +162,11 @@ def generate_min_parallel_circuit(
         # fill up layer, avoid duplicates
         while len(temp) < layer_size:
             random_tuple = random.choice(  # noqa: S311
-                [
-                    (labels_copy[i], labels_copy[i + 1])
-                    for i in range(0, len(labels_copy), 2)
-                ]
-            ) 
+                [(labels_copy[i], labels_copy[i + 1]) for i in range(0, len(labels_copy), 2)]
+            )
             # Check for duplicates in the layer
             if all(
-                t[0] not in [tup[0] for tup in temp]
-                and t[1] not in [tup[1] for tup in temp]
-                for t in [random_tuple]
+                t[0] not in [tup[0] for tup in temp] and t[1] not in [tup[1] for tup in temp] for t in [random_tuple]
             ):
                 temp.append(random_tuple)
                 labels_copy.remove(random_tuple[0])
@@ -263,9 +263,9 @@ def generate_random_circuit(
     num_c = len(list(cnot_pairs))
     num_t = len(list(t_gates))
     final_ratio = num_c / (num_c + num_t)
-    assert (
-        abs(ratio - final_ratio) < 0.07
-    ), "The final ratio deviates more than 0.05 from desired ratio= cnot/total gates"
+    assert abs(ratio - final_ratio) < 0.07, (
+        "The final ratio deviates more than 0.05 from desired ratio= cnot/total gates"
+    )
     random.shuffle(circuit)
 
     return circuit

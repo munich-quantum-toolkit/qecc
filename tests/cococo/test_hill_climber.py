@@ -11,15 +11,15 @@ from __future__ import annotations
 
 from mqt.qecc.cococo import hill_climber, layouts
 
+pos = tuple[int, int]
+
 
 def test_neighborhood():
     """Checks an example neighborhood."""
     layout_type = "hex"
     m, n = 1, 1
-    factories = []
-    g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-        layout_type, m, n, factories, remove_edges=False
-    )
+    factories: list[pos] = []
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges=False)
     custom_layout = [data_qubit_locs, g]
     t = 0
     use_dag = True
@@ -65,10 +65,8 @@ def test_crossing_metric():
     """Checks an example cost."""
     layout_type = "hex"
     m, n = 1, 1
-    factories = []
-    g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-        layout_type, m, n, factories, remove_edges=False
-    )
+    factories: list[pos] = []
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges=False)
     custom_layout = [data_qubit_locs, g]
     t = 0
     use_dag = True
@@ -277,7 +275,5 @@ def test_translate_layout_circuit():
 
     terminal_pairs_result = layouts.translate_layout_circuit(pairs, layout)
 
-    for el1, el2 in zip(terminal_pairs_desired, terminal_pairs_result):
-        assert (
-            el1 == el2
-        ), "The translation from layout and circuit to terminal pairs has at least one problem."
+    for el1, el2 in zip(terminal_pairs_desired, terminal_pairs_result, strict=False):
+        assert el1 == el2, "The translation from layout and circuit to terminal pairs has at least one problem."

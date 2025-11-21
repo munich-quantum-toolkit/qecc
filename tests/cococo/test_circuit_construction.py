@@ -1,8 +1,19 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Test the functions in circuit_construction and dag_helper."""
 
 from __future__ import annotations
 
+from typing import cast
+
 from mqt.qecc.cococo import circuit_construction, dag_helper, layouts
+
+pos = tuple[int,int]
 
 # ------------------with respect to naive sequential layer structure---------------------
 
@@ -38,7 +49,7 @@ def _split_layers_cnot(
 
 
 def test_generate_max_parallel_circuit():
-    """Tests generate_max_parallel_circuit"""
+    """Tests generate_max_parallel_circuit."""
     q = 4
     min_depth = q * 2
     circuit = circuit_construction.generate_max_parallel_circuit(q, min_depth)
@@ -62,14 +73,12 @@ def test_generate_max_parallel_circuit():
 
 
 def test_generate_min_parallel_circuit():
-    """Tests generate_min_parallel_circuit"""
+    """Tests generate_min_parallel_circuit."""
     q = 10
     min_depth = q * 3
 
     for layer_size in range(2, 6):
-        circuit = circuit_construction.generate_min_parallel_circuit(
-            q, min_depth, layer_size
-        )
+        circuit = circuit_construction.generate_min_parallel_circuit(q, min_depth, layer_size)
         split = _split_layers_cnot(circuit)
         for el in split:
             assert len(el) == layer_size
@@ -79,25 +88,19 @@ def test_generate_min_parallel_circuit():
 
 
 def test_random_sequential_circuit_dag():
-    """Tests create_random_sequential_circuit_dag"""
+    """Tests create_random_sequential_circuit_dag."""
     layers = 3
     q = 10
     j = 5
 
     num_gates = j * layers
-    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-        j, q, num_gates
-    )
+    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(j, q, num_gates)
     layers_dag = len(list(dag.layers()))
-    assert (
-        layers_dag == layers
-    ), "The circuit construction does not yield the correct dag layer number."
+    assert layers_dag == layers, "The circuit construction does not yield the correct dag layer number."
 
-    dag_2 = dag_helper.pairs_into_dag_agnostic(pairs, q)
+    dag_2 = dag_helper.pairs_into_dag_agnostic(cast("list[tuple[int,int]|int]", pairs), q)
     layers_dag_2 = len(list(dag_2.layers()))
-    assert (
-        layers_dag_2 == layers
-    ), "the dag from the pairs does not yield the correct dag layer number."
+    assert layers_dag_2 == layers, "the dag from the pairs does not yield the correct dag layer number."
 
     cx_count = dag_helper.count_cx_gates_per_layer(dag)
     for cx in cx_count:
@@ -106,14 +109,11 @@ def test_random_sequential_circuit_dag():
 
 def test_remainder_dag_helper():
     """Tests the remaining functions from dag_helper."""
-
     layout_type = "hex"
     m = 2
     n = 2
     factories = [(5, -1), (10, 0), (7, 7), (12, 5), (-2, 2)]
-    g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-        layout_type, m, n, factories, remove_edges=False
-    )
+    _g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges=False)
     pairs = [
         (1, 5),
         0,
@@ -145,11 +145,9 @@ def test_remainder_dag_helper():
         (17, 20),
     ]
     layout = {}
-    for i, j in zip(range(len(data_qubit_locs)), data_qubit_locs):
+    for i, j in zip(range(len(data_qubit_locs)), data_qubit_locs, strict=False):
         layout.update({i: (int(j[0]), int(j[1]))})
-    terminal_pairs = layouts.translate_layout_circuit(
-        pairs, layout
-    )  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int, int] | int]",pairs), cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]",layout))  # let's stick to the simple layout
 
     dag = dag_helper.terminal_pairs_into_dag(terminal_pairs, layout)
 
@@ -175,17 +173,13 @@ def test_remainder_dag_helper():
     assert layer0 == layer0_test, "Layer extraction does not work as anticipated."
 
     layer0_layout = dag_helper.extract_layer_from_dag(dag, layout, 0)
-    layer_0_trans = layouts.translate_layout_circuit(layer0, layout)
+    layer_0_trans = layouts.translate_layout_circuit(cast("list[tuple[int, int] | int]",layer0), cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]",layout))
 
-    assert (
-        layer0_layout == layer_0_trans
-    ), "Layer extraction or translation deos not work."
+    assert layer0_layout == layer_0_trans, "Layer extraction or translation deos not work."
 
     terminal_pairs_remainder = [(0, 0)]
 
-    layers_updated, _ = dag_helper.push_remainder_into_layers_dag(
-        dag, terminal_pairs_remainder, layout, layer0_layout
-    )
+    layers_updated, _ = dag_helper.push_remainder_into_layers_dag(dag, cast("list[tuple[pos,pos]|pos]",terminal_pairs_remainder), layout, layer0_layout)
 
     layers_updated_aim = [
         [
@@ -207,6 +201,4 @@ def test_remainder_dag_helper():
         [((3, 4), (8, 4))],
     ]
 
-    assert (
-        layers_updated == layers_updated_aim
-    ), "Pushing into DAG does not work as anticipated."
+    assert layers_updated == layers_updated_aim, "Pushing into DAG does not work as anticipated."

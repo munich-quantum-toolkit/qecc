@@ -1,13 +1,22 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Construct Example Layouts for Numerical Evaluation."""
 
 from __future__ import annotations
 
+import itertools
 import random
+from typing import cast
 
 import networkx as nx
-import itertools
 
 random.seed(45)
+pos = tuple[int, int]
 
 
 def translate_layout_circuit(
@@ -50,8 +59,7 @@ def gen_layout_scalable(
     factories: list[tuple[int, int]],
     remove_edges: bool = True,
 ) -> tuple[nx.Graph, list[tuple[int, int]], list[tuple[int, int]]]:
-    """
-    Generates layouts automatically, similar to those manual layouts in  `gen_layouts`.
+    """Generates layouts automatically, similar to those manual layouts in  `gen_layouts`.
 
     remove_edges: bool = whether or not to remove edges of adjacent data qubit locs
 
@@ -102,13 +110,13 @@ def gen_layout_scalable(
     ATTENTION: It's the user's responsibility to place factories in a reasonable way on the factory_ring!
     """
 
-    def add_hex_edges(g: nx.Graph):
-        """
-        private fct for adding edges at right spot
+    def add_hex_edges(g: nx.Graph) -> None:
+        """Private fct for adding edges at right spot.
+
         add all possible horizontal edges, i.e. between (x,y) and (x+1,y)
         add vertical edges s.t. brickwall layout, i.e. for two nodes (x1,y1) and (x2, y2):
         A) x1 = x2 = even, y1 = even, y2 = y1 + 1= odd
-        B) x1 = x2 = odd, y1 = odd, y2 = y1 + 1 = even
+        B) x1 = x2 = odd, y1 = odd, y2 = y1 + 1 = even.
         """
         for x1, y1 in g.nodes():
             if (x1 + 1, y1) in g.nodes():
@@ -118,10 +126,8 @@ def gen_layout_scalable(
             if y1 % 2 != 0 and x1 % 2 != 0 and (x1, y1 + 1) in g.nodes():  # B
                 g.add_edge((x1, y1), (x1, y1 + 1))
 
-    def add_outer_corridor(g: nx.Graph, data_qubit_locs):
-        """
-        this should add vertices and correct edges, such that there are no elements of data_qubit_locs at the boundary
-        """
+    def add_outer_corridor(g: nx.Graph, data_qubit_locs: list[pos]) -> list[pos]:
+        """This should add vertices and correct edges, such that there are no elements of data_qubit_locs at the boundary."""
         xs = [x for x, _ in data_qubit_locs]
         ys = [y for _, y in data_qubit_locs]
         xmin, xmax = min(xs), max(xs)
@@ -134,17 +140,13 @@ def gen_layout_scalable(
         ymax += 1
 
         # collect outer ring nodes
-        corridor_nodes = []
+        corridor_nodes: list[pos] = []
         for x in range(xmin, xmax + 1):
-            corridor_nodes.append((x, ymin))
-            corridor_nodes.append((x, ymax))
+            corridor_nodes.extend(((x, ymin), (x, ymax)))
         for y in range(ymin, ymax + 1):
-            corridor_nodes.append((xmin, y))
-            corridor_nodes.append((xmax, y))
+            corridor_nodes.extend(((xmin, y), (xmax, y)))
         for y in range(ymin, ymax + 1):
-            corridor_nodes.append(
-                (xmin - 1, y)
-            )  # one further col in order to be sure that corridor
+            corridor_nodes.append((xmin - 1, y))  # one further col in order to be sure that corridor  # noqa: FURB113
             corridor_nodes.append((xmax + 1, y))
 
         corridor_nodes = list(set(corridor_nodes))
@@ -152,37 +154,33 @@ def gen_layout_scalable(
         g.add_nodes_from(corridor_nodes)
         return corridor_nodes
 
-    def hex_cycles_from_position(node: tuple[int, int]) -> list[list[tuple[int, int]]]:
+    def hex_cycles_from_position(node: pos) -> list[list[pos]]:
         x, y = node
         gtemp = nx.Graph()
         for dx, dy in itertools.product(range(-2, 3), range(-1, 2)):
             gtemp.add_node((x + dx, y + dy))
         gtemp.add_node(node)
         add_hex_edges(gtemp)
-        cycles = nx.minimum_cycle_basis(gtemp, 6)
+        return cast("list[list[pos]]", nx.minimum_cycle_basis(gtemp, 6))
 
-        return cycles
-
-    def add_outer_corridor_diag(g: nx.Graph, data_qubit_locs):
-        """for hex layout there is not standard rectangular layout. instead you need diagonal boundaries of the layout"""
+    def add_outer_corridor_diag(g: nx.Graph, data_qubit_locs: list[pos]) -> list[pos]:
+        """For hex layout there is not standard rectangular layout. instead you need diagonal boundaries of the layout."""
         # find min and max per row and column
 
         corridor_nodes = set()
-        xs = set([x for x, _ in data_qubit_locs])
+        xs = {x for x, _ in data_qubit_locs}
         for xlabel in xs:
             ys = [y for x, y in data_qubit_locs if x == xlabel]
             ymin, ymax = min(ys), max(ys)
-            cyc = hex_cycles_from_position((xlabel, ymin)) + hex_cycles_from_position(
-                (xlabel, ymax)
-            )
+            cyc = hex_cycles_from_position((xlabel, ymin)) + hex_cycles_from_position((xlabel, ymax))
             for b in cyc:
                 corridor_nodes.update(b)
 
         g.add_nodes_from(list(corridor_nodes))
-        return corridor_nodes
+        return list(corridor_nodes)
 
-    def add_factory_ring(g: nx.Graph, corridor_nodes):
-        """add the factory ring on which factories are placed"""
+    def add_factory_ring(g: nx.Graph, corridor_nodes: list[pos]) -> list[pos]:
+        """Add the factory ring on which factories are placed."""
         factory_ring = set()
         for node in corridor_nodes:
             cycles = hex_cycles_from_position(node)
@@ -197,7 +195,8 @@ def gen_layout_scalable(
 
     g = nx.Graph()
     if layout_type not in {"row", "pair", "hex", "triple", "single"}:
-        raise ValueError("Wrong Layout type!")
+        msg = "Wrong Layout type!"
+        raise ValueError(msg)
 
     data_qubit_locs = []  # fill this up
 
@@ -258,44 +257,27 @@ def gen_layout_scalable(
     for row in range(m):
         for col in range(n):
             if layout_type in {"row", "pair"}:
-                temp_data_qubit_locs = [
-                    (x + x_offset * col, y + y_offset * row) for (x, y) in unit_data
-                ]
+                temp_data_qubit_locs = [(x + x_offset * col, y + y_offset * row) for (x, y) in unit_data]
+                temp_vertices = [(x + x_offset * col, y + y_offset * row) for (x, y) in unit_data + unit_ancilla]
+            elif layout_type == "hex":
+                temp_data_qubit_locs = [(x + x_offset * col + row, y + y_offset * row + col) for (x, y) in unit_data]
                 temp_vertices = [
-                    (x + x_offset * col, y + y_offset * row)
-                    for (x, y) in unit_data + unit_ancilla
-                ]
-            elif layout_type in {"hex"}:
-                temp_data_qubit_locs = [
-                    (x + x_offset * col + row, y + y_offset * row + col)
-                    for (x, y) in unit_data
-                ]
-                temp_vertices = [
-                    (x + x_offset * col + row, y + y_offset * row + col)
-                    for (x, y) in unit_data + unit_ancilla
+                    (x + x_offset * col + row, y + y_offset * row + col) for (x, y) in unit_data + unit_ancilla
                 ]
             elif layout_type in {"triple", "single"}:
-                temp_data_qubit_locs = [
-                    (x + col * x_offset + row, y + y_offset * row)
-                    for (x, y) in unit_data
-                ]
-                temp_vertices = [
-                    (x + col * x_offset + row, y + y_offset * row)
-                    for (x, y) in unit_data + unit_ancilla
-                ]
+                temp_data_qubit_locs = [(x + col * x_offset + row, y + y_offset * row) for (x, y) in unit_data]
+                temp_vertices = [(x + col * x_offset + row, y + y_offset * row) for (x, y) in unit_data + unit_ancilla]
             g.add_nodes_from(temp_vertices)
             data_qubit_locs += temp_data_qubit_locs
 
     if layout_type in {"row", "pair"}:
-        corridor_nodes = add_outer_corridor(
-            g, data_qubit_locs
-        )  # inplace addition of corridor
+        corridor_nodes = add_outer_corridor(g, data_qubit_locs)  # inplace addition of corridor
     elif layout_type in {"hex", "triple", "single"}:
         corridor_nodes = add_outer_corridor_diag(g, data_qubit_locs)
     add_hex_edges(g)  # inplace addition edges
 
     # remove leave ancilla nodes because they are not really useful for routing and only increase overhead
-    leaves = [n for n, d in g.degree() if d == 1 or d == 0]
+    leaves = [n for n, d in g.degree() if d in {1, 0}]
     g.remove_nodes_from(leaves)
 
     for leaf in leaves:
@@ -337,17 +319,13 @@ def filter_factory_nodes(
     kept_nodes = set()
 
     for el in factories:
-        assert (
-            el in factory_ring
-        ), "A factory is placed outside the factory ring which is not allowed"
+        assert el in factory_ring, "A factory is placed outside the factory ring which is not allowed"
 
     cycles = list(nx.simple_cycles(g, length_bound=6))  # only hexagons
     for node in factories:
         # add the least amount of qubits to get a full cycle
         possible_cycles = [
-            set(cycle) & set(factory_ring)
-            for cycle in cycles
-            if node in list(cycle) and len(list(cycle)) == 6
+            set(cycle) & set(factory_ring) for cycle in cycles if node in list(cycle) and len(list(cycle)) == 6
         ]
         if possible_cycles:
             best_cycle_part = min(possible_cycles, key=len)

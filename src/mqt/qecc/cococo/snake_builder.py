@@ -53,11 +53,7 @@ class SnakeBuilderSC:
             msg = "To encode 1 logical qubit, there must be 2 rough boundaries."
             raise ValueError(msg)
         dist = (
-            min(
-                [len(el) for el in positions_rough]
-                + [len(el) for el in positions_smooth]
-            )
-            - 1
+            min([len(el) for el in positions_rough] + [len(el) for el in positions_smooth]) - 1
         )  # -1 because we count edges not nodes
         if dist != d:
             msg = f"Distance d={dist} does not coincide with the geometry of the rough and smooth positions."
@@ -78,15 +74,9 @@ class SnakeBuilderSC:
         Returns:
             list[list[NodePos]]: Positions of ALL nodes in the snakes.
         """
-        positions_smooth_flattened = [
-            pos for sublist in self.positions_smooth for pos in sublist
-        ]
-        positions_rough_flattened = [
-            pos for sublist in self.positions_rough for pos in sublist
-        ]
-        boundary_nodes = set(
-            positions_smooth_flattened + positions_rough_flattened
-        )  # Boundary nodes
+        positions_smooth_flattened = [pos for sublist in self.positions_smooth for pos in sublist]
+        positions_rough_flattened = [pos for sublist in self.positions_rough for pos in sublist]
+        boundary_nodes = set(positions_smooth_flattened + positions_rough_flattened)  # Boundary nodes
 
         all_nodes = set(self.g.nodes())  # All nodes in the lattice
         exterior_nodes = set()  # Nodes confirmed to be exterior
@@ -201,17 +191,13 @@ class SnakeBuilderSC:
         nodes = self.boundary_nodes + self.inner_nodes  # all nodes
         for node in nodes:
             # collect all qubits which are connected to this node
-            temp_qubits = [
-                edge for edge in self.qubit_edges if edge[0] == node or edge[1] == node
-            ]
+            temp_qubits = [edge for edge in self.qubit_edges if edge[0] == node or edge[1] == node]
             if len(temp_qubits) > 1:
                 stars.append(temp_qubits)
         # if star is placed on rough boundary, it must be removed
         stars_new = []
         for star in stars:
-            {
-                tup for pair in star for tup in pair
-            }  # flatten edges such that nodes can be compared
+            {tup for pair in star for tup in pair}  # flatten edges such that nodes can be compared
             lst_on_rough = []
             for rough_b in self.positions_rough:  # through both rough boundaries
                 # check whether the central node of the star is on the rough boundary
@@ -220,9 +206,9 @@ class SnakeBuilderSC:
                 central_node = max(node_counts, key=lambda x: node_counts.get(x, 0))
                 common_el = central_node in rough_b
                 lst_on_rough.append(common_el)
-            assert (
-                sum(1 for x in lst_on_rough if x != 0) <= 1
-            ), "The star has overlaps with both rough boundaries, this cannot be."
+            assert sum(1 for x in lst_on_rough if x != 0) <= 1, (
+                "The star has overlaps with both rough boundaries, this cannot be."
+            )
             # horizontal rough remove: weigh3 star with 2 overlapping nodes on rough b
             if sum(lst_on_rough) != 1 or len(star) != 2:
                 stars_new.append(star)
@@ -276,8 +262,7 @@ class SnakeBuilderSC:
             plaquette = [
                 edge
                 for edge in edges_square
-                if (edge[0], edge[1]) in self.qubit_edges
-                or (edge[1], edge[0]) in self.qubit_edges
+                if (edge[0], edge[1]) in self.qubit_edges or (edge[1], edge[0]) in self.qubit_edges
             ]
             # add to plaquettes if more than 1 qubit contained
             if len(plaquette) > 1:
@@ -288,20 +273,18 @@ class SnakeBuilderSC:
         for plaquette in plaquettes:
             if len(plaquette) == 2:  # 2edges= 2 qubits
                 plaquette_flat = [node for edge in plaquette for node in edge]
-                # only check for those lements which are NOT the central qubit
+                # only check for those elements which are NOT the central qubit
                 node_counts = Counter(plaquette_flat)
                 central_node = max(node_counts, key=lambda x: node_counts.get(x, 0))
-                plaquette_flat = [
-                    node for node in plaquette_flat if node != central_node
-                ]
+                plaquette_flat = [node for node in plaquette_flat if node != central_node]
                 plaquette_set = set(plaquette_flat)
                 lst_on_smooth = []
                 for smooth_b in self.positions_smooth:
                     common_el = sum(1 for t in plaquette_set if t in smooth_b)
                     lst_on_smooth.append(common_el)
-                assert (
-                    sum(1 for x in lst_on_smooth if x != 0) <= 1
-                ), "The plaquette has overlaps with both rough boundaries, this cannot be."
+                assert sum(1 for x in lst_on_smooth if x != 0) <= 1, (
+                    "The plaquette has overlaps with both rough boundaries, this cannot be."
+                )
                 if sum(lst_on_smooth) != 2:
                     plaquettes_new.append(plaquette)
             else:
@@ -312,9 +295,7 @@ class SnakeBuilderSC:
 
     def create_stabs(
         self,
-    ) -> tuple[
-        list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]]
-    ]:
+    ) -> tuple[list[list[tuple[NodePos, NodePos]]], list[list[tuple[NodePos, NodePos]]]]:
         """Summarizes all previously defined methods and returns the plaquette stabilizers and star stabilizers of the merged snake object.
 
         Returns:
@@ -342,9 +323,7 @@ class SnakeBuilderSC:
 
     def gen_checks(
         self,
-    ) -> tuple[
-        npt.NDArray[np.int_], npt.NDArray[np.int_], dict[tuple[NodePos, NodePos], int]
-    ]:
+    ) -> tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], dict[tuple[NodePos, NodePos], int]]:
         """Return checks and translation dict.
 
         Returns:
@@ -387,9 +366,7 @@ class SnakeBuilderSC:
         # pos = {node: (node[0], -node[1]) for node in self.g.nodes()}  # Adjust for proper display
         pos = {(x, y): (x, y) for x, y in self.g.nodes()}  # Keep y as positive
 
-        midpoints = [
-            ((x1 + x2) / 2, (y1 + y2) / 2) for (x1, y1), (x2, y2) in self.qubit_edges
-        ]
+        midpoints = [((x1 + x2) / 2, (y1 + y2) / 2) for (x1, y1), (x2, y2) in self.qubit_edges]
 
         plt.figure(figsize=size)
         nx.draw(
@@ -438,23 +415,17 @@ class SnakeBuilderSC:
             centroid = square_pos_arr.mean(axis=0)
             factor = 0.6
             square_pos_arr = centroid + factor * (square_pos_arr - centroid)
-            polygon = Polygon(
-                square_pos_arr, closed=True, color="green", alpha=0.3, label="Z Face"
-            )
+            polygon = Polygon(square_pos_arr, closed=True, color="green", alpha=0.3, label="Z Face")
             ax.add_patch(polygon)
 
         nodes = self.boundary_nodes + self.inner_nodes  # all nodes
-        x_mid, y_mid = zip(*midpoints)  # Extract x and y coordinates
+        x_mid, y_mid = zip(*midpoints, strict=False)  # Extract x and y coordinates
         plt.scatter(x_mid, y_mid, color="red", s=20, zorder=3)  # Small blue dots
-        nx.draw_networkx_nodes(
-            self.g, pos, nodelist=nodes, node_color="blue", node_size=100
-        )
+        nx.draw_networkx_nodes(self.g, pos, nodelist=nodes, node_color="blue", node_size=100)
 
         # integer labels
         for original_label, new_label in self.trans_dict.items():
-            if (
-                original_label[0] in pos and original_label[1] in pos
-            ):  # Ensure both nodes exist
+            if original_label[0] in pos and original_label[1] in pos:  # Ensure both nodes exist
                 x1, y1 = pos[original_label[0]]
                 x2, y2 = pos[original_label[1]]
 
@@ -496,9 +467,7 @@ class SnakeBuilderSC:
 
         # no duplicates in legend
         handles, labels = plt.gca().get_legend_handles_labels()
-        unique_legend = dict.fromkeys(
-            labels, None
-        )  # Removes duplicates while keeping order
+        unique_legend = dict.fromkeys(labels, None)  # Removes duplicates while keeping order
         unique_handles = [handles[labels.index(label)] for label in unique_legend]
         plt.legend(unique_handles, unique_legend.keys())
         plt.show()
@@ -542,9 +511,9 @@ class SnakeBuilderSTDW:
         t = (d - 1) / 2
         q = int(3 * t**2 + 3 * t + 1)
         for i, triangle in enumerate(self.positions):
-            assert (
-                len(triangle) == q
-            ), f"Your set of vertices for triangle {i} does not fit the expected number of qubits for distance d={d}."
+            assert len(triangle) == q, (
+                f"Your set of vertices for triangle {i} does not fit the expected number of qubits for distance d={d}."
+            )
         p = int((q - 1) / 2)
         self.q = q
         self.p = p
@@ -562,12 +531,8 @@ class SnakeBuilderSTDW:
             list[list[NodePos]]: list of positions in the three boundaries/edges of the triangle.
         """
         triangle = self.positions[n_triangle]
-        lst_boundary = (
-            []
-        )  # gather all vertices with a single neighbor outside the set (i.e. on edge)
-        lst_corner = (
-            []
-        )  # gather all 3 vertices with 2 neighbors outside the set (i.e. corners of triangle)
+        lst_boundary = []  # gather all vertices with a single neighbor outside the set (i.e. on edge)
+        lst_corner = []  # gather all 3 vertices with 2 neighbors outside the set (i.e. corners of triangle)
         for vertex in triangle:
             neighbors_temp = list(self.g.neighbors(vertex))
             outside_neighbors = [v for v in neighbors_temp if v not in triangle]
@@ -580,18 +545,16 @@ class SnakeBuilderSTDW:
             elif len(outside_neighbors) == 3:
                 msg = f"There is an isolated qubit in your input triangle {n_triangle}."
                 raise ValueError(msg)
-        assert (
-            len(lst_corner) == 3
-        ), f"Something weird happened. lst_corner has {len(lst_corner)} elements instead of 3."
-        assert (
-            len(lst_boundary) == (self.d - 2) * 3
-        ), f"Something weird happened. lst_boundary has {len(lst_boundary)} elements instead of {(self.d - 2) * 3}."
+        assert len(lst_corner) == 3, (
+            f"Something weird happened. lst_corner has {len(lst_corner)} elements instead of 3."
+        )
+        assert len(lst_boundary) == (self.d - 2) * 3, (
+            f"Something weird happened. lst_boundary has {len(lst_boundary)} elements instead of {(self.d - 2) * 3}."
+        )
 
         return [lst_corner, lst_boundary]
 
-    def find_interface_ancillas(
-        self, triangle_0: int, triangle_1: int
-    ) -> list[tuple[NodePos, NodePos]]:
+    def find_interface_ancillas(self, triangle_0: int, triangle_1: int) -> list[tuple[NodePos, NodePos]]:
         """Finds ancilla vertices on the interface between triangle_0 and triangle_1.
 
         Args:
@@ -610,16 +573,12 @@ class SnakeBuilderSTDW:
             for el1 in lst_corner_1:
                 path = nx.dijkstra_path(self.g, el0, el1)
                 if len(path) - 1 == 2:
-                    next_nearest_neighbors.append(
-                        {"el0": el0, "el1": el1, "path": path}
-                    )
+                    next_nearest_neighbors.append({"el0": el0, "el1": el1, "path": path})
         for el0 in lst_boundary_0:
             for el1 in lst_boundary_1:
                 path = nx.dijkstra_path(self.g, el0, el1)
                 if len(path) - 1 == 2:
-                    next_nearest_neighbors.append(
-                        {"el0": el0, "el1": el1, "path": path}
-                    )
+                    next_nearest_neighbors.append({"el0": el0, "el1": el1, "path": path})
 
         # filter ancillas
         ancillas = [el["path"][1] for el in next_nearest_neighbors]
@@ -631,9 +590,7 @@ class SnakeBuilderSTDW:
             valid_neighbors = neighbors.intersection(ancillas)
             if valid_neighbors:
                 # Ensure unique pairs, avoid (n1, n2) and (n2, n1)
-                ancilla_pairs.extend(
-                    (node, neighbor) for neighbor in valid_neighbors if node < neighbor
-                )
+                ancilla_pairs.extend((node, neighbor) for neighbor in valid_neighbors if node < neighbor)
 
         return ancilla_pairs
 
@@ -675,15 +632,11 @@ class SnakeBuilderSTDW:
         # filter out interface only plaquettes to distinguish x_plaquettes and z_plaquettes
         x_plaquettes: list[list[NodePos]] = []
         for plaquette in z_plaquettes:
-            if (
-                len(plaquette) == 6
-            ):  # pairs, weight-3, weight-5 in the interface NOT wanted for X stabs
+            if len(plaquette) == 6:  # pairs, weight-3, weight-5 in the interface NOT wanted for X stabs
                 # also remove the hex plaquettes within the interface (touching vertices of two triangles)
                 is_x_plaquette = True
                 for i in range(len(self.positions) - 1):
-                    if set(plaquette) & set(self.positions[i]) and set(plaquette) & set(
-                        self.positions[i + 1]
-                    ):
+                    if set(plaquette) & set(self.positions[i]) and set(plaquette) & set(self.positions[i + 1]):
                         is_x_plaquette = False
                         break
                 if is_x_plaquette:
@@ -692,24 +645,22 @@ class SnakeBuilderSTDW:
                 x_plaquettes.append(list(plaquette))
 
         self.total_nodes = total_nodes
-        assert (
-            len(x_plaquettes) == self.n * self.p
-        ), "Your number of final x_plaquettes is wrong, maybe weird input?"
-        assert len(z_plaquettes) == self.n * self.p + self.d * (
-            self.n - 1
-        ), "Your number of final z_plaquettes is wrong, maybe weird input?"
+        assert len(x_plaquettes) == self.n * self.p, "Your number of final x_plaquettes is wrong, maybe weird input?"
+        assert len(z_plaquettes) == self.n * self.p + self.d * (self.n - 1), (
+            "Your number of final z_plaquettes is wrong, maybe weird input?"
+        )
 
         unique_tuples = set()
         for item in z_plaquettes + x_plaquettes:
             unique_tuples.update(item)
-        assert self.q_tilde == len(
-            list(unique_tuples)
-        ), "Q tilde is not the same number as the qubit support of the stabilizers. something is odd"
+        assert self.q_tilde == len(list(unique_tuples)), (
+            "Q tilde is not the same number as the qubit support of the stabilizers. something is odd"
+        )
 
         # check whether only 1 qubit is encoded
-        assert (
-            self.q_tilde - (len(z_plaquettes) + len(x_plaquettes)) == 1
-        ), "The snake does not encode one logical qubit!!!!"
+        assert self.q_tilde - (len(z_plaquettes) + len(x_plaquettes)) == 1, (
+            "The snake does not encode one logical qubit!!!!"
+        )
 
         return z_plaquettes, x_plaquettes
 
@@ -729,9 +680,7 @@ class SnakeBuilderSTDW:
             if len(overlap) >= 3:  # Ensure a meaningful plaquette (full or partial)
                 plaquettes.append(list(overlap))
 
-        assert (
-            len(plaquettes) == self.p
-        ), "Your number of final triangular color code plaquettes is wrong."
+        assert len(plaquettes) == self.p, "Your number of final triangular color code plaquettes is wrong."
         return plaquettes
 
     def integer_labeling(self) -> None:
@@ -741,9 +690,7 @@ class SnakeBuilderSTDW:
             trans_dict.update({node: i})
         self.trans_dict = trans_dict
 
-    def plot_stabilizers(
-        self, plaquettes: list[list[NodePos]], size: tuple[int, int] = (7, 7)
-    ) -> None:
+    def plot_stabilizers(self, plaquettes: list[list[NodePos]], size: tuple[int, int] = (7, 7)) -> None:
         """Plots the stabilizers, either z_plaquettes or x_plaquettes.
 
         Args:
@@ -783,7 +730,7 @@ class SnakeBuilderSTDW:
             [lst_corner, _] = self.find_triangle_edges_corners(i)
             # plot three connection lines
             triangle_pos = [pos[node] for node in lst_corner]
-            x_coords, y_coords = zip(*triangle_pos)
+            x_coords, y_coords = zip(*triangle_pos, strict=False)
             plt.plot(
                 (*x_coords, x_coords[0]),  # Close the triangle
                 (*y_coords, y_coords[0]),
@@ -799,9 +746,7 @@ class SnakeBuilderSTDW:
 
             if len(face_positions) == 2:
                 v1, v2 = face_positions[0], face_positions[1]
-                line = Line2D(
-                    [v1[0], v2[0]], [v1[1], v2[1]], color=colors[idx], lw=4
-                )  # 'lw' is line width
+                line = Line2D([v1[0], v2[0]], [v1[1], v2[1]], color=colors[idx], lw=4)  # 'lw' is line width
                 plt.gca().add_line(line)
             else:
                 face_positions = convex_hull(face_positions)
@@ -869,9 +814,7 @@ class SnakeBuilderSTDW:
                 shortest_paths = nx.single_source_shortest_path_length(
                     self.g, node, cutoff=3
                 )  # this would not work for d=3
-                closest_corners.extend(
-                    corner for corner in lst_corner if corner in shortest_paths
-                )
+                closest_corners.extend(corner for corner in lst_corner if corner in shortest_paths)
             outer_nodes += list(set(closest_corners))
             outer_nodes = list(set(outer_nodes))  # remove duplicates
             outer_nodes_total.append(outer_nodes)
@@ -887,30 +830,22 @@ class SnakeBuilderSTDW:
         Returns:
             list[list[NodePos]]: subset of stabilizers (each a list[NodePos]).
         """
-        assert (
-            triangle_idx != 0
-        ), "filling of triangles only possible if not at the ends of the snake"
-        assert (
-            triangle_idx != len(self.positions) - 1
-        ), "filling of triangles only possible if not at the ends of the snake"
+        assert triangle_idx != 0, "filling of triangles only possible if not at the ends of the snake"
+        assert triangle_idx != len(self.positions) - 1, (
+            "filling of triangles only possible if not at the ends of the snake"
+        )
         z_plaquettes, _ = self.find_stabilizers()
         subset_stabs = []
 
         positions_triangle = self.positions[triangle_idx]
-        prior_ancilla_pairs = self.find_interface_ancillas(
-            triangle_idx - 1, triangle_idx
-        )
-        next_ancilla_pairs = self.find_interface_ancillas(
-            triangle_idx, triangle_idx + 1
-        )
+        prior_ancilla_pairs = self.find_interface_ancillas(triangle_idx - 1, triangle_idx)
+        next_ancilla_pairs = self.find_interface_ancillas(triangle_idx, triangle_idx + 1)
         nodes_stdw = [node for plaq in prior_ancilla_pairs for node in plaq] + [
             node for plaq in next_ancilla_pairs for node in plaq
         ]
         relevant_positions = positions_triangle + nodes_stdw
         filtered_z_plaquettes: list[list[NodePos]] = [
-            plaquette
-            for plaquette in z_plaquettes
-            if any(node in relevant_positions for node in plaquette)
+            plaquette for plaquette in z_plaquettes if any(node in relevant_positions for node in plaquette)
         ]
 
         [lst_corner, lst_boundary] = self.find_triangle_edges_corners(triangle_idx + 1)
@@ -929,9 +864,9 @@ class SnakeBuilderSTDW:
             temp_plaquettes = []
             single_nodes = self._get_single_nodes(subset_stabs)
 
-            assert all(
-                value % 2 == 0 for value in Counter(single_nodes).values() if value != 1
-            ), "Something went wrong, there are 3,5,... plaquettes touching a node in the chosen stab subset."
+            assert all(value % 2 == 0 for value in Counter(single_nodes).values() if value != 1), (
+                "Something went wrong, there are 3,5,... plaquettes touching a node in the chosen stab subset."
+            )
 
             for plaq in subset_stabs:
                 single_nodes_in_plaq = [node for node in plaq if node in single_nodes]
@@ -939,20 +874,14 @@ class SnakeBuilderSTDW:
                     continue
 
                 all_neighboring_pairs = self.get_neighboring_pairs(single_nodes_in_plaq)
-                all_neighboring_pairs_disjoint = self.filter_disjoint_pairs(
-                    all_neighboring_pairs
-                )
+                all_neighboring_pairs_disjoint = self.filter_disjoint_pairs(all_neighboring_pairs)
 
                 for pair in all_neighboring_pairs_disjoint:
-                    matching_plaq = self.find_matching_plaquette(
-                        pair, filtered_z_plaquettes, subset_stabs
-                    )
+                    matching_plaq = self.find_matching_plaquette(pair, filtered_z_plaquettes, subset_stabs)
 
                     if matching_plaq is not None and len(matching_plaq) != 2:
                         temp_plaquettes.append(matching_plaq)
-                        single_nodes = self._get_single_nodes(
-                            subset_stabs + temp_plaquettes
-                        )
+                        single_nodes = self._get_single_nodes(subset_stabs + temp_plaquettes)
 
             subset_stabs += temp_plaquettes
             if not temp_plaquettes:
@@ -961,12 +890,8 @@ class SnakeBuilderSTDW:
         triangle_idx += 1
         subset_stabs_temp = []
         for plaq in subset_stabs:
-            overlap_left = sum(
-                1 for node in plaq if node in self.positions[triangle_idx - 1]
-            )
-            overlap_right = sum(
-                1 for node in plaq if node in self.positions[triangle_idx + 1]
-            )
+            overlap_left = sum(1 for node in plaq if node in self.positions[triangle_idx - 1])
+            overlap_right = sum(1 for node in plaq if node in self.positions[triangle_idx + 1])
             if overlap_left <= 2 and overlap_right <= 2:
                 subset_stabs_temp.append(plaq)
 
@@ -980,9 +905,7 @@ class SnakeBuilderSTDW:
         counts = Counter(flattened_nodes)
         return [key for key, value in counts.items() if value == 1]
 
-    def get_neighboring_pairs(
-        self, single_nodes_in_plaq: list[NodePos]
-    ) -> list[tuple[NodePos, NodePos]]:
+    def get_neighboring_pairs(self, single_nodes_in_plaq: list[NodePos]) -> list[tuple[NodePos, NodePos]]:
         """Find pairs of single nodes which are neighbors on the graph."""
         return [
             pair
@@ -997,12 +920,7 @@ class SnakeBuilderSTDW:
         """Find disjoint pairs of neighboring nodes on a plaquette."""
         disjoint_pairs = []
         for pair in all_neighboring_pairs:
-            other_nodes = [
-                item
-                for sublist in all_neighboring_pairs
-                if sublist != pair
-                for item in sublist
-            ]
+            other_nodes = [item for sublist in all_neighboring_pairs if sublist != pair for item in sublist]
             if pair[0] not in other_nodes or pair[1] not in other_nodes:
                 disjoint_pairs.append(pair)
         return disjoint_pairs
@@ -1014,9 +932,7 @@ class SnakeBuilderSTDW:
         subset_stabs: list[list[NodePos]],
     ) -> list[NodePos] | None:
         """Find plaquette which shares pair but is not in subset_stabs."""
-        for plaquette in [
-            plaq for plaq in filtered_z_plaquettes if plaq not in subset_stabs
-        ]:
+        for plaquette in [plaq for plaq in filtered_z_plaquettes if plaq not in subset_stabs]:
             if all(node in plaquette for node in pair):
                 return plaquette
         return None
@@ -1054,23 +970,19 @@ class SnakeBuilderSTDW:
         interface_ancillas = []
         for i in range(n - 1):
             interface_ancillas += self.find_interface_ancillas(i, i + 1)
-        interface_ancillas_flat = [
-            item for sublist in interface_ancillas for item in sublist
-        ]
+        interface_ancillas_flat = [item for sublist in interface_ancillas for item in sublist]
 
         # count which nodes have odd number of touches with a stabilizer, if yes add a weight-2
         flattened_nodes = [item for sublist in subset_z_stabs for item in sublist]
         counts = Counter(flattened_nodes)
         for node, count in counts.items():
             if (
-                count % 2 != 0
-                and node not in left_logical
-                and node not in right_logical
+                count % 2 != 0 and node not in left_logical and node not in right_logical
             ):  # exclude the logical patches' boundaries, because they should of course not vanish as they constitute the ZL ZL
                 # check whether part of interface ancillas, b.c. we only can do corrections there
-                assert (
-                    node in interface_ancillas_flat
-                ), "There is a correction to be done which you cannot do with the current stabilizer construction..."
+                assert node in interface_ancillas_flat, (
+                    "There is a correction to be done which you cannot do with the current stabilizer construction..."
+                )
                 # find stdw ancilla neighbor
                 neighbors: list[NodePos] = self.g.neighbors(node)
                 pair = None
@@ -1096,18 +1008,14 @@ class SnakeBuilderSTDW:
         z_left_nodes: list[NodePos] = []
         for anc in ancillas:
             neighbors = self.g.neighbors(anc)
-            z_left_nodes.extend(
-                neigh for neigh in neighbors if neigh in lst_corner + lst_boundary
-            )
+            z_left_nodes.extend(neigh for neigh in neighbors if neigh in lst_corner + lst_boundary)
 
         closest_corners: list[NodePos] = []
         for node in z_left_nodes:
             shortest_paths = nx.single_source_shortest_path_length(
                 self.g, node, cutoff=3
             )  # this would not work for d=3
-            closest_corners.extend(
-                corner for corner in lst_corner if corner in shortest_paths
-            )
+            closest_corners.extend(corner for corner in lst_corner if corner in shortest_paths)
         z_left_nodes += closest_corners
         z_left_nodes = list(set(z_left_nodes))
 
@@ -1117,9 +1025,7 @@ class SnakeBuilderSTDW:
         z_right_nodes: list[NodePos] = []
         for anc in ancillas:
             neighbors = self.g.neighbors(anc)
-            z_right_nodes.extend(
-                neigh for neigh in neighbors if neigh in lst_corner + lst_boundary
-            )
+            z_right_nodes.extend(neigh for neigh in neighbors if neigh in lst_corner + lst_boundary)
 
         closest_corners = []
         for node in z_right_nodes:
@@ -1135,11 +1041,7 @@ class SnakeBuilderSTDW:
         flattened_nodes = [item for sublist in subset_z_stabs for item in sublist]
         counts = Counter(flattened_nodes)
         for node, count in counts.items():
-            if (
-                count % 2 != 0
-                and node not in z_left_nodes
-                and node not in z_right_nodes
-            ):
+            if count % 2 != 0 and node not in z_left_nodes and node not in z_right_nodes:
                 return False
         return True
 
@@ -1168,9 +1070,7 @@ class SnakeBuilderSteane:
         self.positions = positions
         self.n = len(positions)
         for tile in self.positions:
-            assert sorted(tile.values()) == list(
-                range(7)
-            ), "Your 0-6 labeling of each Steane Tile is wrong!"
+            assert sorted(tile.values()) == list(range(7)), "Your 0-6 labeling of each Steane Tile is wrong!"
 
         # determine global labeling for all vertices in the n-snake
         all_pos = []
@@ -1229,29 +1129,21 @@ class SnakeBuilderSteane:
 
     def check_interface(self, i: int) -> dict[NodePos, int]:
         """Checks which edge of the ith steane tile is connected to the next (i+1) 0,2,1 edge."""
-        next_edge = [
-            key for key, value in self.positions[i + 1].items() if value in {0, 1, 2}
-        ]
+        next_edge = [key for key, value in self.positions[i + 1].items() if value in {0, 1, 2}]
         # find adjacent edge of ith steane to `next_edge`'s 0,1,2 edge
-        adjacent_vertices = (
-            set()
-        )  # whole set of adjacent vertices to vertices in `next_edge`
+        adjacent_vertices = set()  # whole set of adjacent vertices to vertices in `next_edge`
         for vertex in next_edge:
             adjacent_vertices.update(self.g.neighbors(vertex))
         # check which nodes from ith steane are in adjacent_vertices
         adjacent_edge = {
-            vertex: self.positions[i][vertex]
-            for vertex in adjacent_vertices
-            if vertex in self.positions[i]
+            vertex: self.positions[i][vertex] for vertex in adjacent_vertices if vertex in self.positions[i]
         }
-        assert (
-            len(adjacent_edge) == 3
-        ), "Something with the input steane tiles must be wrong (incorrect number of adjacent vertices. should be 3)"
+        assert len(adjacent_edge) == 3, (
+            "Something with the input steane tiles must be wrong (incorrect number of adjacent vertices. should be 3)"
+        )
         return adjacent_edge
 
-    def check_paired_neighbor(
-        self, pos_i_new: dict[NodePos, int], pos_i1_new: dict[NodePos, int]
-    ) -> bool:
+    def check_paired_neighbor(self, pos_i_new: dict[NodePos, int], pos_i1_new: dict[NodePos, int]) -> bool:
         """Checks whether we can find a weight-8 x plaquette which actually connects neighbored plaqeuttes between i and i+1."""
         neighboring_pairs = []
         # neighboring_two is a bool which determines whether the weight 8 stab would connect neighboring patches
@@ -1276,87 +1168,35 @@ class SnakeBuilderSteane:
         if sorted(adjacent_edge.values()) == [0, 3, 4]:
             k = 0  # make a choice for the two possibilities
             x_stab = {}
-            x_stab.update(
-                {
-                    key: value
-                    for key, value in self.positions[0].items()
-                    if value in compatible_x_stabs[k]["i"]
-                }
-            )
-            x_stab.update(
-                {
-                    key: value
-                    for key, value in self.positions[1].items()
-                    if value in compatible_x_stabs[k]["i+1"]
-                }
-            )
-            x_stabilizers.extend(
-                (
-                    x_stab,
-                    {
-                        key: value
-                        for key, value in self.positions[0].items()
-                        if value in {1, 2, 5, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[0].items()
-                        if value in {3, 4, 5, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[1].items()
-                        if value in {1, 2, 5, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[1].items()
-                        if value in {3, 4, 5, 6}
-                    },
-                )
-            )
+            x_stab.update({
+                key: value for key, value in self.positions[0].items() if value in compatible_x_stabs[k]["i"]
+            })
+            x_stab.update({
+                key: value for key, value in self.positions[1].items() if value in compatible_x_stabs[k]["i+1"]
+            })
+            x_stabilizers.extend((
+                x_stab,
+                {key: value for key, value in self.positions[0].items() if value in {1, 2, 5, 6}},
+                {key: value for key, value in self.positions[0].items() if value in {3, 4, 5, 6}},
+                {key: value for key, value in self.positions[1].items() if value in {1, 2, 5, 6}},
+                {key: value for key, value in self.positions[1].items() if value in {3, 4, 5, 6}},
+            ))
         elif sorted(adjacent_edge.values()) == [1, 3, 5]:
             k = 2
             x_stab = {}
-            x_stab.update(
-                {
-                    key: value
-                    for key, value in self.positions[0].items()
-                    if value in compatible_x_stabs[k]["i"]
-                }
-            )
-            x_stab.update(
-                {
-                    key: value
-                    for key, value in self.positions[1].items()
-                    if value in compatible_x_stabs[k]["i+1"]
-                }
-            )
-            x_stabilizers.extend(
-                (
-                    x_stab,
-                    {
-                        key: value
-                        for key, value in self.positions[0].items()
-                        if value in {1, 2, 5, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[0].items()
-                        if value in {0, 2, 4, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[1].items()
-                        if value in {1, 2, 5, 6}
-                    },
-                    {
-                        key: value
-                        for key, value in self.positions[1].items()
-                        if value in {3, 4, 5, 6}
-                    },
-                )
-            )
+            x_stab.update({
+                key: value for key, value in self.positions[0].items() if value in compatible_x_stabs[k]["i"]
+            })
+            x_stab.update({
+                key: value for key, value in self.positions[1].items() if value in compatible_x_stabs[k]["i+1"]
+            })
+            x_stabilizers.extend((
+                x_stab,
+                {key: value for key, value in self.positions[0].items() if value in {1, 2, 5, 6}},
+                {key: value for key, value in self.positions[0].items() if value in {0, 2, 4, 6}},
+                {key: value for key, value in self.positions[1].items() if value in {1, 2, 5, 6}},
+                {key: value for key, value in self.positions[1].items() if value in {3, 4, 5, 6}},
+            ))
         else:
             msg = "Wrong edge connected between Steane patches."
             raise RuntimeError(msg)
@@ -1370,49 +1210,24 @@ class SnakeBuilderSteane:
                 # find the present stab which includes el["i"]
                 stab = self.find_matching_dict(x_stabilizers, el["i"], i)
                 if len(stab) == 4:
-                    pos_i_new = {
-                        key: value
-                        for key, value in current_patch.items()
-                        if value in el["i"]
-                    }
-                    pos_i1_new = {
-                        key: value
-                        for key, value in next_patch.items()
-                        if value in el["i+1"]
-                    }
+                    pos_i_new = {key: value for key, value in current_patch.items() if value in el["i"]}
+                    pos_i1_new = {key: value for key, value in next_patch.items() if value in el["i+1"]}
                     neighboring_two = self.check_paired_neighbor(pos_i_new, pos_i1_new)
                     if neighboring_two:
                         x_stabilizers.remove(stab)
                         # add the weight 8 stabilizer
                         x_stab_new = {}
-                        x_stab_new.update(
-                            {
-                                key: value
-                                for key, value in current_patch.items()
-                                if value in el["i"]
-                            }
-                        )
-                        x_stab_new.update(
-                            {
-                                key: value
-                                for key, value in next_patch.items()
-                                if value in el["i+1"]
-                            }
-                        )
-                        temp_occupied_i1 = el[
-                            "i+1"
-                        ]  # already occupied plaquette on i+1 steane patch
+                        x_stab_new.update({key: value for key, value in current_patch.items() if value in el["i"]})
+                        x_stab_new.update({key: value for key, value in next_patch.items() if value in el["i+1"]})
+                        temp_occupied_i1 = el["i+1"]  # already occupied plaquette on i+1 steane patch
                         x_stabilizers.append(x_stab_new)
                         break
             # add remaining weight 4 stabilizers on i+1
             remainder = [
-                element
-                for element in standard_steane_plaquettes
-                if sorted(element) != sorted(temp_occupied_i1)
+                element for element in standard_steane_plaquettes if sorted(element) != sorted(temp_occupied_i1)
             ]
             filtered_result = [
-                {key: value for key, value in next_patch.items() if value in plaquette}
-                for plaquette in remainder
+                {key: value for key, value in next_patch.items() if value in plaquette} for plaquette in remainder
             ]
             x_stabilizers.extend(filtered_result)
 
@@ -1423,16 +1238,12 @@ class SnakeBuilderSteane:
         self, x_stabilizers: list[dict[NodePos, int]], target_values: list[int], i: int
     ) -> dict[NodePos, int]:
         """Finds the set of stabilizers in the ith patch which have the desired target_values."""
-        target_set = set(
-            target_values
-        )  # Convert target_values to a set for fast lookup
+        target_set = set(target_values)  # Convert target_values to a set for fast lookup
         temp_keys = set(self.positions[i].keys())
         x_stabilizers_temp = [
             stabilizer
             for stabilizer in x_stabilizers
-            if not temp_keys.isdisjoint(
-                stabilizer.keys()
-            )  # Check if there is an intersection
+            if not temp_keys.isdisjoint(stabilizer.keys())  # Check if there is an intersection
         ]
         candidates = []
         for stabilizer_dict in x_stabilizers_temp:
@@ -1462,9 +1273,7 @@ class SnakeBuilderSteane:
             current_patch = self.positions[i]
             next_patch = self.positions[i + 1]
             # find weight-8 stabilizer which connects both patches
-            x_stab_connect = self.find_matching_dict_z(
-                x_stabs_weight_eight, current_patch, next_patch
-            )
+            x_stab_connect = self.find_matching_dict_z(x_stabs_weight_eight, current_patch, next_patch)
             # find the compatible weight two stab sharing qubits with the x_stab_connect
             for weight_two in compatible_weight_two:
                 for key, val in current_patch.items():
@@ -1475,13 +1284,7 @@ class SnakeBuilderSteane:
                         pos_next = key
                 neighbors = self.neighboring_vertex(pos_current, pos_next)
                 if x_stab_connect is not None:  # noqa: SIM102
-                    if (
-                        all(
-                            value in x_stab_connect.values()
-                            for value in weight_two.values()
-                        )
-                        and neighbors
-                    ):
+                    if all(value in x_stab_connect.values() for value in weight_two.values()) and neighbors:
                         # add weight_two to stabs
                         stab_temp = {}
                         for key, val in current_patch.items():
@@ -1528,9 +1331,7 @@ class SnakeBuilderSteane:
 
         for x_stab in x_stabs:
             x_keys = set(x_stab.keys())
-            if (
-                x_keys & current_keys and x_keys & next_keys
-            ):  # Check intersection with both
+            if x_keys & current_keys and x_keys & next_keys:  # Check intersection with both
                 return x_stab
         return None  # Return None if no match is found
 
@@ -1553,12 +1354,8 @@ class SnakeBuilderSteane:
             for label_i in dictionary["i"]:
                 for label_i1 in dictionary["i+1"]:
                     # Find positions in the dictionaries
-                    positions_i = [
-                        pos for pos, label in current_patch.items() if label == label_i
-                    ]
-                    positions_i1 = [
-                        pos for pos, label in next_patch.items() if label == label_i1
-                    ]
+                    positions_i = [pos for pos, label in current_patch.items() if label == label_i]
+                    positions_i1 = [pos for pos, label in next_patch.items() if label == label_i1]
 
                     # Check if any position from i is a neighbor of a position from i+1
                     for pos_i in positions_i:
@@ -1571,9 +1368,7 @@ class SnakeBuilderSteane:
             # Get all integers in the dictionary's values
             value_set = {val for values in dictionary.values() for val in values}
             # Check if the two sets are disjoint
-            if pair_set.isdisjoint(value_set) and neighboring_pair(
-                current_patch, next_patch, dictionary
-            ):
+            if pair_set.isdisjoint(value_set) and neighboring_pair(current_patch, next_patch, dictionary):
                 return dictionary
 
         return None
@@ -1605,15 +1400,11 @@ class SnakeBuilderSteane:
 
         return checks_z, checks_x
 
-    def plot_stabilizers(
-        self, stabilizers: list[dict[NodePos, int]], size: tuple[int, int] = (7, 7)
-    ) -> None:
+    def plot_stabilizers(self, stabilizers: list[dict[NodePos, int]], size: tuple[int, int] = (7, 7)) -> None:
         """Plots the faces of the stabilizers for a given list of stabilizers (either x or z)."""
         pos = nx.get_node_attributes(self.g, "pos")
         num_faces = len(stabilizers)
-        colors = cm.rainbow(
-            np.linspace(0, 1, num_faces)
-        )  # Generate colors from the rainbow palette
+        colors = cm.rainbow(np.linspace(0, 1, num_faces))  # Generate colors from the rainbow palette
 
         plt.figure(figsize=size)
         nx.draw(
@@ -1638,14 +1429,10 @@ class SnakeBuilderSteane:
                     va="center",
                 )
 
-        for face_vertices, color in zip(
-            [list(el.keys()) for el in stabilizers], colors
-        ):
+        for face_vertices, color in zip([list(el.keys()) for el in stabilizers], colors, strict=False):
             if len(face_vertices) == 2:  # Check if it's a digon
                 v1, v2 = [pos[label] for label in face_vertices]
-                line = Line2D(
-                    [v1[0], v2[0]], [v1[1], v2[1]], color=color, lw=4
-                )  # 'lw' is line width
+                line = Line2D([v1[0], v2[0]], [v1[1], v2[1]], color=color, lw=4)  # 'lw' is line width
                 plt.gca().add_line(line)
             else:
                 # Order vertices and compute the convex hull for other faces
@@ -1659,9 +1446,7 @@ class SnakeBuilderSteane:
                 )
                 plt.gca().add_patch(polygon)
 
-        plt.gca().set_aspect(
-            "equal"
-        )  # Ensure the aspect ratio is equal for proper visualization
+        plt.gca().set_aspect("equal")  # Ensure the aspect ratio is equal for proper visualization
         plt.show()
 
 
@@ -1669,9 +1454,7 @@ def convex_hull(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
     """Find the convex hull of a set of 2D points."""
     points = sorted(points)
 
-    def cross(
-        o: tuple[float, float], a: tuple[float, float], b: tuple[float, float]
-    ) -> float:
+    def cross(o: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
         return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
 
     lower: list[tuple[float, float]] = []

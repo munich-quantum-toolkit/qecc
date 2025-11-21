@@ -9,36 +9,34 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import mqt.qecc.cococo.utils_routing as utils
 from mqt.qecc.cococo import circuit_construction, layouts
 
+pos = tuple[int,int]
 
 def test_basicrouter():
     """Test the BasicRouter class. By running some instance with testing==True."""
-
     layout_type = "triple"
     m = 4
     n = 4
-    factories = []
+    factories: list[pos] = []
     remove_edges = False
-    g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-        layout_type, m, n, factories, remove_edges
-    )
-    layout = {i: j for i, j in enumerate(data_qubit_locs)}
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
+    layout = dict(enumerate(data_qubit_locs))
     t = 2  # mock because we have only cnots here in the example
 
     q = len(data_qubit_locs)
     j = 8
     num_gates = q * 2
-    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
         j,
         q,
         num_gates,
     )
 
-    terminal_pairs = layouts.translate_layout_circuit(
-        pairs, layout
-    )  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]|int]", pairs), cast("dict[int|str,pos|list[pos]]", layout))  # let's stick to the simple layout
 
     router = utils.BasicRouter(
         g,
@@ -51,11 +49,12 @@ def test_basicrouter():
     )
     layers = router.split_layer_terminal_pairs(terminal_pairs)
     try:
-        vdp_layers, _ = router.find_total_vdp_layers_dyn(
+        _vdp_layers, _ = router.find_total_vdp_layers_dyn(
             layers, data_qubit_locs, router.factory_times, layout, testing=True
         )
     except:
-        raise ValueError("Something is wrong with the BasicRouter.")
+        msg = "Something is wrong with the BasicRouter."
+        raise ValueError(msg)
 
 
 def test_TeleportationRouter():
@@ -63,36 +62,25 @@ def test_TeleportationRouter():
     layout_type = "triple"
     m = 2
     n = 2
-    factories = []
+    factories: list[pos] = []
     remove_edges = False
-    g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-        layout_type, m, n, factories, remove_edges
-    )
-    layout = {i: j for i, j in enumerate(data_qubit_locs)}
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
+    layout = dict(enumerate(data_qubit_locs))
     t = 2  # mock because we have only cnots here in the example
 
     q = len(data_qubit_locs)
     j = 8
     num_gates = q * 2
-    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
         j,
         q,
         num_gates,
     )
 
-    terminal_pairs = layouts.translate_layout_circuit(
-        pairs, layout
-    )  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]| int]",pairs), cast("dict[int|str, pos|list[pos]]",layout))  # let's stick to the simple layout
 
     router = utils.TeleportationRouter(
-        g,
-        data_qubit_locs,
-        factories,
-        valid_path="cc",
-        t=t,
-        metric="exact",
-        use_dag=True,
-        seed=1
+        g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1
     )
 
     max_iters = 100
@@ -110,7 +98,7 @@ def test_TeleportationRouter():
     idle_move_type = "later"
 
     try:
-        schedule, _ = router.optimize_layers(
+        _schedule, _ = router.optimize_layers(
             terminal_pairs,
             layout,
             max_iters,
@@ -127,4 +115,5 @@ def test_TeleportationRouter():
             stimtest=True,
         )
     except:
-        raise ValueError("Something is wrong with the TeleportationRouter class.")
+        msg = "Something is wrong with the TeleportationRouter class."
+        raise ValueError(msg)

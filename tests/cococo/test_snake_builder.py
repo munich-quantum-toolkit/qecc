@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import csv
-import os
+import pathlib
+from typing import cast
 
 import networkx as nx
 import numpy as np
@@ -12,6 +13,8 @@ import stim
 from mqt.qecc import CSSCode
 from mqt.qecc.cococo import snake_builder
 
+pos = tuple[int,int]
+
 
 def test_snake_builder_stdw():
     """Tests the stabilizers for a 4-snake with d=5 with the STDW scheme."""
@@ -19,9 +22,7 @@ def test_snake_builder_stdw():
     n = 18
 
     # generate hexagonal networkx graph
-    g = nx.hexagonal_lattice_graph(
-        m=m, n=n, periodic=False, with_positions=True, create_using=None
-    )
+    g = nx.hexagonal_lattice_graph(m=m, n=n, periodic=False, with_positions=True, create_using=None)
 
     # positions of logical qubits per triangle
     positions = [
@@ -122,24 +123,18 @@ def test_snake_builder_stdw():
     hz = hz.tolist()
     hx = hx.tolist()
 
-    hx_desired = []
-    with open("./hx_desired_stdw.csv") as f:
+    hx_desired: list[list[int]] = []
+    with pathlib.Path("./hx_desired_stdw.csv").open(encoding="utf-8") as f:
         reader = csv.reader(f)
-        for row in reader:
-            hx_desired.append([int(x) for x in row])
+        hx_desired.extend([int(x) for x in row] for row in reader)
 
-    hz_desired = []
-    with open("./hz_desired_stdw.csv") as f:
+    hz_desired: list[list[int]]  = []
+    with pathlib.Path("./hz_desired_stdw.csv").open(encoding="utf-8") as f:
         reader = csv.reader(f)
-        for row in reader:
-            hz_desired.append([int(x) for x in row])
+        hz_desired.extend([int(x) for x in row] for row in reader)
 
-    assert (
-        hx == hx_desired
-    ), "The X stabilizers of a STDW snake do not look as expected."
-    assert (
-        hz == hz_desired
-    ), "The Z stabilizers of a STDW snake do not look as expected."
+    assert hx == hx_desired, "The X stabilizers of a STDW snake do not look as expected."
+    assert hz == hz_desired, "The Z stabilizers of a STDW snake do not look as expected."
 
 
 def test_snake_builder():
@@ -147,9 +142,7 @@ def test_snake_builder():
     # lattice
     m = 8
     n = 8
-    g = nx.hexagonal_lattice_graph(
-        m=m, n=n, periodic=False, with_positions=True, create_using=None
-    )
+    g = nx.hexagonal_lattice_graph(m=m, n=n, periodic=False, with_positions=True, create_using=None)
 
     positions = [
         {(2, 6): 0, (2, 7): 2, (1, 9): 1, (2, 9): 5, (3, 9): 3, (3, 8): 4, (2, 8): 6},
@@ -173,24 +166,22 @@ def test_snake_builder():
 
     error_message = "The check matrix differs from the aimed one for given 4-snake."
 
-    aim_x_check = []
-    with open("./hx_desired_steane.csv") as f:
+    aim_x_check: list[list[int]]  = []
+    with pathlib.Path("./hx_desired_steane.csv").open(encoding="utf-8") as f:
         reader = csv.reader(f)
-        for row in reader:
-            aim_x_check.append([int(x) for x in row])
+        aim_x_check.extend([int(x) for x in row] for row in reader)
 
-    aim_z_check = []
-    with open("./hz_desired_steane.csv") as f:
+    aim_z_check: list[list[int]]  = []
+    with pathlib.Path("./hz_desired_steane.csv").open(encoding="utf-8") as f:
         reader = csv.reader(f)
-        for row in reader:
-            aim_z_check.append([int(x) for x in row])
+        aim_z_check.extend([int(x) for x in row] for row in reader)
 
     assert checks_x == aim_x_check, error_message
     assert checks_z == aim_z_check, error_message
 
 
-def check_matchable(h: list) -> None:
-    """checks whether max 2 nonzero entries per col"""
+def check_matchable(h: np.ndarray) -> None:
+    """Checks whether max 2 nonzero entries per col."""
     _num_rows, num_cols = np.shape(h)
     for i in range(num_cols):
         col = h[:, i]
@@ -200,10 +191,8 @@ def check_matchable(h: list) -> None:
             break
 
 
-def translate_intstabs_to_str(
-    plaquettes: list[list[int]], q: int, stab_type: str
-) -> list[str]:
-    """translates plaquettes into list of strings to use with stim.
+def translate_intstabs_to_str(plaquettes: list[list[int]], q: int, stab_type: str) -> list[str]:
+    """Translates plaquettes into list of strings to use with stim.
 
     Args:
         plaquettes (list[list[int]]): _description_
@@ -222,11 +211,8 @@ def translate_intstabs_to_str(
     return stabs_str
 
 
-def encoding_circuit(
-    snake: snake_builder.SnakeBuilderSC, opx: list, opz: list
-) -> stim.Circuit:
-    """checks whether an encoding circuit of a state defined by tableau can be built. just as sanity check."""
-
+def encoding_circuit(snake: snake_builder.SnakeBuilderSC, opx: list[pos], opz: list[pos]) -> stim.Circuit:
+    """Checks whether an encoding circuit of a state defined by tableau can be built. just as sanity check."""
     stars_int = [[snake.trans_dict[el] for el in op] for op in snake.stars]
 
     plaquettes_int = [[snake.trans_dict[el] for el in op] for op in snake.plaquettes]
@@ -239,8 +225,7 @@ def encoding_circuit(
     # initialize + state, i.e. add logical X
 
     # ADD Z OPERATOR, i.e. initialize |0>
-    op = opz
-    op = [snake.trans_dict[el] for el in op]
+    op = [snake.trans_dict[el] for el in opz]
 
     temp = "_" * q
     for el in op:
@@ -251,8 +236,7 @@ def encoding_circuit(
     circuit_0 = tableau.to_circuit("elimination")
 
     # ADD X OPERATOR i.e. initialize |+>
-    op = opx
-    op = [snake.trans_dict[el] for el in op]
+    op = [snake.trans_dict[el] for el in opx]
 
     temp = "_" * q
     for el in op:
@@ -265,9 +249,18 @@ def encoding_circuit(
     return circuit_p, circuit_0
 
 
-def logicals(
-    snake: snake_builder.SnakeBuilderSC, d: int, hx: np.ndarray, hz: np.ndarray
-) -> tuple[list, list]:
+def logicals(snake: snake_builder.SnakeBuilderSC, d: int, hx: np.ndarray, hz: np.ndarray) -> tuple[list[pos], list[pos]]:
+    """Creates logical ops.
+
+    Args:
+        snake (snake_builder.SnakeBuilderSC): _description_
+        d (int): _description_
+        hx (np.ndarray): _description_
+        hz (np.ndarray): _description_
+
+    Returns:
+        tuple[list, list]: _description_
+    """
     code = CSSCode(distance=d, Hx=hx, Hz=hz)
 
     assert len(code.Lx) == 1, "More than one qubit encoded!"
@@ -275,25 +268,24 @@ def logicals(
 
     # translate Lz into list of edges on the graph
     trans_dict_rev = {value: key for key, value in snake.trans_dict.items()}
-    opz = []
+    opz_final = []
     for i, el in enumerate(code.Lz[0]):
         if el == 1:
-            opz.append(trans_dict_rev[i])
-    opx = []
+            opz_final.append(trans_dict_rev[i])
+    opx_final = []
     for i, el in enumerate(code.Lx[0]):
         if el == 1:
-            opx.append(trans_dict_rev[i])
-    return opx, opz
+            opx_final.append(trans_dict_rev[i])
+    return opx_final, opz_final
 
 
 def test_snake_builder_sc():
     """Tests a surface code snake."""
-
     m, n = 20, 20
-    G = nx.grid_2d_graph(m, n)
+    G = nx.grid_2d_graph(m, n)  # noqa: N806
 
     # Define the position with the origin at the lower left
-    pos = {(x, y): (x, y) for x, y in G.nodes()}  # Keep y as positive
+    {(x, y): (x, y) for x, y in G.nodes()}  # Keep y as positive
 
     d = 5
 
@@ -338,12 +330,12 @@ def test_snake_builder_sc():
 
     snake = snake_builder.SnakeBuilderSC(G, positions_rough, positions_smooth, d)
     _, _ = snake.create_stabs()
-    hx, hz, trans_dict = snake.gen_checks()
+    hx, hz, _trans_dict = snake.gen_checks()
 
     check_matchable(hx)
     check_matchable(hz)
 
     opx, opz = logicals(snake, d, hx, hz)
-    circuit_p, circuit_0 = encoding_circuit(
+    _circuit_p, _circuit_0 = encoding_circuit(
         snake, opx, opz
     )  # only checks whether construction of encoding circuit works
