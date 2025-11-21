@@ -318,7 +318,25 @@ class CodeSwitchGraph:
         return num_switches, switch_positions, S, T
 
     def _extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
-        """Return a list of (qubit, depth) pairs where switches should be inserted."""
+        """Return a list of (qubit, depth) pairs where switches should be inserted.
+
+        Parameters:
+        ----------
+        S : set[str]
+            Set of nodes reachable from the source after min-cut.
+        T : set[str]
+            Complementary set of nodes after min-cut.
+
+        Returns:
+        -------
+        Tuple[int, List[Tuple[int, int]]]
+            A tuple (num_switches, switch_positions) where:
+              - num_switches is the total number of switches detected,
+              - switch_positions is a list of (qubit, depth) pairs indicating where switches occur.
+                Here, 'qubit' is the qubit index and 'depth' is the temporal position of the gate in terms of number of gates per qubit.
+                So, a depth of 3 means that this is the 3rd single qubit gate position on that qubit line.
+                That means a switch should be inserted just after that depth layer on that qubit.
+        """
         switch_positions = []
         seen = set()
         for u, v, data in self.G.edges(data=True):
