@@ -10,7 +10,6 @@
 import pytest
 from qiskit import QuantumCircuit
 
-# Adjust imports based on your actual package structure
 from mqt.qecc.circuit_compilation import (
     CodeSwitchGraph,
     random_universal_circuit,
@@ -45,10 +44,10 @@ def test_idle_bonus_logic(simple_graph):
     bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=2)
     assert bonus == 0.0
 
-    # Case 2: Long idle
+    # Case 2: Long idle greater than max_bonus
     # depths 0 and 10 implies gap of 9
     bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=10)
-    assert bonus > 0
+    assert bonus == 5 * simple_graph.base_unary_capacity
 
     # Ensure capacity reduction logic works
     cap = simple_graph._edge_capacity_with_idle_bonus([0, 10], base_capacity=1.0)  # noqa: SLF001
