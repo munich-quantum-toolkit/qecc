@@ -7,8 +7,12 @@
 
 """Utility to generate random universal quantum circuits."""
 
+import re
+
 import numpy as np
 from qiskit import QuantumCircuit
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGOpNode
 
 
 def random_universal_circuit(
@@ -181,3 +185,143 @@ def count_code_switches(circuit: QuantumCircuit) -> tuple[int, list[str | None]]
                 switch_count += 1
 
     return switch_count, current_code
+
+
+pattern = re.compile(r".*_q(\d+)_d(\d+)")
+
+
+def parse_node_id(node_id: str) -> tuple[int, int]:
+    """Extract (qubit, depth) from a node_id like 'H_q0_d3'."""
+    match = pattern.match(node_id)
+    if not match:
+        msg = f"Invalid node_id format: {node_id}"
+        raise ValueError(msg)
+    qubit, depth = map(int, match.groups())
+    return qubit, depth
+
+
+def inspect_serial_layers(circuit: QuantumCircuit) -> list[dict[str, object]]:
+    """Return a lightweight description of `dag.layers()` for debugging.
+
+    Each list element corresponds to one serial layer and contains:
+      - 'ops': list of (op.name, [qubit indices touched]) tuples for the layer.
+
+    Parameters
+    ----------
+    circuit : QuantumCircuit
+        Circuit to inspect.
+
+    Returns:
+    -------
+    List[Dict]
+        A list describing each layer. Use this to confirm layer indices and which
+        qubits are active in each layer.
+    """
+    dag = circuit_to_dag(circuit)
+    layers = list(dag.layers())
+    layers_descr = []
+
+    for layer_idx, layer in enumerate(layers):
+        layer_graph = layer["graph"]
+        ops_in_layer = []
+        for node in layer_graph.op_nodes():
+            assert isinstance(node, DAGOpNode)
+            # map Qubit objects to their indices in the original circuit
+            q_indices = [circuit.find_bit(q).index for q in node.qargs] if node.qargs else []
+            ops_in_layer.append((getattr(node.op, "name", repr(node.op)), q_indices))
+        layers_descr.append({"layer_index": layer_idx, "ops": ops_in_layer})
+
+    return layers_descr
+
+
+def insert_switch_placeholders(
+    circuit: QuantumCircuit,
+    switch_positions: list[tuple[int, int]],
+    placeholder_depth: int = 1,
+) -> QuantumCircuit:
+    """Return a new circuit with 'switch' placeholders inserted between global DAG layers.
+
+    This function inserts placeholders *after* the entire global layer with index
+    `layer_index` (i.e., between layer `layer_index` and the next). Placeholders are
+    placed on the requested qubit regardless of whether that qubit was active in that layer.
+
+    Parameters
+    ----------
+    circuit : QuantumCircuit
+        The original circuit to augment.
+    switch_positions : List[Tuple[int, int]]
+        List of (qubit_index, layer_index). `layer_index` refers to the index
+        from `list(circuit_to_dag(circuit).layers())`. A placeholder for
+        `(q, k)` will be inserted after global layer `k`.
+    placeholder_depth : int, optional
+        Virtual depth (single-qubit layers) the placeholder should represent.
+    expand_placeholder : bool, optional
+        If True, expand each placeholder into `placeholder_depth` calls to
+        `QuantumCircuit.id(qubit)` so that `QuantumCircuit.depth()` increases.
+        If False, append a single `SwitchGate` marker (informational only).
+
+    Returns:
+    -------
+    QuantumCircuit
+        New circuit with placeholders inserted.
+    """
+    # Build DAG and layers
+    dag = circuit_to_dag(circuit)
+    layers = list(dag.layers())
+
+    # Normalize and group requested placeholders by qubit
+    placeholders_by_qubit: dict[int, list[int]] = {}
+    for qidx, layer_idx in switch_positions:
+        if layer_idx < 0:
+            # ignore negative indices (could alternatively raise)
+            continue
+        placeholders_by_qubit.setdefault(qidx, []).append(layer_idx)
+
+    # Sort layer indices per qubit for deterministic behavior
+    for depths in placeholders_by_qubit.values():
+        depths.sort()
+
+    # Prepare output circuit with same registers
+    new_qc = QuantumCircuit(*circuit.qregs, *circuit.cregs, name=circuit.name + "_with_switches")
+
+    # Track which placeholders we already inserted
+    inserted_placeholders: dict[int, set[int]] = {q: set() for q in placeholders_by_qubit}
+
+    def _append_placeholder_on_qubit(q_index: int, depth_equiv: int) -> None:
+        """Append a placeholder (either expanded ids or a SwitchGate) on the qubit."""
+        qubit = circuit.qubits[q_index]
+        # append id several times so `.depth()` counts them
+        for _ in range(max(1, int(depth_equiv))):
+            new_qc.id(qubit)
+
+    # Iterate layers in order; copy each op, then after the whole layer insert placeholders for that layer
+    for depth_idx, layer in enumerate(layers):
+        layer_graph = layer["graph"]
+        # append ops of the layer to new_qc (deterministic order: iterate nodes)
+        for node in layer_graph.op_nodes():
+            assert isinstance(node, DAGOpNode)
+            # Map node.qargs (Qubit objects) to the corresponding qubit objects of the original circuit
+            q_indices = [circuit.find_bit(q).index for q in node.qargs] if node.qargs else []
+            qbit_objs = [circuit.qubits[i] for i in q_indices]
+            c_indices = [circuit.find_bit(c).index for c in node.cargs] if getattr(node, "cargs", None) else []
+            cbit_objs = [circuit.clbits[i] for i in c_indices] if c_indices else []
+
+            # Append the operation to the new circuit on the same physical qubits/bits
+            new_qc.append(node.op, qbit_objs, cbit_objs)
+
+        # --- AFTER FINISHING THIS GLOBAL LAYER: insert placeholders targeted at this layer ---
+        for q_index, depths in placeholders_by_qubit.items():
+            for target_depth in depths:
+                if target_depth == depth_idx and target_depth not in inserted_placeholders[q_index]:
+                    _append_placeholder_on_qubit(q_index, placeholder_depth)
+                    inserted_placeholders[q_index].add(target_depth)
+
+    # Append any placeholders whose requested layer index was beyond the number of layers
+    for q_index, depths in placeholders_by_qubit.items():
+        for target_depth in depths:
+            if target_depth not in inserted_placeholders[q_index]:
+                # target was never inserted (layer out of range) -> append at end
+                _append_placeholder_on_qubit(q_index, placeholder_depth)
+                inserted_placeholders[q_index].add(target_depth)
+
+    return new_qc

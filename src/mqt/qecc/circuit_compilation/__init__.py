@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from .code_switching_compiler import CodeSwitchGraph, insert_switch_placeholders
-from .compilation_utils import count_code_switches, random_universal_circuit
+from .code_switching_compiler import CodeSwitchGraph
+from .compilation_utils import count_code_switches, insert_switch_placeholders, random_universal_circuit
 
 __all__ = ["CodeSwitchGraph", "count_code_switches", "insert_switch_placeholders", "random_universal_circuit"]
