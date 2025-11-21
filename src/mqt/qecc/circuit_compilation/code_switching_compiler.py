@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import networkx as nx
@@ -19,8 +20,15 @@ from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
 if TYPE_CHECKING:
     from qiskit import QuantumCircuit
 
-DEFAULT_TEMPORAL_EDGE_CAPACITY = 1.0
-SWITCHING_LENGTH = 2  # minimum idle length before considering a bonus
+
+@dataclass
+class CompilerConfig:
+    """Holds all configuration parameters for the CodeSwitchGraph."""
+
+    edge_cap_ratio: float = 0.001
+    default_temporal_edge_capacity: float = 1.0
+    switching_length: int = 2
+    biased_code: str = "SRC"
 
 
 class CodeSwitchGraph:
@@ -44,15 +52,19 @@ class CodeSwitchGraph:
         Identifier for the sink node ("SNK").
     """
 
-    def __init__(self, edge_cap_ratio: float = 0.001) -> None:
+    def __init__(self, config: CompilerConfig | None = None) -> None:
         """Initialize the CodeSwitchGraph with source and sink nodes."""
+        if config is None:
+            self.config = CompilerConfig()
+        else:
+            self.config = config
+
         self.G: nx.DiGraph = nx.DiGraph()
         self.source: str = "SRC"
         self.sink: str = "SNK"
         self.G.add_node(self.source)
         self.G.add_node(self.sink)
-        self.edge_cap_ratio: float = edge_cap_ratio
-        self.base_unary_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY * self.edge_cap_ratio
+        self.base_unary_capacity: float = self.config.default_temporal_edge_capacity * self.config.edge_cap_ratio
 
     def _add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
         """Add a node representing a quantum gate operation.
@@ -111,9 +123,7 @@ class CodeSwitchGraph:
         """
         self._add_edge_with_capacity(u, v, capacity=float("inf"), edge_type="fixed", bidirectional=bidirectional)
 
-    def _add_regular_edge(
-        self, u: str, v: str, capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY, bidirectional: bool = True
-    ) -> None:
+    def _add_regular_edge(self, u: str, v: str, capacity: float | None = None, bidirectional: bool = True) -> None:
         """Add a regular (finite-capacity) directed edge.
 
         Parameters
@@ -127,6 +137,8 @@ class CodeSwitchGraph:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
+        if capacity is None:
+            capacity = self.config.default_temporal_edge_capacity
         self._add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
     def _add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
@@ -204,15 +216,13 @@ class CodeSwitchGraph:
         """
         idle_length = max(0, current_depth - previous_depth - 1)
 
-        if idle_length <= SWITCHING_LENGTH:
+        if idle_length <= self.config.switching_length:
             idle_length = 0
 
         max_bonus = 5
         return min(max_bonus, idle_length) * self.base_unary_capacity
 
-    def _edge_capacity_with_idle_bonus(
-        self, depths: list[int], base_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY
-    ) -> float:
+    def _edge_capacity_with_idle_bonus(self, depths: list[int], base_capacity: float | None = None) -> float:
         """Compute the effective temporal edge capacity.
 
         Optionally reduced by an idle bonus if the qubit has been inactive for several layers.
@@ -229,6 +239,8 @@ class CodeSwitchGraph:
         float
             The adjusted edge capacity, ensuring a lower bound of 1.0.
         """
+        if base_capacity is None:
+            base_capacity = self.config.default_temporal_edge_capacity
         if len(depths) < 2:
             return base_capacity
 
@@ -297,7 +309,7 @@ class CodeSwitchGraph:
                             capacity = (
                                 self._edge_capacity_with_idle_bonus(qubit_activity[q])
                                 if idle_bonus
-                                else DEFAULT_TEMPORAL_EDGE_CAPACITY
+                                else self.config.default_temporal_edge_capacity
                             )
                             self._add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
                         qubit_last_node[q] = gate_node
