@@ -54,7 +54,7 @@ class CodeSwitchGraph:
         self.edge_cap_ratio: float = edge_cap_ratio
         self.base_unary_capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY * self.edge_cap_ratio
 
-    def add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
+    def _add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
         """Add a node representing a quantum gate operation.
 
         Parameters
@@ -75,7 +75,7 @@ class CodeSwitchGraph:
         self.G.add_node(node_id, gate=gate_type, qubit=qubit, depth=depth)
         return node_id
 
-    def add_edge_with_capacity(
+    def _add_edge_with_capacity(
         self, u: str, v: str, capacity: float, edge_type: str = "temporal", bidirectional: bool = True
     ) -> None:
         """Add a directed edge with specified capacity between two nodes.
@@ -97,7 +97,7 @@ class CodeSwitchGraph:
         if bidirectional:
             self.G.add_edge(v, u, capacity=capacity, edge_type=edge_type)
 
-    def add_infinite_edge(self, u: str, v: str, bidirectional: bool = True) -> None:
+    def _add_infinite_edge(self, u: str, v: str, bidirectional: bool = True) -> None:
         """Add an edge of infinite capacity between two nodes.
 
         Parameters
@@ -109,9 +109,9 @@ class CodeSwitchGraph:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
-        self.add_edge_with_capacity(u, v, capacity=float("inf"), edge_type="fixed", bidirectional=bidirectional)
+        self._add_edge_with_capacity(u, v, capacity=float("inf"), edge_type="fixed", bidirectional=bidirectional)
 
-    def add_regular_edge(
+    def _add_regular_edge(
         self, u: str, v: str, capacity: float = DEFAULT_TEMPORAL_EDGE_CAPACITY, bidirectional: bool = True
     ) -> None:
         """Add a regular (finite-capacity) directed edge.
@@ -127,9 +127,9 @@ class CodeSwitchGraph:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
-        self.add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
+        self._add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
-    def add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
+    def _add_bias_edges(self, node_id: str, biased_code: str = "SRC") -> None:
         """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
 
         Parameters
@@ -138,15 +138,15 @@ class CodeSwitchGraph:
             Capacity of the biased_code edges to be added.
         """
         if biased_code == "SRC":
-            self.add_edge_with_capacity(
+            self._add_edge_with_capacity(
                 self.source, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary"
             )
-            self.add_edge_with_capacity(self.sink, node_id, capacity=self.base_unary_capacity, edge_type="unary")
+            self._add_edge_with_capacity(self.sink, node_id, capacity=self.base_unary_capacity, edge_type="unary")
         elif biased_code == "SNK":
-            self.add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
-            self.add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
+            self._add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
+            self._add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
 
-    def connect_to_code(self, node_id: str, gate_type: str) -> None:
+    def _connect_to_code(self, node_id: str, gate_type: str) -> None:
         """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
 
         Note: Here we fix the convention that the 2D Color Code corresponds to the source (can perform H and CNOT)
@@ -164,12 +164,12 @@ class CodeSwitchGraph:
         """
         # Sink code can perform T and CNOT gates
         if gate_type == "T":
-            self.add_infinite_edge(self.sink, node_id)
+            self._add_infinite_edge(self.sink, node_id)
         # Source code can perform H and CNOT gates
         if gate_type == "H":
-            self.add_infinite_edge(node_id, self.source)
+            self._add_infinite_edge(node_id, self.source)
 
-    def add_cnot_links(self, control_node: str, target_node: str, one_way_transversal_cnot: bool = False) -> None:
+    def _add_cnot_links(self, control_node: str, target_node: str, one_way_transversal_cnot: bool = False) -> None:
         """Add bidirectional infinite-capacity edges between two CNOT-related nodes to enforce that both qubits remain in the same code.
 
         Parameters
@@ -181,7 +181,7 @@ class CodeSwitchGraph:
         one_way_transversal_cnot : bool, optional
             If True, allow transversal CNOTs from 3D (control) to 2D (target) besides the usual requirement that both qubits remain in the same code.
         """
-        self.add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
+        self._add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
 
     def compute_idle_bonus(self, previous_depth: int, current_depth: int) -> float:
         """Compute a bonus (capacity reduction) for idling qubits.
@@ -278,20 +278,20 @@ class CodeSwitchGraph:
 
                 if gate in {"H", "T"}:
                     q = qubits[0]
-                    gate_node = self.add_gate_node(gate, q, depth)
-                    self.connect_to_code(gate_node, gate)
+                    gate_node = self._add_gate_node(gate, q, depth)
+                    self._connect_to_code(gate_node, gate)
                     if qubit_last_node[q]:
-                        self.add_regular_edge(qubit_last_node[q], gate_node)
+                        self._add_regular_edge(qubit_last_node[q], gate_node)
                     qubit_last_node[q] = gate_node
 
                 elif gate == "CX":
                     ctrl, tgt = qubits
-                    node_ctrl = self.add_gate_node("CNOTc", ctrl, depth)
-                    node_tgt = self.add_gate_node("CNOTt", tgt, depth)
-                    self.add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
+                    node_ctrl = self._add_gate_node("CNOTc", ctrl, depth)
+                    node_tgt = self._add_gate_node("CNOTt", tgt, depth)
+                    self._add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
                     if code_bias:
-                        self.add_bias_edges(node_ctrl)
-                        self.add_bias_edges(node_tgt)
+                        self._add_bias_edges(node_ctrl)
+                        self._add_bias_edges(node_tgt)
                     for q, gate_node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
                         if qubit_last_node[q]:
                             capacity = (
@@ -299,7 +299,7 @@ class CodeSwitchGraph:
                                 if idle_bonus
                                 else DEFAULT_TEMPORAL_EDGE_CAPACITY
                             )
-                            self.add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
+                            self._add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
                         qubit_last_node[q] = gate_node
 
     def compute_min_cut(self) -> tuple[int, list[tuple[int, int]], set[str], set[str]]:
@@ -314,10 +314,10 @@ class CodeSwitchGraph:
               - T is the complementary set of nodes.
         """
         _, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
-        num_switches, switch_positions = self.extract_switch_locations(S, T)
+        num_switches, switch_positions = self._extract_switch_locations(S, T)
         return num_switches, switch_positions, S, T
 
-    def extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
+    def _extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
         """Return a list of (qubit, depth) pairs where switches should be inserted."""
         switch_positions = []
         seen = set()
