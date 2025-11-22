@@ -106,7 +106,7 @@ addopts = [
   "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
   "--dist=loadgroup", # Ensure that certain tests are run on the same worker
 ]
-log_cli_level = "INFO"
+log_level = "INFO"
 xfail_strict = true
 filterwarnings = [
   "error",
