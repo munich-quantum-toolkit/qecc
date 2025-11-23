@@ -200,40 +200,6 @@ def parse_node_id(node_id: str) -> tuple[int, int]:
     return qubit, depth
 
 
-def inspect_serial_layers(circuit: QuantumCircuit) -> list[dict[str, object]]:
-    """Return a lightweight description of `dag.layers()` for debugging.
-
-    Each list element corresponds to one serial layer and contains:
-      - 'ops': list of (op.name, [qubit indices touched]) tuples for the layer.
-
-    Parameters
-    ----------
-    circuit : QuantumCircuit
-        Circuit to inspect.
-
-    Returns:
-    -------
-    List[Dict]
-        A list describing each layer. Use this to confirm layer indices and which
-        qubits are active in each layer.
-    """
-    dag = circuit_to_dag(circuit)
-    layers = list(dag.layers())
-    layers_descr = []
-
-    for layer_idx, layer in enumerate(layers):
-        layer_graph = layer["graph"]
-        ops_in_layer = []
-        for node in layer_graph.op_nodes():
-            assert isinstance(node, DAGOpNode)
-            # map Qubit objects to their indices in the original circuit
-            q_indices = [circuit.find_bit(q).index for q in node.qargs] if node.qargs else []
-            ops_in_layer.append((getattr(node.op, "name", repr(node.op)), q_indices))
-        layers_descr.append({"layer_index": layer_idx, "ops": ops_in_layer})
-
-    return layers_descr
-
-
 def insert_switch_placeholders(
     circuit: QuantumCircuit,
     switch_positions: list[tuple[int, int]],
