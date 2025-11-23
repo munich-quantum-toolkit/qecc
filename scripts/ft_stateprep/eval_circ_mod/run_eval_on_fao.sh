@@ -6,19 +6,47 @@
 #
 # Licensed under the MIT License
 
-# Description: Estimate logical error rates for given code in parallel. Results are saved in a csv file described by the first argument. All other arguments are passed to the python script.
+set -euo pipefail
 
-# declare -a p=("0.5" "0.3" "0.1" "0.09" "0.07" "0.05" "0.03" "0.01" "0.009" "0.007" "0.005" "0.003" "0.001" "0.0009" "0.0007" "0.0005" "0.0003" "0.0001")
-declare -a p=("0.001" "0.003" "0.005")
+if [ "$#" -lt 1 ]; then
+  echo "Usage: $0 OUTPUT_PREFIX [extra python flags...]"
+  exit 1
+fi
 
-echo "p p_l acceptance errors runs" > "$1.csv"
+# First argument = output CSV file name (without .csv)
+OUT="$1.csv"
+shift 1   # remove output file name; remaining args are forwarded to python
+
+# Join remaining args into a single exported string
+EXTRA_ARGS_STR="$*"
+export EXTRA_ARGS_STR
+
+# arrays of jobs
+CODES=("cc_17_1_5" "cc_20_2_6" "cc_25_1_5" "cc_31_1_7")
+P_VALUES=("0.001")
+
+echo "code,p,p_logical,acceptance,errors,shots" > "$OUT"
 
 run_and_write() {
-    local res=$(python estimate_logical_error_rate.py ${@:2:$#-2} "-p" "${@: -1}")
-    local line="${@: -1} ${res}"
-    (flock -e 200 echo $line >> "$1.csv") 200>lock
+  # This function will be run by GNU parallel in a new shell.
+  # Reconstruct EXTRA_ARGS array locally from the exported string.
+  read -r -a EXTRA_ARR <<< "$EXTRA_ARGS_STR"
+
+  local code="$1"
+  local p="$2"
+
+  # call python with reconstructed array (handles multiple flags)
+  local result
+  result=$(python3 estimate_logical_error_rate_fao.py "$code" -p "$p" "${EXTRA_ARR[@]}")
+
+  local line="$code,$p,$result"
+
+  # append atomically
+  ( flock -e 200; echo "$line" >> "$OUT" ) 200>lockfile
 }
 
 export -f run_and_write
+export OUT
 
-parallel --load 16 --link run_and_write $@ ::: ${p[@]}
+# Run parallel: Cartesian product of CODES x P_VALUES
+parallel --jobs 2 run_and_write ::: "${CODES[@]}" ::: "${P_VALUES[@]}"
