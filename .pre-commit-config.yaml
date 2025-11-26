@@ -19,16 +19,17 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        args: ["--maxkb=2048"]
       - id: check-case-conflict
-      - id: check-docstring-first
+      - id: check-vcs-permalinks
       - id: check-merge-conflict
       - id: check-symlinks
+      - id: check-json
       - id: check-toml
       - id: check-yaml
       - id: debug-statements
       - id: end-of-file-fixer
       - id: mixed-line-ending
-      - id: requirements-txt-fixer
       - id: trailing-whitespace
 
   # Clean jupyter notebooks
@@ -57,12 +58,17 @@ repos:
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
 
+  # Ensure uv lock file is up-to-date
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.11
+    hooks:
+      - id: uv-lock
+
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.6
     hooks:
       - id: ruff-check
-        args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
   # Also run Black on examples in the documentation
