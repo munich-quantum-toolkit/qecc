@@ -110,7 +110,7 @@ class CodeSwitchGraph:
             self.G.add_edge(v, u, capacity=capacity, edge_type=edge_type)
 
     def _add_infinite_edge(self, u: str, v: str, *, bidirectional: bool = True) -> None:
-        """Add an edge of infinite capacity between two nodes.
+        """Add an edge of infinite capacity between two nodes. Possibly bidirectional.
 
         Parameters
         ----------
@@ -323,9 +323,10 @@ class CodeSwitchGraph:
 
         Returns:
         -------
-        Tuple[float, Set[str], Set[str]]
-            A tuple (cut_value, S, T) where:
-              - cut_value is the total capacity of the minimum cut,
+        tuple[int, list[tuple[int, int]], set[str], set[str]]
+            A tuple (num_switches, switch_positions, S, T) where:
+              - num_switches is the count of temporal edges crossing the cut (number of code switches),
+              - switch_positions is a list of (qubit, depth) pairs where switches occur,
               - S is the set of nodes reachable from the source,
               - T is the complementary set of nodes.
         """
