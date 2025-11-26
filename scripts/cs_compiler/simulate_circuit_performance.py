@@ -5,13 +5,15 @@
 #
 # Licensed under the MIT License
 
-"""Simulate existing QASM circuits and record results to CSV.
+r"""Simulate existing QASM circuits and record results to CSV.
 
-Each circuit is loaded from a folder structure like:
-    circuits/{n}/{n}_{seed}.qasm
+Each circuit is loaded from a QASM file path given via ``--qasm_path``, e.g.
+    circuits_performance_benchmarking/{n}/{n}_{seed}.qasm
 
 Example:
-    python simulate_circuits.py --n 128 --input_dir circuits --output_csv results_128.csv
+    python simulate_circuit_performance.py \\
+        --qasm_path circuits_performance_benchmarking/128/128_0.qasm \\
+        --n 128 --seed 0 --output_csv results_performance_benchmarking/results_128.csv
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 
 def append_to_csv(csv_path: Path, row: dict) -> None:
     """Append a row to a CSV file, creating it with headers if it doesn't exist."""
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not csv_path.exists()
     with csv_path.open("a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=row.keys())
@@ -63,9 +66,9 @@ def run_trial(qc: QuantumCircuit, n_qubits: int, depth: int, seed: int, probs_ty
     builder = CodeSwitchGraph()
     builder.build_from_qiskit(qc, one_way_transversal_cnot=True)
 
-    t0_mincut = time.time()
+    t0_mincut_solver = time.time()
     switches_mc, _, _, _ = builder.compute_min_cut()
-    t1_mincut = time.time()
+    t1_mincut_solver = time.time()
 
     return {
         "n_qubits": n_qubits,
@@ -77,7 +80,7 @@ def run_trial(qc: QuantumCircuit, n_qubits: int, depth: int, seed: int, probs_ty
         "abs_saving": naive - switches_mc,
         "rel_saving": (naive - switches_mc) / naive if naive > 0 else None,
         "t_naive": t1_lookahead - t0_lookahead,
-        "t_mincut": t1_mincut - t0_mincut,
+        "t_mincut_solver": t1_mincut_solver - t0_mincut_solver,
     }
 
 

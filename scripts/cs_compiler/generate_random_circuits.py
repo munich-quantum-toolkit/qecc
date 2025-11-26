@@ -21,7 +21,6 @@ from pathlib import Path
 
 from qiskit.qasm2 import dumps
 
-# Import your circuit generator (adjust this import!)
 from mqt.qecc.circuit_compilation import random_universal_circuit
 
 
@@ -44,6 +43,10 @@ def generate_circuits(n: int, num_circuits: int, output_dir: Path, gate_distr_ty
         "cx_heavy": {"h": 0.1, "t": 0.1, "cx": 0.3, "id": 0.5},
     }
 
+    if gate_distr_type not in gate_probs_options:
+        msg = f"Invalid gate_distr_type '{gate_distr_type}'. Must be one of: {list(gate_probs_options.keys())}"
+        raise ValueError(msg)
+
     print(f"Generating {num_circuits} {gate_distr_type} circuits for n={n}, depth={depth}...")
 
     skipped = 0
@@ -65,8 +68,8 @@ def generate_circuits(n: int, num_circuits: int, output_dir: Path, gate_distr_ty
 
         generated += 1
 
-        if seed % 50 == 0:
-            print(f"  → Generated {seed}/{num_circuits}")
+        if (seed + 1) % 50 == 0 or seed == 0:
+            print(f"  → Generated {seed + 1}/{num_circuits}")
 
     print(f"🟢 Finished: {generated} new circuits generated, {skipped} skipped.")
     print(f"Saved in: {folder}")

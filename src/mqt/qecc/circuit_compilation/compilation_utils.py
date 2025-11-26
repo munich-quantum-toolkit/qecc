@@ -26,7 +26,7 @@ def random_universal_circuit(
     Args:
         num_qubits (int): Number of qubits in the circuit.
         depth (int): Number of layers.
-        gate_probs (dict): Probabilities for each gate, e.g. {"h": 0.3, "t": 0.3, "cx": 0.2, "id": 0.2}.
+        gate_probs (dict): Probabilities for each gate, e.g. {"h": 0.3, "t": 0.3, "cx": 0.2, "id": 0.2}. All gates (h, t, cx, id) must be present.
         seed (int, optional): RNG seed for reproducibility.
 
     Returns:

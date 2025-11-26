@@ -6,10 +6,7 @@
 #
 # Licensed under the MIT License
 
-# Copyright ...
-# SPDX-License-Identifier: MIT
-#
-# Generate random universal circuits for different system sizes in parallel.
+"""Generate random universal circuits for different system sizes in parallel."""
 
 # declare -a n_values=("64" "128" "256" "512")
 # declare -a n_values=("64" "128" "192" "256" "320" "384" "448" "512")
@@ -20,11 +17,13 @@ done
 declare -a distr_types=("even" "cx_heavy")
 num_circuits=100
 export num_circuits
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SCRIPT_DIR
 
 run_and_generate() {
     local n=$1
     local distr_type=$2
-    python generate_random_circuits.py --n "$n" --num_circuits "$num_circuits" --distr_type "$distr_type"
+    python "${SCRIPT_DIR}/generate_random_circuits.py" --n "$n" --num_circuits "$num_circuits"
 }
 
 export -f run_and_generate
