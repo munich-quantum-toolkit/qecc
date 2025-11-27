@@ -176,7 +176,7 @@ extend-select = [
     "ANN",         # flake8-annotations
     "ARG",         # flake8-unused-arguments
     "ASYNC",       # flake8-async
-    "B",  "B904",  # flake8-bugbear
+    "B",           # flake8-bugbear
     "C4",          # flake8-comprehensions
     "D",           # pydocstyle
     "EM",          # flake8-errmsg
