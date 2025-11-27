@@ -747,6 +747,23 @@ def _degree_sets_exact(gens: list[int], t: int) -> list[set]:
     return _degree_sets_exact_cached(key, t)
 
 
+def propagate_and_permute_error(error:int, controls: list[int], perm: list[int]) -> int:
+    """Propagate error through the controls of a partial transversal CNOT and permute according to target permutation.
+
+    Args:
+        error: int bit string encoding the error
+        controls: controls of the transversal CNOT
+        perm: permutation of the targets
+
+    Returns:
+        int bit string representing the error that actually propagates
+    """
+    out = 0
+    for j, q in enumerate(controls):
+        if (error >> q) & 1:
+            out |= (1 << perm[j])
+    return out
+
 def propagate_error_transversal(error: int, controls: list[int]) -> int:
     """Propagate error through the controls of a partial transversal CNOT.
 
@@ -832,7 +849,6 @@ def search_ft_cnot_cegar(
     gens1:list[int], w1:int, gens2:list[int], w2:int, t:int,
     add_symmetry_breakers=True,
     max_rounds=10000,
-    forbid_complements=True,
 ):
     """Use CEGAR approach to find an ft-t partial transversal CNOT.
 
@@ -888,19 +904,16 @@ def search_ft_cnot_cegar(
     zero_bv = z3.BitVecVal(0, w2)
 
     def permuted_error_symbolic(err: int):
-        """Build BV image y = OR_{q in supp(x1) & ctrl[q]=1} (1 << trgt[q])."""
+        """Build BitVector error under permutation."""
         permuted = zero_bv
         m = err
         q = 0
         while m:
             if m & 1:
-                # ite(ctrl[q]==1, (1 << trgt[q]), 0)
-                permuted = permuted | z3.If(ctrl[q] == 1, (one_bv << z3.Int2BV(trgt[q], w2)), zero_bv)
+                permuted = permuted | z3.If(ctrl[q], (one_bv << z3.Int2BV(trgt[q], w2)), zero_bv)
             m >>= 1
             q += 1
         return permuted
-
-    # ---- Strict checker from your code, adapted to produce a single witness quickly ----
 
     def find_violation(model_controls=None, model_perm=None):
         """Check if found solution is ft-t."""
@@ -925,22 +938,14 @@ def search_ft_cnot_cegar(
 
         wit = info["witness"]
         err = wit["err"]
-        err_permuted = permuted_error_symbolic(err)
+        err_symbolic = permuted_error_symbolic(err)
 
-        # Evaluate current y integer from the model to know what to block
-        mdl = s.model()
-        y_val = 0
-        # derive y_val from the chosen mapping in 'info'
         chosen = info["controls"]
         perm = info["perm"]
 
-        for idx, q in enumerate(chosen):
-            if (err >> q) & 1:
-                y_val |= (1 << perm[idx])
+        err_projected = propagate_and_permute_error(err, chosen, perm)
 
-        # Block the exact violating image (and optionally its complement)
-        s.add(err_permuted != z3.BitVecVal(y_val, w2))
-        if forbid_complements:
-            s.add(err_permuted != z3.BitVecVal(ONES ^ y_val, w2))
+        s.add(err_symbolic != z3.BitVecVal(err_projected, w2))
+        s.add(err_symbolic != z3.BitVecVal(ONES ^ err_projected, w2))
 
     return None, None, {"status": "unknown", "rounds": rounds}

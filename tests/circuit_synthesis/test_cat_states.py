@@ -16,6 +16,7 @@ import pytest
 from ldpc import mod2
 
 from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
+from mqt.qecc.circuit_synthesis.cat_states import search_ft_cnot_cegar, cat_state_pruned_balanced_circuit, fault_gens_from_circuit
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -134,3 +135,15 @@ def test_cat_state_experiment_ft() -> None:
 
     # Cubic should fit better than quadratic
     assert aic2 > aic3
+
+
+def cat_fault_gens(w: int) -> stim.Circuit:
+    return fault_gens_from_circuit(cat_state_pruned_balanced_circuit(w))
+    
+@pytest.mark.parametrize(("w1", "w2"), ([2, 3, 4, 5, 6, 7, 8], [2, 2, 2, 3, 4, 5, 6]))
+def test_cegar_synthesis(w1: int, w2: int):
+    gens1 = cat_fault_gens(w1)
+    gens2 = cat_fault_gens(w2)
+    t = w1//2
+    res = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+    
