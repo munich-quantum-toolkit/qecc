@@ -9,14 +9,15 @@
 
 from __future__ import annotations
 
-import z3
 import math
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional
-from functools import lru_cache
+from functools import cache
+from typing import TYPE_CHECKING
+
 import matplotlib.pyplot as plt
 import numpy as np
 import stim
+import z3
 
 from .circuit_utils import compact_stim_circuit, relabel_qubits
 from .noise import CircuitLevelNoise
@@ -210,7 +211,7 @@ class CatStatePreparationExperiment:
         colors = cmap(np.linspace(0, 1, len(x)))
 
         bar_width = 0.8
-        for xi, yi, err, color in zip(x, hist, hist_err, colors):
+        for xi, yi, err, color in zip(x, hist, hist_err, colors, strict=False):
             ax.bar(
                 xi,
                 yi,
@@ -256,7 +257,7 @@ class CatStatePreparationExperiment:
         hists_err = None
         ras = []
         ra_errs = []
-        for p, n_shots in zip(ps, shots_per_p):
+        for p, n_shots in zip(ps, shots_per_p, strict=False):
             ra, ra_err, hist, hist_err = self.sample_cat_state(p, n_shots, batch_size=100000)
             ras.append(ra)
             ra_errs.append(ra_err)
@@ -265,7 +266,10 @@ class CatStatePreparationExperiment:
                 hists_err = hist_err
             else:
                 hists = np.vstack((hists, hist))
+                assert hists_err is not None
                 hists_err = np.vstack((hists_err, hist_err))
+        assert hists is not None
+        assert hists_err is not None
         return ras, ra_errs, hists, hists_err
 
 
@@ -732,7 +736,7 @@ def simulate_recursive_cat_construction(
 
 
 def _degree_sets_exact(gens: list[int], t: int) -> list[set]:
-    @lru_cache(maxsize=None)
+    @cache
     def _degree_sets_exact_cached(gens_key: tuple[int, ...], t: int) -> list[set]:
         gens = list(gens_key)
         S = [set() for _ in range(t + 1)]
@@ -747,7 +751,7 @@ def _degree_sets_exact(gens: list[int], t: int) -> list[set]:
     return _degree_sets_exact_cached(key, t)
 
 
-def propagate_and_permute_error(error:int, controls: list[int], perm: list[int]) -> int:
+def propagate_and_permute_error(error: int, controls: list[int], perm: list[int]) -> int:
     """Propagate error through the controls of a partial transversal CNOT and permute according to target permutation.
 
     Args:
@@ -761,8 +765,9 @@ def propagate_and_permute_error(error:int, controls: list[int], perm: list[int])
     out = 0
     for j, q in enumerate(controls):
         if (error >> q) & 1:
-            out |= (1 << perm[j])
+            out |= 1 << perm[j]
     return out
+
 
 def propagate_error_transversal(error: int, controls: list[int]) -> int:
     """Propagate error through the controls of a partial transversal CNOT.
@@ -777,7 +782,7 @@ def propagate_error_transversal(error: int, controls: list[int]) -> int:
     out = 0
     for j, q in enumerate(controls):
         if (error >> q) & 1:
-            out |= (1 << j)
+            out |= 1 << j
     return out
 
 
@@ -795,17 +800,13 @@ def permute_error(error: int, perm: list[int], w: int) -> int:
     out = 0
     for i in range(w):
         if (error >> i) & 1:
-            out |= (1 << perm[i])
+            out |= 1 << perm[i]
     return out
 
 
 def check_ft_partial_cnot(
-    gens1: list[int], w1: int,
-    gens2: list[int], w2: int,
-    controls: list[int],
-    perm: list[int],
-    t: int
-) -> tuple[bool, Optional[dict]]:
+    gens1: list[int], w1: int, gens2: list[int], w2: int, controls: list[int], perm: list[int], t: int
+) -> tuple[bool, dict | None]:
     """Check whether the CNOT defined by the given selection of control qubits and permutation is FT-t for the given fault set generators.
 
     Args:
@@ -820,7 +821,8 @@ def check_ft_partial_cnot(
     Returns:
         Boolean indicating whether the given CNOT is FT-t, along with a counterexample if False
     """
-    assert len(controls) == w2 and len(perm) == w2
+    assert len(controls) == w2
+    assert len(perm) == w2
     fss1 = _degree_sets_exact(gens1, t)
     fss2 = _degree_sets_exact(gens2, t)
     ONES = (1 << w2) - 1
@@ -829,29 +831,37 @@ def check_ft_partial_cnot(
         for err in fss1[h1]:
             wt1 = err.bitcount()
             sym1 = min(wt1, w1 - wt1)
-            for h2 in range(0, t - h1 + 1):  # include h2=0
+            for h2 in range(t - h1 + 1):  # include h2=0
                 if sym1 <= h1 + h2:
                     continue
                 err_projected = propagate_error_transversal(err, controls)
                 err_permuted = permute_error(err_projected, perm, w2)
                 if err_permuted in fss2[h2] or ((ONES ^ err_permuted) in fss2[h2]):
                     return False, {
-                        "h1": h1, "h2": h2,
-                        "err": err, "sym_w1": sym1,
-                        "err_projected": err_projected, "err_permuted": err_permuted,
-                        "w1": w1, "w2": w2,
-                        "controls": controls, "perm": perm,
+                        "h1": h1,
+                        "h2": h2,
+                        "err": err,
+                        "sym_w1": sym1,
+                        "err_projected": err_projected,
+                        "err_permuted": err_permuted,
+                        "w1": w1,
+                        "w2": w2,
+                        "controls": controls,
+                        "perm": perm,
                     }
     return True, None
 
 
 def search_ft_cnot_cegar(
-    gens1:list[int], w1:int, gens2:list[int], w2:int, t:int,
+    gens1: list[int],
+    w1: int,
+    gens2: list[int],
+    w2: int,
+    t: int,
     add_symmetry_breakers=True,
     max_rounds=10000,
 ):
     """Use CEGAR approach to find an ft-t partial transversal CNOT.
-
 
     Args:
         gens1: fault set generators of data cat state
@@ -870,7 +880,7 @@ def search_ft_cnot_cegar(
 
     # ---- Variables ----
     ctrl = [z3.Bool(f"ctrl_{q}") for q in range(w1)]
-    s.add(z3.PbEq([(q,1) for q in ctrl], w2)) # exactly w2 qubits must be controls
+    s.add(z3.PbEq([(q, 1) for q in ctrl], w2))  # exactly w2 qubits must be controls
 
     trgt = [z3.Int(f"trgt_{q}") for q in range(w1)]
     for v in trgt:
@@ -910,7 +920,7 @@ def search_ft_cnot_cegar(
         q = 0
         while m:
             if m & 1:
-                permuted = permuted | z3.If(ctrl[q], (one_bv << z3.Int2BV(trgt[q], w2)), zero_bv)
+                permuted |= z3.If(ctrl[q], (one_bv << z3.Int2BV(trgt[q], w2)), zero_bv)
             m >>= 1
             q += 1
         return permuted

@@ -96,7 +96,7 @@ def decode_multiround(
     sigma: float = 0.0,
     h3d: csr_matrix | None = None,  # needed for matching decoder
     decoding_method: str = "bposd",  # bposd or matching
-) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.float64], int]:
+) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.float64] | None, int]:
     """Overlapping window decoding.
 
     First, we compute the difference syndrome from the recorded syndrome of each measurement round for all measurement
@@ -104,7 +104,6 @@ def decode_multiround(
     Then, we apply the correction returned from the decoder on the first region (commit region).
     We then propagate the syndrome through the whole window (i.e., to the end of the second region).
     """
-    analog_tg = analog_syndr is not None
     # convert syndrome to difference syndrome
     diff_syndrome = syndrome.copy()
     diff_syndrome[:, 1:] = (syndrome[:, 1:] - syndrome[:, :-1]) % 2
@@ -112,10 +111,10 @@ def decode_multiround(
 
     region_size = repetitions // 2  # assumes repetitions is even
 
-    if analog_tg:
+    if analog_syndr is not None:
         # If we have analog information, we use it to initialize the time-like syndrome nodes, which are defined
         # in the block of the H3D matrix after the diagonal H block.
-        analog_init_vals = get_virtual_check_init_vals(analog_syndr.flatten("F"), sigma)  # type: ignore[union-attr]
+        analog_init_vals = get_virtual_check_init_vals(analog_syndr.flatten("F"), sigma)
 
         new_channel = np.hstack((channel_probs[:check_block_size], analog_init_vals))
 

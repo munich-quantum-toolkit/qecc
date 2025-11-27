@@ -77,7 +77,7 @@ def single_stage_analog_simulator(
         x_meta=True,
         z_meta=False,
         sus_th_depth=1,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         analog_info=False,
         analog_tg=True,
         hx=pcm,
@@ -109,7 +109,7 @@ def two_stage_simulator(
         x_meta=True,
         z_meta=False,
         sus_th_depth=1,
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         analog_info=False,
         analog_tg=False,
         hx=pcm,
@@ -141,6 +141,7 @@ def test_analog_ss_simulator_setup(
         single_stage_analog_simulator.x_apcm, np.hstack([pcm, np.identity(pcm.shape[0], dtype=np.int32)])
     )
     assert single_stage_analog_simulator.x_meta is True
+    assert single_stage_analog_simulator.ss_x_pcm is not None
     assert np.array_equal(single_stage_analog_simulator.ss_x_pcm, build_single_stage_pcm(pcm, mcm))
 
 

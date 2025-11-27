@@ -142,6 +142,7 @@ nb_mime_priority_overrides = [
     # builder name, mime type, priority
     ("latex", "image/svg+xml", 15),
 ]
+nb_execution_raise_on_error = True
 
 
 class CDAStyle(UnsrtStyle):

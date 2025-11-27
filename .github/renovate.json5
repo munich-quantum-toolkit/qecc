@@ -1,14 +1,14 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["config:recommended", ":gitSignOff", "helpers:pinGitHubActionDigests"],
+  extends: ["config:recommended", ":gitSignOff", "helpers:pinGitHubActionDigestsToSemver"],
   prHourlyLimit: 10,
   enabledManagers: ["cargo", "github-actions", "npm", "pep621", "pre-commit"],
   "pre-commit": {
     enabled: true
   },
   lockFileMaintenance: {
-    "enabled": true,
-    "automerge": true,
+    enabled: true,
+    automerge: true
   },
   configMigration: true,
   labels: ["dependencies"],
@@ -38,6 +38,11 @@
       matchManagers: ["pre-commit"],
       addLabels: ["pre-commit"],
       commitMessagePrefix: "⬆\uFE0F\uD83E\uDE9D",
+      versioning: "pep440"
+    },
+    {
+      matchUpdateTypes: ["lockFileMaintenance"],
+      commitMessagePrefix: "⬆\uFE0F\uD83D\uDD12\uFE0F",
     },
     {
       description: "Automerge patch updates",

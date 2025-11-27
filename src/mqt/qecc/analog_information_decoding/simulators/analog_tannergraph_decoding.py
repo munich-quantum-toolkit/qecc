@@ -15,17 +15,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc import bposd_decoder
+from ldpc.bposd_decoder import BpOsdDecoder
 
 from ..utils import simulation_utils
-from ..utils.data_utils import (
-    BpParams,
-    calculate_error_rates,
-    is_converged,
-)
+from ..utils.data_utils import calculate_error_rates, is_converged
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from ..utils.data_utils import BpParams
 
 
 class AnalogTannergraphDecoder:
@@ -60,8 +58,8 @@ class AnalogTannergraphDecoder:
             msg = "Only one of sigma or ser must be specified"
             raise ValueError(msg)
 
-        self.bposd_decoder = bposd_decoder(
-            parity_check_matrix=self.atg,
+        self.bposd_decoder = BpOsdDecoder(
+            pcm=self.atg.astype(np.int_),
             channel_probs=np.hstack((self.error_channel, np.zeros(self.m))),  # initd as dummy for now
             max_iter=self.bp_params.max_bp_iter,
             bp_method=self.bp_params.bp_method,
@@ -70,7 +68,6 @@ class AnalogTannergraphDecoder:
             ms_scaling_factor=self.bp_params.ms_scaling_factor,
             schedule=self.bp_params.schedule,
             omp_thread_count=self.bp_params.omp_thread_count,
-            random_serial_schedule=self.bp_params.random_serial_schedule,
             serial_schedule_order=self.bp_params.serial_schedule_order,
         )
 
@@ -97,7 +94,9 @@ class AnalogTannergraphDecoder:
     def decode(self, analog_syndrome: NDArray[np.float64]) -> NDArray[np.int32]:
         """Decode a given analog syndrome."""
         self._set_analog_syndrome(analog_syndrome)
-        return self.bposd_decoder.decode(simulation_utils.get_binary_from_analog(analog_syndrome))
+        return np.asarray(
+            self.bposd_decoder.decode(simulation_utils.get_binary_from_analog(analog_syndrome)), dtype=np.int32
+        )
 
 
 class AtdSimulator:

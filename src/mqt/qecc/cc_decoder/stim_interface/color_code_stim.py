@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def neighbors(perm: NDArray[int]) -> NDArray[NDArray[NDArray[int]]]:
+def neighbors(perm: NDArray[np.int_]) -> NDArray[np.int_]:
     """Return the neighbors of a lattice point in the 2D color code."""
     node_sw = np.array((perm[0] + 1, perm[1], perm[2] - 1))
     node_se = np.array((perm[0], perm[1] + 1, perm[2] - 1))
@@ -30,7 +30,7 @@ def neighbors(perm: NDArray[int]) -> NDArray[NDArray[NDArray[int]]]:
     return np.asarray((node_sw, node_se, node_e, node_ne, node_nw, node_w))
 
 
-def gen_pcm_and_logical(distance: int) -> tuple[NDArray[bool], set[int]]:
+def gen_pcm_and_logical(distance: int) -> tuple[NDArray[np.bool_], set[int]]:
     """Generate the parity check matrix and logical operator for the 2D color code."""
     lattice_points_to_qubit_index, ancilla_qubit_to_lattice_points = {}, {}
     qubit_count, ancilla_qubit_count = 0, 0
@@ -40,7 +40,7 @@ def gen_pcm_and_logical(distance: int) -> tuple[NDArray[bool], set[int]]:
     for comb in it.product(range(3 * t + 1), repeat=3):
         if sum(comb) == 3 * t:
             if (comb[1] - comb[0]) % 3 == 1:
-                ancilla_qubit_to_lattice_points[ancilla_qubit_count] = comb
+                ancilla_qubit_to_lattice_points[ancilla_qubit_count] = np.asarray(comb, dtype=np.int_)
                 ancilla_qubit_count += 1
             else:
                 lattice_points_to_qubit_index[comb] = qubit_count
@@ -59,7 +59,7 @@ def gen_pcm_and_logical(distance: int) -> tuple[NDArray[bool], set[int]]:
     return (parity_check_matrix, logical_operator)
 
 
-def add_checks_one_round(pcm: NDArray[int], circuit: Any, detectors: bool, error_probability: float) -> Any:  # noqa: ANN401
+def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, error_probability: float) -> Any:  # noqa: ANN401
     """Add one round of checks to the circuit."""
     for check in pcm:
         if error_probability == 0:
@@ -71,12 +71,12 @@ def add_checks_one_round(pcm: NDArray[int], circuit: Any, detectors: bool, error
         for q in np.where(check)[0]:
             mpp_x_instruction += "X" + str(q) + "*"
             mpp_z_instruction += "Z" + str(q) + "*"
-        #        circuit.append_from_stim_program_text(mpp_x_instruction[:-1])
+        # circuit.append_from_stim_program_text(mpp_x_instruction[:-1])
         circuit.append_from_stim_program_text(mpp_z_instruction[:-1])
     if detectors is True:
         for q in range(len(pcm)):
             circuit.append(
-                #                "DETECTOR", [stim.target_rec(-1*q-1), stim.target_rec(-1*q-2*len(pcm)-1)])
+                # "DETECTOR", [stim.target_rec(-1*q-1), stim.target_rec(-1*q-2*len(pcm)-1)])
                 "DETECTOR",
                 [stim.target_rec(-1 * q - 1), stim.target_rec(-1 * q - len(pcm) - 1)],
             )
@@ -84,7 +84,7 @@ def add_checks_one_round(pcm: NDArray[int], circuit: Any, detectors: bool, error
 
 
 def gen_stim_circuit_memory_experiment(
-    pcm: NDArray[int], logical_operator: NDArray[int], distance: int, error_probability: float
+    pcm: NDArray[np.int_], logical_operator: NDArray[np.int_], distance: int, error_probability: float
 ) -> Any:  # noqa: ANN401
     """Generate a stim circuit for a memory experiment on the 2D color code."""
     data_qubits = range(len(pcm[0]))

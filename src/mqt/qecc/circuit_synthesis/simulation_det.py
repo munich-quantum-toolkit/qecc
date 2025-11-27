@@ -24,7 +24,6 @@ except ImportError:
     raise ImportError(msg) from ImportError
 
 
-from ..codes import InvalidCSSCodeError
 from .simulation import LutDecoder
 
 if TYPE_CHECKING:
@@ -113,10 +112,6 @@ class NoisyDFTStatePrepSimulator:
             err_model: The error model to use for the simulation.
             zero_state: If True the state preparation circuit prepares the |0> state, otherwise the |+> state.
         """
-        if code.Hx is None or code.Hz is None:
-            msg = "The code must have both X and Z checks."
-            raise InvalidCSSCodeError(msg)
-
         if code.distance >= 5:
             msg = "Only distance <5 CSS codes are supported."
             raise UnsupportedCodeError(msg)
@@ -349,7 +344,7 @@ class NoisyDFTStatePrepSimulator:
 
     def _create_stab_measurement_circuit(
         self,
-        verification_stabilizers: list[npt.NDArray[np.int8]],
+        verification_stabilizers: list[npt.NDArray[np.int8]] | npt.NDArray[np.int8],
         z_stabs: bool,
         hook_corrections: list[DeterministicCorrection] | None = None,
         noisy: bool = True,
@@ -362,6 +357,9 @@ class NoisyDFTStatePrepSimulator:
             hook_corrections: Whether to apply hook corrections for the stabilizers.
             noisy: If True the circuit is noisy, otherwise it is noiseless (used for decoding).
         """
+        if not isinstance(verification_stabilizers, list):
+            verification_stabilizers = [verification_stabilizers]
+
         num_stabs = len(verification_stabilizers)
         if num_stabs == 0:
             return qs.Circuit([{"I": {0}}], noisy=False)
@@ -374,7 +372,9 @@ class NoisyDFTStatePrepSimulator:
         circuit.append({"init": set(range(self._ancilla_index, self._ancilla_index + num_ancillas))})
 
         flag_ancilla_index = self._ancilla_index + len(verification_stabilizers)
-        for stabilizer, flagged in zip(verification_stabilizers, [bool(hook) for hook in hook_corrections]):
+        for stabilizer, flagged in zip(
+            verification_stabilizers, [bool(hook) for hook in hook_corrections], strict=False
+        ):
             stabilizer_sup = _support_int(stabilizer)
             if not z_stabs:
                 circuit.append({"H": {self._ancilla_index}})

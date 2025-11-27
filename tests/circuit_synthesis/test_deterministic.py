@@ -13,7 +13,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc import mod2
+
+from mqt.qecc import CSSCode
+from mqt.qecc.circuit_synthesis import (
+    DeterministicVerificationHelper,
+    heuristic_prep_circuit,
+)
+
+from .utils import in_span
 
 try:
     from qsample import noise
@@ -23,13 +30,6 @@ try:
     HAS_QSAMPLE = True
 except ImportError:
     HAS_QSAMPLE = False
-
-
-from mqt.qecc import CSSCode
-from mqt.qecc.circuit_synthesis import (
-    DeterministicVerificationHelper,
-    heuristic_prep_circuit,
-)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -110,11 +110,6 @@ def verified_11_1_3_data(
     verify_helper = DeterministicVerificationHelper(css_11_1_3_code_sp)
     verify_x, verify_z = verify_helper.get_solution(min_timeout=3)
     return verify_x, verify_z
-
-
-def in_span(m: npt.NDArray[np.int_], v: npt.NDArray[np.int_]) -> bool:
-    """Check if a vector is in the row space of a matrix."""
-    return bool(mod2.rank(np.vstack((m, v))) == mod2.rank(m))
 
 
 def assert_statistics(
@@ -220,7 +215,7 @@ def test_steane_det_verification(
     """Test correctness of deterministic verification circuit for the Steane code."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         assert_statistics(verify_z, 1, 3, 1, 3, 0, 0)
         assert_stabs(verify_z, steane_code_sp_plus.circ.get_code(), z_stabs=False)
         assert verify_x.num_ancillas_total() == 0
@@ -238,7 +233,7 @@ def test_steane_det_simulation(
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_steane_data
 
     code = CSSCode.from_code_name("Steane")
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         simulator = NoisyDFTStatePrepSimulator(
             steane_code_sp_plus.circ.to_qiskit_circuit(), (verify_z, verify_x), code, err_model, False
         )
@@ -255,7 +250,7 @@ def test_surface_det_verification(
     """Test correctness of deterministic verification circuit for the d=3 rotated surface code."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         assert_statistics(verify_x, 1, 3, 1, 3)
         assert_stabs(verify_x, surface_code_sp_zero.circ.get_code(), z_stabs=True)
         assert verify_z.num_ancillas_total() == 0
@@ -273,7 +268,7 @@ def test_surface_det_simulation(
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
     code = CSSCode.from_code_name("surface", 3)
-    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global)):
+    for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         simulator = NoisyDFTStatePrepSimulator(
             surface_code_sp_zero.circ.to_qiskit_circuit(), (verify_x, verify_z), code, err_model, True
         )

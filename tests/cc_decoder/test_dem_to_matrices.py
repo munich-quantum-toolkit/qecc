@@ -25,7 +25,7 @@ from mqt.qecc.cc_decoder.stim_interface.dem_to_matrices import (
 
 
 @pytest.fixture
-def dem_matrix() -> NDArray[NDArray[int]]:
+def dem_matrix() -> NDArray[np.int_]:
     """Return detector error model matrix for d=3 color code."""
     return np.array([
         [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -124,7 +124,7 @@ def priors() -> NDArray[np.float32]:
 
 
 @pytest.fixture
-def hyperedge_to_edge_matrix() -> NDArray[NDArray[np.int32]]:
+def hyperedge_to_edge_matrix() -> NDArray[np.int_]:
     """Return hyperedge to edge matrix for dem."""
     return np.array([
         [
@@ -995,13 +995,13 @@ def hyperedge_to_edge_matrix() -> NDArray[NDArray[np.int32]]:
 
 
 @pytest.fixture
-def edge_obsbl_matrix() -> NDArray[NDArray[np.int32]]:
+def edge_obsbl_matrix() -> NDArray[np.int_]:
     """Return the edge observable matrix."""
     return np.array([[1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]])
 
 
 @pytest.fixture
-def edge_check_matrix() -> NDArray[NDArray.np.int32]:
+def edge_check_matrix() -> NDArray[np.int_]:
     """Return the edge adjacency matrix."""
     return np.array([
         [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -1020,19 +1020,22 @@ def edge_check_matrix() -> NDArray[NDArray.np.int32]:
 
 
 @pytest.fixture
-def obsble_matrix() -> NDArray[NDArray[np.int32]]:
+def obsble_matrix() -> NDArray[np.int_]:
     """Return the observable matrix."""
     return np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]])
 
 
 @pytest.fixture
-def hamming_code() -> NDArray[bool]:
+def hamming_code() -> NDArray[np.bool_]:
     """Return hamming code check matrix."""
-    return np.array([
-        [True, True, False, True, True, False, False],
-        [False, True, True, False, True, True, False],
-        [False, False, False, True, True, True, True],
-    ])
+    return np.array(
+        [
+            [True, True, False, True, True, False, False],
+            [False, True, True, False, True, True, False],
+            [False, False, False, True, True, True, True],
+        ],
+        dtype=np.bool_,
+    )
 
 
 @pytest.fixture
@@ -1342,7 +1345,7 @@ def detector_error_model() -> stim.DetectorErrorModel:
 
 
 def test_dict_to_csc_matrix(
-    hypergraph_shape: tuple[int, int], hyperedges: dict[int, frozenset[int]], dem_matrix: NDArray[NDArray[int]]
+    hypergraph_shape: tuple[int, int], hyperedges: dict[int, frozenset[int]], dem_matrix: NDArray[np.int_]
 ) -> None:
     """Test the dictionary to sparse matrix function."""
     result = dict_to_csc_matrix(hyperedges, hypergraph_shape).todense()
@@ -1352,11 +1355,11 @@ def test_dict_to_csc_matrix(
 def test_detector_error_model_to_check_matrices(
     detector_error_model: stim.DetectorErrorModel,
     priors: NDArray[np.float32],
-    dem_matrix: NDArray[NDArray[int]],
-    obsble_matrix: NDArray[NDArray[int]],
-    edge_check_matrix: NDArray[NDArray[int]],
-    edge_obsbl_matrix: NDArray[NDArray[int]],
-    hyperedge_to_edge_matrix: NDArray[NDArray[int]],
+    dem_matrix: NDArray[np.int_],
+    obsble_matrix: NDArray[np.int_],
+    edge_check_matrix: NDArray[np.int_],
+    edge_obsbl_matrix: NDArray[np.int_],
+    hyperedge_to_edge_matrix: NDArray[np.int_],
 ) -> None:
     """Test dem to check matrices function."""
     result = detector_error_model_to_check_matrices(detector_error_model, True)

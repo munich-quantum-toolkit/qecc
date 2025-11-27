@@ -15,13 +15,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ldpc.mod2 import rank
+from ldpc.mod2.mod2_numpy import rank
 from scipy.special import erfc, erfcinv
 
-from .data_utils import BpParams, calculate_error_rates, replace_inf
+from .data_utils import calculate_error_rates, replace_inf
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+    from .data_utils import BpParams
 
 
 def set_seed(value: float) -> None:
@@ -50,7 +52,9 @@ def alist2numpy(fname: str) -> NDArray[np.int32]:  # current original implementa
 # Rewrite such that call signatures of check_logical_err_h
 # and check_logical_err_l are identical
 def check_logical_err_h(
-    check_matrix: NDArray[np.int_], original_err: NDArray[np.int_], decoded_estimate: NDArray[np.int_]
+    check_matrix: NDArray[np.int32],
+    original_err: NDArray[np.int32],
+    decoded_estimate: NDArray[np.int32],
 ) -> bool:
     """Checks if the residual error is a logical error."""
     _, n = check_matrix.shape
@@ -76,7 +80,7 @@ def check_logical_err_h(
 # i.e., an X residal is a logical iff it commutes with at least one Z logical and
 # an Z residual is a logical iff it commutes with at least one Z logical
 # Hence, L must be of same type as H and of different type than residual_err
-def is_logical_err(logicals: NDArray[np.int_], residual_err: NDArray[np.int_]) -> bool:
+def is_logical_err(logicals: NDArray[np.int32], residual_err: NDArray[np.int32]) -> bool:
     """Checks if the residual error is a logical error.
 
     :returns: True if its logical error, False otherwise (is a stabilizer).
@@ -91,8 +95,8 @@ def is_logical_err(logicals: NDArray[np.int_], residual_err: NDArray[np.int_]) -
 def generate_err(
     nr_qubits: int,
     channel_probs: tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]],
-    residual_err: list[NDArray[np.int_]],
-) -> tuple[NDArray[np.int_], NDArray[np.int_]]:
+    residual_err: list[NDArray[np.int32]],
+) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
     """Computes error vector with X and Z part given channel probabilities and residual error.
 
     Assumes that residual error has two equally sized parts.
@@ -181,7 +185,7 @@ def generate_syndr_err(channel_probs: NDArray[np.float64]) -> NDArray[np.int32]:
     return error
 
 
-def get_noisy_analog_syndrome(perfect_syndr: NDArray[np.int_], sigma: float) -> NDArray[np.float64]:
+def get_noisy_analog_syndrome(perfect_syndr: NDArray[np.int32], sigma: float) -> NDArray[np.float64]:
     """Generate noisy analog syndrome vector given the perfect syndrome and standard deviation sigma (~ noise strength).
 
     Assumes perfect_syndr has entries in {0,1}.
@@ -191,7 +195,7 @@ def get_noisy_analog_syndrome(perfect_syndr: NDArray[np.int_], sigma: float) -> 
         perfect_syndr == 0.0,
         np.ones_like(perfect_syndr),
         np.full_like(perfect_syndr, -1.0),
-    ).astype(float)
+    ).astype(np.float64)
 
     # sample from Gaussian with zero mean and sigma std. dev: ~N(0, sigma_sq)
     return np.array(np.random.default_rng().normal(loc=sgns, scale=sigma, size=perfect_syndr.shape)).astype(np.float64)
@@ -226,7 +230,7 @@ def error_channel_setup(
     return channel_probs_x, channel_probs_y, channel_probs_z
 
 
-def build_single_stage_pcm(pcm: NDArray[np.int_], meta: NDArray[np.int_]) -> NDArray[np.int_]:
+def build_single_stage_pcm(pcm: NDArray[np.int32], meta: NDArray[np.int32]) -> NDArray[np.int32]:
     """Build the single statge parity check matrix."""
     id_r = np.identity(meta.shape[1])
     zeros = np.zeros((meta.shape[0], pcm.shape[1]))

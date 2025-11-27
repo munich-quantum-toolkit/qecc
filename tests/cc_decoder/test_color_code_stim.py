@@ -27,16 +27,19 @@ from mqt.qecc.cc_decoder.stim_interface.color_code_stim import (
 
 
 @pytest.fixture
-def hamming_code() -> NDArray[bool]:
+def hamming_code() -> NDArray[np.bool_]:
     """Return hamming code parity check matrix."""
-    return np.array([
-        [True, True, False, True, True, False, False],
-        [False, True, True, False, True, True, False],
-        [False, False, False, True, True, True, True],
-    ])
+    return np.array(
+        [
+            [True, True, False, True, True, False, False],
+            [False, True, True, False, True, True, False],
+            [False, False, False, True, True, True, True],
+        ],
+        dtype=np.bool_,
+    )
 
 
-def test_gen_pcm_and_logical(hamming_code: NDArray[bool]) -> None:
+def test_gen_pcm_and_logical(hamming_code: NDArray[np.bool_]) -> None:
     """Test parity check matrix and logical matrix generation."""
     distance = 3
     expected_logicals = {2, 5, 6}
@@ -54,17 +57,17 @@ def test_neighbours() -> None:
     assert array_equal(expected, neighbors(input_perm))
 
 
-def test_add_checks_one_round(hamming_code: NDArray[bool]) -> None:
+def test_add_checks_one_round(hamming_code: NDArray[np.bool_]) -> None:
     """Test stim circuit generation for one stabilizer round."""
     expected_circuit = stim.Circuit()
     circuit = stim.Circuit()
     expected_circuit.append_from_stim_program_text("MPP Z0*Z1*Z3*Z4")
     expected_circuit.append_from_stim_program_text("MPP Z1*Z2*Z4*Z5")
     expected_circuit.append_from_stim_program_text("MPP Z3*Z4*Z5*Z6")
-    assert expected_circuit == add_checks_one_round(hamming_code, circuit, False, 0)
+    assert expected_circuit == add_checks_one_round(hamming_code.astype(np.int_), circuit, False, 0)
 
 
-def test_gen_stim_memory_experiment(hamming_code: NDArray[bool]) -> None:
+def test_gen_stim_memory_experiment(hamming_code: NDArray[np.bool_]) -> None:
     """Test generation of stim circuit for a memory experiment."""
     expected_circuit = stim.Circuit()
     stim.Circuit()
@@ -92,4 +95,4 @@ def test_gen_stim_memory_experiment(hamming_code: NDArray[bool]) -> None:
     expected_circuit.append_from_stim_program_text("MPP Z2*Z5*Z6")
     expected_circuit.append_from_stim_program_text("OBSERVABLE_INCLUDE(0) rec[-1]")
     logical = np.array([2, 5, 6])
-    assert expected_circuit == gen_stim_circuit_memory_experiment(hamming_code, logical, 3, 0.5)
+    assert expected_circuit == gen_stim_circuit_memory_experiment(hamming_code.astype(np.int_), logical, 3, 0.5)

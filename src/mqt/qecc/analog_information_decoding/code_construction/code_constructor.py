@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ldpc.code_util
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
 import scipy.sparse as scs
 from bposd.hgp import hgp
-from ldpc import mod2
 from scipy import sparse
 
 if TYPE_CHECKING:
@@ -131,7 +131,7 @@ def save_code(
     path = create_outpath(codename)
     ms = [hx, hz, mx, mz, lx, lz] if lx is not None and lz is not None else [hx, hz, mx, mz]
     names: list[str] = ["hx", "hz", "mx", "mz", "lx", "lz"]
-    for mat, name in zip(ms, names):
+    for mat, name in zip(ms, names, strict=False):
         if mat is not None:
             np.savetxt(path + name + ".txt", mat, fmt="%i")
             sio.mmwrite(

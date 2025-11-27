@@ -11,10 +11,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 from qecsim import app
 from qecsim.models.color import Color666Code, Color666MPSDecoder
 from qecsim.models.generic import BitFlipErrorModel
+
+
+def _fix_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Fix the data dictionary to be JSON serializable."""
+    fixed_data = {}
+    for key, value in data.items():
+        if isinstance(value, np.integer):
+            fixed_data[key] = int(value)
+        else:
+            fixed_data[key] = value
+    return fixed_data
 
 
 def run(
@@ -25,10 +38,11 @@ def run(
 ) -> None:
     """Run the decoder for the hexagonal color code.
 
-    :param distance: distance to run
-    :param error_rate: error rate to run
-    :param nr_sims: number of samples to run
-    :param results_dir: directory to store results.
+    Args:
+        distance: distance to run
+        error_rate: error rate to run
+        nr_sims: number of samples to run
+        results_dir: directory to store results.
     """
     code = Color666Code(distance)
     error_model = BitFlipErrorModel()
@@ -38,4 +52,4 @@ def run(
     path = Path(results_dir)
     path.mkdir(parents=True, exist_ok=True)
     with (path / filename).open("w") as out:
-        out.write(json.dumps(data))
+        out.write(json.dumps(_fix_data(data)))

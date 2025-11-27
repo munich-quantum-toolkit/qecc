@@ -59,18 +59,18 @@ repos:
 
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.11
+    rev: v0.14.6
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
   # Also run Black on examples in the documentation
   - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.19.1
+    rev: 1.20.0
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==24.*]
+        additional_dependencies: [black==25.*]
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
@@ -80,7 +80,7 @@ repos:
 
   # Check static types with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+    rev: v1.18.2
     hooks:
       - id: mypy
         files: ^(src/mqt|tests|noxfile.py)
@@ -93,7 +93,7 @@ repos:
 
   # Check for spelling
   - repo: https://github.com/crate-ci/typos
-    rev: v1.35.8
+    rev: v1.39.2
     hooks:
       - id: typos
 
@@ -115,14 +115,14 @@ repos:
 
   # Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
-    rev: 2025.05.02
+    rev: 2025.11.21
     hooks:
       - id: sp-repo-review
         additional_dependencies: ["repo-review[cli]"]
 
   # Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.33.3
+    rev: 0.35.0
     hooks:
       - id: check-dependabot
       - id: check-github-workflows
@@ -130,6 +130,24 @@ repos:
 
   # Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2025.06.23
+    rev: 2025.11.21
     hooks:
       - id: validate-pyproject
+
+  # Tidy up BibTeX files
+  - repo: https://github.com/FlamingTempura/bibtex-tidy
+    rev: v1.14.0
+    hooks:
+      - id: bibtex-tidy
+        args:
+          [
+            "--align=20",
+            "--curly",
+            "--months",
+            "--blank-lines",
+            "--sort",
+            "--strip-enclosing-braces",
+            "--sort-fields",
+            "--trailing-commas",
+            "--remove-empty-fields",
+          ]

@@ -13,9 +13,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-# from ldpc import mod2
-
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from typing import Any
 
     import numpy.typing as npt
@@ -78,7 +77,7 @@ class SymplecticVector:
 
     def __hash__(self) -> int:
         """Return the hash of the vector."""
-        return hash(self.vector.to_bytes())
+        return hash(self.vector.tobytes())
 
 
 class SymplecticMatrix:
@@ -145,7 +144,7 @@ class SymplecticMatrix:
         """Return the string representation of the matrix."""
         return str(self.matrix.__repr__())
 
-    def __iter__(self) -> npt.NDArray[np.int8]:
+    def __iter__(self) -> Iterator[npt.NDArray[np.int8]]:
         """Iterate over the rows of the matrix."""
         return self.matrix.__iter__()
 

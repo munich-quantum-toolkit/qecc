@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import z3
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import row_echelon
 
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 
@@ -154,7 +154,7 @@ class PureFaultSet:
             # If stabilizer matrix is empty, no faults can be removed
             return
 
-        rref, _, _, pivots = mod2.row_echelon(stabs, full=True)
+        rref, _, _, pivots = row_echelon(stabs, full=True)
         # Reduce all faults to their coset representatives
         for i, fault in enumerate(self.faults):
             # Identify the indices of pivot columns where the fault has a 1
@@ -283,7 +283,7 @@ class PureFaultSet:
         Returns:
             A 1D numpy array representing the fault.
         """
-        return self.faults[index]
+        return np.asarray(self.faults[index], dtype=np.int8)
 
     def __iter__(self) -> Iterator[npt.NDArray[np.int8]]:
         """Return an iterator over the faults in the PureFaultSet.
@@ -304,7 +304,7 @@ class PureFaultSet:
         """
         return bool(np.all(np.any(stabs @ self.faults.T % 2, axis=1)))
 
-    def get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[int]:
+    def get_undetectable_faults_idx(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Return indices of faults that are not detectable by the given stabilizers.
 
         Args:
@@ -313,7 +313,7 @@ class PureFaultSet:
         Returns:
             Indices of faults that commute with all generators.
         """
-        return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=0))[0]
+        return np.where(np.all(stabs @ self.faults.T % 2 == 0, axis=0))[0].astype(np.int8)
 
     def get_undetectable_faults(self, stabs: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Return faults that are not detectable by the given stabilizers.

@@ -13,10 +13,10 @@ import functools
 import logging
 from typing import TYPE_CHECKING, Any
 
+import ldpc.mod2.mod2_numpy as mod2
 import multiprocess
 import numpy as np
 import z3
-from ldpc import mod2
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -328,8 +328,8 @@ def build_css_circuit_from_cnot_list(n: int, cnots: list[tuple[int, int]], hadam
 
 
 def _column_addition_constraint(
-    columns: npt.NDArray[z3.BoolRef | bool],
-    col_add_vars: npt.NDArray[z3.BoolRef],
+    columns: npt.NDArray[np.bool_],
+    col_add_vars: npt.NDArray[np.bool_],
 ) -> z3.BoolRef:
     assert len(columns.shape) == 3
     max_parallel_steps = col_add_vars.shape[0]
@@ -364,7 +364,7 @@ def _column_addition_constraint(
     return z3.And(constraints)
 
 
-def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]) -> z3.BoolRef:
+def symbolic_vector_eq(v1: npt.NDArray[np.bool_] | list[z3.BoolRef], v2: npt.NDArray[np.bool_]) -> z3.BoolRef:
     """Return assertion that two symbolic vectors should be equal."""
     if len(v1) != len(v2):
         msg = "Vectors must have the same length for equality check."
@@ -397,7 +397,7 @@ def symbolic_vector_eq(v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.Bo
     return z3.And(constraints)
 
 
-def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int8]) -> z3.BoolRef:
+def odd_overlap(v_sym: npt.NDArray[np.bool_], v_con: npt.NDArray[np.int8]) -> z3.BoolRef:
     """Return True if the overlap of symbolic vector with constant vector is odd."""
     if np.array_equal(v_con, np.zeros(len(v_con), dtype=np.int8)):
         return z3.BoolVal(False)
@@ -410,14 +410,12 @@ def odd_overlap(v_sym: npt.NDArray[z3.BoolRef | bool], v_con: npt.NDArray[np.int
     return constraint
 
 
-def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[z3.BoolRef]:
+def symbolic_scalar_mult(v: npt.NDArray[np.int8], a: z3.BoolRef | bool) -> npt.NDArray[np.bool_]:
     """Multiply a concrete vector by a symbolic scalar."""
     return np.array([a if s == 1 else False for s in v])
 
 
-def symbolic_vector_add(
-    v1: npt.NDArray[z3.BoolRef | bool], v2: npt.NDArray[z3.BoolRef | bool]
-) -> npt.NDArray[z3.BoolRef | bool]:
+def symbolic_vector_add(v1: npt.NDArray[np.bool_], v2: npt.NDArray[np.bool_]) -> npt.NDArray[np.bool_]:
     """Add two symbolic vectors."""
     v_new = [False for _ in range(len(v1))]
     for i in range(len(v1)):
@@ -1222,9 +1220,7 @@ def measure_three_flagged_12(
     qc.measure(ancilla, measurement_bit)
 
 
-def vars_to_stab(
-    measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]
-) -> npt.NDArray[z3.BoolRef | bool]:
+def vars_to_stab(measurement: list[z3.BoolRef | bool], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.bool_]:
     """Compute the stabilizer measured giving the generators and the measurement variables."""
     if not measurement:
         msg = "Measurement must not be empty"

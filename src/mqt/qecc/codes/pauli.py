@@ -67,7 +67,8 @@ class Pauli:
         x_part = self.symplectic[: self.n]
         z_part = self.symplectic[self.n :]
         pauli = [
-            "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I" for x, z in zip(x_part, z_part)
+            "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I"
+            for x, z in zip(x_part, z_part, strict=False)
         ]
         return f"{'' if self.phase == 0 else '-'}" + "".join(pauli)
 
@@ -90,11 +91,11 @@ class Pauli:
 
     def x_part(self) -> npt.NDArray[np.int8]:
         """Return the X part of the Pauli operator."""
-        return self.symplectic[: self.n]
+        return np.asarray(self.symplectic[: self.n], dtype=np.int8)
 
     def z_part(self) -> npt.NDArray[np.int8]:
         """Return the Z part of the Pauli operator."""
-        return self.symplectic[self.n :]
+        return np.asarray(self.symplectic[self.n :], dtype=np.int8)
 
     def __eq__(self, other: object) -> bool:
         """Check if this Pauli operator is equal to another Pauli operator."""

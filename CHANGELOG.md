@@ -11,22 +11,26 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Added
 
+- Added `gottesman_encoding_circuit` methods that constructs a stim encoding circuit for a given stabilizer code using the method described in Gottesman's "Surviving as a Quantum Computer in a Classical World" Chapter 6.4.1. ([#486]) ([**@pehamtom**])
+- Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. ([#462]) ([**@pehamtom**])
+- Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). ([#462]) ([**@pehamtom**])
+- Added `ComposedNoiseModel` class that allows for composition of noise models. )([#462]) ([**@pehamtom**])
+- Added functionality to concatenate stim circuits along specific qubits. Add functionality to concatenate stim circuits along specific qubits ([#461]) ([**@pehamtom**])
+- Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
-- Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
-- Added functionality to concatenate stim circuits along specific qubits. Add functionality to concatenate stim circuits along specific qubits ([#461]) ([**@pehamtom**])
-- Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. [(#462)] ([**@pehamtom**])
-- Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). [(#462)] ([**@pehamtom**])
-- Added `ComposedNoiseModel` class that allows for composition of noise models. [(#462)] ([**@pehamtom**])
-- Added `gottesman_encoding_circuit` methods that constructs a stim encoding circuit for a given stabilizer code using the method described in Gottesman's "Surviving as a Quantum Computer in a Classical World" Chapter 6.4.1. [(#486)] ([**@pehamtom**])
 
 ### Changed
 
 - Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
+- `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. ([#462]) ([**@pehamtom**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
-- `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. [(#462)] ([**@pehamtom**])
+
+### Removed
+
+- Drop support for Python 3.9 ([#503]) ([**@denialhaag**])
 
 ## [1.9.0] - 2025-03-14
 
@@ -39,14 +43,19 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
-[#482]: https://github.com/munich-quantum-toolkit/qecc/pull/443
-[#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
-[#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
-[#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
-[#462]: https://github.com/munich-quantum-toolkit/qecc/pull/462
+[#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
+[#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
+[#482]: https://github.com/munich-quantum-toolkit/qecc/pull/482
+[#462]: https://github.com/munich-quantum-toolkit/qecc/pull/462
+[#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
+[#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
+[#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 
 <!-- Contributor -->
+
+[**@pehamtom**]: https://github.com/pehamtom
+[**@denialhaag**]: https://github.com/denialhaag
 
 <!-- General links -->
 

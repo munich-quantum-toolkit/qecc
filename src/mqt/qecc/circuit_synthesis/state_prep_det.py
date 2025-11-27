@@ -14,14 +14,13 @@ from functools import partial
 from itertools import product
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import numpy.typing as npt
 import z3
-from ldpc import mod2
 
 from .faults import PureFaultSet, coset_leader
 from .state_prep import (
-    FaultyStatePrepCircuit,
     all_gate_optimal_verification_stabilizers,
     get_hook_errors,
     heuristic_verification_stabilizers,
@@ -40,10 +39,15 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from .state_prep import FaultyStatePrepCircuit
+
 
 Recovery = tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]]
-Recoveries = dict[int, Recovery]
-DeterministicCorrection = dict[int, tuple[list[npt.NDArray[np.int8]], Recoveries]]
+DeterministicCorrection = dict[
+    int,
+    tuple[npt.NDArray[np.int8], dict[int, npt.NDArray[np.int8]]]
+    | tuple[list[npt.NDArray[np.int8]], dict[int, npt.NDArray[np.int8]]],
+]
 Verification = list[npt.NDArray[np.int8]]
 
 
@@ -96,7 +100,7 @@ class DeterministicVerification:
 
     def num_cnots_verification(self) -> int:
         """Return the number of CNOTs needed for the verification."""
-        return np.sum([np.sum(m) for m in self.stabs])
+        return int(np.sum([np.sum(m) for m in self.stabs]))
 
     def num_ancillas_correction(self) -> int:
         """Return the number of ancillas needed for the correction."""
@@ -307,7 +311,7 @@ class DeterministicVerificationHelper:
                     # hook errors are non-trivial
                     # add case of error on hook ancilla
                     hook_errors = PureFaultSet.from_fault_array(
-                        np.vstack((hook_errors, np.zeros(self.num_qubits, dtype=np.int8)))
+                        np.vstack((hook_errors.to_array(), np.zeros(self.num_qubits, dtype=np.int8)))
                     )
                     self._layers[layer_idx][verify_idx].hook_corrections[stab_idx] = {
                         1: deterministic_correction_single_outcome(
@@ -466,8 +470,8 @@ class DeterministicVerificationHelper:
                         return_all_solutions=compute_all_solutions,
                     )[0]
                 else:
-                    stabs_2_list = heuristic_verification_stabilizers(fault_set, self.checks[1])[0]
-                    stabs_2_list = [stabs_2_list]
+                    stabs_2_list_ = heuristic_verification_stabilizers(fault_set, self.checks[1])[0]
+                    stabs_2_list = [stabs_2_list_]
                 verify_2_list = [DeterministicVerification(stabs_2, {}) for stabs_2 in stabs_2_list]
                 # check if better than normal verification
                 anc_saved = (
@@ -658,7 +662,7 @@ def deterministic_correction(
     logger.info("Fault set has %s faults.", len(fault_set))
     logger.info("Non-deterministic verification stabilizers: %s", nd_d3_verification_stabilizers)
 
-    det_verify = {}
+    det_verify: DeterministicCorrection = {}
     for verify_outcome_int in range(1, 2**num_nd_stabs):
         verify_outcome = _int_to_int8_array(verify_outcome_int, num_nd_stabs)
         logger.info(
@@ -829,8 +833,8 @@ def correction_stabilizers(
 
 def _extract_measurement_and_correction(
     model: z3.Model,
-    gens: list[npt.NDArray[np.int8]],
-    correction_gens: list[npt.NDArray[np.int8]],
+    gens: npt.NDArray[np.int8],
+    correction_gens: npt.NDArray[np.int8],
     n_qubits: int,
     num_anc: int,
     measurement_vars: list[list[z3.BoolRef]],

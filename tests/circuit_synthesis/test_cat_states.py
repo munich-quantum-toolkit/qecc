@@ -13,10 +13,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc import mod2
+from ldpc.mod2.mod2_numpy import rank
 
 from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
-from mqt.qecc.circuit_synthesis.cat_states import search_ft_cnot_cegar, cat_state_pruned_balanced_circuit, fault_gens_from_circuit
+from mqt.qecc.circuit_synthesis.cat_states import (
+    cat_state_pruned_balanced_circuit,
+    fault_gens_from_circuit,
+    search_ft_cnot_cegar,
+)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -35,7 +39,7 @@ def _is_cat_state(circ: Circuit) -> bool:
         cat_state_tab[i, w + i - 1] = 1
         cat_state_tab[i, w + i] = 1
 
-    return bool(mod2.rank(np.vstack((circ_tab, cat_state_tab))) == w)
+    return bool(rank(np.vstack((circ_tab, cat_state_tab))) == w)
 
 
 @pytest.mark.parametrize("w", [1, 2, 4, 8, 16])
@@ -61,7 +65,7 @@ def test_line(w: int) -> None:
     assert _is_cat_state(circ)
 
 
-def _fit_improvement(x: npt.NDArray[float], y: npt.NDArray[float]) -> float:
+def _fit_improvement(x: npt.NDArray[np.float64], y: npt.NDArray[np.float64]) -> float:
     fit_quad = np.polyfit(x, y, 2)
     fit_cube = np.polyfit(x, y, 3)
 
@@ -73,7 +77,7 @@ def _fit_improvement(x: npt.NDArray[float], y: npt.NDArray[float]) -> float:
     return (rss2 - rss3) / rss2
 
 
-def _pure_coeff_and_rss(x: npt.NDArray[float], y: npt.NDArray[float], degree: int) -> tuple[float, float]:
+def _pure_coeff_and_rss(x: npt.NDArray[np.float64], y: npt.NDArray[np.float64], degree: int) -> tuple[float, float]:
     # closed-form least squares for y ≃ c * x**degree
     x_d = x**degree
     c = np.dot(x_d, y) / np.dot(x_d, x_d)
@@ -88,8 +92,8 @@ def test_cat_state_experiment_nonft() -> None:
     perm = [0, 1, 2, 3, 4, 5]  # identity permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = np.arange(0.01, 0.1, 0.01)
-    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=2000000)
+    ps = np.arange(0.01, 0.1, 0.01, dtype=np.float64)
+    _, _, errs, _ = sim.cat_prep_experiment(ps.tolist(), shots_per_p=2000000)
 
     # In the given circuit structure, single errors can lead to weight 3 errors.
     # Since c1 and c2 prepare the circuit in the same way, such errors cancel out and won't be detected.
@@ -116,8 +120,8 @@ def test_cat_state_experiment_ft() -> None:
     perm = [0, 4, 2, 3, 1, 5]  # ft permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = np.arange(0.01, 0.1, 0.01)
-    _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=1000000)
+    ps = np.arange(0.01, 0.1, 0.01, dtype=np.float64)
+    _, _, errs, _ = sim.cat_prep_experiment(ps.tolist(), shots_per_p=1000000)
 
     # In the given circuit structure, single errors can lead to weight 3 errors.
     # Since c1 and c2 are connected via a permuted CNOT such errors won't cancel out and won't be detected.
@@ -139,11 +143,11 @@ def test_cat_state_experiment_ft() -> None:
 
 def cat_fault_gens(w: int) -> stim.Circuit:
     return fault_gens_from_circuit(cat_state_pruned_balanced_circuit(w))
-    
-@pytest.mark.parametrize(("w1", "w2"), ([2, 3, 4, 5, 6, 7, 8], [2, 2, 2, 3, 4, 5, 6]))
+
+
+@pytest.mark.parametrize(("w1", "w2"), [(2, 3, 4, 5, 6, 7, 8), (2, 2, 2, 3, 4, 5, 6)])
 def test_cegar_synthesis(w1: int, w2: int):
     gens1 = cat_fault_gens(w1)
     gens2 = cat_fault_gens(w2)
-    t = w1//2
-    res = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
-    
+    t = w1 // 2
+    search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
