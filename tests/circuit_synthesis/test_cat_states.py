@@ -18,16 +18,17 @@ from ldpc.mod2.mod2_numpy import rank
 from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
 from mqt.qecc.circuit_synthesis.cat_states import (
     cat_state_pruned_balanced_circuit,
+    check_ft_partial_cnot,
     fault_gens_from_circuit,
     search_ft_cnot_cegar,
 )
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from stim import Circuit
+    import stim
 
 
-def _is_cat_state(circ: Circuit) -> bool:
+def _is_cat_state(circ: stim.Circuit) -> bool:
     """Check if a circuit prepares a cat state."""
     w = circ.num_qubits
     _, _, z2x, z2z, _x_signs, z_signs = circ.to_tableau().to_numpy()
@@ -141,13 +142,24 @@ def test_cat_state_experiment_ft() -> None:
     assert aic2 > aic3
 
 
-def cat_fault_gens(w: int) -> stim.Circuit:
+def _cat_fault_gens(w: int) -> stim.Circuit:
     return fault_gens_from_circuit(cat_state_pruned_balanced_circuit(w))
 
 
-@pytest.mark.parametrize(("w1", "w2"), [(2, 3, 4, 5, 6, 7, 8), (2, 2, 2, 3, 4, 5, 6)])
-def test_cegar_synthesis(w1: int, w2: int):
-    gens1 = cat_fault_gens(w1)
-    gens2 = cat_fault_gens(w2)
+@pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 3), (6, 4), (7, 5), (8, 6), (9, 6)])
+def test_cegar_synthesis(w1: int, w2: int) -> None:
+    """Test correctness of ft partial CNOTs constructed by CEGAR search."""
+    gens1 = _cat_fault_gens(w1)
+    gens2 = _cat_fault_gens(w2)
     t = w1 // 2
-    search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+    ctrls, perm, _info = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+
+    assert ctrls is not None
+    assert perm is not None
+    assert len(ctrls) == len(perm)
+    assert len(perm) == w2
+
+    # validate CNOT by counting faults
+    is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls, perm, t)
+
+    assert is_ft

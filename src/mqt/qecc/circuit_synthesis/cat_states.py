@@ -24,6 +24,7 @@ from .noise import CircuitLevelNoise
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from typing import Any
 
     import numpy.typing as npt
 
@@ -234,7 +235,7 @@ class CatStatePreparationExperiment:
 
     def cat_prep_experiment(
         self, ps: list[float], shots_per_p: int | list[int]
-    ) -> tuple[list[float], list[float], npt.NDArray[np.int_], npt.NDArray[np.int_]]:
+    ) -> tuple[list[float], list[float], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Simulate post-selection based cat state preparation for various physical error rates using a circuit-level depolarizing noise.
 
         Args:
@@ -310,26 +311,7 @@ def build_transversal_pairs(
     return [(controls[i], w1 + perm_targets[i]) for i in range(w2)]
 
 
-def apply_perm_mask(mask: int, P: list[int]) -> int:
-    """Forward permutation: image bits go to positions P[i]."""
-    out = 0
-    for i, j in enumerate(P):
-        if (mask >> i) & 1:
-            out |= 1 << j
-    return out
-
-
-def bits_of_mask(mask: int, w: int) -> list[int]:
-    """Return [0/1]*w (LSB at index 0)."""
-    return [(mask >> j) & 1 for j in range(w)]
-
-
-def support(mask: int, w: int) -> list[int]:
-    """Return list of indices i where bit i of mask is 1."""
-    return [i for i in range(w) if (mask >> i) & 1]
-
-
-def cat_state_pruned_balanced_circuit(w: int):
+def cat_state_pruned_balanced_circuit(w: int) -> stim.Circuit:
     """Prepare GHZ_w in log-depth with a balanced tree circuit.
 
     If w is not a power of two, CNOTs are pruned from the full balanced tree until the circuit acts on w qubits.
@@ -349,11 +331,11 @@ def cat_state_pruned_balanced_circuit(w: int):
         return circ
 
     m = math.ceil(math.log2(w))
-    W = 1 << m
+    next_power_two = 1 << m
 
     for stride in (1 << k for k in range(m - 1, -1, -1)):
         step = 2 * stride
-        for j in range(0, W, step):
+        for j in range(0, next_power_two, step):
             c = j
             t = j + stride
             if c < w and t < w:
@@ -361,22 +343,24 @@ def cat_state_pruned_balanced_circuit(w: int):
     return circ
 
 
-def _cx_forward(mask: int, c: int, t: int) -> int:
-    if (mask >> c) & 1:
-        mask ^= 1 << t
-    return mask
+def _propagate_forward(error: int, c: int, t: int) -> int:
+    if (error >> c) & 1:
+        error ^= 1 << t
+    return error
 
 
-def fault_gens_from_circuit(circ) -> list[int]:
-    """Propagated single-qubit errors in a cat state preparation circuit:
-      - all singletons (X injected at a leaf at any time before it's touched),
-      - for each CX pair (c,t) in sequence, inject X on c *just before that CX*
-        and propagate through the remaining pairs.
+def fault_gens_from_circuit(circ: stim.Circuit) -> list[int]:
+    """Propagated single-qubit errors in a cat state preparation circuit.
+
+      Includes all singletons ,
+      For each CX pair (c,t) in sequence, inject X on c *just before that CX* and propagate through the remaining pairs.
 
     Args:
         circ: stim circuit consisting of CX gates only
         include_full: whether to include the full-weight generator
 
+    Returns:
+        sorted list of int bit strings representing the propagated errors
     """
     w = circ.num_qubits
     ops: list[tuple[int, int]] = []
@@ -391,8 +375,8 @@ def fault_gens_from_circuit(circ) -> list[int]:
             if c < w and t < w:
                 ops.append((c, t))
 
-    ALL = (1 << w) - 1
-    gens = set()
+    all_ones = (1 << w) - 1
+    gens: set[int] = set()
 
     # all singletons
     gens.update(1 << q for q in range(w))
@@ -401,15 +385,15 @@ def fault_gens_from_circuit(circ) -> list[int]:
     for idx, (c0, _) in enumerate(ops):
         mask = 1 << c0
         for c, t in ops[idx:]:
-            mask = _cx_forward(mask, c, t)
-        if mask == ALL:  # error on all qubits is trivial
+            mask = _propagate_forward(mask, c, t)
+        if mask == all_ones:  # error on all qubits is trivial
             continue
         gens.add(mask)
 
     return sorted(gens)
 
 
-def _ft_w_4_cat_state() -> tuple[stim.Circuit, list[list[int]]]:
+def _ft_w_4_cat_state() -> tuple[stim.Circuit, list[tuple[list[int], list[int]]]]:
     circ = stim.Circuit()
     circ.append("RX", [4])
     circ.append("R", [0, 1, 2, 3])
@@ -422,7 +406,7 @@ def _ft_w_4_cat_state() -> tuple[stim.Circuit, list[list[int]]]:
     return circ, [([4], [0, 1, 2, 3])]
 
 
-def recursive_fuse_cat_state(w: int, t: int) -> tuple[stim.Circuit, list[list[int]]]:
+def recursive_fuse_cat_state(w: int, t: int) -> tuple[stim.Circuit, list[tuple[list[int], list[int]]]]:
     """Construct t-FT cat state prep circuit from arXiv:2506.17181."""
 
     def _recurse(w1: int, w2: int) -> tuple[stim.Circuit, list[tuple[list[int], list[int]]]]:
@@ -431,14 +415,16 @@ def recursive_fuse_cat_state(w: int, t: int) -> tuple[stim.Circuit, list[list[in
             raise ValueError(msg)
 
         if w1 < 4:
-            c1, measurements_1 = cat_state_pruned_balanced_circuit(w1), []
+            c1 = cat_state_pruned_balanced_circuit(w1)
+            measurements_1: list[tuple[list[int], list[int]]] = []
         elif w1 == 4:
             c1, measurements_1 = _ft_w_4_cat_state()
         else:
             c1, measurements_1 = _recurse((w1 + 1) // 2, w1 // 2)
 
         if w2 < 4:
-            c2, measurements_2 = cat_state_pruned_balanced_circuit(w2), []
+            c2 = cat_state_pruned_balanced_circuit(w2)
+            measurements_2: list[tuple[list[int], list[int]]] = []
         elif w2 == 4:
             c2, measurements_2 = _ft_w_4_cat_state()
         else:
@@ -570,7 +556,7 @@ def _build_anc_controls(circ: stim.Circuit) -> dict[int, list[int]]:
 
 def _rx_prepared_qubits(circ: stim.Circuit) -> set[int]:
     """Set of qubits that are prepared with RX (|+>) at some point (used to tag 4-qubit base ancillas)."""
-    s = set()
+    s: set[int] = set()
     for op in circ:
         if op.name == "RX":
             s.update(t.value for t in op.targets_copy())
@@ -583,8 +569,7 @@ def simulate_recursive_cat_construction(
     p: float,
     n_samples: int = 1024,
     batch_size: int | None = None,
-    add_final_measure: bool = True,
-) -> tuple[float, float, npt.NDArray[np.int_], npt.NDArray[np.int_]]:
+) -> tuple[float, float, npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Simulate the recursive fusion scheme returned by `recursive_fuse_cat_state(w,t)`.
 
     Post-selection per step:
@@ -599,7 +584,6 @@ def simulate_recursive_cat_construction(
         p: physical error rate
         n_samples: number of shots
         batch_size: number of shots per batch
-        add_final_measure: whether to include measurement of the data
 
     Returns:
         A tuple containing
@@ -615,15 +599,11 @@ def simulate_recursive_cat_construction(
     rx_qubits = _rx_prepared_qubits(circ_base)  # base-4 ancillas have RX
 
     circ_base = CircuitLevelNoise(p, p, p, p).apply(circ_base)
-    if add_final_measure:
-        circ_run = stim.Circuit()
-        circ_run += circ_base
-        circ_run.append("TICK")
-        circ_run.append("MR", list(range(w)))  # measure data at the end
-        data_cols_start = len(meas_index_of_qubit)  # data bits are at the end
-    else:
-        circ_run = circ_base
-        data_cols_start = None
+    circ_run = stim.Circuit()
+    circ_run += circ_base
+    circ_run.append("TICK")
+    circ_run.append("MR", list(range(w)))  # measure data at the end
+    data_cols_start = len(meas_index_of_qubit)  # data bits are at the end
 
     circ_noisy = circ_run
 
@@ -645,12 +625,8 @@ def simulate_recursive_cat_construction(
         raw = sampler.sample(this_batch).astype(np.uint8)
         total_samples += this_batch
 
-        if add_final_measure:
-            anc_bits_all = raw[:, :data_cols_start]
-            data_bits_all = raw[:, data_cols_start : data_cols_start + w]
-        else:
-            anc_bits_all = raw
-            data_bits_all = None
+        anc_bits_all = raw[:, :data_cols_start]
+        data_bits_all = raw[:, data_cols_start : data_cols_start + w]
 
         remaining = np.ones(this_batch, dtype=bool)
         corrections = np.zeros((this_batch, w), dtype=np.uint8)  # frame on data qubits
@@ -714,7 +690,7 @@ def simulate_recursive_cat_construction(
         idx_acc = np.where(remaining)[0]
         total_accepted += idx_acc.size
 
-        if add_final_measure and idx_acc.size:
+        if idx_acc.size:
             dat = data_bits_all[idx_acc, :].copy()
             dat ^= corrections[idx_acc, :]
             wts = dat.sum(axis=1)
@@ -725,27 +701,23 @@ def simulate_recursive_cat_construction(
     acceptance_rate = total_accepted / max(total_samples, 1)
     acceptance_rate_error = np.sqrt(acceptance_rate * max(1 - acceptance_rate, 0) / max(total_samples, 1))
 
-    if add_final_measure:
-        error_rates = hist_total / max(total_samples, 1)
-        error_rates_error = np.sqrt(error_rates * np.maximum(1 - error_rates, 0) / max(total_samples, 1))
-    else:
-        error_rates = np.zeros(max_sym + 1, dtype=float)
-        error_rates_error = np.zeros_like(error_rates)
+    error_rates = hist_total / max(total_samples, 1)
+    error_rates_error = np.sqrt(error_rates * np.maximum(1 - error_rates, 0) / max(total_samples, 1))
 
     return acceptance_rate, acceptance_rate_error, error_rates, error_rates_error
 
 
-def _degree_sets_exact(gens: list[int], t: int) -> list[set]:
+def _degree_sets_exact(gens: list[int], t: int) -> list[set[int]]:
     @cache
-    def _degree_sets_exact_cached(gens_key: tuple[int, ...], t: int) -> list[set]:
+    def _degree_sets_exact_cached(gens_key: tuple[int, ...], t: int) -> list[set[int]]:
         gens = list(gens_key)
-        S = [set() for _ in range(t + 1)]
-        S[0].add(0)
+        fault_sets: list[set[int]] = [set() for _ in range(t + 1)]
+        fault_sets[0].add(0)
         for g in gens:
             for h in range(t, 0, -1):
-                for s in list(S[h - 1]):
-                    S[h].add(s ^ g)
-        return S
+                for s in list(fault_sets[h - 1]):
+                    fault_sets[h].add(s ^ g)
+        return fault_sets
 
     key = tuple(sorted(set(gens)))
     return _degree_sets_exact_cached(key, t)
@@ -806,7 +778,7 @@ def permute_error(error: int, perm: list[int], w: int) -> int:
 
 def check_ft_partial_cnot(
     gens1: list[int], w1: int, gens2: list[int], w2: int, controls: list[int], perm: list[int], t: int
-) -> tuple[bool, dict | None]:
+) -> tuple[bool, dict[str, int | list[int]] | None]:
     """Check whether the CNOT defined by the given selection of control qubits and permutation is FT-t for the given fault set generators.
 
     Args:
@@ -825,18 +797,18 @@ def check_ft_partial_cnot(
     assert len(perm) == w2
     fss1 = _degree_sets_exact(gens1, t)
     fss2 = _degree_sets_exact(gens2, t)
-    ONES = (1 << w2) - 1
+    all_ones = (1 << w2) - 1
 
     for h1 in range(1, t + 1):
         for err in fss1[h1]:
-            wt1 = err.bitcount()
+            wt1 = err.bit_count()
             sym1 = min(wt1, w1 - wt1)
             for h2 in range(t - h1 + 1):  # include h2=0
                 if sym1 <= h1 + h2:
                     continue
                 err_projected = propagate_error_transversal(err, controls)
                 err_permuted = permute_error(err_projected, perm, w2)
-                if err_permuted in fss2[h2] or ((ONES ^ err_permuted) in fss2[h2]):
+                if err_permuted in fss2[h2] or ((all_ones ^ err_permuted) in fss2[h2]):
                     return False, {
                         "h1": h1,
                         "h2": h2,
@@ -858,10 +830,9 @@ def search_ft_cnot_cegar(
     gens2: list[int],
     w2: int,
     t: int,
-    add_symmetry_breakers=True,
-    max_rounds=10000,
-):
-    """Use CEGAR approach to find an ft-t partial transversal CNOT.
+    max_rounds: int = 10000,
+) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
+    r"""Use CEGAR approach to find an ft-t partial transversal CNOT.
 
     Args:
         gens1: fault set generators of data cat state
@@ -873,9 +844,9 @@ def search_ft_cnot_cegar(
         max_rounds (default 10000): number of CEGAR iterations to try
 
     Returns:
-    TODO
+       list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
     """
-    ONES = (1 << w2) - 1
+    all_ones = (1 << w2) - 1
     s = z3.Solver()
 
     # ---- Variables ----
@@ -891,29 +862,11 @@ def search_ft_cnot_cegar(
         for v in range(u + 1, w1):
             s.add(z3.Implies(z3.And(ctrl[u], ctrl[v]), trgt[u] != trgt[v]))
 
-    # # ---- (Optional) symmetry breakers ----
-    # if add_symmetry_breakers:
-    #     # Anchor: prefer low-index data qubits to low columns when both selected
-    #     # For first few pairs, enforce monotonicity: if ctrl[i]=ctrl[i+1]=1 then trgt[i] < trgt[i+1]
-    #     for i in range(min(w1 - 1, 4)):
-    #         s.add(Or(ctrl[i] == 0, ctrl[i + 1] == 0, trgt[i] < trgt[i + 1]))
-
-    #     # Mirror breaker on the data ends if both selected
-    #     s.add(Or(ctrl[0] == 0, ctrl[w1 - 1] == 0, trgt[0] < trgt[w1 - 1]))
-
-    #     # Dyadic sibling ordering where possible (leaf-level)
-    #     for i in range(0, w1 - 1, 2):
-    #         s.add(Or(ctrl[i] == 0, ctrl[i + 1] == 0, trgt[i] < trgt[i + 1]))
-
-    #     # You can add deeper dyadic-subtree lex constraints too, but they require knowing
-    #     # subtree boundaries inside [0..w1-1]. If your data-qubit layout is dyadic,
-    #     # reuse the lex-less helper and guard with ctrl[...] == 1 on all members.
-
     # ---- BitVec helpers to build y(x1) directly from (ctrl, trgt) ----
     one_bv = z3.BitVecVal(1, w2)
     zero_bv = z3.BitVecVal(0, w2)
 
-    def permuted_error_symbolic(err: int):
+    def permuted_error_symbolic(err: int) -> z3.BitVecRef:
         """Build BitVector error under permutation."""
         permuted = zero_bv
         m = err
@@ -925,10 +878,10 @@ def search_ft_cnot_cegar(
             q += 1
         return permuted
 
-    def find_violation(model_controls=None, model_perm=None):
+    def find_violation() -> tuple[bool, dict[str, Any]]:
         """Check if found solution is ft-t."""
         mdl = s.model()
-        chosen = [q for q in range(w1) if mdl.evaluate(ctrl[q]).as_long() == 1]
+        chosen = [q for q in range(w1) if mdl.evaluate(ctrl[q])]
         chosen.sort()
         perm = [mdl.evaluate(trgt[q]).as_long() for q in chosen]  # length w2
         ok, wit = check_ft_partial_cnot(gens1, w1, gens2, w2, chosen, perm, t)
@@ -956,6 +909,6 @@ def search_ft_cnot_cegar(
         err_projected = propagate_and_permute_error(err, chosen, perm)
 
         s.add(err_symbolic != z3.BitVecVal(err_projected, w2))
-        s.add(err_symbolic != z3.BitVecVal(ONES ^ err_projected, w2))
+        s.add(err_symbolic != z3.BitVecVal(all_ones ^ err_projected, w2))
 
     return None, None, {"status": "unknown", "rounds": rounds}
