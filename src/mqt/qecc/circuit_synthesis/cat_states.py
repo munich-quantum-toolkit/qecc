@@ -9,10 +9,11 @@
 
 from __future__ import annotations
 
+import z3
 import math
 from collections import defaultdict
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Optional
+from functools import lru_cache
 import matplotlib.pyplot as plt
 import numpy as np
 import stim
@@ -728,3 +729,218 @@ def simulate_recursive_cat_construction(
         error_rates_error = np.zeros_like(error_rates)
 
     return acceptance_rate, acceptance_rate_error, error_rates, error_rates_error
+
+
+def _degree_sets_exact(gens: list[int], t: int) -> list[set]:
+    @lru_cache(maxsize=None)
+    def _degree_sets_exact_cached(gens_key: tuple[int, ...], t: int) -> list[set]:
+        gens = list(gens_key)
+        S = [set() for _ in range(t + 1)]
+        S[0].add(0)
+        for g in gens:
+            for h in range(t, 0, -1):
+                for s in list(S[h - 1]):
+                    S[h].add(s ^ g)
+        return S
+
+    key = tuple(sorted(set(gens)))
+    return _degree_sets_exact_cached(key, t)
+
+
+def propagate_error_transversal(error: int, controls: list[int]) -> int:
+    """Propagate error through the controls of a partial transversal CNOT.
+
+    Args:
+        error: int bit string encoding the error
+        controls: controls of the transversal CNOT
+
+    Returns:
+        int bit string representing the error that actually propagates
+    """
+    out = 0
+    for j, q in enumerate(controls):
+        if (error >> q) & 1:
+            out |= (1 << j)
+    return out
+
+
+def permute_error(error: int, perm: list[int], w: int) -> int:
+    """Permute error according to the given permutation.
+
+    Args:
+        error: int bit string representing the error
+        perm: permutation on [0..w-1] qubits
+        w: number of qubits
+
+    Returns:
+        the permuted error
+    """
+    out = 0
+    for i in range(w):
+        if (error >> i) & 1:
+            out |= (1 << perm[i])
+    return out
+
+
+def check_ft_partial_cnot(
+    gens1: list[int], w1: int,
+    gens2: list[int], w2: int,
+    controls: list[int],
+    perm: list[int],
+    t: int
+) -> tuple[bool, Optional[dict]]:
+    """Check whether the CNOT defined by the given selection of control qubits and permutation is FT-t for the given fault set generators.
+
+    Args:
+        gens1: fault set generators of data cat state
+        w1: number of qubits of data cat state
+        gens2: fault set generators of ancilla cat state
+        w2: number of qubits of ancilla cat state
+        controls: list of integers denoting qubits acting as controls in the data cat state
+        perm: permutation of [0..w2-1] defining how targets are permuted
+        t: fault distance
+
+    Returns:
+        Boolean indicating whether the given CNOT is FT-t, along with a counterexample if False
+    """
+    assert len(controls) == w2 and len(perm) == w2
+    fss1 = _degree_sets_exact(gens1, t)
+    fss2 = _degree_sets_exact(gens2, t)
+    ONES = (1 << w2) - 1
+
+    for h1 in range(1, t + 1):
+        for err in fss1[h1]:
+            wt1 = err.bitcount()
+            sym1 = min(wt1, w1 - wt1)
+            for h2 in range(0, t - h1 + 1):  # include h2=0
+                if sym1 <= h1 + h2:
+                    continue
+                err_projected = propagate_error_transversal(err, controls)
+                err_permuted = permute_error(err_projected, perm, w2)
+                if err_permuted in fss2[h2] or ((ONES ^ err_permuted) in fss2[h2]):
+                    return False, {
+                        "h1": h1, "h2": h2,
+                        "err": err, "sym_w1": sym1,
+                        "err_projected": err_projected, "err_permuted": err_permuted,
+                        "w1": w1, "w2": w2,
+                        "controls": controls, "perm": perm,
+                    }
+    return True, None
+
+
+def search_ft_cnot_cegar(
+    gens1:list[int], w1:int, gens2:list[int], w2:int, t:int,
+    add_symmetry_breakers=True,
+    max_rounds=10000,
+    forbid_complements=True,
+):
+    """Use CEGAR approach to find an ft-t partial transversal CNOT.
+
+
+    Args:
+        gens1: fault set generators of data cat state
+        w1: number of qubits of data cat state
+        gens2: fault set generators of ancilla cat state
+        w2: number of qubits of ancilla cat state
+        t: target fault distance
+        add_symmetry_breakers (default True): whether to encode symmetry breakers
+        max_rounds (default 10000): number of CEGAR iterations to try
+
+    Returns:
+    TODO
+    """
+    ONES = (1 << w2) - 1
+    s = z3.Solver()
+
+    # ---- Variables ----
+    ctrl = [z3.Bool(f"ctrl_{q}") for q in range(w1)]
+    s.add(z3.PbEq([(q,1) for q in ctrl], w2)) # exactly w2 qubits must be controls
+
+    trgt = [z3.Int(f"trgt_{q}") for q in range(w1)]
+    for v in trgt:
+        s.add(z3.And(v >= 0, v < w2))
+
+    # different controls must map to different targets
+    for u in range(w1):
+        for v in range(u + 1, w1):
+            s.add(z3.Implies(z3.And(ctrl[u], ctrl[v]), trgt[u] != trgt[v]))
+
+    # # ---- (Optional) symmetry breakers ----
+    # if add_symmetry_breakers:
+    #     # Anchor: prefer low-index data qubits to low columns when both selected
+    #     # For first few pairs, enforce monotonicity: if ctrl[i]=ctrl[i+1]=1 then trgt[i] < trgt[i+1]
+    #     for i in range(min(w1 - 1, 4)):
+    #         s.add(Or(ctrl[i] == 0, ctrl[i + 1] == 0, trgt[i] < trgt[i + 1]))
+
+    #     # Mirror breaker on the data ends if both selected
+    #     s.add(Or(ctrl[0] == 0, ctrl[w1 - 1] == 0, trgt[0] < trgt[w1 - 1]))
+
+    #     # Dyadic sibling ordering where possible (leaf-level)
+    #     for i in range(0, w1 - 1, 2):
+    #         s.add(Or(ctrl[i] == 0, ctrl[i + 1] == 0, trgt[i] < trgt[i + 1]))
+
+    #     # You can add deeper dyadic-subtree lex constraints too, but they require knowing
+    #     # subtree boundaries inside [0..w1-1]. If your data-qubit layout is dyadic,
+    #     # reuse the lex-less helper and guard with ctrl[...] == 1 on all members.
+
+    # ---- BitVec helpers to build y(x1) directly from (ctrl, trgt) ----
+    one_bv = z3.BitVecVal(1, w2)
+    zero_bv = z3.BitVecVal(0, w2)
+
+    def permuted_error_symbolic(err: int):
+        """Build BV image y = OR_{q in supp(x1) & ctrl[q]=1} (1 << trgt[q])."""
+        permuted = zero_bv
+        m = err
+        q = 0
+        while m:
+            if m & 1:
+                # ite(ctrl[q]==1, (1 << trgt[q]), 0)
+                permuted = permuted | z3.If(ctrl[q] == 1, (one_bv << z3.Int2BV(trgt[q], w2)), zero_bv)
+            m >>= 1
+            q += 1
+        return permuted
+
+    # ---- Strict checker from your code, adapted to produce a single witness quickly ----
+
+    def find_violation(model_controls=None, model_perm=None):
+        """Check if found solution is ft-t."""
+        mdl = s.model()
+        chosen = [q for q in range(w1) if mdl.evaluate(ctrl[q]).as_long() == 1]
+        chosen.sort()
+        perm = [mdl.evaluate(trgt[q]).as_long() for q in chosen]  # length w2
+        ok, wit = check_ft_partial_cnot(gens1, w1, gens2, w2, chosen, perm, t)
+        if ok:
+            return (True, {"controls": chosen, "perm": perm})
+        return (False, {"controls": chosen, "perm": perm, "witness": wit})
+
+    # ---- CEGAR loop ----
+    rounds = 0
+    while rounds < max_rounds:
+        rounds += 1
+        if s.check() != z3.sat:
+            return None, None, {"status": "unsat", "rounds": rounds}
+        is_ft, info = find_violation()
+        if is_ft:
+            return info["controls"], info["perm"], {"status": "sat", "rounds": rounds}
+
+        wit = info["witness"]
+        err = wit["err"]
+        err_permuted = permuted_error_symbolic(err)
+
+        # Evaluate current y integer from the model to know what to block
+        mdl = s.model()
+        y_val = 0
+        # derive y_val from the chosen mapping in 'info'
+        chosen = info["controls"]
+        perm = info["perm"]
+
+        for idx, q in enumerate(chosen):
+            if (err >> q) & 1:
+                y_val |= (1 << perm[idx])
+
+        # Block the exact violating image (and optionally its complement)
+        s.add(err_permuted != z3.BitVecVal(y_val, w2))
+        if forbid_complements:
+            s.add(err_permuted != z3.BitVecVal(ONES ^ y_val, w2))
+
+    return None, None, {"status": "unknown", "rounds": rounds}
