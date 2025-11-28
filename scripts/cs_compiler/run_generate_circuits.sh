@@ -6,7 +6,7 @@
 #
 # Licensed under the MIT License
 
-"""Generate random universal circuits for different system sizes in parallel."""
+# Generate random universal circuits for different system sizes in parallel.
 
 # declare -a n_values=("64" "128" "256" "512")
 # declare -a n_values=("64" "128" "192" "256" "320" "384" "448" "512")
@@ -23,7 +23,7 @@ export SCRIPT_DIR
 run_and_generate() {
     local n=$1
     local distr_type=$2
-    python "${SCRIPT_DIR}/generate_random_circuits.py" --n "$n" --num_circuits "$num_circuits"
+    python "${SCRIPT_DIR}/generate_random_circuits.py" --n "$n" --num_circuits "$num_circuits" --distr_type "$distr_type"
 }
 
 export -f run_and_generate

@@ -25,9 +25,9 @@ if TYPE_CHECKING:
 class CompilerConfig:
     """Holds all configuration parameters for the CodeSwitchGraph."""
 
-    edge_cap_ratio: float = 0.001
+    edge_capacity_ratio: float = 0.001
     default_temporal_edge_capacity: float = 1.0
-    switching_length: int = 2
+    switching_time: int = 2
     biased_code: str = "SRC"
 
 
@@ -64,7 +64,7 @@ class CodeSwitchGraph:
         self.sink: str = "SNK"
         self.G.add_node(self.source)
         self.G.add_node(self.sink)
-        self.base_unary_capacity: float = self.config.default_temporal_edge_capacity * self.config.edge_cap_ratio
+        self.base_unary_capacity: float = self.config.default_temporal_edge_capacity * self.config.edge_capacity_ratio
 
     def _add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
         """Add a node representing a quantum gate operation.
@@ -218,7 +218,7 @@ class CodeSwitchGraph:
         """
         idle_length = max(0, current_depth - previous_depth - 1)
 
-        if idle_length <= self.config.switching_length:
+        if idle_length <= self.config.switching_time:
             idle_length = 0
 
         max_bonus = 5
