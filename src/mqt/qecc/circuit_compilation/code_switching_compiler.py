@@ -31,7 +31,7 @@ class CompilerConfig:
     biased_code: str = "SRC"
 
 
-class CodeSwitchGraph:
+class MinimalCodeSwitchingCompiler:
     """A directed graph representation of a quantum circuit for code-switching analysis using min-cut / max-flow optimization.
 
     The graph is constructed such that:

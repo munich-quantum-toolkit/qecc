@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 from qiskit.qasm2 import loads
 
-from mqt.qecc.circuit_compilation import CodeSwitchGraph, count_code_switches
+from mqt.qecc.circuit_compilation import MinimalCodeSwitchingCompiler, count_code_switches
 
 if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
@@ -51,7 +51,6 @@ def already_done(csv_path: Path, seed: int) -> bool:
     with csv_path.open("r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # safe integer comparison
             if int(row["seed"]) == seed:
                 return True
     return False
@@ -59,11 +58,11 @@ def already_done(csv_path: Path, seed: int) -> bool:
 
 def run_trial(qc: QuantumCircuit, n_qubits: int, depth: int, seed: int, probs_type: str) -> dict:
     """Run a single trial comparing naive and min-cut code switch counting."""
-    t0_lookahead = time.time()
+    t0_naive = time.time()
     naive = count_code_switches(qc)[0]
-    t1_lookahead = time.time()
+    t1_naive = time.time()
 
-    builder = CodeSwitchGraph()
+    builder = MinimalCodeSwitchingCompiler()
     builder.build_from_qiskit(qc, one_way_transversal_cnot=True)
 
     t0_mincut_solver = time.time()
@@ -79,7 +78,7 @@ def run_trial(qc: QuantumCircuit, n_qubits: int, depth: int, seed: int, probs_ty
         "mincut": switches_mc,
         "abs_saving": naive - switches_mc,
         "rel_saving": (naive - switches_mc) / naive if naive > 0 else None,
-        "t_naive": t1_lookahead - t0_lookahead,
+        "t_naive": t1_naive - t0_naive,
         "t_mincut_solver": t1_mincut_solver - t0_mincut_solver,
     }
 
