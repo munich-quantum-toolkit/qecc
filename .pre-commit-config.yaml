@@ -80,7 +80,7 @@ repos:
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.8.0
+    rev: v2.9.0
     hooks:
       - id: license-tools
 
