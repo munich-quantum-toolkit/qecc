@@ -64,7 +64,7 @@ def test_cat_state_experiment_nonft() -> None:
     perm = [0, 1, 2, 3, 4, 5]  # Identity permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = [0.1, 0.01]
+    ps = [0.1, 0.05]
     _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=2000000)
 
     errs_w2 = errs[:, 2]
@@ -85,7 +85,7 @@ def test_cat_state_experiment_ft() -> None:
     perm = [0, 4, 2, 3, 1, 5]  # FT permutation
     sim = CatStatePreparationExperiment(c1, c2, perm)
 
-    ps = [0.1, 0.01]
+    ps = [0.1, 0.05]
     _, _, errs, _ = sim.cat_prep_experiment(ps, shots_per_p=3000000)
 
     errs_w2 = errs[:, 2]
