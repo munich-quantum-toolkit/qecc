@@ -48,7 +48,6 @@ def naive_switching(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
         gate = instr.operation.name
         qubits = [circuit.find_bit(q).index for q in instr.qubits]
 
-        # Skip ID gates, they don't constrain anything
         if gate == "id":
             continue
 
@@ -60,9 +59,6 @@ def naive_switching(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
         # Initialize codes for untouched qubits
         for q in qubits:
             if current_code[q] is None:
-                # Assign to one of the compatible codes (non-deterministically -> set has no order)
-                # current_code[q] = next(iter(compat))
-                # deterministic choice for testing
                 current_code[q] = "A" if "A" in compat else "B"
 
         # If it's a multi-qubit gate, ensure code consistency
@@ -80,8 +76,6 @@ def naive_switching(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
         # Check if qubits are in a valid code for this gate
         for q in qubits:
             if current_code[q] not in compat:
-                # Need to switch this qubit's code
-                # new_code = ({"A", "B"} - {current_code[q]}).pop()
                 new_code = "A" if current_code[q] == "B" else "B"
                 current_code[q] = new_code
                 switch_count += 1
