@@ -21,6 +21,7 @@ from mqt.qecc.circuit_synthesis.cat_states import (
     check_ft_partial_cnot,
     fault_gens_from_circuit,
     search_ft_cnot_cegar,
+    search_ft_cnot_local_search,
 )
 
 if TYPE_CHECKING:
@@ -128,6 +129,28 @@ def test_cegar_synthesis(w1: int, w2: int) -> None:
     gens2 = _cat_fault_gens(w2)
     t = w1 // 2
     ctrls, perm, _info = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+
+    assert ctrls is not None
+    assert perm is not None
+    assert len(ctrls) == len(perm)
+    assert len(perm) == w2
+
+    # validate CNOT by counting faults
+    is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls, perm, t)
+
+    assert is_ft
+
+
+@pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 3), (6, 4), (7, 5), (8, 6), (9, 6)])
+def test_local_search_synthesis(w1: int, w2: int) -> None:
+    """Test correctness of ft partial CNOTs constructed by local search."""
+    gens1 = _cat_fault_gens(w1)
+    gens2 = _cat_fault_gens(w2)
+    t = w1 // 21
+    seed = 1234
+    ctrls, perm, _info = search_ft_cnot_local_search(
+        gens1, w1, gens2, w2, t, ctrl_restarts=5, ctrl_moves=10, perm_iters=100, seed=seed
+    )
 
     assert ctrls is not None
     assert perm is not None

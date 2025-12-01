@@ -912,3 +912,219 @@ def search_ft_cnot_cegar(
         s.add(err_symbolic != z3.BitVecVal(all_ones ^ err_projected, w2))
 
     return None, None, {"status": "unknown", "rounds": rounds}
+
+
+def search_ft_cnot_local_search(
+    gens1: list[int],
+    w1: int,
+    gens2: list[int],
+    w2: int,
+    t: int,
+    seed: int = 1,
+    ctrl_restarts: int = 100,
+    ctrl_moves: int = 200,
+    perm_iters: int = 200_000,
+) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
+    r"""Use local search approach to find an ft-t partial transversal CNOT.
+
+    Search proceeds by randomly selecting control qubits and locally modifying permutations until no conflict occurs. This is not guaranteed to converge.
+
+    Args:
+        gens1: fault set generators of data cat state
+        w1: number of qubits of data cat state
+        gens2: fault set generators of ancilla cat state
+        w2: number of qubits of ancilla cat state
+        t: target fault distance
+        seed: seed for random number generator
+        ctrl_restarts (default 100): number of random control selections to try
+        ctrl_moves (default 200): number of local control modifications to try per restart
+        perm_iters (default 200000): number of permutation repair iterations to try per control selection
+
+    Returns:
+       list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
+    """
+    rng = np.random.default_rng(seed)  # Use NumPy RNG
+
+    for rs in range(ctrl_restarts):
+        controls = sorted(rng.choice(w1, w2, replace=False))  # Randomly select controls
+        bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
+        perm, stats = _permute_repair_for_controls(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
+        if perm is not None:
+            return controls, perm, {"status": "sat", "controls_restart": rs, **stats}
+
+        for mv in range(ctrl_moves):
+            # Swap one control with a non-control to explore
+            control_set = set(controls)
+            non = [q for q in range(w1) if q not in control_set]
+            if not non:
+                break
+            i_pos = rng.integers(w2)
+            new_q = rng.choice(non)
+            controls = controls[:]
+            controls[i_pos] = new_q
+            controls.sort()
+
+            bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
+            perm, stats = _permute_repair_for_controls(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
+            if perm is not None:
+                return controls, perm, {"status": "sat", "controls_restart": rs, "ctrl_move": mv, **stats}
+
+    return None, None, {"status": "unknown", "controls_restart": ctrl_restarts}
+
+
+def _cumulative_union_sets(sets: list[set[Any]]) -> list[set[Any]]:
+    unions = []
+    acc = set()
+    for h in range(len(sets)):
+        acc |= sets[h]
+        unions.append(acc.copy())
+    return unions
+
+
+def construct_bad_error_sets(
+    gens1: list[int],
+    w1: int,
+    gens2: list[int],
+    w2: int,
+    t: int,
+    controls: list[int],
+) -> tuple[dict[int, set[int]], list[int]]:
+    r"""Construct sets of "bad" ancilla errors that can cause FT violations for given controls.
+
+      For each possible propagated error, we store the set of ancilla errors that can cancel it out.
+
+    Returns:
+      bad_errors: set of errors that can cause violations, indexed by projected error e
+      err_list: list of possible errors
+    """
+    assert len(controls) == w2
+
+    ancilla_faults = _degree_sets_exact(gens2, t)
+    cumulative_ancilla_faults = _cumulative_union_sets(ancilla_faults)
+
+    proj_gens1: list[tuple[int, int]] = []
+    for err in gens1:
+        p = propagate_error_transversal(err, controls)
+        proj_gens1.append((err, p))
+
+    # For each h, a dict b -> highest weight error
+    # h=0: only b=0 from error 0
+    error_representatives: list[dict[int, int]] = [{} for _ in range(t + 1)]
+    error_representatives[0][0] = 0
+
+    def symmetric_weight(mask: int) -> int:
+        w = mask.bit_count()
+        return min(w, w1 - w)
+
+    for full_err, projected_err in proj_gens1:
+        # update h descending to avoid reusing the same gen twice
+        for h in range(t, 0, -1):
+            prev = error_representatives[h - 1]
+            cur = error_representatives[h]
+            if not prev:
+                continue
+            # combine with every possible error
+            for b0, m0 in prev.items():
+                b1 = b0 ^ projected_err
+                m1 = m0 ^ full_err
+                # keep the representative with larger symmetric weight
+                if b1 not in cur or symmetric_weight(m1) > symmetric_weight(cur[b1]):
+                    cur[b1] = m1
+
+    # Build forbidden_by_b using max symmetric weight per (b,h)
+    bad_errors: dict[int, set[int]] = defaultdict(set)
+    err_seen: set[int] = set()
+
+    for h1 in range(1, t + 1):
+        table = error_representatives[h1]
+        if not table:
+            continue
+        for b, rep_m in table.items():
+            sym1 = symmetric_weight(rep_m)
+            max_remaining_weight = min(t - h1, sym1 - h1 - 1)
+            if max_remaining_weight < 0:
+                continue
+            err_seen.add(b)
+            # all ancilla errors caused by <= max_remaining_weight faults are potential conflicts
+            bad_ancilla_errors = cumulative_ancilla_faults[max_remaining_weight]
+            bad_errors[b].update(bad_ancilla_errors)
+
+    return bad_errors, list(err_seen)
+
+
+def _support_bits(mask: int) -> list[int]:
+    out = []
+    i = 0
+    m = mask
+    while m:
+        if m & 1:
+            out.append(i)
+        m >>= 1
+        i += 1
+    return out
+
+
+def _permute_repair_for_controls(
+    bad_errors: dict[int, set[int]],
+    err_list: list[int],
+    w2: int,
+    rng: np.random.Generator | None = None,
+    max_iters: int = 200_000,
+    max_swaps: int = 64,
+) -> tuple[list[int] | None, dict[str, str | int]]:
+    if rng is None:
+        rng = np.random.default_rng(1234)
+    ancilla_qubits = set(range(w2))
+
+    all_ones = (1 << w2) - 1
+    perm = list(range(w2))
+    rng.shuffle(perm)  # Shuffle using NumPy RNG
+    inverse_perm = [0] * w2
+    for i, j in enumerate(perm):
+        inverse_perm[j] = i
+
+    def find_violation(
+        perm: list[int], bad_errors: dict[int, set[int]], err_list: list[int], w2: int
+    ) -> tuple[int, int] | None:
+        all_ones = (1 << w2) - 1
+        for err in err_list:
+            ancilla_err = permute_error(err, perm, w2)
+            if ancilla_err in bad_errors.get(err, ()) or (ancilla_err ^ all_ones) in bad_errors.get(err, ()):
+                return (err, ancilla_err)
+        return None
+
+    it = 0
+    while it < max_iters:
+        it += 1
+        vio = find_violation(perm, bad_errors, err_list, w2)
+        if vio is None:
+            return perm, {"status": "sat", "iters": it}
+        err, ancilla_err = vio
+        data_support = _support_bits(err)
+        ancilla_support = set(_support_bits(ancilla_err))
+        error_free_qubits = [c for c in ancilla_qubits if c not in ancilla_support]
+
+        success = False
+        # Try a handful of targeted swaps that preserve non-violation for this error
+        if data_support and error_free_qubits:
+            for _ in range(max_swaps):
+                i = rng.choice(data_support)
+                c = rng.choice(error_free_qubits)
+                k = inverse_perm[c]
+                old_i, old_k = perm[i], perm[k]
+                ancilla_err_swapped = (ancilla_err ^ (1 << old_i)) | (1 << c)
+                if ancilla_err_swapped not in bad_errors.get(
+                    err, ()
+                ) and ancilla_err_swapped ^ all_ones not in bad_errors.get(err, ()):
+                    perm[i], perm[k] = perm[k], perm[i]
+                    inverse_perm[old_i], inverse_perm[old_k] = inverse_perm[old_k], inverse_perm[old_i]
+                    success = True
+                    break
+        if not success:
+            # Small random shake to escape cycles
+            i1, i2 = rng.choice(w2, 2, replace=False)
+            j1, j2 = perm[i1], perm[i2]
+            perm[i1], perm[i2] = j2, j1
+            inverse_perm[j1], inverse_perm[j2] = i2, i1
+
+    return None, {"status": "unknown", "iters": max_iters}
