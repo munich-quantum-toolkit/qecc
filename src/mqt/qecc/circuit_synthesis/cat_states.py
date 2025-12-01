@@ -943,12 +943,12 @@ def search_ft_cnot_local_search(
     Returns:
        list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
     """
-    rng = np.random.default_rng(seed)  # Use NumPy RNG
+    rng = np.random.default_rng(seed)
 
     for rs in range(ctrl_restarts):
         controls = sorted(rng.choice(w1, w2, replace=False))  # Randomly select controls
         bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
-        perm, stats = _permute_repair_for_controls(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
+        perm, stats = _permutation_local_repair(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
         if perm is not None:
             return controls, perm, {"status": "sat", "controls_restart": rs, **stats}
 
@@ -965,9 +965,45 @@ def search_ft_cnot_local_search(
             controls.sort()
 
             bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
-            perm, stats = _permute_repair_for_controls(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
+            perm, stats = _permutation_local_repair(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
             if perm is not None:
                 return controls, perm, {"status": "sat", "controls_restart": rs, "ctrl_move": mv, **stats}
+
+    return None, None, {"status": "unknown", "controls_restart": ctrl_restarts}
+
+
+def search_ft_cnot_smt(
+    gens1: list[int],
+    w1: int,
+    gens2: list[int],
+    w2: int,
+    t: int,
+    seed: int = 1,
+    ctrl_restarts: int = 100,
+) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
+    r"""Use direct smt solving approach to find an ft-t partial transversal CNOT.
+
+    Args:
+        gens1: fault set generators of data cat state
+        w1: number of qubits of data cat state
+        gens2: fault set generators of ancilla cat state
+        w2: number of qubits of ancilla cat state
+        t: target fault distance
+        seed: seed for random number generator
+        ctrl_restarts (default 100): number of random control selections to try
+
+    Returns:
+       list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
+    """
+    rng = np.random.default_rng(seed)
+
+    for rs in range(ctrl_restarts):
+        controls = sorted(rng.choice(w1, w2, replace=False))
+        forb, b_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
+        perm, stats = _find_perm_smt(forb, b_list, w2)
+
+        if perm is not None:
+            return controls, perm, {"status": "sat", "controls_restart": rs, **stats}
 
     return None, None, {"status": "unknown", "controls_restart": ctrl_restarts}
 
@@ -1047,15 +1083,16 @@ def construct_bad_error_sets(
             err_seen.add(b)
             # all ancilla errors caused by <= max_remaining_weight faults are potential conflicts
             bad_ancilla_errors = cumulative_ancilla_faults[max_remaining_weight]
-            bad_errors[b].update(bad_ancilla_errors)
+            # filter those that do not have the same number of non-zero bits as b
+            bad_errors[b].update(m for m in bad_ancilla_errors if m.bit_count() == b.bit_count())
 
     return bad_errors, list(err_seen)
 
 
-def _support_bits(mask: int) -> list[int]:
+def _support_bits(bitstring: int) -> list[int]:
     out = []
     i = 0
-    m = mask
+    m = bitstring
     while m:
         if m & 1:
             out.append(i)
@@ -1064,7 +1101,7 @@ def _support_bits(mask: int) -> list[int]:
     return out
 
 
-def _permute_repair_for_controls(
+def _permutation_local_repair(
     bad_errors: dict[int, set[int]],
     err_list: list[int],
     w2: int,
@@ -1128,3 +1165,38 @@ def _permute_repair_for_controls(
             inverse_perm[j1], inverse_perm[j2] = i2, i1
 
     return None, {"status": "unknown", "iters": max_iters}
+
+
+def _find_perm_smt(
+    bad_errors: dict[int, set[int]], err_list: list[int], w2: int
+) -> tuple[list[int] | None, dict[str, str | int]]:
+    s = z3.Solver()
+
+    perm = [z3.Int(f"p_{i}") for i in range(w2)]
+
+    # constraints: perm is a permutation
+    for pi in perm:
+        s.add(pi >= 0, pi < w2)
+    s.add(z3.Distinct(perm))
+
+    for err in err_list:
+        support = _support_bits(err)
+        k = len(support)
+        if k == 0:
+            continue
+
+        bad_bits = [z3.Or([perm[i] == j for i in support]) for j in range(w2)]
+        forb = bad_errors.get(err)
+
+        if not forb:
+            continue
+
+        for m in forb:
+            eq = z3.And(*[(bad_bits[j] if (m >> j) & 1 else z3.Not(bad_bits[j])) for j in range(w2)])
+            s.add(z3.Not(eq))
+
+    if s.check() != z3.sat:
+        return None, {"status": "unsat"}
+    model = s.model()
+    perm = [model.evaluate(pi).as_long() for pi in perm]
+    return perm, {"status": "sat"}
