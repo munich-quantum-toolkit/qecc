@@ -122,11 +122,12 @@ def test_insert_placeholders_correct_location():
     # Note: Qiskit depth calculation can be tricky with IDs,
     # so we check the operations count on the specific qubit.
 
-    ops_q0 = new_qc.data[0].operation.name  # Should be H
-    assert ops_q0 == "h"
-
-    # We can simply count the number of 'id' gates in the circuit
-    # We expect exactly 5 id gates (all on qubit 1)
+    # All placeholder IDs should be on qubit 1 only.
+    id_targets = {
+        new_qc.find_bit(q).index for instr in new_qc.data if instr.operation.name == "id" for q in instr.qubits
+    }
+    assert id_targets == {1}
+    # And we still expect exactly 5 such IDs.
     id_count = sum(1 for instr in new_qc.data if instr.operation.name == "id")
     assert id_count == 5
 
