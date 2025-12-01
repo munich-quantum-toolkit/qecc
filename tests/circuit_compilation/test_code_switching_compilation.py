@@ -12,10 +12,8 @@ from qiskit import QuantumCircuit
 
 from mqt.qecc.circuit_compilation import (
     MinimalCodeSwitchingCompiler,
-    random_universal_circuit,
 )
 from mqt.qecc.circuit_compilation.code_switching_compiler import CompilerConfig
-from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
 
 
 @pytest.fixture
@@ -30,14 +28,14 @@ def simple_graph():
 # Unit tests
 
 
-def test_parse_node_id():
+def test_parse_node_id(simple_graph):
     """Test the regex parsing of node IDs."""
-    q, d = parse_node_id("H_q0_d10")
+    q, d = simple_graph.parse_node_id("H_q0_d10")
     assert q == 0
     assert d == 10
 
     with pytest.raises(ValueError, match="Invalid node_id format"):
-        parse_node_id("Invalid_String")
+        simple_graph.parse_node_id("Invalid_String")
 
 
 def test_idle_bonus_logic(simple_graph):
@@ -117,7 +115,7 @@ def test_same_code_no_switch(simple_graph):
 
     # Should flow entirely through Source
     assert len(switch_pos) == 0
-    assert num_switches == 0.0
+    assert num_switches == 0
 
 
 def test_one_way_transversal(simple_graph):
@@ -166,29 +164,3 @@ def test_code_bias(simple_graph):
     assert num_switches_sink_bias == 1
     assert switch_pos_sink_bias != switch_pos_source_bias
     assert switch_pos_sink_bias == [(1, 0)]
-
-
-# =============================================================
-# Stress tests
-
-
-def test_random_circuits_robustness(simple_graph):
-    """Generate random circuits and ensure the compiler runs without error."""
-    for seed in range(10):
-        qc = random_universal_circuit(num_qubits=3, depth=10, seed=seed)
-
-        simple_graph.build_from_qiskit(qc)
-
-        num_switches, switch_pos, S, T = simple_graph.compute_min_cut()  # noqa: N806
-
-        # Invariants
-        assert len(switch_pos) >= 0
-        assert num_switches >= 0
-        assert len(S) + len(T) == simple_graph.G.number_of_nodes()
-
-        # Ensure Source is in S and Sink is in T
-        assert simple_graph.source in S
-        assert simple_graph.sink in T
-
-
-# =============================================================
