@@ -1,10 +1,10 @@
-"""Reproduce figures in the gist of Fig. 10 in 2504.10591"""
+"""Reproduce figures in the gist of Fig. 10 in 2504.10591."""
 
 from __future__ import annotations
 
 import evaluation as ev
-import cococo.layouts as layouts
 import matplotlib.pyplot as plt
+from cococo import layouts
 
 # This notebook must be run from the directory /mqt-qecc/src/mqt/qecc/co3/plots
 

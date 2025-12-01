@@ -1,20 +1,13 @@
-import cococo.utils_routing as utils
-import cococo.layouts as layouts
-import cococo.internal_testing as tst
-import cococo.circuit_construction as circuit_construction
-import cococo.dag_helper as dag_helper
-import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-import itertools
-import pickle
-
-
-from datetime import datetime
-import time
-
 import json
+import pathlib
+import pickle
+import time
+from datetime import datetime
 
+import cococo.utils_routing as utils
+import matplotlib.pyplot as plt
+import numpy as np
+from cococo import circuit_construction, dag_helper, layouts
 
 # ----params-----
 
@@ -24,7 +17,7 @@ layout_type = "triple"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
 )  #!important, no edges removed here!!!
-layout = {i: j for i, j in enumerate(data_qubit_locs)}
+layout = dict(enumerate(data_qubit_locs))
 
 q = len(data_qubit_locs)
 print("q = ", len(data_qubit_locs))
@@ -82,7 +75,7 @@ for j in j_lst:
     )  # round up because last layer will not be full of j gates but be a layer nevertheless.
     path_circuits = f"true_seq_circs_j{j}_q{q}_numgates{num_gates}d{d}_x{reps}.json"
     try:
-        with open(path_circuits, "r") as f:
+        with pathlib.Path(path_circuits).open(encoding="utf-8") as f:
             pairs_lst = json.load(f)
     except FileNotFoundError:
         print("new circs sampled")
@@ -92,7 +85,7 @@ for j in j_lst:
                 j, q, num_gates
             )
             pairs_lst.append(pairs)
-        with open(path, "w") as f:
+        with pathlib.Path(path).open("w", encoding="utf-8") as f:
             json.dump(pairs_lst, f)
     # turn into tuples again
     pairs_lst = [[(el[0], el[1]) for el in pairs] for pairs in pairs_lst]
@@ -108,12 +101,11 @@ for j in j_lst:
 
         # check logical depth
         dag = dag_helper.terminal_pairs_into_dag(terminal_pairs, layout)
-        layers = []
-        for layer in range(len(list(dag.layers()))):
-            layers.append(dag_helper.extract_layer_from_dag(dag, layout, layer))
+        layers = [dag_helper.extract_layer_from_dag(dag, layout, layer) for layer in range(len(list(dag.layers())))]
         if len(layers) != d:
+            msg = f"The number of logical layers {len(layers)} does not coincide with desired depth {d}"
             raise ValueError(
-                f"The number of logical layers {len(layers)} does not coincide with desired depth {d}"
+                msg
             )
 
         # run standard
@@ -165,7 +157,7 @@ for j in j_lst:
     results_opt.append(results_opt_temp)
     results_st.append(results_st_temp)
     save = [results_opt, results_st]
-    with open(path, "wb") as f:
+    with pathlib.Path(path).open("wb") as f:
         pickle.dump(save, f)
 
 end = time.time()
@@ -173,7 +165,7 @@ print(f"Simulation took {(end-start)/60} minutes")
 
 print(path)
 # reload
-with open(path, "rb") as f:
+with pathlib.Path(path).open("rb") as f:
     saved = pickle.load(f)
 [results_opt, results_st] = saved
 
@@ -193,8 +185,8 @@ depths_std_opt = [np.std(lst) for lst in depths_opt]
 print("depths_mean_opt", depths_mean_opt)
 
 deltas_lst = [
-    [st - opt for st, opt in zip(sublist_st, sublist_opt)]
-    for sublist_st, sublist_opt in zip(depths_st, depths_opt)
+    [st - opt for st, opt in zip(sublist_st, sublist_opt, strict=False)]
+    for sublist_st, sublist_opt in zip(depths_st, depths_opt, strict=False)
 ]
 deltas_mean = [np.mean(lst) for lst in deltas_lst]
 deltas_std = [np.std(lst) for lst in deltas_lst]
@@ -228,7 +220,7 @@ plt.errorbar(
 )
 
 plt.xlabel("$g$")
-plt.ylabel(r"$\tilde{d}$")
+plt.ylabel(fr"$\tilde{d}$")
 
 # plt.xscale("log", base=2)
 

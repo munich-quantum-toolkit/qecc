@@ -1,19 +1,13 @@
-import cococo.utils_routing as utils
-import cococo.layouts as layouts
-import cococo.internal_testing as tst
-import cococo.circuit_construction as circuit_construction
-import cococo.dag_helper as dag_helper
-import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-import itertools
-import pickle
-
-
-from datetime import datetime
-import time
-
 import json
+import pathlib
+import pickle
+import time
+from datetime import datetime
+
+import cococo.utils_routing as utils
+import matplotlib.pyplot as plt
+import numpy as np
+from cococo import dag_helper, layouts
 
 # -----params-------
 
@@ -26,7 +20,7 @@ reps = 20
 
 # ------load circuits------
 path = f"true_seq_circs_j{j}_q{q}_numgates{num_gates}d{d}_x{reps}.json"
-with open(path, "r") as f:
+with pathlib.Path(path).open(encoding="utf-8") as f:
     pairs_lst = json.load(f)
 # turn into tuples again
 pairs_lst = [[(el[0], el[1]) for el in pairs] for pairs in pairs_lst]
@@ -38,7 +32,7 @@ layout_type = "hex"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
 )  #!important, no edges removed here!!!
-layout = {i: j for i, j in enumerate(data_qubit_locs)}
+layout = dict(enumerate(data_qubit_locs))
 
 assert q == len(data_qubit_locs), "given q does not coincide with your chosen layout"
 
@@ -47,7 +41,7 @@ n_circ = 10
 
 gates_list = [320, 640, 1280, 2560]
 depths_list = [40, 80, 160, 320]
-for num_gates, depth in zip(gates_list, depths_list):
+for num_gates, depth in zip(gates_list, depths_list, strict=False):
     assert num_gates == depth * j, "depths list and gates_list does not coincide"
 gates_str = "_".join(map(str, gates_list))
 
@@ -175,13 +169,13 @@ for num_gates in gates_list:
     layers_tot.append(layers_temp)
 
     save = [results_list_st, results_list_opt, histories, layers_tot]
-    with open(path, "wb") as f:
+    with pathlib.Path(path).open("wb") as f:
         pickle.dump(save, f)
 end = time.time()
 
 
 # reload
-with open(path, "rb") as f:
+with pathlib.Path(path).open("rb") as f:
     saved = pickle.load(f)
 [results_list_st, results_list_opt, histories, layers_tot] = saved
 
@@ -202,7 +196,7 @@ depths_std_log = [np.std(lst) for lst in depths_log]
 print("depths_mean_log", depths_mean_log)
 
 
-labels = [f"({g},\n {d})" for g, d in zip(gates_list, depths_list)]
+labels = [f"({g},\n {d})" for g, d in zip(gates_list, depths_list, strict=False)]
 
 
 # mean and std of standard approach, choose best results among sigma runs
@@ -274,9 +268,9 @@ plt.clf()
 # plot improvement d opt - c / d st -c
 improvements_mean = []
 improvements_std = []
-for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log):
+for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log, strict=False):
     temp = []
-    for el_opt, el_st, c in zip(lst_opt, lst_st, c_list):
+    for el_opt, el_st, c in zip(lst_opt, lst_st, c_list, strict=False):
         temp.append((el_opt - c) / (el_st - c))
     print("improvements temp", temp)
     improvements_mean.append(np.mean(temp))
@@ -298,8 +292,8 @@ plt.clf()
 # plot absolute differences
 diff_opt_mean = []
 diff_opt_std = []
-for lst_opt, lst_st in zip(depths_opt, depths_st):
-    differences = [el_st - el_opt for el_st, el_opt in zip(lst_st, lst_opt)]
+for lst_opt, lst_st in zip(depths_opt, depths_st, strict=False):
+    differences = [el_st - el_opt for el_st, el_opt in zip(lst_st, lst_opt, strict=False)]
     print("abs differences", differences)
     diff_opt_mean.append(np.mean(differences))
     diff_opt_std.append(np.std(differences))

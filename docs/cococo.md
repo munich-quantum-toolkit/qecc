@@ -225,7 +225,7 @@ Then, one can run the basic router first to receive a reference result.
 
 ```{code-cell} ipython3
 terminal_pairs = layouts.translate_layout_circuit(pairs, layout)  # let's stick to the simple layout
-
+t=4
 router = utils.BasicRouter(g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True)
 layers = router.split_layer_terminal_pairs(terminal_pairs)
 vdp_layers, _ = router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=True)

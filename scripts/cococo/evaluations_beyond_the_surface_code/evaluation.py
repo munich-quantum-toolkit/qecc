@@ -8,16 +8,12 @@ import pickle  # noqa: S403
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import cococo.utils_routing as utils
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
+from cococo import circuit_construction, hill_climber, layouts
 from matplotlib.lines import Line2D
-
-import cococo.circuit_construction as circuit_construction
-import cococo.hill_climber as hill_climber
-import cococo.layouts as layouts
-import cococo.utils_routing as utils
-
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -30,8 +26,7 @@ def collect_data_space_time(
     path: str,
     both_metric: bool = False,
 ) -> list[dict[str, Any]]:
-    """
-    Collects the data for a run which will compare space and time cost.
+    """Collects the data for a run which will compare space and time cost.
 
     Args:
         instances (list[dict]): A list of dicts which collects parameters of instances to be run.
@@ -194,17 +189,17 @@ def collect_data_space_time(
         time2 = []
 
         # extract variables from instances
-        q = instance["q"]
+        instance["q"]
         t = instance["t"]
-        min_depth = instance["min_depth"]
-        tgate = instance["tgate"]
-        ratio = instance["ratio"]
+        instance["min_depth"]
+        instance["tgate"]
+        instance["ratio"]
         custom_layout = instance["custom_layout"]
         g = custom_layout[1]
         space = len(list(g.nodes()))
         data_qubit_locs = custom_layout[0]
         factory_locs = instance["factory_locs"]
-        layout_name = instance["layout_name"]
+        instance["layout_name"]
 
         init_layout_lst = []
         final_layout_lst = []
@@ -234,7 +229,7 @@ def collect_data_space_time(
             # hard coded for now
             prefix = "./results"
             suffix = "test_251116"
-            best_solution, _, best_rep, score_history = hc.run(
+            _best_solution, _, best_rep, score_history = hc.run(
                 prefix, suffix, parallel, processes
             )
 
@@ -465,7 +460,7 @@ def plot_improvement_circuit_types(
             num_init_lst = res["num_init_lst"]
             num_final_lst = res["num_final_lst"]
             improvements = []
-            for ni, nf in zip(num_init_lst, num_final_lst):
+            for ni, nf in zip(num_init_lst, num_final_lst, strict=False):
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
@@ -780,7 +775,7 @@ def plot_f_vs_t(
             num_init_lst = res["num_init_lst"]
             num_final_lst = res["num_final_lst"]
             improvements = []
-            for ni, nf in zip(num_init_lst, num_final_lst):
+            for ni, nf in zip(num_init_lst, num_final_lst, strict=False):
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
@@ -1054,7 +1049,7 @@ def plot_ratio_vs_t(
             num_init_lst = res["num_init_lst"]
             num_final_lst = res["num_final_lst"]
             improvements = []
-            for ni, nf in zip(num_init_lst, num_final_lst):
+            for ni, nf in zip(num_init_lst, num_final_lst, strict=False):
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
@@ -1220,7 +1215,7 @@ def plot_space_time(
     # Store unique legend entries
     legend_handles = {}
 
-    for instance, result in zip(instances, res_lst):
+    for instance, result in zip(instances, res_lst, strict=False):
         space = result["space"]
         time_mean = result["time_mean"]
         time_std = result["time_std"]
@@ -1389,7 +1384,7 @@ def plot_improvement_f_variation(
             num_init_lst = res["num_init_lst"]
             num_final_lst = res["num_final_lst"]
             improvements = []
-            for ni, nf in zip(num_init_lst, num_final_lst):
+            for ni, nf in zip(num_init_lst, num_final_lst, strict=False):
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
@@ -1413,7 +1408,7 @@ def plot_improvement_f_variation(
             num_init_lst = res["num_init_lst"]
             num_final_lst = res["num_final_lst"]
             improvements = []
-            for ni, nf in zip(num_init_lst, num_final_lst):
+            for ni, nf in zip(num_init_lst, num_final_lst, strict=False):
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
@@ -1568,7 +1563,7 @@ def plot_f_vs_t_subfigs(
             num_init_lst: list[int] = res["num_init_lst"]
             num_final_lst: list[int] = res["num_final_lst"]
             improvements = [
-                (ni - nf) / ni for ni, nf in zip(num_init_lst, num_final_lst)
+                (ni - nf) / ni for ni, nf in zip(num_init_lst, num_final_lst, strict=False)
             ]
             dct_mat.append(
                 {

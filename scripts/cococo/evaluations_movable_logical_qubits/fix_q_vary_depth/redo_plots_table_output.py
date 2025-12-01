@@ -1,19 +1,10 @@
-import cococo.utils_routing as utils
-import cococo.layouts as layouts
-import cococo.internal_testing as tst
-import cococo.circuit_construction as circuit_construction
-import cococo.dag_helper as dag_helper
-import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-import itertools
+import pathlib
 import pickle
-
 from datetime import datetime
-import time
 
-import json
-
+import matplotlib.pyplot as plt
+import numpy as np
+from cococo import layouts
 
 # ----------determine parameters to load correct file-------------
 q = 120
@@ -25,7 +16,7 @@ layout_type = "single"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
 )  #!important, no edges removed here!!!
-layout = {i: j for i, j in enumerate(data_qubit_locs)}
+layout = dict(enumerate(data_qubit_locs))
 
 assert q == len(data_qubit_locs), "given q does not coincide with your chosen layout"
 
@@ -35,7 +26,7 @@ n_circ = 10
 gates_list = [320, 640, 1280, 2560]  # [300, 600, 1200, 2400]#[320, 640, 1280,2560]
 depths_list = [40, 80, 160, 320]  # [20, 40, 80, 160]#[40, 80, 160, 320]
 
-for num_gates, depth in zip(gates_list, depths_list):
+for num_gates, depth in zip(gates_list, depths_list, strict=False):
     assert num_gates == depth * j, "depths list and gates_list does not coincide"
 gates_str = "_".join(map(str, gates_list))
 
@@ -53,7 +44,7 @@ print("path: ", path)
 
 
 # reload
-with open(path, "rb") as f:
+with pathlib.Path(path).open("rb") as f:
     saved = pickle.load(f)
 [results_list_st, results_list_opt, histories, layers_tot] = saved
 
@@ -74,7 +65,7 @@ depths_std_log = [np.std(lst) for lst in depths_log]
 print("depths_mean_log", depths_mean_log)
 
 
-labels = [f"({g},\n {d})" for g, d in zip(gates_list, depths_list)]
+labels = [f"({g},\n {d})" for g, d in zip(gates_list, depths_list, strict=False)]
 
 
 # mean and std of standard approach, choose best results among sigma runs
@@ -204,9 +195,9 @@ plt.clf()
 # plot improvement d opt - c / d st -c
 improvements_mean = []
 improvements_std = []
-for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log):
+for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log, strict=False):
     temp = []
-    for el_opt, el_st, c in zip(lst_opt, lst_st, c_list):
+    for el_opt, el_st, c in zip(lst_opt, lst_st, c_list, strict=False):
         temp.append((el_opt - c) / (el_st - c))
         print("el opt", el_opt)
         print("el st", el_st)
@@ -233,8 +224,8 @@ plt.clf()
 # plot absolute differences
 diff_opt_mean = []
 diff_opt_std = []
-for lst_opt, lst_st in zip(depths_opt, depths_st):
-    differences = [el_st - el_opt for el_st, el_opt in zip(lst_st, lst_opt)]
+for lst_opt, lst_st in zip(depths_opt, depths_st, strict=False):
+    differences = [el_st - el_opt for el_st, el_opt in zip(lst_st, lst_opt, strict=False)]
     print("abs differences", differences)
     diff_opt_mean.append(np.mean(differences))
     diff_opt_std.append(np.std(differences))
@@ -252,17 +243,16 @@ plt.savefig("plot_abs_reductions_total_" + path.replace(".pkl", ".pdf"))
 
 
 # ---------output for table-------------
-def fmt(mean, std, precision=2):
+def fmt(mean, std, precision=2) -> str:
     """Return mean ± std formatted for LaTeX."""
     return f"${mean:.{precision}f} \\pm {std:.{precision}f}$"
 
 
-def latex_table_rows(gate_counts, *cols):
+def latex_table_rows(gate_counts, *cols) -> None:
+    """gate_counts: list of gate values
+    cols: list of tuples [(mean_list, std_list), ...].
     """
-    gate_counts: list of gate values
-    cols: list of tuples [(mean_list, std_list), ...]
-    """
-    for i, gates in enumerate(gate_counts):
+    for i, _gates in enumerate(gate_counts):
         # row = [f" & {gates}"]
         row = []
         for j, (means, stds) in enumerate(cols):
@@ -282,14 +272,14 @@ def latex_table_rows(gate_counts, *cols):
         print("".join(row))
 
 
-diff_opt_mean_rel = [diff / dlog for diff, dlog in zip(diff_opt_mean, depths_mean_log)]
-diff_opt_std_rel = [diff / dlog for diff, dlog in zip(diff_opt_std, depths_mean_log)]
+diff_opt_mean_rel = [diff / dlog for diff, dlog in zip(diff_opt_mean, depths_mean_log, strict=False)]
+diff_opt_std_rel = [diff / dlog for diff, dlog in zip(diff_opt_std, depths_mean_log, strict=False)]
 
 diff_mean = []
 diff_std = []
-for dopt_lst, dst_lst in zip(depths_opt, depths_st):
+for dopt_lst, dst_lst in zip(depths_opt, depths_st, strict=False):
     temp = []
-    for dopt, dst in zip(dopt_lst, dst_lst):
+    for dopt, dst in zip(dopt_lst, dst_lst, strict=False):
         temp.append((dst - dopt) / dst)
     diff_mean.append(np.mean(temp))
     diff_std.append(np.std(temp))

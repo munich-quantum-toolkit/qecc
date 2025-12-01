@@ -37,7 +37,7 @@ def test_basicrouter():
     #)
     pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
 
-    terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]|int]", pairs), cast("dict[int|str,pos|list[pos]]", layout))  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("dict[int|str,pos|list[pos]]", layout))  # let's stick to the simple layout
 
     router = utils.BasicRouter(
         g,
@@ -71,7 +71,7 @@ def test_teleportationrouter():
 
     q = len(data_qubit_locs)
     #j = 8
-    num_gates = q * 1.2
+    num_gates = int(q * 1.2)
     #_dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     #    j,
     #    q,
@@ -80,7 +80,7 @@ def test_teleportationrouter():
     pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
 
 
-    terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]| int]",pairs), cast("dict[int|str, pos|list[pos]]",layout))  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("dict[int|str, pos|list[pos]]",layout))  # let's stick to the simple layout
 
     router = utils.TeleportationRouter(
         g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1

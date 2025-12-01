@@ -722,7 +722,7 @@ class TeleportationRouter(BasicRouter):
             pathcopy = path.copy()
             path = path[
                 1:-1
-            ]  # remove last and first node from the list because those are logical data patches  # noqa: PLW2901
+            ]  # remove last and first node from the list because those are logical data patches
             random.shuffle(path)
             if steiner_init_type == "full_random":
                 for node_on_path in path:  # loop in case a random node has  no other reachable nodes

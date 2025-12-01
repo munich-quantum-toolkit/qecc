@@ -1,6 +1,7 @@
-import cococo.circuit_construction as circuit_construction
-import cococo.dag_helper as dag_helper
 import json
+import pathlib
+
+from cococo import circuit_construction, dag_helper
 
 q = 120
 j = 8
@@ -23,5 +24,5 @@ for _ in range(reps):
 
 path = f"true_seq_circs_j{j}_q{q}_numgates{num_gates}d{d}_x{reps}.json"
 
-with open(path, "w") as f:
+with pathlib.Path(path).open("w", encoding="utf-8") as f:
     json.dump(circuits, f)

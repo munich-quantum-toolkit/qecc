@@ -6,7 +6,7 @@ import pickle  # noqa: S403
 from pathlib import Path
 
 import evaluation as ev
-import cococo.layouts as layouts
+from cococo import layouts
 
 path = "./test_results"  # add you desired path here
 
@@ -115,7 +115,7 @@ for i, res in enumerate(res_lst_routing):
     num_init_list = res["num_init_lst"]
     num_final_list = res["num_final_lst"]
     improvement_lst = []
-    for ni, nf in zip(num_init_list, num_final_list):
+    for ni, nf in zip(num_init_list, num_final_list, strict=False):
         improvement_lst.append((ni - nf) / ni)
     print("layout type", layout_type)
     print("factories", factories)
@@ -131,7 +131,7 @@ for i, res in enumerate(res_lst_2):
     num_init_list = res["num_init_lst"]
     num_final_list = res["num_final_lst"]
     improvement_lst = []
-    for ni, nf in zip(num_init_list, num_final_list):
+    for ni, nf in zip(num_init_list, num_final_list, strict=False):
         improvement_lst.append((ni - nf) / ni)
     print("layout type", layout_type)
     print("factories", factories)
