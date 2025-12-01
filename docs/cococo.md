@@ -217,8 +217,8 @@ dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     num_gates,
 )
 
-#for reproducibility, copy the circuit here:
-pairs = [(8, 13), (15, 2), (9, 10), (0, 3), (23, 20), (1, 19), (4, 6), (22, 5), (13, 20), (2, 1), (10, 6), (0, 3), (23, 15), (9, 19), (5, 4), (8, 22), (3, 20), (1, 19), (6, 10), (4, 0), (2, 15), (22, 9), (13, 5), (8, 23), (3, 1), (8, 19), (10, 0), (20, 4), (2, 9), (6, 22), (15, 13), (23, 5), (3, 1), (8, 13), (10, 0), (20, 4), (19, 9), (6, 23), (15, 22), (5, 2), (8, 3), (0, 13), (10, 20), (1, 4), (19, 5), (15, 23), (9, 22), (2, 6)]
+#for reproducibility and quicker result for illustration, copy the circuit here:
+pairs = [(8, 13), (15, 2), (9, 10), (0, 3), (23, 20), (1, 19), (4, 6), (22, 5), (13, 20), (2, 1), (10, 6), (0, 3), (23, 15), (9, 19), (5, 4), (8, 22), (3, 20), (1, 19), (6, 10), (4, 0), (2, 15), (22, 9), (13, 5), (8, 23), (3, 1), (8, 19)]
 ```
 
 Then, one can run the basic router first to receive a reference result.
@@ -290,4 +290,4 @@ plotting.plot_schedule(g, schedule[:3], factories, size = (12,4))
 
 In the first layer one can see that a tree for moving a data qubit was found.
 
-A larger example can be found in the notebook mentioned above: [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).
+A larger example, with larger absolute improvement, can be found in the notebook mentioned above: [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).

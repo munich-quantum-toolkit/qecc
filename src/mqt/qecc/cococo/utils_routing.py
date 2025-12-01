@@ -1767,7 +1767,7 @@ class TeleportationRouter(BasicRouter):
                     raise ValueError(msg)
                 # this is appears like a redundant routing step, but the routes from best_schedule will not necessarily fully coincide with the routing here, since idle_move_back can make it happen that routings can be shorter than in best_schedule
                 flag_identical_schedules = True  # the schedules of best_schedule and the routing here can be the same. however, if there is some idle move it can happen that the routing here becomes better than in the computation of the metric
-                vdp_dict_present_temp = []  #!DELETE THIS AGAIN ONLY FOR DEBUGGING  # noqa: EXE003, EXE005
+                vdp_dict_present_temp = []  # !DELETE THIS AGAIN ONLY FOR DEBUGGING
 
                 # this routing is effectively redundant, but if idle_type = asap it is important to route again because the schedule can alter due to moves.
                 # while len(best_schedule) > 1 : #1 not 0 because the very last layer should be used for a steiner opt again in next it
