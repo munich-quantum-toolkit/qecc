@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import pathlib
 from typing import cast
 
@@ -14,6 +15,8 @@ from mqt.qecc import CSSCode
 from mqt.qecc.cococo import snake_builder
 
 pos = tuple[int,int]
+
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
 
 def test_snake_builder_stdw():
@@ -124,12 +127,14 @@ def test_snake_builder_stdw():
     hx = hx.tolist()
 
     hx_desired: list[list[int]] = []
-    with pathlib.Path("./hx_desired_stdw.csv").open(encoding="utf-8") as f:
+    path = PROJECT_ROOT / "cococo/hx_desired_stdw.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
         hx_desired.extend([int(x) for x in row] for row in reader)
 
     hz_desired: list[list[int]]  = []
-    with pathlib.Path("./hz_desired_stdw.csv").open(encoding="utf-8") as f:
+    path = PROJECT_ROOT / "cococo/hz_desired_stdw.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
         hz_desired.extend([int(x) for x in row] for row in reader)
 
@@ -167,12 +172,14 @@ def test_snake_builder():
     error_message = "The check matrix differs from the aimed one for given 4-snake."
 
     aim_x_check: list[list[int]]  = []
-    with pathlib.Path("./hx_desired_steane.csv").open(encoding="utf-8") as f:
+    path = PROJECT_ROOT / "cococo/hx_desired_steane.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
         aim_x_check.extend([int(x) for x in row] for row in reader)
 
     aim_z_check: list[list[int]]  = []
-    with pathlib.Path("./hz_desired_steane.csv").open(encoding="utf-8") as f:
+    path = PROJECT_ROOT / "cococo/hz_desired_steane.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
         aim_z_check.extend([int(x) for x in row] for row in reader)
 

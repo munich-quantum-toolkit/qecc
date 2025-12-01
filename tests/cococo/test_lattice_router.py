@@ -25,16 +25,17 @@ def test_basicrouter():
     remove_edges = False
     g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
     layout = dict(enumerate(data_qubit_locs))
-    t = 2  # mock because we have only cnots here in the example
+    t = 4
 
     q = len(data_qubit_locs)
-    j = 8
+    #j = 8
     num_gates = q * 2
-    _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-        j,
-        q,
-        num_gates,
-    )
+    #_dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    #    j,
+    #    q,
+    #    num_gates,
+    #)
+    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
 
     terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]|int]", pairs), cast("dict[int|str,pos|list[pos]]", layout))  # let's stick to the simple layout
 
@@ -57,25 +58,27 @@ def test_basicrouter():
         raise ValueError(msg)
 
 
-def test_TeleportationRouter():
+def test_teleportationrouter():
     """Test the TeleportationRouter class. By running some instance with testing==True."""
     layout_type = "triple"
     m = 2
     n = 2
-    factories: list[pos] = []
+    factories: list[pos] = [(22, 2), (5, -2), (10, -2), (9, 4), (17, -2)]
     remove_edges = False
     g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
     layout = dict(enumerate(data_qubit_locs))
-    t = 2  # mock because we have only cnots here in the example
+    t = 4
 
     q = len(data_qubit_locs)
-    j = 8
-    num_gates = q * 2
-    _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-        j,
-        q,
-        num_gates,
-    )
+    #j = 8
+    num_gates = q * 1.2
+    #_dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    #    j,
+    #    q,
+    #    num_gates,
+    #)
+    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
+
 
     terminal_pairs = layouts.translate_layout_circuit(cast("list[tuple[int,int]| int]",pairs), cast("dict[int|str, pos|list[pos]]",layout))  # let's stick to the simple layout
 

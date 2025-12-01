@@ -61,11 +61,15 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
     return c
 
 def check_order_dyn_gates_st(terminal_pairs: list[tuple[pos,pos]| pos], vdp_layers: list[dict[pos | tuple[pos,pos],list[pos,]]], layout: dict[int, pos] | None = None) -> bool:
-    """Only works for cnot circuits and the standard scheme, i.e. quilt.find_total_vdp_layers_dyn.
-    
-    But now i believe it also works for cnot+t circuits, but flattened pairs correct? # ! TODO
+    """Only works for circuits and the standard scheme, i.e. find_total_vdp_layers_dyn.
+
+    Includes both CNOT and T gates in a circuit.
     """
-    flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    #flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    flattened_pairs = [
+        p for elem in terminal_pairs 
+        for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
+    ]
     data_qubit_locs: list[pos] = list(set(cast("list[pos]",flattened_pairs)))
     n_qubits = len(data_qubit_locs)
     if layout is None:
@@ -131,7 +135,11 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos,pos] | pos], schedule: 
     simulates the gate order in the schedule (changed from pushing) and from initial terminal pairs on a random initial state.
     the results must coincide to make sure that the pushing is performed correctly.
     """
-    flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    #flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    flattened_pairs = [
+        p for elem in terminal_pairs 
+        for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
+    ]
     data_qubit_locs = list(set(flattened_pairs))
     n_qubits = len(data_qubit_locs)
 

@@ -31,6 +31,7 @@ StatePrep
 CatStates
 Encoders
 AnalogInfo
+cococo
 references
 CHANGELOG
 UPGRADING

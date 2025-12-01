@@ -1249,7 +1249,7 @@ class TeleportationRouter(BasicRouter):
 
     def idle_move_back(
         self,
-        schedule: Any,
+        schedule: Any,  # noqa: ANN401
         danger_qubits: dict[pos, int],
         available_gaps: list[pos],
         danger_qubits_temp: dict[pos, int],
