@@ -7,8 +7,6 @@
 
 """Utilities for quantum circuit compilation: random circuit generation, code-switch analysis, node parsing, and placeholder insertion."""
 
-import re
-
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
@@ -81,19 +79,6 @@ def naive_switching(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
                 switch_count += 1
 
     return switch_count, current_code
-
-
-pattern = re.compile(r".*_q(\d+)_d(\d+)")
-
-
-def parse_node_id(node_id: str) -> tuple[int, int]:
-    """Extract (qubit, depth) from a node_id like 'H_q0_d3'."""
-    match = pattern.match(node_id)
-    if not match:
-        msg = f"Invalid node_id format: {node_id}"
-        raise ValueError(msg)
-    qubit, depth = map(int, match.groups())
-    return qubit, depth
 
 
 def insert_switch_placeholders(

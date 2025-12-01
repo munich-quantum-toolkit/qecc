@@ -9,17 +9,18 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import networkx as nx
 from qiskit.converters import circuit_to_dag
 
-from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
-
 if TYPE_CHECKING:
     from qiskit import QuantumCircuit
     from qiskit.dagcircuit import DAGOpNode
+
+pattern = re.compile(r".*_q(\d+)_d(\d+)")
 
 
 @dataclass
@@ -417,6 +418,16 @@ class MinimalCodeSwitchingCompiler:
                 seen.add(key)
                 if (u in S and v in T) or (v in S and u in T):
                     # We can take e.g. the 'earlier' node in time as the insertion point
-                    qubit, depth = parse_node_id(u)
+                    qubit, depth = self.parse_node_id(u)
                     switch_positions.append((qubit, depth))
         return len(switch_positions), switch_positions
+
+    @staticmethod
+    def parse_node_id(node_id: str) -> tuple[int, int]:
+        """Extract (qubit, depth) from a node_id like 'H_q0_d3'."""
+        match = pattern.match(node_id)
+        if not match:
+            msg = f"Invalid node_id format: {node_id}"
+            raise ValueError(msg)
+        qubit, depth = map(int, match.groups())
+        return qubit, depth
