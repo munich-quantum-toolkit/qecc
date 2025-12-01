@@ -103,6 +103,24 @@ def _cat_fault_gens(w: int) -> stim.Circuit:
     return fault_gens_from_circuit(cat_state_pruned_balanced_circuit(w))
 
 
+def test_check_ft() -> None:
+    """Test correctness of ft partial CNOT checking."""
+    w1 = 6
+    w2 = 4
+    gens1 = _cat_fault_gens(w1)
+    gens2 = _cat_fault_gens(w2)
+    t = w1 // 2
+    ctrls_non_ft = [0, 1, 4, 5]
+    perm = [0, 1, 2, 3]
+
+    is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls_non_ft, perm, t)
+    assert not is_ft
+
+    ctrls_ft = [0, 1, 2, 4]
+    is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls_ft, perm, t)
+    assert is_ft
+
+
 @pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 3), (6, 4), (7, 5), (8, 6), (9, 6)])
 def test_cegar_synthesis(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by CEGAR search."""
