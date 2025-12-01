@@ -9,7 +9,7 @@
 
 from mqt.qecc.cococo import layouts
 
-pos = tuple[int,int]
+pos = tuple[int, int]
 
 
 def test_scalable_layout():

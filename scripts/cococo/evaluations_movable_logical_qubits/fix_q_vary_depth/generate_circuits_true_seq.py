@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Generates circuits for benchmark runs."""
 
 import json
@@ -13,9 +20,7 @@ reps = 20
 
 circuits = []
 for _ in range(reps):
-    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-        j, q, num_gates
-    )
+    dag, pairs = circuit_construction.create_random_sequential_circuit_dag(j, q, num_gates)
     circuits.append(pairs)
 
     # check whether the number of layers you want

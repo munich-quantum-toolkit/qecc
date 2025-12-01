@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Creates results for circuits with 24 qubits. Run this from the src/mqt/qecc/co3/plots directory. This should reproduce data for Fig 11 in 2504.10591, but layouts adapted so maybe slight differences expected."""
 
 from __future__ import annotations
@@ -24,9 +31,7 @@ factories_q24_hex = [
 layout_type = "row"
 m, n = 12, 6
 
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-    layout_type, m, n, factories_q24_hex, remove_edges=False
-)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories_q24_hex, remove_edges=False)
 custom_layout_q24_hex_f4_cc = [data_qubit_locs, g.copy()]
 
 g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(

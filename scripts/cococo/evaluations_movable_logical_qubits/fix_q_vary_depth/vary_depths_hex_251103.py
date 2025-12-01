@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """benchmark runs for varying depths."""
 
 import json
@@ -88,9 +95,7 @@ for el in terminal_pairs_list:
 
 
 # -----------run--------------
-results_list_st = (
-    []
-)  # list of sublists, in each sublist results of each of the num_circs
+results_list_st = []  # list of sublists, in each sublist results of each of the num_circs
 results_list_opt = []
 histories = []
 layers_tot = []
@@ -117,9 +122,7 @@ for num_gates in gates_list:
             use_dag=use_dag,
         )  # reinitialize because logical pos changes
         layers = quilt.split_layer_terminal_pairs(terminal_pairs)
-        vdp_layers, _ = quilt.find_total_vdp_layers_dyn(
-            layers, data_qubit_locs, {}, layout
-        )
+        vdp_layers, _ = quilt.find_total_vdp_layers_dyn(layers, data_qubit_locs, {}, layout)
         results_temp_st.append(vdp_layers.copy())
 
         # log

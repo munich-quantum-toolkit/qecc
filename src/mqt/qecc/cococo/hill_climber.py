@@ -76,7 +76,7 @@ class HillClimbing:
                 With custom_layout one can avoid using the `free_rows` related stuff.
             t (int): reset time
             use_dag (bool): use dag for layer structure or not.
-            valid_path (str): whcih type of valid path is used. actually one should only use "cc".
+            valid_path (str): which type of valid path is used. actually one should only use "cc".
 
         Raises:
             ValueError: _description_

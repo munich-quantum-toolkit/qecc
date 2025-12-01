@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Plots from pkl files."""
 
 import pathlib
@@ -265,7 +272,7 @@ def latex_table_rows(gate_counts: int, *cols: any) -> None:
                 row.append(f"& ${int(means[i])}$")  # integer for logical depth
             elif j == 3 or j == len(cols) - 1:
                 # row.append(f" & {fmt(means[i], stds[i], 3)}")
-                row.append(f" & {fmt(means[i]*100, stds[i]*100, 1)}\\%")  # percentage
+                row.append(f" & {fmt(means[i] * 100, stds[i] * 100, 1)}\\%")  # percentage
             # elif j == len(cols)-1:
             #    row.append(f" & {fmt(means[i], stds[i], 2)}")
 

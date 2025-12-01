@@ -12,10 +12,10 @@ from typing import Any, cast
 
 import stim
 
-pos = tuple[int,int]
+pos = tuple[int, int]
 
 
-def extract_gates_schedule(schedule: Any) -> list[tuple[pos,pos]| pos]:  # noqa: ANN401
+def extract_gates_schedule(schedule: Any) -> list[tuple[pos, pos] | pos]:  # noqa: ANN401
     """Extracts the gates from the schedule in the order of the schedule. ignore 'idle' moves in the vdp dict."""
     gates = []
     for i in range(len(schedule)):
@@ -25,7 +25,7 @@ def extract_gates_schedule(schedule: Any) -> list[tuple[pos,pos]| pos]:  # noqa:
     return gates
 
 
-def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos,pos]| pos]:  # noqa: ANN401
+def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos, pos] | pos]:  # noqa: ANN401
     """Extracts the gates with the qubit labels (not the positions of quibts) by respecting the changing `layout` dictionaries."""
     gates = []
     for i in range(len(schedule)):
@@ -46,7 +46,7 @@ def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos,pos]|
     return gates
 
 
-def check_num_gates(terminal_pairs: list[tuple[pos,pos]| pos], schedule: Any) -> bool:  # noqa: ANN401
+def check_num_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule: Any) -> bool:  # noqa: ANN401
     """Check that the input `terminal_pairs` has the same number of gates as the resulting schedule."""
     gates_schedule = extract_gates_schedule(schedule)
     return len(gates_schedule) == len(terminal_pairs)
@@ -62,17 +62,23 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
             c.append(p, [q])
     return c
 
-def check_order_dyn_gates_st(terminal_pairs: list[tuple[pos,pos]| pos], vdp_layers: list[dict[pos | tuple[pos,pos],list[pos,]]], layout: dict[int, pos] | None = None) -> bool:
+
+def check_order_dyn_gates_st(
+    terminal_pairs: list[tuple[pos, pos] | pos],
+    vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]],
+    layout: dict[int, pos] | None = None,
+) -> bool:
     """Only works for circuits and the standard scheme, i.e. find_total_vdp_layers_dyn.
 
     Includes both CNOT and T gates in a circuit.
     """
-    #flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    # flattened_pairs = [item for pair in terminal_pairs for item in pair]
     flattened_pairs = [
-        p for elem in terminal_pairs 
+        p
+        for elem in terminal_pairs
         for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
     ]
-    data_qubit_locs: list[pos] = list(set(cast("list[pos]",flattened_pairs)))
+    data_qubit_locs: list[pos] = list(set(cast("list[pos]", flattened_pairs)))
     n_qubits = len(data_qubit_locs)
     if layout is None:
         layout = dict(enumerate(data_qubit_locs))  # random layout, details do not matter here
@@ -81,7 +87,7 @@ def check_order_dyn_gates_st(terminal_pairs: list[tuple[pos,pos]| pos], vdp_laye
 
     layout_rev = {j: i for i, j in layout.items()}
     # terminal_pairs_trans = [(layout_rev[el[0]], layout_rev[el[1]]) for el in terminal_pairs]
-    terminal_pairs_trans: list[int | tuple[int,int]] = []
+    terminal_pairs_trans: list[int | tuple[int, int]] = []
     for el in terminal_pairs:
         # print("el", el)
         if isinstance(el[0], tuple):
@@ -131,15 +137,16 @@ def check_order_dyn_gates_st(terminal_pairs: list[tuple[pos,pos]| pos], vdp_laye
     return cast("bool", tableau1 == tableau2)
 
 
-def check_order_dyn_gates(terminal_pairs: list[tuple[pos,pos] | pos], schedule: Any) -> bool:  # noqa: ANN401
+def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule: Any) -> bool:  # noqa: ANN401
     """Checks order of the schedule.
 
     simulates the gate order in the schedule (changed from pushing) and from initial terminal pairs on a random initial state.
     the results must coincide to make sure that the pushing is performed correctly.
     """
-    #flattened_pairs = [item for pair in terminal_pairs for item in pair]
+    # flattened_pairs = [item for pair in terminal_pairs for item in pair]
     flattened_pairs = [
-        p for elem in terminal_pairs 
+        p
+        for elem in terminal_pairs
         for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
     ]
     data_qubit_locs = list(set(flattened_pairs))
@@ -171,14 +178,14 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos,pos] | pos], schedule: 
     for el in terminal_pairs_trans:
         if isinstance(el, tuple):
             initial_circ_order.append("CNOT", [el[0], el[1]])
-        elif isinstance(el, int): # type: ignore[unreachable]
+        elif isinstance(el, int):  # type: ignore[unreachable]
             initial_circ_order.append("s", el)
 
     dyn_circ_order = initial_state.copy()
     for el in gates_schedule:
         if isinstance(el, tuple):
             dyn_circ_order.append("CNOT", [el[0], el[1]])
-        elif isinstance(el, int): # type: ignore[unreachable]
+        elif isinstance(el, int):  # type: ignore[unreachable]
             dyn_circ_order.append("s", el)
 
     sim1 = stim.TableauSimulator()
@@ -192,7 +199,7 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos,pos] | pos], schedule: 
     return cast("bool", tableau1 == tableau2)
 
 
-def check_duplicate_nodes_per_layer_st(vdp_layers: list[dict[pos | tuple[pos,pos],list[pos,]]]) -> bool:
+def check_duplicate_nodes_per_layer_st(vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]]) -> bool:
     """Checks whether there are duplicate nodes in the paths of one layer.
 
     this would indicate that there are overlapping paths and is a big problem.
@@ -204,7 +211,7 @@ def check_duplicate_nodes_per_layer_st(vdp_layers: list[dict[pos | tuple[pos,pos
             all_nodes += path
         # check whether there are duplicate items, then problem!!
         seen = set()
-        duplicates = [x for x in all_nodes if x in seen or seen.add(x)] # type: ignore[func-returns-value]
+        duplicates = [x for x in all_nodes if x in seen or seen.add(x)]  # type: ignore[func-returns-value]
 
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
@@ -236,7 +243,7 @@ def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # noqa: ANN401
         # check whether there are duplicate items, then problem!!
 
         seen = set()
-        duplicates = [x for x in all_nodes if x in seen or seen.add(x)] # type: ignore[func-returns-value]
+        duplicates = [x for x in all_nodes if x in seen or seen.add(x)]  # type: ignore[func-returns-value]
 
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
@@ -245,7 +252,7 @@ def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # noqa: ANN401
     return True
 
 
-def check_path_on_logical_st(vdp_layers: list[dict[pos | tuple[pos,pos],list[pos,]]], logical_pos: list[pos]) -> bool:
+def check_path_on_logical_st(vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]], logical_pos: list[pos]) -> bool:
     """Checks whether the path occupies any logical pos somewhere else than on the end points. this would be an issue!"""
     for vdp_dict in vdp_layers:
         for path in vdp_dict.values():
@@ -302,7 +309,9 @@ def test_times_t_gates_opt(schedule: Any, t: int, factories: list[pos]) -> bool:
     return True
 
 
-def test_times_t_gates_st(vdp_layers: list[dict[pos | tuple[pos,pos],list[pos,]]], t: int, factories: list[pos]) -> bool:
+def test_times_t_gates_st(
+    vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]], t: int, factories: list[pos]
+) -> bool:
     """Checks whether the t timestamps make sense in a finisehd vdp layeyrs (st)."""
     factory_times = dict.fromkeys(factories, t)
     for vdp_dict in vdp_layers:

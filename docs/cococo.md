@@ -42,7 +42,7 @@ Note that the class [BasicRouter](mqt.qecc.cococo.BasicRouter) and particularly 
 Once chosen a layout, one can optimize the qubit label allocation. This is important to exploit more parallelism of the original circuit.
 The class [HillClimbing](mqt.qecc.cococo.HillClimbing) performs a simple hill climbing routine to optimize the qubit label mapping based on a heuristic metric which computes the initial crossing of shortest paths as well as a more reliable (yet expensive) metric which computes the routing for each Hill climbing iteration and directly aims to reduce the resulting layers. How it works can be seen in the notebook [scripts/cococo/hill_climbing_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/hill_climbing_examples.ipynb).
 
-Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evaluations_beyond_the_surface_code](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_beyond_the_surface_code). 
+Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evaluations_beyond_the_surface_code](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_beyond_the_surface_code).
 
 ### Microscopic Details of Snakes
 
@@ -277,14 +277,17 @@ print("Len of schedule with teleport router: ", len(schedule))
 ```
 
 Overall the router with movable qubits reduces the schedule depth.
+
 ```{code-cell} ipython3
 print("Reduction Delta: ", len(vdp_layers) - len(schedule))
 ```
 
 Let's plot the first few layers of the routing explicitly:
+
 ```{code-cell} ipython3
 plotting.plot_schedule(g, schedule[:3], factories, size = (12,4))
 ```
+
 In the first layer one can see that a tree for moving a data qubit was found.
 
 A larger example can be found in the notebook mentioned above: [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).

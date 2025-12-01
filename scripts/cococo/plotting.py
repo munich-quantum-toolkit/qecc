@@ -87,7 +87,9 @@ def plot_history(
     plt.legend()
     plt.ylabel(f"{hill_climber_obj.metric}")
     plt.xlabel("Hill Climbing Iteration")
-    plt.title(f"$q=${hill_climber_obj.q}, Layout-Type = {hill_climber_obj.layout_type}, Num CNOTS = {len(hill_climber_obj.circuit)}")
+    plt.title(
+        f"$q=${hill_climber_obj.q}, Layout-Type = {hill_climber_obj.layout_type}, Num CNOTS = {len(hill_climber_obj.circuit)}"
+    )
     plt.savefig(filename)
 
 
@@ -183,7 +185,9 @@ def plot_lattice_paths(
     plt.show()
 
 
-def plot_schedule(g: nx.Graph, schedule: dict[any], factory_pos: list[tuple[int,int]], size: tuple[int,int]=(5, 5)) -> None:
+def plot_schedule(
+    g: nx.Graph, schedule: dict[any], factory_pos: list[tuple[int, int]], size: tuple[int, int] = (5, 5)
+) -> None:
     """Plots the layers of a whole schedule from TeleportationRouter."""
     for i, step in enumerate(schedule):
         print(f"Step {i + 1}: Move Type - {step['move_type']}, Idle Move - {step['idle_move_label']}")

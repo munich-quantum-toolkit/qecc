@@ -12,7 +12,7 @@ import stim
 from mqt.qecc import CSSCode
 from mqt.qecc.cococo import snake_builder
 
-pos = tuple[int,int]
+pos = tuple[int, int]
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
@@ -130,7 +130,7 @@ def test_snake_builder_stdw():
         reader = csv.reader(f)
         hx_desired.extend([int(x) for x in row] for row in reader)
 
-    hz_desired: list[list[int]]  = []
+    hz_desired: list[list[int]] = []
     path = PROJECT_ROOT / "cococo/hz_desired_stdw.csv"
     with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -169,13 +169,13 @@ def test_snake_builder():
 
     error_message = "The check matrix differs from the aimed one for given 4-snake."
 
-    aim_x_check: list[list[int]]  = []
+    aim_x_check: list[list[int]] = []
     path = PROJECT_ROOT / "cococo/hx_desired_steane.csv"
     with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
         aim_x_check.extend([int(x) for x in row] for row in reader)
 
-    aim_z_check: list[list[int]]  = []
+    aim_z_check: list[list[int]] = []
     path = PROJECT_ROOT / "cococo/hz_desired_steane.csv"
     with pathlib.Path(path).open(encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -254,7 +254,9 @@ def encoding_circuit(snake: snake_builder.SnakeBuilderSC, opx: list[pos], opz: l
     return circuit_p, circuit_0
 
 
-def logicals(snake: snake_builder.SnakeBuilderSC, d: int, hx: np.ndarray, hz: np.ndarray) -> tuple[list[pos], list[pos]]:
+def logicals(
+    snake: snake_builder.SnakeBuilderSC, d: int, hx: np.ndarray, hz: np.ndarray
+) -> tuple[list[pos], list[pos]]:
     """Creates logical ops.
 
     Args:

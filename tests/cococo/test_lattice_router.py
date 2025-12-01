@@ -14,7 +14,8 @@ from typing import cast
 import mqt.qecc.cococo.utils_routing as utils
 from mqt.qecc.cococo import circuit_construction, layouts
 
-pos = tuple[int,int]
+pos = tuple[int, int]
+
 
 def test_basicrouter():
     """Test the BasicRouter class. By running some instance with testing==True."""
@@ -28,16 +29,18 @@ def test_basicrouter():
     t = 4
 
     q = len(data_qubit_locs)
-    #j = 8
+    # j = 8
     num_gates = q * 2
-    #_dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    # _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     #    j,
     #    q,
     #    num_gates,
-    #)
-    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
+    # )
+    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio=0.8)  # circuit with t gates
 
-    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("dict[int|str,pos|list[pos]]", layout))  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(
+        pairs, cast("dict[int|str,pos|list[pos]]", layout)
+    )  # let's stick to the simple layout
 
     router = utils.BasicRouter(
         g,
@@ -70,17 +73,18 @@ def test_teleportationrouter():
     t = 4
 
     q = len(data_qubit_locs)
-    #j = 8
+    # j = 8
     num_gates = int(q * 1.2)
-    #_dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
+    # _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     #    j,
     #    q,
     #    num_gates,
-    #)
-    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio = 0.8) #circuit with t gates
+    # )
+    pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio=0.8)  # circuit with t gates
 
-
-    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("dict[int|str, pos|list[pos]]",layout))  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(
+        pairs, cast("dict[int|str, pos|list[pos]]", layout)
+    )  # let's stick to the simple layout
 
     router = utils.TeleportationRouter(
         g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1

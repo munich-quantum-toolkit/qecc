@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Evaluate the routing for different Layouts."""
 
 from __future__ import annotations
@@ -84,9 +91,9 @@ def collect_data_space_time(
 
     if both_metric:
         # both metric can only be done if hc_params has "crossing in it"
-        assert (
-            hc_params["metric"] == "crossing"
-        ), "For both_metric == True you need to choose crossing in hc_params, to ensure that we have in the end both crossing and routing metric"
+        assert hc_params["metric"] == "crossing", (
+            "For both_metric == True you need to choose crossing in hc_params, to ensure that we have in the end both crossing and routing metric"
+        )
         res_lst_routing = []
 
     # sample circuits (should be the same for those instances for which q, min_depth, tgate, ratio) coincide
@@ -101,22 +108,16 @@ def collect_data_space_time(
                 instances[0]["ratio"],
             )
         elif instances[0]["circuit_type"] == "parallelmax":
-            assert (
-                instances[0]["tgate"] is False
-            ), "For Maximally parallel circuit type, we can only do CNOTs."
-            assert (
-                instances[0]["ratio"] == 1.0
-            ), "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            assert instances[0]["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
+            assert instances[0]["ratio"] == 1.0, (
+                "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            )
             circuit = circuit_construction.generate_max_parallel_circuit(
                 q=instances[0]["q"], min_depth=instances[0]["min_depth"]
             )
         elif instances[0]["circuit_type"] == "sequential":
-            assert (
-                instances[0]["tgate"] is False
-            ), "For seq. circuit type, we can only do CNOTs."
-            assert (
-                instances[0]["ratio"] == 1.0
-            ), "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            assert instances[0]["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
+            assert instances[0]["ratio"] == 1.0, "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
             layer_size = 2
             circuit = circuit_construction.generate_min_parallel_circuit(
                 q=instances[0]["q"],
@@ -154,22 +155,18 @@ def collect_data_space_time(
                             instance["ratio"],
                         )
                     elif instance["circuit_type"] == "parallelmax":
-                        assert (
-                            instance["tgate"] is False
-                        ), "For Maximally parallel circuit type, we can only do CNOTs."
-                        assert (
-                            instance["ratio"] == 1.0
-                        ), "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        assert instance["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
+                        assert instance["ratio"] == 1.0, (
+                            "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        )
                         circuit = circuit_construction.generate_max_parallel_circuit(
                             instance["q"], instance["min_depth"]
                         )
                     elif instance["circuit_type"] == "sequential":
-                        assert (
-                            instance["tgate"] is False
-                        ), "For seq. circuit type, we can only do CNOTs."
-                        assert (
-                            instance["ratio"] == 1.0
-                        ), "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        assert instance["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
+                        assert instance["ratio"] == 1.0, (
+                            "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        )
                         layer_size = 2
                         circuit = circuit_construction.generate_min_parallel_circuit(
                             q=instance["q"],
@@ -229,23 +226,15 @@ def collect_data_space_time(
             # hard coded for now
             prefix = "./results"
             suffix = "test_251116"
-            _best_solution, _, best_rep, score_history = hc.run(
-                prefix, suffix, parallel, processes
-            )
+            _best_solution, _, best_rep, score_history = hc.run(prefix, suffix, parallel, processes)
 
             # do the initial routing
             input_layout = score_history[best_rep]["layout_init"]
-            input_layout_cleaned = {
-                key: val
-                for key, val in input_layout.items()
-                if key != "factory_positions"
-            }
+            input_layout_cleaned = {key: val for key, val in input_layout.items() if key != "factory_positions"}
             init_layout_lst.append(input_layout)
             factory_positions = input_layout["factory_positions"]
             terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
-            router = utils.BasicRouter(
-                g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag
-            )
+            router = utils.BasicRouter(g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag)
             # update routing graph
             layers = router.split_layer_terminal_pairs(terminal_pairs)
             vdp_layers_initial_dyn, _ = router.find_total_vdp_layers_dyn(
@@ -260,17 +249,11 @@ def collect_data_space_time(
 
             # do the optimized routing
             input_layout = score_history[best_rep]["layout_final"]
-            input_layout_cleaned = {
-                key: val
-                for key, val in input_layout.items()
-                if key != "factory_positions"
-            }
+            input_layout_cleaned = {key: val for key, val in input_layout.items() if key != "factory_positions"}
             final_layout_lst.append(input_layout)
             factory_positions = input_layout["factory_positions"]
             terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
-            router = utils.BasicRouter(
-                g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag
-            )
+            router = utils.BasicRouter(g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag)
             # update routing graph
             layers = router.split_layer_terminal_pairs(terminal_pairs)
             vdp_layers_final_dyn, _ = router.find_total_vdp_layers_dyn(
@@ -286,23 +269,19 @@ def collect_data_space_time(
             # add time
             time.append(num_final_dyn)
         logger.info(f"time = {time}")
-        logger.info(
-            {"space": space, "time_mean": np.mean(time), "time_std": np.std(time)}
-        )
-        res_lst.append(
-            {
-                "space": space,
-                "time_mean": np.mean(time),
-                "time_std": np.std(time),
-                "num_init_lst": num_init_lst,
-                "num_final_lst": num_final_lst,
-                "init_layout_lst": init_layout_lst,
-                "final_layout_lst": final_layout_lst,
-                "instances": instances,
-                "hc_params": hc_params,
-                "circuits": circuits,
-            }
-        )
+        logger.info({"space": space, "time_mean": np.mean(time), "time_std": np.std(time)})
+        res_lst.append({
+            "space": space,
+            "time_mean": np.mean(time),
+            "time_std": np.std(time),
+            "num_init_lst": num_init_lst,
+            "num_final_lst": num_final_lst,
+            "init_layout_lst": init_layout_lst,
+            "final_layout_lst": final_layout_lst,
+            "instances": instances,
+            "hc_params": hc_params,
+            "circuits": circuits,
+        })
         with Path(path).open("wb") as f:
             pickle.dump(res_lst, f)
 
@@ -330,17 +309,11 @@ def collect_data_space_time(
                 # hard coded for now
                 prefix = "./results"
                 suffix = "test_250218_2"
-                _, _, best_rep, score_history = hc.run(
-                    prefix, suffix, parallel, processes
-                )
+                _, _, best_rep, score_history = hc.run(prefix, suffix, parallel, processes)
 
                 # do the initial routing
                 input_layout = score_history[best_rep]["layout_init"]
-                input_layout_cleaned = {
-                    key: val
-                    for key, val in input_layout.items()
-                    if key != "factory_positions"
-                }
+                input_layout_cleaned = {key: val for key, val in input_layout.items() if key != "factory_positions"}
                 init_layout_lst2.append(input_layout)
                 factory_positions = input_layout["factory_positions"]
                 terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
@@ -367,11 +340,7 @@ def collect_data_space_time(
 
                 # do the optimized routing
                 input_layout = score_history[best_rep]["layout_final"]
-                input_layout_cleaned = {
-                    key: val
-                    for key, val in input_layout.items()
-                    if key != "factory_positions"
-                }
+                input_layout_cleaned = {key: val for key, val in input_layout.items() if key != "factory_positions"}
                 final_layout_lst2.append(input_layout)
                 factory_positions = input_layout["factory_positions"]
                 terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
@@ -399,23 +368,19 @@ def collect_data_space_time(
                 # add time
                 time2.append(num_final_dyn)
             logger.info(f"time = {time}")
-            logger.info(
-                {"space": space, "time_mean": np.mean(time2), "time_std": np.std(time2)}
-            )
-            res_lst_routing.append(
-                {
-                    "space": space,
-                    "time_mean": np.mean(time2),
-                    "time_std": np.std(time2),
-                    "num_init_lst": num_init_lst2,
-                    "num_final_lst": num_final_lst2,
-                    "init_layout_lst": init_layout_lst2,
-                    "final_layout_lst": final_layout_lst2,
-                    "instances": instances,
-                    "hc_params": hc_params,
-                    "circuits": circuits,
-                }
-            )
+            logger.info({"space": space, "time_mean": np.mean(time2), "time_std": np.std(time2)})
+            res_lst_routing.append({
+                "space": space,
+                "time_mean": np.mean(time2),
+                "time_std": np.std(time2),
+                "num_init_lst": num_init_lst2,
+                "num_final_lst": num_final_lst2,
+                "init_layout_lst": init_layout_lst2,
+                "final_layout_lst": final_layout_lst2,
+                "instances": instances,
+                "hc_params": hc_params,
+                "circuits": circuits,
+            })
             new_path = path + "_metricrouting"
             with Path(new_path).open("wb") as f:
                 pickle.dump(res_lst_routing, f)
@@ -433,9 +398,7 @@ def plot_improvement_circuit_types(
     Plots the Improvement from hill climbing based on different circuit types.
     ONLY CNOTs without T gates.
     """
-    instances = res_lst[0][
-        "instances"
-    ]  # index does not matter because accidentally stored redundantely.
+    instances = res_lst[0]["instances"]  # index does not matter because accidentally stored redundantely.
     hc_params = res_lst[0]["hc_params"]
 
     # cut off instances at length of res_lst
@@ -464,21 +427,19 @@ def plot_improvement_circuit_types(
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
-            dct_mat.append(
-                {
-                    "i": i,
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": mean_improvement,
-                    "std_improvement": std_improvement,
-                    "t": instance["t"],
-                    "factory_locs": instance["factory_locs"],
-                    "q": instance["q"],
-                    "circuit_type": instance["circuit_type"],
-                    "layout_name": instance["layout_name"],
-                    "min_depth": instance["min_depth"],
-                }
-            )
+            dct_mat.append({
+                "i": i,
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": mean_improvement,
+                "std_improvement": std_improvement,
+                "t": instance["t"],
+                "factory_locs": instance["factory_locs"],
+                "q": instance["q"],
+                "circuit_type": instance["circuit_type"],
+                "layout_name": instance["layout_name"],
+                "min_depth": instance["min_depth"],
+            })
     for _ in dct_mat:
         pass
     # reshape such that one gets lists with fixed layout_name and fixed q
@@ -489,9 +450,7 @@ def plot_improvement_circuit_types(
 
     # define order of circuit_types
     circuit_types_ordered = ["sequential", "random", "parallelmax"]
-    sorted_circuit_types = [
-        el for el in circuit_types_ordered if el in unique_circuit_types
-    ]
+    sorted_circuit_types = [el for el in circuit_types_ordered if el in unique_circuit_types]
     dct_plot = {}
     dct_plot_abs = {}
 
@@ -746,9 +705,7 @@ def plot_f_vs_t(
         size (tuple[int,int]): size of plot
     """
     # extract data and put into matrix
-    instances = res_lst[0][
-        "instances"
-    ]  # index does not matter because accidentally stored redundantely.
+    instances = res_lst[0]["instances"]  # index does not matter because accidentally stored redundantely.
     # hc_params = res_lst[0]["hc_params"]
 
     # cut off instances at length of res_lst
@@ -779,17 +736,15 @@ def plot_f_vs_t(
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
-            dct_mat.append(
-                {
-                    "i": i,
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": mean_improvement,
-                    "std_improvement": std_improvement,
-                    "t": instance["t"],
-                    "factory_locs": instance["factory_locs"],
-                }
-            )
+            dct_mat.append({
+                "i": i,
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": mean_improvement,
+                "std_improvement": std_improvement,
+                "t": instance["t"],
+                "factory_locs": instance["factory_locs"],
+            })
 
     available_t = set()
     available_f = set()
@@ -854,15 +809,11 @@ def plot_f_vs_t(
         labels=list(available_t_dct.keys()),
         rotation=45,
     )
-    plt.yticks(
-        ticks=list(available_f_dct.values()), labels=list(available_f_dct.keys())
-    )
+    plt.yticks(ticks=list(available_f_dct.values()), labels=list(available_f_dct.keys()))
 
     # Add colorbar
     cbar = plt.colorbar(im)
-    cbar.set_label(
-        r"$\tilde{\Delta}$"
-    )  # ("Mean Improvement $(n_i-n_f)/n_i$")  # Label for the colorbar
+    cbar.set_label(r"$\tilde{\Delta}$")  # ("Mean Improvement $(n_i-n_f)/n_i$")  # Label for the colorbar
 
     plt.xlabel("Reset time $t$")
     plt.ylabel("Number of factories")
@@ -945,9 +896,7 @@ def plot_f_vs_t(
         labels=list(available_t_dct.keys()),
         rotation=45,
     )
-    plt.yticks(
-        ticks=list(available_f_dct.values()), labels=list(available_f_dct.keys())
-    )
+    plt.yticks(ticks=list(available_f_dct.values()), labels=list(available_f_dct.keys()))
 
     # Add colorbar
     cbar = plt.colorbar(im)
@@ -1020,9 +969,7 @@ def plot_ratio_vs_t(
         size (tuple[int,int]) : size of plot
     """
     # extract data and put into matrix
-    instances = res_lst[0][
-        "instances"
-    ]  # index does not matter because accidentally stored redundantely.
+    instances = res_lst[0]["instances"]  # index does not matter because accidentally stored redundantely.
     hc_params = res_lst[0]["hc_params"]
 
     # cut off instances at length of res_lst
@@ -1053,17 +1000,15 @@ def plot_ratio_vs_t(
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
-            dct_mat.append(
-                {
-                    "i": i,
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": mean_improvement,
-                    "std_improvement": std_improvement,
-                    "t": instance["t"],
-                    "ratio": instance["ratio"],
-                }
-            )
+            dct_mat.append({
+                "i": i,
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": mean_improvement,
+                "std_improvement": std_improvement,
+                "t": instance["t"],
+                "ratio": instance["ratio"],
+            })
 
     available_t = set()
     available_ratio = set()
@@ -1205,9 +1150,7 @@ def plot_space_time(
         path (str, optional): Path to save the plot. Defaults to "./results".
         size (tuple[int,int]): Size of figure
     """
-    assert len(instances) == len(
-        res_lst
-    ), "instances and res_lst do not have the same length."
+    assert len(instances) == len(res_lst), "instances and res_lst do not have the same length."
     colors = plt.cm.rainbow(np.linspace(0, 1, 7))
 
     _, ax = plt.subplots(figsize=size)
@@ -1234,12 +1177,9 @@ def plot_space_time(
             "row" + str(24): {"color": colors[1], "marker": "o", "label": "row, q=24"},
             "row" + str(42): {"color": colors[1], "marker": "x", "label": "row, q=42"},
             "row" + str(60): {"color": colors[1], "marker": "v", "label": "row, q=60"},
-            "pair"
-            + str(24): {"color": colors[2], "marker": "o", "label": "pair, q=24"},
-            "pair"
-            + str(42): {"color": colors[2], "marker": "x", "label": "pair, q=42"},
-            "pair"
-            + str(60): {"color": colors[2], "marker": "v", "label": "pair, q=60"},
+            "pair" + str(24): {"color": colors[2], "marker": "o", "label": "pair, q=24"},
+            "pair" + str(42): {"color": colors[2], "marker": "x", "label": "pair, q=42"},
+            "pair" + str(60): {"color": colors[2], "marker": "v", "label": "pair, q=60"},
             # do not plot sparse result
             # "sparse"+str(24): {"color": colors[3], "marker": "o", "label": "sparse, q=24"},
             # "row": {"color": colors[1], "marker": "x", "label": "row"},
@@ -1388,18 +1328,16 @@ def plot_improvement_f_variation(
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
-            dct_mat_c.append(
-                {
-                    "i": i,
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": mean_improvement,
-                    "std_improvement": std_improvement,
-                    "t": instance["t"],
-                    "factory_locs": instance["factory_locs"],
-                    "layout_name": instance["layout_name"],
-                }
-            )
+            dct_mat_c.append({
+                "i": i,
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": mean_improvement,
+                "std_improvement": std_improvement,
+                "t": instance["t"],
+                "factory_locs": instance["factory_locs"],
+                "layout_name": instance["layout_name"],
+            })
 
     dct_mat_r = []  # gather for each included idx the important outcomes
     for i, instance in enumerate(instances_routing):
@@ -1412,18 +1350,16 @@ def plot_improvement_f_variation(
                 improvements.append((ni - nf) / ni)
             mean_improvement = np.mean(improvements)
             std_improvement = np.std(improvements)
-            dct_mat_r.append(
-                {
-                    "i": i,
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": mean_improvement,
-                    "std_improvement": std_improvement,
-                    "t": instance["t"],
-                    "factory_locs": instance["factory_locs"],
-                    "layout_name": instance["layout_name"],
-                }
-            )
+            dct_mat_r.append({
+                "i": i,
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": mean_improvement,
+                "std_improvement": std_improvement,
+                "t": instance["t"],
+                "factory_locs": instance["factory_locs"],
+                "layout_name": instance["layout_name"],
+            })
 
     # gather the lists where each list should form a graph i.e. a list for each metric / layout type and length should be number of different factoriy numbers.
     available_f_c = set()
@@ -1439,12 +1375,12 @@ def plot_improvement_f_variation(
         available_layout_r.add(el["layout_name"])
 
     # assert available values should be the same for routing and crossing metric
-    assert (
-        available_f_c == available_f_r
-    ), "Choose your data such that runs for both metrics provide same values for the number of factories"
-    assert (
-        available_layout_r == available_layout_c
-    ), "Choose your data such that runs for both metrics provide same values for the layouts"
+    assert available_f_c == available_f_r, (
+        "Choose your data such that runs for both metrics provide same values for the number of factories"
+    )
+    assert available_layout_r == available_layout_c, (
+        "Choose your data such that runs for both metrics provide same values for the layouts"
+    )
 
     # gather together lists for each graph
     data_c = np.zeros((len(available_f_c), len(available_layout_c)))
@@ -1562,19 +1498,15 @@ def plot_f_vs_t_subfigs(
             res = res_lst[i]
             num_init_lst: list[int] = res["num_init_lst"]
             num_final_lst: list[int] = res["num_final_lst"]
-            improvements = [
-                (ni - nf) / ni for ni, nf in zip(num_init_lst, num_final_lst, strict=False)
-            ]
-            dct_mat.append(
-                {
-                    "mean_final_layers": np.mean(num_final_lst),
-                    "std_final_layers": np.std(num_final_lst),
-                    "mean_improvement": np.mean(improvements),
-                    "std_improvement": np.std(improvements),
-                    "t": instances[i]["t"],
-                    "factory_locs": instances[i]["factory_locs"],
-                }
-            )
+            improvements = [(ni - nf) / ni for ni, nf in zip(num_init_lst, num_final_lst, strict=False)]
+            dct_mat.append({
+                "mean_final_layers": np.mean(num_final_lst),
+                "std_final_layers": np.std(num_final_lst),
+                "mean_improvement": np.mean(improvements),
+                "std_improvement": np.std(improvements),
+                "t": instances[i]["t"],
+                "factory_locs": instances[i]["factory_locs"],
+            })
 
         available_t = sorted({el["t"] for el in dct_mat})
         available_f = sorted({len(el["factory_locs"]) for el in dct_mat})
@@ -1615,9 +1547,7 @@ def plot_f_vs_t_subfigs(
         available_t_dct,
         available_f_dct,
     ) = process_res_list(res_lst1)
-    data2, data_std2, data_abs2, data_abs_std2, _available_t2, _available_f2, _, _ = (
-        process_res_list(res_lst2)
-    )
+    data2, data_std2, data_abs2, data_abs_std2, _available_t2, _available_f2, _, _ = process_res_list(res_lst2)
 
     fig, axes = plt.subplots(
         2,
@@ -1626,9 +1556,7 @@ def plot_f_vs_t_subfigs(
         gridspec_kw={"width_ratios": [1, 1], "height_ratios": [1, 1]},
     )
 
-    def plot_with_text(
-        ax: plt.axes.Axes, data: NDArray[Any], data_std: NDArray[Any], r: int
-    ) -> plt.image.AxesImage:
+    def plot_with_text(ax: plt.axes.Axes, data: NDArray[Any], data_std: NDArray[Any], r: int) -> plt.image.AxesImage:
         im = ax.imshow(data, cmap="viridis", aspect="auto")
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
@@ -1640,9 +1568,7 @@ def plot_f_vs_t_subfigs(
                     va="center",
                     color="white",
                     fontsize=12,
-                    path_effects=[
-                        path_effects.withStroke(linewidth=1, foreground="black")
-                    ],
+                    path_effects=[path_effects.withStroke(linewidth=1, foreground="black")],
                 )
                 ax.text(
                     j,
@@ -1652,9 +1578,7 @@ def plot_f_vs_t_subfigs(
                     va="center",
                     color="white",
                     fontsize=12,
-                    path_effects=[
-                        path_effects.withStroke(linewidth=1, foreground="black")
-                    ],
+                    path_effects=[path_effects.withStroke(linewidth=1, foreground="black")],
                 )
         ax.set_xticks(list(available_t_dct.values()))
         ax.set_xticklabels(list(available_t_dct.keys()), rotation=45)
@@ -1662,9 +1586,7 @@ def plot_f_vs_t_subfigs(
         ax.set_yticklabels(list(available_f_dct.keys()))
         return im
 
-    def plot_with_text_int(
-        ax: plt.axes.Axes, data: NDArray[Any], data_std: NDArray[Any]
-    ) -> plt.image.AxesImage:
+    def plot_with_text_int(ax: plt.axes.Axes, data: NDArray[Any], data_std: NDArray[Any]) -> plt.image.AxesImage:
         im = ax.imshow(data, cmap="viridis", aspect="auto")
         r = 0
         for i in range(data.shape[0]):
@@ -1677,9 +1599,7 @@ def plot_f_vs_t_subfigs(
                     va="center",
                     color="white",
                     fontsize=12,
-                    path_effects=[
-                        path_effects.withStroke(linewidth=1, foreground="black")
-                    ],
+                    path_effects=[path_effects.withStroke(linewidth=1, foreground="black")],
                 )
                 ax.text(
                     j,
@@ -1689,9 +1609,7 @@ def plot_f_vs_t_subfigs(
                     va="center",
                     color="white",
                     fontsize=12,
-                    path_effects=[
-                        path_effects.withStroke(linewidth=1, foreground="black")
-                    ],
+                    path_effects=[path_effects.withStroke(linewidth=1, foreground="black")],
                 )
         ax.set_xticks(list(available_t_dct.values()))
         ax.set_xticklabels(list(available_t_dct.keys()), rotation=45)
@@ -1701,9 +1619,7 @@ def plot_f_vs_t_subfigs(
 
     # Global color limits
     vmin1, vmax1 = min(data1.min(), data2.min()), max(data1.max(), data2.max())
-    vmin2, vmax2 = min(data_abs1.min(), data_abs2.min()), max(
-        data_abs1.max(), data_abs2.max()
-    )
+    vmin2, vmax2 = min(data_abs1.min(), data_abs2.min()), max(data_abs1.max(), data_abs2.max())
 
     # Plot data with consistent color limits
     r = 2
@@ -1744,9 +1660,7 @@ def plot_f_vs_t_subfigs(
 
     fig.supxlabel("Reset time $t$", fontsize=12)
     fig.supylabel("Number of factories", fontsize=12)
-    plt.subplots_adjust(
-        left=0.15, right=0.95, top=0.95, bottom=0.12
-    )  # Fine-tune spacing
+    plt.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.12)  # Fine-tune spacing
 
     # Adjust layout to give room for colorbars
     plt.tight_layout(rect=[0, 0, 0.9, 1])

@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Reproduce figures in the gist of Fig. 10 in 2504.10591."""
 
 from __future__ import annotations
@@ -15,23 +22,17 @@ path = "./test_results_fig10"
 
 # HEX
 
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-    "hex", 2, 2, [], remove_edges=False
-)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("hex", 2, 2, [], remove_edges=False)
 custom_layout_q24_hex_f8 = [data_qubit_locs, g]
 
 
 # ROW
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-    "hex", 6, 4, [], remove_edges=False
-)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("hex", 6, 4, [], remove_edges=False)
 custom_layout_q24_row_f8 = [data_qubit_locs, g]
 
 
 # PAIR
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
-    "hex", 3, 4, [], remove_edges=False
-)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("hex", 3, 4, [], remove_edges=False)
 custom_layout_q24_pair_f8 = [data_qubit_locs, g]
 
 

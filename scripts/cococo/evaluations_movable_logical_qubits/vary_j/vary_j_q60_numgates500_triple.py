@@ -1,3 +1,10 @@
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 """Benchmark runs for variation of j."""
 
 import json
@@ -72,9 +79,7 @@ start = time.time()
 for j in j_lst:
     print(f"=======j={j}, num_gates={num_gates}======")
     # load example circuits and cut off ncirc
-    d = np.ceil(
-        num_gates / j
-    )  # round up because last layer will not be full of j gates but be a layer nevertheless.
+    d = np.ceil(num_gates / j)  # round up because last layer will not be full of j gates but be a layer nevertheless.
     path_circuits = f"true_seq_circs_j{j}_q{q}_numgates{num_gates}d{d}_x{reps}.json"
     try:
         with pathlib.Path(path_circuits).open(encoding="utf-8") as f:
@@ -83,9 +88,7 @@ for j in j_lst:
         print("new circs sampled")
         pairs_lst = []
         for _ in range(reps):
-            dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-                j, q, num_gates
-            )
+            dag, pairs = circuit_construction.create_random_sequential_circuit_dag(j, q, num_gates)
             pairs_lst.append(pairs)
         with pathlib.Path(path).open("w", encoding="utf-8") as f:
             json.dump(pairs_lst, f)
@@ -106,9 +109,7 @@ for j in j_lst:
         layers = [dag_helper.extract_layer_from_dag(dag, layout, layer) for layer in range(len(list(dag.layers())))]
         if len(layers) != d:
             msg = f"The number of logical layers {len(layers)} does not coincide with desired depth {d}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         # run standard
         seed = 0
@@ -122,9 +123,7 @@ for j in j_lst:
             use_dag=use_dag,
         )  # reinitialize because logical pos changes
         layers = quilt.split_layer_terminal_pairs(terminal_pairs)
-        vdp_layers, _ = quilt.find_total_vdp_layers_dyn(
-            layers, data_qubit_locs, {}, layout
-        )
+        vdp_layers, _ = quilt.find_total_vdp_layers_dyn(layers, data_qubit_locs, {}, layout)
         results_st_temp.append(vdp_layers)
 
         # run opt
@@ -163,7 +162,7 @@ for j in j_lst:
         pickle.dump(save, f)
 
 end = time.time()
-print(f"Simulation took {(end-start)/60} minutes")
+print(f"Simulation took {(end - start) / 60} minutes")
 
 print(path)
 # reload
@@ -222,7 +221,7 @@ plt.errorbar(
 )
 
 plt.xlabel("$g$")
-plt.ylabel(fr"$\tilde{d}$")
+plt.ylabel(rf"$\tilde{d}$")
 
 # plt.xscale("log", base=2)
 
