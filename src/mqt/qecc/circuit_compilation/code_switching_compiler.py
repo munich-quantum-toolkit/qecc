@@ -182,43 +182,6 @@ class MinimalCodeSwitchingCompiler:
             self._add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
             self._add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
 
-    def _connect_to_code(self, node_id: str, gate_type: str) -> None:
-        """Connect a gate node to the source and/or sink according to which code can perform the operation transversally.
-
-        Note: Here we fix the convention that the 2D Color Code corresponds to the source (can perform H and CNOT)
-        and the 3D Surface Code corresponds to the sink (can perform T and CNOT). This convention is arbitrary and can be swapped.
-        However, swapping the convention requires to change the one-way transversal CNOT setting:
-        2D Source + 3D Sink  <->  (infinite edge) Control -> Target
-        3D Source + 2D Sink  <->  (infinite edge) Control <- Target
-
-        Parameters
-        ----------
-        node_id : str
-            Node identifier of the gate operation.
-        gate_type : str
-            Type of the gate (e.g., "H", "T", "CNOT").
-        """
-        # Sink code can perform T and CNOT gates
-        if gate_type == "T":
-            self._add_infinite_edge(self.sink, node_id)
-        # Source code can perform H and CNOT gates
-        if gate_type == "H":
-            self._add_infinite_edge(node_id, self.source)
-
-    def _add_cnot_links(self, control_node: str, target_node: str, *, one_way_transversal_cnot: bool = False) -> None:
-        """Add bidirectional infinite-capacity edges between two CNOT-related nodes to enforce that both qubits remain in the same code.
-
-        Parameters
-        ----------
-        control_node : str
-            Node representing the control qubit's CNOT operation.
-        target_node : str
-            Node representing the target qubit's CNOT operation.
-        one_way_transversal_cnot : bool, optional
-            If True, allow transversal CNOTs from 3D (control) to 2D (target) besides the usual requirement that both qubits remain in the same code.
-        """
-        self._add_infinite_edge(control_node, target_node, bidirectional=not (one_way_transversal_cnot))
-
     def compute_idle_bonus(self, previous_depth: int, current_depth: int) -> float:
         """Compute a bonus (capacity reduction) for idling qubits.
 
