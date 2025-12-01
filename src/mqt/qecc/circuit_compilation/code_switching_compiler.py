@@ -66,7 +66,7 @@ class MinimalCodeSwitchingCompiler:
     """
 
     def __init__(
-        self, gate_set_code_a: set[str], gate_set_code_b: set[str], config: CompilerConfig | None = None
+        self, gate_set_code_source: set[str], gate_set_code_sink: set[str], config: CompilerConfig | None = None
     ) -> None:
         """Initialize the CodeSwitchGraph with source and sink nodes."""
         if config is None:
@@ -74,8 +74,8 @@ class MinimalCodeSwitchingCompiler:
         else:
             self.config = config
 
-        self.gate_set_source = gate_set_code_a
-        self.gate_set_sink = gate_set_code_b
+        self.gate_set_source = gate_set_code_source
+        self.gate_set_sink = gate_set_code_sink
         self.common_gates = self._get_common_gates()
         self.G: nx.DiGraph = nx.DiGraph()
         self.source: str = "SRC"
