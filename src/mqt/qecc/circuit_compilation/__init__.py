@@ -10,12 +10,11 @@
 from __future__ import annotations
 
 from .code_switching_compiler import CompilerConfig, MinimalCodeSwitchingCompiler
-from .compilation_utils import count_code_switches, insert_switch_placeholders, random_universal_circuit
+from .compilation_utils import count_code_switches, insert_switch_placeholders
 
 __all__ = [
     "CompilerConfig",
     "MinimalCodeSwitchingCompiler",
     "count_code_switches",
     "insert_switch_placeholders",
-    "random_universal_circuit",
 ]
