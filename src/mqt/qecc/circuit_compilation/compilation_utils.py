@@ -120,7 +120,6 @@ def insert_switch_placeholders(
     placeholders_by_qubit: dict[int, list[int]] = {}
     for qidx, layer_idx in switch_positions:
         if layer_idx < 0:
-            # ignore negative indices (could alternatively raise)
             continue
         placeholders_by_qubit.setdefault(qidx, []).append(layer_idx)
 
@@ -144,14 +143,11 @@ def insert_switch_placeholders(
     # Iterate layers in order; copy each op, then after the whole layer insert placeholders for that layer
     for depth_idx, layer in enumerate(layers):
         layer_graph = layer["graph"]
-        # append ops of the layer to new_qc (deterministic order: iterate nodes)
         for node in layer_graph.op_nodes():
             assert isinstance(node, DAGOpNode)
             # Map node.qargs (Qubit objects) to the corresponding qubit objects of the original circuit
-            q_indices = [circuit.find_bit(q).index for q in node.qargs] if node.qargs else []
-            qbit_objs = [circuit.qubits[i] for i in q_indices]
-            c_indices = [circuit.find_bit(c).index for c in node.cargs] if getattr(node, "cargs", None) else []
-            cbit_objs = [circuit.clbits[i] for i in c_indices] if c_indices else []
+            qbit_objs = list(node.qargs)
+            cbit_objs = list(node.cargs) if hasattr(node, "cargs") else []
 
             # Append the operation to the new circuit on the same physical qubits/bits
             new_qc.append(node.op, qbit_objs, cbit_objs)
