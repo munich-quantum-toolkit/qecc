@@ -19,6 +19,7 @@ from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
 
 if TYPE_CHECKING:
     from qiskit import QuantumCircuit
+    from qiskit.dagcircuit import DAGOpNode
 
 
 @dataclass
@@ -35,15 +36,27 @@ class MinimalCodeSwitchingCompiler:
     """A directed graph representation of a quantum circuit for code-switching analysis using min-cut / max-flow optimization.
 
     The graph is constructed such that:
-      - Each quantum operation (T, H, CNOT) corresponds to one or more nodes.
+      - Each quantum operation (e.g. T, H, CNOT) corresponds to one or more nodes.
       - Source (SRC) and sink (SNK) nodes represent two different codes:
-          * Source-connected nodes (H, CNOT) → operations that can be done transversally in a 2D Color Code.
-          * Sink-connected nodes (T, CNOT) → operations that can be done transversally in a 3D Surface Code.
+          * Source-connected nodes (e.g. H, CNOT) → operations that can be done transversally in a 2D Color Code.
+          * Sink-connected nodes (e.g. T, CNOT) → operations that can be done transversally in a 3D Surface Code.
       - Infinite-capacity edges enforce code consistency between operations (e.g., CNOT links).
       - Finite-capacity (temporal) edges represent potential code transitions along qubit timelines.
 
     Attributes:
     ----------
+    gate_set_source : set[str]
+        Set of gate types supported by code A (e.g., 2D Color Code).
+        This gate set is associated with the source node.
+        Should be provided as a set of strings, e.g., {"H", "CNOT"}.
+    gate_set_sink : set[str]
+        Set of gate types supported by code B (e.g., 3D Surface Code).
+        This gate set is associated with the sink node.
+        Should be provided as a set of strings, e.g., {"T", "CNOT"}.
+    common_gates : set[str]
+        Set of gate types that can be performed transversally in both codes.
+    config : CompilerConfig
+        Configuration parameters for the compiler.
     G : nx.DiGraph
         Directed graph storing the nodes and edges.
     source : str
@@ -52,19 +65,28 @@ class MinimalCodeSwitchingCompiler:
         Identifier for the sink node ("SNK").
     """
 
-    def __init__(self, config: CompilerConfig | None = None) -> None:
+    def __init__(
+        self, gate_set_code_a: set[str], gate_set_code_b: set[str], config: CompilerConfig | None = None
+    ) -> None:
         """Initialize the CodeSwitchGraph with source and sink nodes."""
         if config is None:
             self.config = CompilerConfig()
         else:
             self.config = config
 
+        self.gate_set_source = gate_set_code_a
+        self.gate_set_sink = gate_set_code_b
+        self.common_gates = self._get_common_gates()
         self.G: nx.DiGraph = nx.DiGraph()
         self.source: str = "SRC"
         self.sink: str = "SNK"
         self.G.add_node(self.source)
         self.G.add_node(self.sink)
         self.base_unary_capacity: float = self.config.default_temporal_edge_capacity * self.config.edge_capacity_ratio
+
+    def _get_common_gates(self) -> set[str]:
+        """Return the set of gates that can be performed transversally in both codes."""
+        return self.gate_set_source.intersection(self.gate_set_sink)
 
     def _add_gate_node(self, gate_type: str, qubit: int, depth: int) -> str:
         """Add a node representing a quantum gate operation.
@@ -254,69 +276,116 @@ class MinimalCodeSwitchingCompiler:
         self,
         circuit: QuantumCircuit,
         *,
-        one_way_transversal_cnot: bool = False,
+        one_way_gates: set[str] | None = None,
         code_bias: bool = False,
         idle_bonus: bool = False,
     ) -> None:
-        """Construct the code-switch graph from a Qiskit QuantumCircuit.
+        """Construct the code-switch graph generically.
 
         Parameters
         ----------
         circuit : QuantumCircuit
-            The input quantum circuit containing H, T, and CX (CNOT) gates.
-        one_way_transversal_cnot : bool, optional
-            If True, restrict transversal CNOTs to one direction.
+            The input quantum circuit.
         code_bias : bool, optional
-            If True, add bias edges for CNOT nodes.
+            If True, add bias edges for nodes. Default is False.
         idle_bonus : bool, optional
             If True, reduce temporal edge capacities based on idle durations via
             `_edge_capacity_with_idle_bonus`. Default is False.
-
-        Notes:
-        -----
-        - For each gate, a node is created per qubit.
-        - Temporal ordering along qubit lines is maintained via regular edges.
-        - CNOT gates create two linked nodes (control, target) with infinite capacity.
-        - Optionally adds code bias edges or one-way transversal CNOT constraints.
-        - Idle bonuses reduce temporal edge capacities for qubits idle over multiple layers.
+        one_way_gates : set[str], optional
+            A set of multi-qubit gate names (e.g. {"CX"}) that are in `common_gates`
+            but allow for one-way transversality (mixed codes).
+            If a common multi-qubit gate is NOT in this set, it is assumed
+            both qubits must be in the same code (bidirectional infinite edges).
         """
+        if one_way_gates is None:
+            one_way_gates = set()
+
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
+
         qubit_activity: dict[int, list[int]] = {q: [] for q in range(circuit.num_qubits)}
         qubit_last_node: list[str | None] = [None] * circuit.num_qubits
 
         for depth, layer in enumerate(layers):
             for node in layer["graph"].op_nodes():
-                qubits = [circuit.find_bit(q).index for q in node.qargs]
-                gate = node.name.upper()
-                for qubit_index in qubits:
-                    qubit_activity[qubit_index].append(depth)
+                self._process_gate_operation(
+                    node, depth, circuit, qubit_activity, qubit_last_node, one_way_gates, code_bias, idle_bonus
+                )
 
-                if gate in {"H", "T"}:
-                    q = qubits[0]
-                    gate_node = self._add_gate_node(gate, q, depth)
-                    self._connect_to_code(gate_node, gate)
-                    if qubit_last_node[q]:
-                        self._add_regular_edge(qubit_last_node[q], gate_node)
-                    qubit_last_node[q] = gate_node
+    def _process_gate_operation(
+        self,
+        node: DAGOpNode,
+        depth: int,
+        circuit: QuantumCircuit,
+        qubit_activity: dict[int, list[int]],
+        qubit_last_node: list[str | None],
+        one_way_gates: set[str],
+        code_bias: bool,
+        idle_bonus: bool,
+    ) -> None:
+        """Handle node creation, temporal edges, and code constraints for a single gate.
 
-                elif gate == "CX":
-                    ctrl, tgt = qubits
-                    node_ctrl = self._add_gate_node("CNOTc", ctrl, depth)
-                    node_tgt = self._add_gate_node("CNOTt", tgt, depth)
-                    self._add_cnot_links(node_ctrl, node_tgt, one_way_transversal_cnot=one_way_transversal_cnot)
-                    if code_bias:
-                        self._add_bias_edges(node_ctrl)
-                        self._add_bias_edges(node_tgt)
-                    for q, gate_node in [(ctrl, node_ctrl), (tgt, node_tgt)]:
-                        if qubit_last_node[q]:
-                            capacity = (
-                                self._edge_capacity_with_idle_bonus(qubit_activity[q])
-                                if idle_bonus
-                                else self.config.default_temporal_edge_capacity
-                            )
-                            self._add_regular_edge(qubit_last_node[q], gate_node, capacity=capacity)
-                        qubit_last_node[q] = gate_node
+        Parameters.
+        ----------
+        node : DAGOpNode
+            The gate operation node from the DAG.
+        depth : int
+            The depth (layer index) of the operation in the circuit.
+        """
+        qubits_indices = [circuit.find_bit(q).index for q in node.qargs]
+        gate_type = node.name.upper()
+
+        current_step_nodes = []
+
+        for q_idx in qubits_indices:
+            qubit_activity[q_idx].append(depth)
+
+            node_id = self._add_gate_node(gate_type, q_idx, depth)
+            current_step_nodes.append((q_idx, node_id))
+
+            prev_node = qubit_last_node[q_idx]
+            if prev_node:
+                capacity = self.config.default_temporal_edge_capacity
+                if idle_bonus:
+                    capacity = self._edge_capacity_with_idle_bonus(qubit_activity[q_idx])
+                self._add_regular_edge(prev_node, node_id, capacity=capacity)
+
+            qubit_last_node[q_idx] = node_id
+
+        self._apply_code_constraints(gate_type, current_step_nodes, one_way_gates, code_bias)
+
+    def _apply_code_constraints(
+        self, gate_type: str, current_step_nodes: list[tuple[int, str]], one_way_gates: set[str], code_bias: bool
+    ) -> None:
+        """Apply infinite edges or bias edges based on gate sets."""
+        is_source_unique = gate_type in self.gate_set_source and gate_type not in self.gate_set_sink
+        is_sink_unique = gate_type in self.gate_set_sink and gate_type not in self.gate_set_source
+        is_common = gate_type in self.common_gates
+
+        if is_source_unique:
+            for _, node_id in current_step_nodes:
+                self._add_infinite_edge(self.source, node_id)
+
+        elif is_sink_unique:
+            for _, node_id in current_step_nodes:
+                self._add_infinite_edge(self.sink, node_id)
+
+        elif is_common:
+            is_multi_qubit = len(current_step_nodes) > 1
+
+            # Single qubit common gates are ignored (they float freely)
+            if is_multi_qubit:
+                is_one_way = gate_type in one_way_gates
+
+                _, target_node = current_step_nodes[-1]
+                controls = current_step_nodes[:-1]
+
+                for _, ctrl_node in controls:
+                    self._add_infinite_edge(ctrl_node, target_node, bidirectional=not is_one_way)
+
+                if code_bias:
+                    for _, node_id in current_step_nodes:
+                        self._add_bias_edges(node_id)
 
     def compute_min_cut(self) -> tuple[int, list[tuple[int, int]], set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.

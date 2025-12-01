@@ -11,7 +11,7 @@ import pytest
 from qiskit import QuantumCircuit
 
 from mqt.qecc.circuit_compilation import (
-    CodeSwitchGraph,
+    MinimalCodeSwitchingCompiler,
     random_universal_circuit,
 )
 from mqt.qecc.circuit_compilation.code_switching_compiler import CompilerConfig
@@ -21,7 +21,9 @@ from mqt.qecc.circuit_compilation.compilation_utils import parse_node_id
 @pytest.fixture
 def simple_graph():
     """Fixture for a fresh graph instance."""
-    return CodeSwitchGraph()
+    code_set_source = {"H", "CX"}
+    code_set_sink = {"T", "CX"}
+    return MinimalCodeSwitchingCompiler(code_set_source, code_set_sink)
 
 
 # =============================================================
@@ -59,17 +61,16 @@ def test_idle_bonus_logic(simple_graph):
 # Integration tests
 
 
-def test_simple_switch_constraint():
+def test_simple_switch_constraint(simple_graph):
     """Test a circuit that MUST switch: H (Source) -> T (Sink)."""
     qc = QuantumCircuit(1)
     qc.h(0)  # Source code transversal
     qc.t(0)  # Sink code transversal
 
-    csg = CodeSwitchGraph()
-    csg.build_from_qiskit(qc)
+    simple_graph.build_from_qiskit(qc)
 
     # We expect the cut to sever the link between H and T or source/sink
-    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+    num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
 
     # H -> T requires 1 switch
     assert num_switches > 0
@@ -78,48 +79,46 @@ def test_simple_switch_constraint():
     assert switch_pos[0][0] == 0  # Qubit 0
 
 
-def test_same_code_no_switch():
+def test_same_code_no_switch(simple_graph):
     """Test a circuit that stays in one code: H -> H -> CX."""
     qc = QuantumCircuit(2)
     qc.h(0)
     qc.h(1)
     qc.cx(0, 1)  # All compatible with 2D Color Code (Source)
 
-    csg = CodeSwitchGraph()
-    csg.build_from_qiskit(qc)
+    simple_graph.build_from_qiskit(qc)
 
-    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+    num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
 
     # Should flow entirely through Source
     assert len(switch_pos) == 0
     assert num_switches == 0.0
 
 
-def test_one_way_transversal():
+def test_one_way_transversal(simple_graph):
     """Test capability to cover one-way transversal gates."""
     qc = QuantumCircuit(2)
     qc.t(0)
     qc.h(1)
     qc.cx(0, 1)
 
-    csg = CodeSwitchGraph()
-    csg.build_from_qiskit(qc)
-    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+    simple_graph.build_from_qiskit(qc)
+    num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
 
     # We expect at least one switch due to T gate
     assert num_switches == 1
     assert switch_pos == [(0, 0)]  # Switch on qubit 0 at depth 0
 
-    csg = CodeSwitchGraph()
-    csg.build_from_qiskit(qc, one_way_transversal_cnot=True)
-    num_switches, switch_pos, _, _ = csg.compute_min_cut()
+    simple_graph = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
+    simple_graph.build_from_qiskit(qc, one_way_gates={"CX"})
+    num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
 
     # Now, no switches should be needed
     assert num_switches == 0
     assert switch_pos == []  # Switch on qubit 0 at depth 0
 
 
-def test_code_bias():
+def test_code_bias(simple_graph):
     """Test code bias effects switching positions."""
     qc = QuantumCircuit(2)
     qc.t(0)
@@ -127,18 +126,17 @@ def test_code_bias():
     qc.cx(0, 1)
 
     # Check min-cuts build in source bias
-    csg = CodeSwitchGraph()
-    csg.build_from_qiskit(qc)
-    num_switches_source_bias, switch_pos_source_bias, _, _ = csg.compute_min_cut()
+    simple_graph.build_from_qiskit(qc)
+    num_switches_source_bias, switch_pos_source_bias, _, _ = simple_graph.compute_min_cut()
 
     assert num_switches_source_bias == 1
     assert switch_pos_source_bias == [(0, 0)]
 
     # To equalize min-cuts build in source bias, change CompilerConfig to bias sink.
     config = CompilerConfig(biased_code="SNK")
-    csg = CodeSwitchGraph(config=config)
-    csg.build_from_qiskit(qc, code_bias=True)
-    num_switches_sink_bias, switch_pos_sink_bias, _, _ = csg.compute_min_cut()
+    simple_graph = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"}, config=config)
+    simple_graph.build_from_qiskit(qc, code_bias=True)
+    num_switches_sink_bias, switch_pos_sink_bias, _, _ = simple_graph.compute_min_cut()
 
     assert num_switches_sink_bias == 1
     assert switch_pos_sink_bias != switch_pos_source_bias
@@ -149,24 +147,23 @@ def test_code_bias():
 # Stress tests
 
 
-def test_random_circuits_robustness():
+def test_random_circuits_robustness(simple_graph):
     """Generate random circuits and ensure the compiler runs without error."""
     for seed in range(10):
         qc = random_universal_circuit(num_qubits=3, depth=10, seed=seed)
 
-        csg = CodeSwitchGraph()
-        csg.build_from_qiskit(qc)
+        simple_graph.build_from_qiskit(qc)
 
-        num_switches, switch_pos, S, T = csg.compute_min_cut()  # noqa: N806
+        num_switches, switch_pos, S, T = simple_graph.compute_min_cut()  # noqa: N806
 
         # Invariants
         assert len(switch_pos) >= 0
         assert num_switches >= 0
-        assert len(S) + len(T) == csg.G.number_of_nodes()
+        assert len(S) + len(T) == simple_graph.G.number_of_nodes()
 
         # Ensure Source is in S and Sink is in T
-        assert csg.source in S
-        assert csg.sink in T
+        assert simple_graph.source in S
+        assert simple_graph.sink in T
 
 
 # =============================================================
