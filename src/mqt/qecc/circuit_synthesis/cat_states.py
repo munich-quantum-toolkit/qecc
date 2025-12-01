@@ -1076,8 +1076,8 @@ def construct_bad_error_sets(
         if not table:
             continue
         for b, rep_m in table.items():
-            sym1 = symmetric_weight(rep_m)
-            max_remaining_weight = min(t - h1, sym1 - h1 - 1)
+            symmetric_weight(rep_m)
+            max_remaining_weight = min(t - h1, symmetric_weight(rep_m) - h1 - 1)
             if max_remaining_weight < 0:
                 continue
             err_seen.add(b)
@@ -1181,19 +1181,15 @@ def _find_perm_smt(
 
     for err in err_list:
         support = _support_bits(err)
-        k = len(support)
-        if k == 0:
-            continue
-
-        bad_bits = [z3.Or([perm[i] == j for i in support]) for j in range(w2)]
+        projected = [z3.Or([perm[i] == j for i in support]) for j in range(w2)]
         forb = bad_errors.get(err)
 
         if not forb:
             continue
 
         for m in forb:
-            eq = z3.And(*[(bad_bits[j] if (m >> j) & 1 else z3.Not(bad_bits[j])) for j in range(w2)])
-            s.add(z3.Not(eq))
+            eq = z3.Or([projected[j] != bool((m >> j) & 1) for j in range(w2)])
+            s.add(eq)
 
     if s.check() != z3.sat:
         return None, {"status": "unsat"}
