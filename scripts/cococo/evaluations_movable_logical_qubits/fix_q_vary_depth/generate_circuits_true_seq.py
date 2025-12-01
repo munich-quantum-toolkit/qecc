@@ -1,3 +1,5 @@
+"""Generates circuits for benchmark runs."""
+
 import json
 import pathlib
 

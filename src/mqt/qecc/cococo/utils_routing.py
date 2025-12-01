@@ -13,7 +13,7 @@ import collections
 import itertools
 import logging
 import pathlib
-import pickle
+import pickle  # noqa: S403
 import random
 import sys
 import warnings
@@ -720,7 +720,7 @@ class TeleportationRouter(BasicRouter):
             # choose some node on the path randomly
             flag = False
             pathcopy = path.copy()
-            path = path[
+            path = path[  # noqa: PLW2901
                 1:-1
             ]  # remove last and first node from the list because those are logical data patches
             random.shuffle(path)
@@ -973,16 +973,16 @@ class TeleportationRouter(BasicRouter):
         """Plug together all previous methods to run annealing for k future layers.
 
         Args:
-            next_layers (list[list[pos | tuple[pos,pos]]]):
-            init_steiner_dct (dict[tuple[pos, pos, pos] | tuple[pos, pos], list[list[pos]]]):
-            max_iters (int):
-            T_start (float):
-            T_end (float):
-            alpha (float):
-            k_lookahead (int):
-            radius (int):
-            vdp_dict (dict[ str | pos | tuple[pos, pos], list[pos]]):
-            layout (dict[int, pos]):
+            next_layers (list[list[pos | tuple[pos,pos]]]): upcoming layers to draw into consideration
+            init_steiner_dct (dict[tuple[pos, pos, pos] | tuple[pos, pos], list[list[pos]]]): current steiner
+            max_iters (int): max number of iterations of each simulated annealing
+            T_start (float): start temperature of simulated annealing
+            T_end (float): end temperature of simulated annealing
+            alpha (float): factor to reduce temp
+            k_lookahead (int): number of logical layers to draw into account
+            radius (int): number of edges within which one can choose a new ancilla position
+            vdp_dict (dict[ str | pos | tuple[pos, pos], list[pos]]): routing of current layer
+            layout (dict[int, pos]): layout.
 
         Returns:
             best_steiner
@@ -1308,7 +1308,7 @@ class TeleportationRouter(BasicRouter):
             # todo order the available gaps regarding how close they are to the current danger_qubit
             # go through gaps and take the one to which a path is available
             path_idle = None
-            for gap in available_gaps:  #!todo order available_gaps according to distance  # noqa: EXE003, EXE005
+            for gap in available_gaps:  # !todo order available_gaps according to distance
                 # skip the gap if it is currently occupied by some path
                 flag_skip = False
 
@@ -1339,7 +1339,7 @@ class TeleportationRouter(BasicRouter):
                 for post in layout_mod.values():
                     if (
                         post in g_copy.nodes() and post not in {danger_qubit, gap}
-                    ):  #!just in case you find a bug, this was node != gap before, i dont know why this worked before i moved this into an own method  # noqa: EXE003
+                    ):  # !just in case you find a bug, this was node != gap before, i dont know why this worked before i moved this into an own method
                         g_copy.remove_node(post)
                 final_nodes = set(g_copy.nodes())
                 initial_nodes - final_nodes
@@ -1364,7 +1364,7 @@ class TeleportationRouter(BasicRouter):
                         next_layers_copy[j] = self.replace_pos(next_layer, danger_qubit, gap)
                     label = layout_rev[danger_qubit]
                     layout_mod[label] = gap
-                    layout_rev = {j: i for i, j in layout_mod.items()}  #!update layout_rev
+                    layout_rev = {j: i for i, j in layout_mod.items()}  # !update layout_rev
                     flag_idle_move = True
                     break  # because if path found you do not want to find another path to the same danger qubit
                 except nx.NetworkXNoPath:
@@ -1421,7 +1421,7 @@ class TeleportationRouter(BasicRouter):
         """Optimize the positions in batches of size k_lookahead.
 
         This means we do the following:
-        1. find an initial layer structure #!TODO copy from old code split layer
+        1. find an initial layer structure # !TODO copy from old code split layer
         2. route the first layer, and push remainder into next layers
         3. run SA with k_lookahead layers (i.e. k layers are counted in the metric)
         4. move idling qubits back (in different points in time depending on `idle_move_type.`)
@@ -1560,8 +1560,8 @@ class TeleportationRouter(BasicRouter):
                         best_schedule,
                         cost_history,
                         move_type_lst,
-                        steiner_history,
-                        graph_history,
+                        _steiner_history,
+                        _graph_history,
                     ) = self.run_annealing(
                         layers,
                         steiner_dct,

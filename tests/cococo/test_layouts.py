@@ -22,19 +22,19 @@ def test_scalable_layout():
         _, _, _ = layouts.gen_layout_scalable("single", m, n, factories, remove_edges)
     except:  # noqa: E722
         msg = "Problem with single layout"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904
     try:
         _, _, _ = layouts.gen_layout_scalable("pair", m, n, factories, remove_edges)
     except:  # noqa: E722
         msg = "Problem with pair layout"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904
     try:
         _, _, _ = layouts.gen_layout_scalable("triple", m, n, factories, remove_edges)
     except:  # noqa: E722
         msg = "Problem with triple layout"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904
     try:
         _, _, _ = layouts.gen_layout_scalable("hex", m, n, factories, remove_edges)
     except:  # noqa: E722
         msg = "Problem with hex layout"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904

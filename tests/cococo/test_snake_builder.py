@@ -200,9 +200,9 @@ def translate_intstabs_to_str(plaquettes: list[list[int]], q: int, stab_type: st
     """Translates plaquettes into list of strings to use with stim.
 
     Args:
-        plaquettes (list[list[int]]): _description_
-        q (int): _description_
-        stab_type (str) _description_
+        plaquettes (list[list[int]]): plaquettes.
+        q (int): number of physical qubits.
+        stab_type (str): stabilizer type (Z or X)
 
     Returns:
         list[str]: _description_

@@ -1,6 +1,8 @@
+"""benchmark runs for varying depths."""
+
 import json
 import pathlib
-import pickle
+import pickle  # noqa: S403
 import time
 from datetime import datetime
 
@@ -31,7 +33,7 @@ m, n = 4, 5
 layout_type = "hex"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
-)  #!important, no edges removed here!!!
+)  # !important, no edges removed here!!!
 layout = dict(enumerate(data_qubit_locs))
 
 assert q == len(data_qubit_locs), "given q does not coincide with your chosen layout"
@@ -176,7 +178,7 @@ end = time.time()
 
 # reload
 with pathlib.Path(path).open("rb") as f:
-    saved = pickle.load(f)
+    saved = pickle.load(f)  # noqa: S301
 [results_list_st, results_list_opt, histories, layers_tot] = saved
 
 

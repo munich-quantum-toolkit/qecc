@@ -5,6 +5,8 @@
 #
 # Licensed under the MIT License
 
+"""Type definitions."""
+
 from typing import Any, TypedDict
 
 

@@ -1,6 +1,8 @@
+"""Benchmark runs for variation of j."""
+
 import json
 import pathlib
-import pickle
+import pickle  # noqa: S403
 import time
 from datetime import datetime
 
@@ -16,7 +18,7 @@ m, n = 2, 5
 layout_type = "triple"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
-)  #!important, no edges removed here!!!
+)  # !important, no edges removed here!!!
 layout = dict(enumerate(data_qubit_locs))
 
 q = len(data_qubit_locs)
@@ -109,7 +111,7 @@ for j in j_lst:
             )
 
         # run standard
-        j = 0
+        seed = 0
         quilt = utils.BasicRouter(
             g,
             data_qubit_locs,
@@ -134,7 +136,7 @@ for j in j_lst:
             t,
             metric,
             use_dag=use_dag,
-            seed=j,
+            seed=seed,
         )
         schedule, history = quilt.optimize_layers(
             terminal_pairs,
@@ -166,7 +168,7 @@ print(f"Simulation took {(end-start)/60} minutes")
 print(path)
 # reload
 with pathlib.Path(path).open("rb") as f:
-    saved = pickle.load(f)
+    saved = pickle.load(f)  # noqa: S301
 [results_opt, results_st] = saved
 
 # ---------extract data-----------

@@ -53,9 +53,9 @@ def test_basicrouter():
         _vdp_layers, _ = router.find_total_vdp_layers_dyn(
             layers, data_qubit_locs, router.factory_times, layout, testing=True
         )
-    except:
+    except:  # noqa: E722
         msg = "Something is wrong with the BasicRouter."
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904
 
 
 def test_teleportationrouter():
@@ -87,8 +87,8 @@ def test_teleportationrouter():
     )
 
     max_iters = 100
-    T_start = 100.0
-    T_end = 0.1
+    T_start = 100.0  # noqa: N806
+    T_end = 0.1  # noqa: N806
     alpha = 0.95
     t = 4  # mock value for cnot circuit
     radius = 10
@@ -117,6 +117,6 @@ def test_teleportationrouter():
             reduce_init_steiner=False,
             stimtest=True,
         )
-    except:
+    except:  # noqa: E722
         msg = "Something is wrong with the TeleportationRouter class."
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: B904

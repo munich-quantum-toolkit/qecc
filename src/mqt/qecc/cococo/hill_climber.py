@@ -74,6 +74,9 @@ class HillClimbing:
             custom_layout (list[list[tuple[int,int]] | nx.Graph] | None): Defaults to None because custom layouts not assumed to be standard. The first list in the list should be
                 a `data_qubits_loc` of the node locations of data qubits and nx.Graph the corresponding graph (possibly differing from the standard networkx hex graph shape)
                 With custom_layout one can avoid using the `free_rows` related stuff.
+            t (int): reset time
+            use_dag (bool): use dag for layer structure or not.
+            valid_path (str): whcih type of valid path is used. actually one should only use "cc".
 
         Raises:
             ValueError: _description_

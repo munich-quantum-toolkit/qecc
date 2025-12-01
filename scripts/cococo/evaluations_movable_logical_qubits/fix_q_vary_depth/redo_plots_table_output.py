@@ -1,5 +1,7 @@
+"""Plots from pkl files."""
+
 import pathlib
-import pickle
+import pickle  # noqa: S403
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -15,7 +17,7 @@ m, n = 10, 12  # 4, 5  # 10, 6#10, 12 #4,5
 layout_type = "single"
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
-)  #!important, no edges removed here!!!
+)  # ! important, no edges removed here!!!
 layout = dict(enumerate(data_qubit_locs))
 
 assert q == len(data_qubit_locs), "given q does not coincide with your chosen layout"
@@ -45,7 +47,7 @@ print("path: ", path)
 
 # reload
 with pathlib.Path(path).open("rb") as f:
-    saved = pickle.load(f)
+    saved = pickle.load(f)  # noqa: S301
 [results_list_st, results_list_opt, histories, layers_tot] = saved
 
 
@@ -124,7 +126,7 @@ plt.errorbar(
 # --- Linear fits ----------------------------------------------------------
 
 # Convert to numpy arrays for fitting
-x = np.array(depths_list)  #!Plot v.s. depths or gates?
+x = np.array(depths_list)  # !Plot v.s. depths or gates?
 y_opt = np.array(depths_mean_opt)
 y_st = np.array(depths_mean_st)
 y_log = np.array(depths_mean_log)
@@ -243,13 +245,14 @@ plt.savefig("plot_abs_reductions_total_" + path.replace(".pkl", ".pdf"))
 
 
 # ---------output for table-------------
-def fmt(mean, std, precision=2) -> str:
+def fmt(mean: float, std: float, precision: int = 2) -> str:
     """Return mean ± std formatted for LaTeX."""
     return f"${mean:.{precision}f} \\pm {std:.{precision}f}$"
 
 
-def latex_table_rows(gate_counts, *cols) -> None:
-    """gate_counts: list of gate values
+def latex_table_rows(gate_counts: int, *cols: any) -> None:
+    """gate_counts: list of gate values.
+
     cols: list of tuples [(mean_list, std_list), ...].
     """
     for i, _gates in enumerate(gate_counts):
@@ -298,7 +301,8 @@ latex_table_rows(
 
 
 # print quality of fit
-def r_squared(y_true, y_pred):
+def r_squared(y_true: float, y_pred: float) -> float:
+    """Quality of the fit."""
     ss_res = np.sum((y_true - y_pred) ** 2)
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     return 1 - ss_res / ss_tot

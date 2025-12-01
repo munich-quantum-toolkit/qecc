@@ -5,6 +5,8 @@
 #
 # Licensed under the MIT License
 
+"""Plotting."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -59,7 +61,7 @@ def plot_lattice(
 
 
 def plot_history(
-    self,
+    hill_climber_obj: any,
     score_history: dict[int, HistoryTemp],
     filename: str = "./hc_history_plot.pdf",
     size: tuple[float, float] = (5, 5),
@@ -67,6 +69,7 @@ def plot_history(
     """Plots the scores for each restart and iteration. from a hill climber run for initial mapping opt.
 
     Args:
+        hill_climber_obj (any): current hill climber object.
         score_history (dict): Score history from HillClimber.run
         filename (str, optional): Path to store the plot. Defaults to "./hc_history_plot.pdf".
         size (tuple[float,float], optional): Size of the plot. Defaults to (3.5,3.5).
@@ -82,9 +85,9 @@ def plot_history(
             label=f"Restart {rep}",
         )
     plt.legend()
-    plt.ylabel(f"{self.metric}")
+    plt.ylabel(f"{hill_climber_obj.metric}")
     plt.xlabel("Hill Climbing Iteration")
-    plt.title(f"$q=${self.q}, Layout-Type = {self.layout_type}, Num CNOTS = {len(self.circuit)}")
+    plt.title(f"$q=${hill_climber_obj.q}, Layout-Type = {hill_climber_obj.layout_type}, Num CNOTS = {len(hill_climber_obj.circuit)}")
     plt.savefig(filename)
 
 
@@ -107,7 +110,7 @@ def plot_lattice_paths(
     Args:
         g (nx.Graph): Graph on which we route
         vdp_dict (dict): Output of router.find_total_vdp_layers
-        layer (int): label of layer to plot
+        steiner_dct (dict): dct of trees.
         layout (dict): potentially also display the qubit labels. keys = qubit label, value = node label
         factory_locs (list[tuple[int,int]] | None): factory locations.
         size (tuple[float,float], optional): _description_. Size of the plot. Defaults to (3.5,3.5).
@@ -180,7 +183,7 @@ def plot_lattice_paths(
     plt.show()
 
 
-def plot_schedule(g, schedule, factory_pos, size=(5, 5)) -> None:
+def plot_schedule(g: nx.Graph, schedule: dict[any], factory_pos: list[tuple[int,int]], size: tuple[int,int]=(5, 5)) -> None:
     """Plots the layers of a whole schedule from TeleportationRouter."""
     for i, step in enumerate(schedule):
         print(f"Step {i + 1}: Move Type - {step['move_type']}, Idle Move - {step['idle_move_label']}")
