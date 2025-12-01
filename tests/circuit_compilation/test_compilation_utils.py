@@ -11,12 +11,12 @@ import pytest
 from qiskit import QuantumCircuit
 
 from mqt.qecc.circuit_compilation.compilation_utils import (
-    count_code_switches,
     insert_switch_placeholders,
+    naive_switching,
 )
 
 # ==============================================================================
-# Tests for count_code_switches
+# Tests for naive_switching
 # ==============================================================================
 
 
@@ -26,7 +26,7 @@ def test_count_switches_single_qubit_simple():
     qc.h(0)  # Code A
     qc.t(0)  # Code B -> Expect 1 switch
 
-    count, final_codes = count_code_switches(qc)
+    count, final_codes = naive_switching(qc)
 
     assert count == 1
     assert final_codes[0] == "B"
@@ -38,7 +38,7 @@ def test_count_switches_no_switch_needed():
     qc.h(0)
     qc.cx(0, 1)  # H and CX are both supported by Code A
 
-    count, final_codes = count_code_switches(qc)
+    count, final_codes = naive_switching(qc)
 
     assert count == 0
     assert final_codes[0] == "A"
@@ -58,7 +58,7 @@ def test_count_switches_cnot_synchronization():
     # Here, one of them MUST switch.
     qc.cx(0, 1)
 
-    count, _ = count_code_switches(qc)
+    count, _ = naive_switching(qc)
     assert count == 1
 
 
@@ -68,7 +68,7 @@ def test_count_switches_invalid_gate():
     qc.x(0)  # 'x' is not in the defined sets for Code A or B in the utils
 
     with pytest.raises(ValueError, match="not supported by any code"):
-        count_code_switches(qc)
+        naive_switching(qc)
 
 
 def test_count_switches_ignore_id():
@@ -79,7 +79,7 @@ def test_count_switches_ignore_id():
     qc.id(0)  # Should be ignored
     qc.h(0)  # Still A
 
-    count, _ = count_code_switches(qc)
+    count, _ = naive_switching(qc)
     assert count == 0
 
 
