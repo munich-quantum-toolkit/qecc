@@ -182,34 +182,42 @@ class MinimalCodeSwitchingCompiler:
             self._add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
             self._add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
 
-    def compute_idle_bonus(self, previous_depth: int, current_depth: int) -> float:
-        """Compute a bonus (capacity reduction) for idling qubits.
+    def compute_idle_bonus(self, previous_depth: int, current_depth: int, total_edges: int) -> float:
+        """Compute a normalized bonus (capacity reduction) for idling qubits.
 
-        The idea: if a qubit has been idle for several depth layers,
-        we reduce the capacity of the temporal edge between its last
-        and next gate nodes to encourage reuse of that qubit.
+        Formula: idle_time / (total_edges * (idle_time + 1))
+
+        This creates a 'micro-bias'. It ensures that the bonus is always
+        significantly smaller than the base capacity, acting only as a
+        tie-breaker for the min-cut algorithm rather than forcing a cut.
 
         Parameters
         ----------
         previous_depth : int
-            The depth index of the previous active gate on the qubit.
+            The depth index of the previous active gate.
         current_depth : int
-            The depth index of the current active gate on the qubit.
+            The depth index of the current active gate.
+        total_edges : int
+            The total count of temporal edges (qubit-operations) in the circuit.
 
         Returns:
         -------
         float
-            The capacity reduction (bonus) to apply. Can be tuned by formula.
+            The capacity reduction to apply.
         """
         idle_length = max(0, current_depth - previous_depth - 1)
 
         if idle_length <= self.config.switching_time:
-            idle_length = 0
+            return 0.0
 
-        max_bonus = 5
-        return min(max_bonus, idle_length) * self.base_unary_capacity
+        if total_edges == 0:
+            return 0.0
 
-    def _edge_capacity_with_idle_bonus(self, depths: list[int], base_capacity: float | None = None) -> float:
+        return idle_length / (total_edges * (idle_length + 1))
+
+    def _edge_capacity_with_idle_bonus(
+        self, depths: list[int], total_edges: int, base_capacity: float | None = None
+    ) -> float:
         """Compute the effective temporal edge capacity.
 
         Optionally reduced by an idle bonus if the qubit has been inactive for several layers.
@@ -232,7 +240,7 @@ class MinimalCodeSwitchingCompiler:
             return base_capacity
 
         prev_depth, curr_depth = depths[-2], depths[-1]
-        bonus = self.compute_idle_bonus(prev_depth, curr_depth)
+        bonus = self.compute_idle_bonus(prev_depth, curr_depth, total_edges)
         return base_capacity - bonus
 
     def build_from_qiskit(
@@ -266,13 +274,25 @@ class MinimalCodeSwitchingCompiler:
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
 
+        total_temporal_edges = 0
+        for node in dag.op_nodes():
+            total_temporal_edges += len(node.qargs)
+
         qubit_activity: dict[int, list[int]] = {q: [] for q in range(circuit.num_qubits)}
         qubit_last_node: list[str | None] = [None] * circuit.num_qubits
 
         for depth, layer in enumerate(layers):
             for node in layer["graph"].op_nodes():
                 self._process_gate_operation(
-                    node, depth, circuit, qubit_activity, qubit_last_node, one_way_gates, code_bias, idle_bonus
+                    node,
+                    depth,
+                    circuit,
+                    qubit_activity,
+                    qubit_last_node,
+                    one_way_gates,
+                    code_bias,
+                    idle_bonus,
+                    total_temporal_edges,
                 )
 
     def _process_gate_operation(
@@ -285,6 +305,7 @@ class MinimalCodeSwitchingCompiler:
         one_way_gates: set[str],
         code_bias: bool,
         idle_bonus: bool,
+        total_temporal_edges: int,
     ) -> None:
         """Handle node creation, temporal edges, and code constraints for a single gate.
 
@@ -310,7 +331,7 @@ class MinimalCodeSwitchingCompiler:
             if prev_node:
                 capacity = self.config.default_temporal_edge_capacity
                 if idle_bonus:
-                    capacity = self._edge_capacity_with_idle_bonus(qubit_activity[q_idx])
+                    capacity = self._edge_capacity_with_idle_bonus(qubit_activity[q_idx], total_temporal_edges)
                 self._add_regular_edge(prev_node, node_id, capacity=capacity)
 
             qubit_last_node[q_idx] = node_id

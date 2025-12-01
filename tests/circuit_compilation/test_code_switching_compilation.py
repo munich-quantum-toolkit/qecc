@@ -41,20 +41,45 @@ def test_parse_node_id():
 
 
 def test_idle_bonus_logic(simple_graph):
-    """Test that idle bonus is calculated correctly."""
-    # Case 1: Short idle (less than SWITCHING_LENGTH=2) -> 0 bonus
-    # depths 0 and 2 implies gap of 1 (depth 1 is empty)
-    bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=2)
+    """Test that idle bonus is calculated correctly using the normalized formula."""
+    simple_graph.config.switching_time = 2
+    base_cap = 1.0
+    N = 100  # noqa: N806
+
+    bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=2, total_edges=N)
     assert bonus == 0.0
 
-    # Case 2: Long idle greater than max_bonus
-    # depths 0 and 10 implies gap of 9
-    bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=10)
-    assert bonus == 5 * simple_graph.base_unary_capacity
+    bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=3, total_edges=N)
+    assert bonus == 0.0
 
-    # Ensure capacity reduction logic works
-    cap = simple_graph._edge_capacity_with_idle_bonus([0, 10], base_capacity=1.0)  # noqa: SLF001
-    assert cap < 1.0
+    # --- Bonus Active (Calculation Check) ---
+    # prev=0, curr=10 -> idle = 9.
+    # Formula: 9 / (100 * (9 + 1)) = 9 / 1000 = 0.009
+    idle_length = 9
+    expected_bonus = idle_length / (N * (idle_length + 1))
+
+    bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=10, total_edges=N)
+
+    # Use approx for float safety
+    assert bonus == pytest.approx(expected_bonus, rel=1e-9)
+    assert bonus > 0.0
+
+    eff_cap = simple_graph._edge_capacity_with_idle_bonus(  # noqa: SLF001
+        depths=[0, 10], total_edges=N, base_capacity=base_cap
+    )
+
+    assert eff_cap < base_cap
+    assert eff_cap == pytest.approx(base_cap - expected_bonus, rel=1e-9)
+
+    # --- Large Graph Scaling (Safety Check) ---
+    # In a huge circuit, the bonus should become very small to avoid distorting the graph,
+    # but it must remain non-zero to act as a tie-breaker.
+    huge_N = 1_000_000  # noqa: N806
+
+    bonus_huge = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=10, total_edges=huge_N)
+
+    assert bonus_huge > 0.0
+    assert bonus_huge < 1e-5  # Must be tiny
 
 
 # =============================================================
