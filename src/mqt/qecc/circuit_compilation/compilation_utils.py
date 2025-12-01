@@ -14,7 +14,7 @@ from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
 
 
-def count_code_switches(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
+def naive_switching(circuit: QuantumCircuit) -> tuple[int, list[str | None]]:
     """Count how many code switches are needed for a circuit assuming.
 
       - Code A supports H, CNOT

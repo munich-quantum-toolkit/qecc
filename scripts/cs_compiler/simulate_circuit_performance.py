@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 from qiskit.qasm2 import loads
 
-from mqt.qecc.circuit_compilation import MinimalCodeSwitchingCompiler, count_code_switches
+from mqt.qecc.circuit_compilation import MinimalCodeSwitchingCompiler, naive_switching
 
 if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
@@ -59,11 +59,13 @@ def already_done(csv_path: Path, seed: int) -> bool:
 def run_trial(qc: QuantumCircuit, n_qubits: int, depth: int, seed: int, probs_type: str) -> dict:
     """Run a single trial comparing naive and min-cut code switch counting."""
     t0_naive = time.time()
-    naive = count_code_switches(qc)[0]
+    naive = naive_switching(qc)[0]
     t1_naive = time.time()
 
-    builder = MinimalCodeSwitchingCompiler()
-    builder.build_from_qiskit(qc, one_way_transversal_cnot=True)
+    source_code = {"H", "CX"}
+    sink_code = {"T", "CX"}
+    builder = MinimalCodeSwitchingCompiler(source_code, sink_code)
+    builder.build_from_qiskit(qc, one_way_gates={"CX"})
 
     t0_mincut_solver = time.time()
     switches_mc, _, _, _ = builder.compute_min_cut()
