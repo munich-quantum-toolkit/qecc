@@ -35,7 +35,7 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
 
 > [!NOTE]
-> Basic usage for _lattice surgery compilation beyond the surface code_ is described in [`docs/Co3.rst`](https://github.com/munich-quantum-toolkit/qecc/blob/ls-compilation/docs/Co3.rst) in the `ls-compilation` branch.
+> Usage for _Lattice Surgery Compilation Beyond the Surface Code_ as well as _Exploiting Movable Logical Qubits for Lattice Surgery Compilation_ is described in [`docs/cococo.md`](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/docs/cococo.md) in the `cococo` branch.
 > The code quality in the branch is actively being improved.
 
 > [!WARNING]
