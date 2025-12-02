@@ -125,6 +125,9 @@ filterwarnings = [
 
 [tool.coverage]
 run.source = ["mqt.qecc"]
+run.disable_warnings = [
+  "no-sysmon",
+]
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
@@ -132,9 +135,6 @@ report.exclude_also = [
   'raise NotImplementedError',
   'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
   '@overload'  # Overloads are only for static typing
-]
-run.disable_warnings = [
-  "no-sysmon",
 ]
 
 [tool.mypy]
