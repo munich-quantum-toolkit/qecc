@@ -6,10 +6,9 @@
 #
 # Licensed under the MIT License
 
+set -euo pipefail
 # Generate random universal circuits for different system sizes in parallel.
 
-# declare -a n_values=("64" "128" "256" "512")
-# declare -a n_values=("64" "128" "192" "256" "320" "384" "448" "512")
 declare -a n_values=()
 for ((i=64; i<=1024; i+=64)); do
     n_values+=("$i")
