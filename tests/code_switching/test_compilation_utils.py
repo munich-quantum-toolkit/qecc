@@ -10,7 +10,7 @@
 import pytest
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_compilation.compilation_utils import (
+from mqt.qecc.code_switching.compilation_utils import (
     insert_switch_placeholders,
     naive_switching,
 )

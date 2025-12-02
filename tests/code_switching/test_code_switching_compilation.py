@@ -10,10 +10,10 @@
 import pytest
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_compilation import (
+from mqt.qecc.code_switching import (
     MinimalCodeSwitchingCompiler,
 )
-from mqt.qecc.circuit_compilation.code_switching_compiler import CompilerConfig
+from mqt.qecc.code_switching.code_switching_compiler import CompilerConfig
 
 
 @pytest.fixture
