@@ -85,13 +85,12 @@ def random_universal_circuit(
             if gate == "cx":
                 others = list(available_qubits - {q})
                 if not others:
-                    # Fallback to single-qubit gate if no partner available
+                    fallback_gates = [g for g in ["h", "t", "id"] if g == "id" or g != last_non_id_gate[q]]
+                    fallback_probs = [gate_probs[g] for g in fallback_gates]
+                    fallback_total = sum(fallback_probs)
                     gate = rng.choice(
-                        ["h", "t", "id"],
-                        p=[
-                            gate_probs[g] / (gate_probs["h"] + gate_probs["t"] + gate_probs["id"])
-                            for g in ["h", "t", "id"]
-                        ],
+                        fallback_gates,
+                        p=[p / fallback_total for p in fallback_probs],
                     )
                 else:
                     target = rng.choice(others)
