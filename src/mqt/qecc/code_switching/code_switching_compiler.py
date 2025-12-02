@@ -242,7 +242,7 @@ class MinimalCodeSwitchingCompiler:
 
         prev_depth, curr_depth = depths[-2], depths[-1]
         bonus = self.compute_idle_bonus(prev_depth, curr_depth, total_edges)
-        return base_capacity - bonus
+        return max(0.0, base_capacity - bonus)
 
     def build_from_qiskit(
         self,
