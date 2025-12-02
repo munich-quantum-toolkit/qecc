@@ -240,9 +240,9 @@ def test_recursive_fuse_cat_state():
         assert len(data_qubits) <= w, "Data qubits exceed the total qubits."
 
 
-def test_simulate_recursive_cat_construction():
+@pytest.mark.parametrize("w", [5, 6, 7, 8, 9])
+def test_simulate_recursive_cat_construction(w: int) -> None:
     """Test the simulation of recursive cat state construction."""
-    w = 8
     t = 2
     p = 0.01
     n_samples = 10000
