@@ -20,9 +20,11 @@ from mqt.qecc.circuit_synthesis.cat_states import (
     cat_state_pruned_balanced_circuit,
     check_ft_partial_cnot,
     fault_gens_from_circuit,
+    recursive_fuse_cat_state,
     search_ft_cnot_cegar,
     search_ft_cnot_local_search,
     search_ft_cnot_smt,
+    simulate_recursive_cat_construction,
 )
 
 if TYPE_CHECKING:
@@ -220,3 +222,37 @@ def test_smt_synthesis_unsat(w1: int, w2: int) -> None:
     ctrls, perm, _info = search_ft_cnot_smt(gens1, w1, gens2, w2, t, ctrl_restarts=10, seed=seed)
     assert ctrls is None
     assert perm is None
+
+
+def test_recursive_fuse_cat_state():
+    """Test the recursive construction of fault-tolerant cat states."""
+    w = 8
+    t = 2
+    circ, measurements = recursive_fuse_cat_state(w, t)
+
+    # Check the circuit structure
+    assert circ.num_qubits >= w, "The circuit should have at least `w` qubits."
+    assert len(measurements) > 0, "There should be at least one measurement step."
+
+    # Check the measurements
+    for ancillas, data_qubits in measurements:
+        assert len(ancillas) <= w, "Ancilla qubits exceed the total qubits."
+        assert len(data_qubits) <= w, "Data qubits exceed the total qubits."
+
+
+def test_simulate_recursive_cat_construction():
+    """Test the simulation of recursive cat state construction."""
+    w = 8
+    t = 2
+    p = 0.01
+    n_samples = 10000
+
+    acceptance_rate, acceptance_rate_error, error_rates, error_rates_error = simulate_recursive_cat_construction(
+        w, t, p, n_samples
+    )
+
+    # Check the results
+    assert 0 < acceptance_rate < 1, "Acceptance rate should be between 0 and 1."
+    assert acceptance_rate_error >= 0, "Acceptance rate error should be non-negative."
+    assert len(error_rates) == w // 2 + 1, "Error rates length mismatch."
+    assert len(error_rates_error) == w // 2 + 1, "Error rates error length mismatch."
