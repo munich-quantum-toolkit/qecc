@@ -29,6 +29,7 @@ installation
 LightsOutDecoder
 StatePrep
 CatStates
+CodeSwitching
 Encoders
 AnalogInfo
 references
