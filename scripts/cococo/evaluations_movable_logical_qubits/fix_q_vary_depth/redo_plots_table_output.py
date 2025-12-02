@@ -13,15 +13,26 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
-from cococo import layouts
+
+from mqt.qecc.cococo import layouts
 
 # ----------determine parameters to load correct file-------------
 q = 120
 j = 8
 
 factories = []
-m, n = 10, 12  # 4, 5  # 10, 6#10, 12 #4,5
-layout_type = "single"
+# m, n = 10, 12
+# layout_type = "single"
+
+# m,n = 10,6
+# layout_type = "pair"
+
+# m, n = 4, 5
+# layout_type = "triple"
+
+m, n = 4, 5
+layout_type = "hex"
+
 g, data_qubit_locs, _ = layouts.gen_layout_scalable(
     layout_type, m, n, factories, remove_edges=False
 )  # ! important, no edges removed here!!!

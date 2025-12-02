@@ -15,12 +15,13 @@ import pickle  # noqa: S403
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import cococo.utils_routing as utils
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
-from cococo import circuit_construction, hill_climber, layouts
 from matplotlib.lines import Line2D
+
+import mqt.qecc.cococo.utils_routing as utils
+from mqt.qecc.cococo import circuit_construction, hill_climber, layouts
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

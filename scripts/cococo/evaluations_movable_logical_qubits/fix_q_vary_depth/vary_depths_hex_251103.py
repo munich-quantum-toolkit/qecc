@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""benchmark runs for varying depths."""
+"""benchmark runs for varying depths. Run this from /scripts/cococo/evaluations_movable_logical_qubits/fix_q_vary_depth."""
 
 import json
 import pathlib
@@ -13,10 +13,11 @@ import pickle  # noqa: S403
 import time
 from datetime import datetime
 
-import cococo.utils_routing as utils
 import matplotlib.pyplot as plt
 import numpy as np
-from cococo import dag_helper, layouts
+
+import mqt.qecc.cococo.utils_routing as utils
+from mqt.qecc.cococo import dag_helper, layouts
 
 # -----params-------
 

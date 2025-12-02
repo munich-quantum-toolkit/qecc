@@ -13,10 +13,11 @@ import pickle  # noqa: S403
 import time
 from datetime import datetime
 
-import cococo.utils_routing as utils
 import matplotlib.pyplot as plt
 import numpy as np
-from cococo import circuit_construction, dag_helper, layouts
+
+import mqt.qecc.cococo.utils_routing as utils
+from mqt.qecc.cococo import circuit_construction, dag_helper, layouts
 
 # ----params-----
 
@@ -74,6 +75,7 @@ testing = True
 
 results_opt = []
 results_st = []
+
 
 start = time.time()
 for j in j_lst:
@@ -163,6 +165,7 @@ for j in j_lst:
 
 end = time.time()
 print(f"Simulation took {(end - start) / 60} minutes")
+
 
 print(path)
 # reload
