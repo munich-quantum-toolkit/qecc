@@ -125,7 +125,7 @@ Calculating the minimum number of switches without considering the one-way trans
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc)
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
@@ -137,7 +137,7 @@ Hence, a single switch right after the T gate on qubit 0 is required. However, i
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
@@ -176,7 +176,7 @@ Running the regular min-cut computation yields a switch on qubit 2 after the T g
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
@@ -188,7 +188,7 @@ However, if we assign a lower weight to the temporal edge of qubit 0 (which is i
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, idle_bonus=True)
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
@@ -216,7 +216,7 @@ The default behavior with a bias towards the source code yields that the switch 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
@@ -229,7 +229,7 @@ However, if we wanted to instead bias towards the sink code, we could adjust the
 config = CompilerConfig(biased_code="SNK")
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"}, config=config)
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, code_bias=True)
-num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in positions:
