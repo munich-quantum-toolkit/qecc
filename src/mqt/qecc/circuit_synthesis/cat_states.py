@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from functools import cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -825,20 +825,16 @@ def check_ft_partial_cnot(
 
 
 def search_ft_cnot_cegar(
-    gens1: list[int],
-    w1: int,
-    gens2: list[int],
-    w2: int,
+    c1: stim.Circuit,
+    c2: stim.Circuit,
     t: int,
     max_rounds: int = 10000,
 ) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
     r"""Use CEGAR approach to find an ft-t partial transversal CNOT.
 
     Args:
-        gens1: fault set generators of data cat state
-        w1: number of qubits of data cat state
-        gens2: fault set generators of ancilla cat state
-        w2: number of qubits of ancilla cat state
+        c1: circuit preparing data cat state
+        c2: circuit preparing ancilla cat state
         t: target fault distance
         add_symmetry_breakers (default True): whether to encode symmetry breakers
         max_rounds (default 10000): number of CEGAR iterations to try
@@ -846,6 +842,10 @@ def search_ft_cnot_cegar(
     Returns:
        list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
     """
+    gens1 = fault_gens_from_circuit(c1)
+    w1 = c1.num_qubits
+    gens2 = fault_gens_from_circuit(c2)
+    w2 = c2.num_qubits
     all_ones = (1 << w2) - 1
     s = z3.Solver()
 
@@ -915,13 +915,11 @@ def search_ft_cnot_cegar(
 
 
 def search_ft_cnot_local_search(
-    gens1: list[int],
-    w1: int,
-    gens2: list[int],
-    w2: int,
+    c1: stim.Circuit,
+    c2: stim.Circuit,
     t: int,
     seed: int = 1,
-    ctrl_restarts: int = 100,
+    ctrls: list[list[int]] | list[int] | int = 100,
     ctrl_moves: int = 200,
     perm_iters: int = 200_000,
 ) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
@@ -930,23 +928,35 @@ def search_ft_cnot_local_search(
     Search proceeds by randomly selecting control qubits and locally modifying permutations until no conflict occurs. This is not guaranteed to converge.
 
     Args:
-        gens1: fault set generators of data cat state
-        w1: number of qubits of data cat state
-        gens2: fault set generators of ancilla cat state
-        w2: number of qubits of ancilla cat state
+        c1: circuit preparing data cat state
+        c2: circuit preparing ancilla cat state
         t: target fault distance
         seed: seed for random number generator
-        ctrl_restarts (default 100): number of random control selections to try
+        ctrls: Either a list of different controls to try, a single choice of controls to try, or an integer number of random control selections to try.
         ctrl_moves (default 200): number of local control modifications to try per restart
         perm_iters (default 200000): number of permutation repair iterations to try per control selection
 
     Returns:
        list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
     """
+    gens1 = fault_gens_from_circuit(c1)
+    w1 = c1.num_qubits
+    gens2 = fault_gens_from_circuit(c2)
+    w2 = c2.num_qubits
     rng = np.random.default_rng(seed)
 
-    for rs in range(ctrl_restarts):
-        controls = sorted(rng.choice(w1, w2, replace=False))  # Randomly select controls
+    ctrl_list: list[list[int]] = []
+    if isinstance(ctrls, list):
+        if all(isinstance(c, int) for c in ctrls):
+            ctrl_list = [cast("list[int]", ctrls)]  # Explicitly cast to list[int]
+        else:
+            ctrl_list = [list(c) for c in cast("list[list[int]]", ctrls)]  # Explicitly cast to list[list[int]]
+    else:
+        ctrl_list = [sorted(rng.choice(w1, w2, replace=False)) for _ in range(ctrls)]
+
+    rs = 0
+    for controls in ctrl_list:
+        rs += 1
         bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
         perm, stats = _permutation_local_repair(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
         if perm is not None:
@@ -960,52 +970,62 @@ def search_ft_cnot_local_search(
                 break
             i_pos = rng.integers(w2)
             new_q = rng.choice(non)
-            controls = controls[:]
-            controls[i_pos] = new_q
-            controls.sort()
+            new_controls = controls[:]
+            new_controls[i_pos] = new_q
+            new_controls.sort()
 
-            bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
+            bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, new_controls)
             perm, stats = _permutation_local_repair(bad_errors, err_list, w2, rng=rng, max_iters=perm_iters)
             if perm is not None:
-                return controls, perm, {"status": "sat", "controls_restart": rs, "ctrl_move": mv, **stats}
+                return new_controls, perm, {"status": "sat", "controls_restart": rs, "ctrl_move": mv, **stats}
 
-    return None, None, {"status": "unknown", "controls_restart": ctrl_restarts}
+    return None, None, {"status": "unknown", "controls_restart": rs}
 
 
 def search_ft_cnot_smt(
-    gens1: list[int],
-    w1: int,
-    gens2: list[int],
-    w2: int,
+    c1: stim.Circuit,
+    c2: stim.Circuit,
     t: int,
     seed: int = 1,
-    ctrl_restarts: int = 100,
+    ctrls: list[list[int]] | list[int] | int = 100,
 ) -> tuple[list[int] | None, list[int] | None, dict[str, str | int]]:
     r"""Use direct smt solving approach to find an ft-t partial transversal CNOT.
 
     Args:
-        gens1: fault set generators of data cat state
-        w1: number of qubits of data cat state
-        gens2: fault set generators of ancilla cat state
-        w2: number of qubits of ancilla cat state
+        c1: circuit preparing data cat state
+        c2: circuit preparing ancilla cat state
         t: target fault distance
         seed: seed for random number generator
-        ctrl_restarts (default 100): number of random control selections to try
+        ctrls: Either a list of different controls to try, a single choice of controls to try, or an integer number of random control selections to try.
 
     Returns:
        list of controls, list of permutation and search information dict {\"sat\":..., \"rounds\"}
     """
+    gens1 = fault_gens_from_circuit(c1)
+    w1 = c1.num_qubits
+    gens2 = fault_gens_from_circuit(c2)
+    w2 = c2.num_qubits
     rng = np.random.default_rng(seed)
 
-    for rs in range(ctrl_restarts):
-        controls = sorted(rng.choice(w1, w2, replace=False))
+    ctrl_list: list[list[int]] = []
+    if isinstance(ctrls, list):
+        if all(isinstance(c, int) for c in ctrls):
+            ctrl_list = [cast("list[int]", ctrls)]  # Explicitly cast to list[int]
+        else:
+            ctrl_list = [list(c) for c in cast("list[list[int]]", ctrls)]  # Explicitly cast to list[list[int]]
+    else:
+        ctrl_list = [sorted(rng.choice(w1, w2, replace=False)) for _ in range(ctrls)]
+
+    rs = 0
+    for controls in ctrl_list:
+        rs += 1
         forb, b_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, controls)
         perm, stats = _find_perm_smt(forb, b_list, w2)
 
         if perm is not None:
             return controls, perm, {"status": "sat", "controls_restart": rs, **stats}
 
-    return None, None, {"status": "unknown", "controls_restart": ctrl_restarts}
+    return None, None, {"status": "unknown", "controls_restart": rs}
 
 
 def _cumulative_union_sets(sets: list[set[Any]]) -> list[set[Any]]:

@@ -128,16 +128,18 @@ def test_check_ft() -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 2), (6, 3), (7, 4), (8, 6), (9, 6)])
 def test_cegar_synthesis_sat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by CEGAR search."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
     t = w1 // 2
-    ctrls, perm, _info = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
+    ctrls, perm, _info = search_ft_cnot_cegar(c1, c2, t)
 
     assert ctrls is not None
     assert perm is not None
     assert len(ctrls) == len(perm)
     assert len(perm) == w2
 
+    gens1 = fault_gens_from_circuit(c1)
+    gens2 = fault_gens_from_circuit(c2)
     # validate CNOT by counting faults
     is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls, perm, t)
 
@@ -147,19 +149,19 @@ def test_cegar_synthesis_sat(w1: int, w2: int) -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 2), (6, 3), (7, 4), (8, 6), (9, 6)])
 def test_local_search_synthesis_sat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by local search."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
     t = w1 // 2
     seed = 1234
-    ctrls, perm, _info = search_ft_cnot_local_search(
-        gens1, w1, gens2, w2, t, ctrl_restarts=10, ctrl_moves=5, perm_iters=10, seed=seed
-    )
+    ctrls, perm, _info = search_ft_cnot_local_search(c1, c2, t, ctrls=10, ctrl_moves=5, perm_iters=10, seed=seed)
 
     assert ctrls is not None
     assert perm is not None
     assert len(ctrls) == len(perm)
     assert len(perm) == w2
 
+    gens1 = _cat_fault_gens(w1)
+    gens2 = _cat_fault_gens(w2)
     # validate CNOT by counting faults
     is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls, perm, t)
 
@@ -170,17 +172,19 @@ def test_local_search_synthesis_sat(w1: int, w2: int) -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(2, 2), (3, 2), (4, 2), (5, 2), (6, 3), (7, 4), (8, 6), (9, 6)])
 def test_smt_synthesis_sat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by direct SMT encoding."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
     t = w1 // 2
     seed = 1234
-    ctrls, perm, _info = search_ft_cnot_smt(gens1, w1, gens2, w2, t, ctrl_restarts=20, seed=seed)
+    ctrls, perm, _info = search_ft_cnot_smt(c1, c2, t, ctrls=20, seed=seed)
 
     assert ctrls is not None
     assert perm is not None
     assert len(ctrls) == len(perm)
     assert len(perm) == w2
 
+    gens1 = _cat_fault_gens(w1)
+    gens2 = _cat_fault_gens(w2)
     # validate CNOT by counting faults
     is_ft, _ = check_ft_partial_cnot(gens1, w1, gens2, w2, ctrls, perm, t)
 
@@ -190,10 +194,10 @@ def test_smt_synthesis_sat(w1: int, w2: int) -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(6, 2), (7, 3), (8, 5), (9, 5)])
 def test_cegar_synthesis_unsat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by CEGAR search."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
     t = w1 // 2
-    ctrls, perm, _info = search_ft_cnot_cegar(gens1, w1, gens2, w2, t)
+    ctrls, perm, _info = search_ft_cnot_cegar(c1, c2, t)
     assert ctrls is None
     assert perm is None
 
@@ -201,13 +205,11 @@ def test_cegar_synthesis_unsat(w1: int, w2: int) -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(6, 2), (7, 3), (8, 5), (9, 5)])
 def test_local_search_synthesis_unsat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by LOCAL_SEARCH search."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
     t = w1 // 2
     seed = 1234
-    ctrls, perm, _info = search_ft_cnot_local_search(
-        gens1, w1, gens2, w2, t, ctrl_restarts=10, ctrl_moves=5, perm_iters=10, seed=seed
-    )
+    ctrls, perm, _info = search_ft_cnot_local_search(c1, c2, t, ctrls=10, ctrl_moves=5, perm_iters=10, seed=seed)
     assert ctrls is None
     assert perm is None
 
@@ -215,11 +217,11 @@ def test_local_search_synthesis_unsat(w1: int, w2: int) -> None:
 @pytest.mark.parametrize(("w1", "w2"), [(6, 2), (7, 3), (8, 5), (9, 5)])
 def test_smt_synthesis_unsat(w1: int, w2: int) -> None:
     """Test correctness of ft partial CNOTs constructed by SMT search."""
-    gens1 = _cat_fault_gens(w1)
-    gens2 = _cat_fault_gens(w2)
+    c1 = cat_state_pruned_balanced_circuit(w1)
+    c2 = cat_state_pruned_balanced_circuit(w2)
     t = w1 // 2
     seed = 1234
-    ctrls, perm, _info = search_ft_cnot_smt(gens1, w1, gens2, w2, t, ctrl_restarts=10, seed=seed)
+    ctrls, perm, _info = search_ft_cnot_smt(c1, c2, t, ctrls=10, seed=seed)
     assert ctrls is None
     assert perm is None
 
