@@ -165,7 +165,7 @@ class MinimalCodeSwitchingCompiler:
         self._add_edge_with_capacity(u, v, capacity=capacity, edge_type="temporal", bidirectional=bidirectional)
 
     def _add_bias_edges(self, node_id: str, biased_code: str | None = None) -> None:
-        """Add biased_code unary edges to the terminal nodes slightly preferring one code over the other.
+        """Add biased_code bias edges to the terminal nodes slightly preferring one code over the other.
 
         Parameters
         ----------
@@ -176,12 +176,12 @@ class MinimalCodeSwitchingCompiler:
             biased_code = self.config.biased_code
         if biased_code == "SRC":
             self._add_edge_with_capacity(
-                self.source, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary"
+                self.source, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="bias"
             )
-            self._add_edge_with_capacity(self.sink, node_id, capacity=self.base_unary_capacity, edge_type="unary")
+            self._add_edge_with_capacity(self.sink, node_id, capacity=self.base_unary_capacity, edge_type="bias")
         elif biased_code == "SNK":
-            self._add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="unary")
-            self._add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="unary")
+            self._add_edge_with_capacity(self.source, node_id, capacity=self.base_unary_capacity, edge_type="bias")
+            self._add_edge_with_capacity(self.sink, node_id, capacity=2.0 * self.base_unary_capacity, edge_type="bias")
 
     def compute_idle_bonus(self, previous_depth: int, current_depth: int, total_edges: int) -> float:
         """Compute a normalized bonus (capacity reduction) for idling qubits.
