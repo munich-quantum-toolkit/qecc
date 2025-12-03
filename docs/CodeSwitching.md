@@ -91,15 +91,15 @@ We can now build the graph from the circuit and compute the minimum cut.
 compiler.build_from_qiskit(qc)
 
 # Compute Min-Cut
-num_switches, positions, set_S, set_T = compiler.compute_min_cut()
+num_switches, switch_pos, set_S, set_T = compiler.compute_min_cut()
 
 print(f"Total switches required: {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-The output positions provides the exact locations (qubit, depth) where a code switch operation must be inserted into the circuit.
+The output pEositions provides the exact locations (qubit, depth) where a code switch operation must be inserted into the circuit.
 
 Under specific conditions, CNOT operations can be implemented transversally even when the control and target qubits
 are encoded in different codes. This property, however, is directional. In the 2D-3D color code scheme, it holds only when the
@@ -128,7 +128,7 @@ mcsc.build_from_qiskit(qc)
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
@@ -140,7 +140,7 @@ mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
@@ -179,7 +179,7 @@ mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
@@ -191,7 +191,7 @@ mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, idle_bonus=True
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
@@ -219,7 +219,7 @@ mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
@@ -232,6 +232,6 @@ mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, code_bias=True)
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
-for pos in positions:
+for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
