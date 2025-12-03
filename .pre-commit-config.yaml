@@ -19,16 +19,17 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        args: ["--maxkb=2048"]
       - id: check-case-conflict
-      - id: check-docstring-first
+      - id: check-vcs-permalinks
       - id: check-merge-conflict
       - id: check-symlinks
+      - id: check-json
       - id: check-toml
       - id: check-yaml
       - id: debug-statements
       - id: end-of-file-fixer
       - id: mixed-line-ending
-      - id: requirements-txt-fixer
       - id: trailing-whitespace
 
   # Clean jupyter notebooks
@@ -57,12 +58,17 @@ repos:
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
 
+  # Ensure uv lock file is up-to-date
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.13
+    hooks:
+      - id: uv-lock
+
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.6
+    rev: v0.14.7
     hooks:
       - id: ruff-check
-        args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
   # Also run Black on examples in the documentation
@@ -74,13 +80,13 @@ repos:
 
   # Check for license headers
   - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.8.0
+    rev: v2.9.0
     hooks:
       - id: license-tools
 
   # Check static types with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+    rev: v1.19.0
     hooks:
       - id: mypy
         files: ^(src/mqt|tests|noxfile.py)
@@ -93,13 +99,13 @@ repos:
 
   # Check for spelling
   - repo: https://github.com/crate-ci/typos
-    rev: v1.39.2
+    rev: v1.40.0
     hooks:
       - id: typos
 
   # Format configuration files with prettier
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.6.2
+    rev: v3.7.3
     hooks:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json]

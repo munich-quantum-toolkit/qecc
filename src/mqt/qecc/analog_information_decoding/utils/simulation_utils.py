@@ -90,7 +90,7 @@ def is_logical_err(logicals: NDArray[np.int32], residual_err: NDArray[np.int32])
 
 
 # adapted from https://github.com/quantumgizmos/bp_osd/blob/a179e6e86237f4b9cc2c952103fce919da2777c8/src/bposd/css_decode_sim.py#L430
-# and https://github.com/MikeVasmer/single_shot_3D_HGP/blob/master/sim_scripts/single_shot_hgp3d.cpp#L207
+# and https://github.com/MikeVasmer/single_shot_3D_HGP/blob/bdfb437b2abcfa514997f26be97a711b878448cb/sim_scripts/single_shot_hgp3d.cpp#L207
 # channel_probs = [x,y,z], residual_err = [x,z]
 def generate_err(
     nr_qubits: int,
