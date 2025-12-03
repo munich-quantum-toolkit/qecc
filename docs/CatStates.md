@@ -228,3 +228,7 @@ ctrls, perm, _ = search_ft_cnot_smt(data, ancilla, t)
 experiment = CatStatePreparationExperiment(data, ancilla, perm, ctrls)
 experiment.plot_one_p(p, n_samples=100000)
 ```
+
+## Loading already Constructed FT Cat States
+
+To avoid redoing redundant computations, stim circuits for cat states of sizes up $49$ qubits and fault distances up to $9$ can be found [here](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cat_states/circuits). There is also a [json file](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cat_states/constructions.json) which explicitly lists control qubits and target permutation for a given combination of data cat state size ($w_1$), ancilla cat state size ($w_2$) and fault distance ($t$).
