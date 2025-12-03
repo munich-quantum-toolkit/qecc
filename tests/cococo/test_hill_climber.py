@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from mqt.qecc.cococo import hill_climber, layouts
 
 pos = tuple[int, int]
@@ -126,6 +128,9 @@ def test_crossing_metric():
 
     error_message = "Generates unexpected exact cost value."
     assert cost == expected_cost, error_message
+
+    # random qubit assignment
+    assert len(hc.gen_random_qubit_assignment()) == len(layout), "Weird result for random qubit assignment."
 
 
 def test_translate_layout_circuit():
@@ -277,3 +282,69 @@ def test_translate_layout_circuit():
 
     for el1, el2 in zip(terminal_pairs_desired, terminal_pairs_result, strict=False):
         assert el1 == el2, "The translation from layout and circuit to terminal pairs has at least one problem."
+
+
+def hillclimbing_run():
+    """Does an error occur when the hill climbing is run?"""
+    layout_type = "hex"
+    m = 2
+    n = 2
+    factories = [(5, -1), (10, 0), (7, 7), (12, 5), (-2, 2)]
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges=False)
+    t = 4
+
+    len(data_qubit_locs)
+
+    pairs = [
+        (1, 5),
+        0,
+        (10, 3),
+        (8, 18),
+        (13, 2),
+        (4, 20),
+        (9, 6),
+        (11, 23),
+        15,
+        7,
+        (16, 21),
+        (22, 23),
+        (0, 10),
+        (23, 19),
+        (10, 12),
+        (2, 19),
+        (21, 1),
+        (13, 4),
+        22,
+        (14, 13),
+        (22, 1),
+        (15, 11),
+        (22, 20),
+        (6, 11),
+        (10, 8),
+        13,
+        19,
+        (17, 20),
+    ]
+
+    custom_layout = [data_qubit_locs, g]
+
+    hc = hill_climber.HillClimbing(
+        max_restarts=20,
+        max_iterations=50,
+        circuit=cast("list[pos|int]", pairs),
+        metric="exact",
+        t=t,
+        custom_layout=custom_layout,
+        use_dag=True,
+        valid_path="cc",
+        possible_factory_positions=factories,
+        num_factories=len(factories),
+        optimize_factories=False,
+    )
+
+    parallel = True
+    processes = 4  # depending on your hardware
+    prefix = "./"  # adapt the path depending on where you want to have stored the output
+    suffix = "test_hc"
+    _best_solution, _best_score, _best_rep, _score_history = hc.run(prefix, suffix, parallel, processes)
+    _best_solution, _best_score, _best_rep, _score_history = hc.run(prefix, suffix, False, processes)

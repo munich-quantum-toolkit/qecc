@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import pathlib
+from typing import cast
+from unittest.mock import patch
 
 import networkx as nx
 import numpy as np
@@ -138,6 +140,14 @@ def test_snake_builder_stdw():
 
     assert hx == hx_desired, "The X stabilizers of a STDW snake do not look as expected."
     assert hz == hz_desired, "The Z stabilizers of a STDW snake do not look as expected."
+
+    with patch("matplotlib.pyplot.show"):
+        snake.plot_stabilizers(x_plaquettes)
+        snake.plot_stabilizers(z_plaquettes)
+
+    # also just run those functions which were not covered so far
+    res = snake.find_stabilizers_zz()
+    assert snake.test_zz_stabs(res), "ZZ construction not right."
 
 
 def test_snake_builder():
@@ -346,3 +356,6 @@ def test_snake_builder_sc():
     _circuit_p, _circuit_0 = encoding_circuit(
         snake, opx, opz
     )  # only checks whether construction of encoding circuit works
+
+    with patch("matplotlib.pyplot.show"):
+        snake.plot_stabs(cast("list[tuple[pos,pos]]|None", opz), cast("list[tuple[pos,pos]]|None", opx), size=(8, 8))

@@ -38,3 +38,8 @@ def test_scalable_layout():
     except:  # noqa: E722
         msg = "Problem with hex layout"
         raise ValueError(msg)  # noqa: B904
+    try:
+        _, _, _ = layouts.gen_layout_scalable("row", m, n, factories, True)  # at least one time true
+    except:  # noqa: E722
+        msg = "Problem with row layout"
+        raise ValueError(msg)  # noqa: B904

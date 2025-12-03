@@ -21,39 +21,40 @@ The routing routines for movable qubits (2) are tailored for the color code as w
 
 ## Layouts
 
-Different layouts ("row", "pair", "hex", "triple", "single") can be generated with the function {py:func}`mqt.qecc.cococo.layouts.gen_layouts_scalable`. One can place factory patches along the boundary. The construction of such layouts is described in the notebook [scripts/cococo/layouts_general.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/layouts_general.ipynb).
+Different layouts ("row", "pair", "hex", "triple", "single") can be generated with the function [gen_layout_scalable](mqt.qecc.cococo.layouts.gen_layout_scalable). One can place factory patches along the boundary. The construction of such layouts is described in the notebook [scripts/cococo/layouts_general.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/layouts_general.ipynb).
 
 A layout describes which nodes on the routing graph are used as logical data qubits and factory locations. The remainder is the routing ancilla space.
 The mapping of logical qubit labels onto those chosen data qubit locations on the graph is another task.
 
 ## Randomly Sampled CNOT + T circuits
 
-This submodule considers CNOT + T circuits without single qubit Clifford gates. Different types of random circuits can be generated using the functions {py:func}`mqt.qecc.cococo.generate_random_circuit`, {py:func}`mqt.qecc.cococo.generate_max_parallel_circuit`, {py:func}`mqt.qecc.cococo.generate_min_parallel_circuit` as well as {py:func}`mqt.qecc.cococo.create_random_sequential_circuit_dag`. However, one is welcome to write own circuit constructions.
+This submodule considers CNOT + T circuits without single qubit Clifford gates. Different types of random circuits can be generated using the functions [generate_random_circuit](mqt.qecc.cococo.circuit_construction.generate_random_circuit), [generate_max_parallel_circuit](mqt.qecc.cococo.circuit_construction.generate_max_parallel_circuit), [generate_min_parallel_circuit](mqt.qecc.cococo.circuit_construction.generate_min_parallel_circuit) as well as [create_random_sequential_circuit_dag](mqt.qecc.cococo.circuit_construction.create_random_sequential_circuit_dag). However, one is welcome to write own circuit constructions.
 
 ## Basic Routing and Qubit Label Allocation from (1)
 
 ### Basic Compilation with given Layout and Mapping
 
 The higher level compilation follows a simple greedy routine for solving the VDP problem. We greedily extended this to include paths to factories as well.
-Note that the class {py:class}`mqt.qecc.cococo.BasicRouter` and particularly the method `find_total_vdp_layers_dyn` should be used to perform routing as described in the paper.
+Note that the class [BasicRouter](mqt.qecc.cococo.utils_routing.BasicRouter)
+and particularly the method `find_total_vdp_layers_dyn` should be used to perform routing as described in the paper.
 
 ### Optimization of Qubit Label Allocation by Hill Climbing
 
 Once chosen a layout, one can optimize the qubit label allocation. This is important to exploit more parallelism of the original circuit.
-The class {py:class}`mqt.qecc.cococo.HillClimber` performs a simple hill climbing routine to optimize the qubit label mapping based on a heuristic metric which computes the initial crossing of shortest paths as well as a more reliable (yet expensive) metric which computes the routing for each Hill climbing iteration and directly aims to reduce the resulting layers. How it works can be seen in the notebook [scripts/cococo/hill_climbing_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/hill_climbing_examples.ipynb).
+The class [HillClimbing](mqt.qecc.cococo.hill_climber.HillClimbing) performs a simple hill climbing routine to optimize the qubit label mapping based on a heuristic metric which computes the initial crossing of shortest paths as well as a more reliable (yet expensive) metric which computes the routing for each Hill climbing iteration and directly aims to reduce the resulting layers. How it works can be seen in the notebook [scripts/cococo/hill_climbing_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/hill_climbing_examples.ipynb).
 
 Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evaluations_beyond_the_surface_code](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_beyond_the_surface_code).
 
 ### Microscopic Details of Snakes
 
 In (1), we consider two microscopic substrates, both leading to a hexagonal routing graph.
-First, the class {py:class}`mqt.qecc.cococo.SnakeBuilderSTDW` builds stabilizers and subsets of stabilizers to perform logical meausurements for the color code connected by semi transparent domain walls (STDW).
-The class {py:class}`mqt.qecc.cococo.SnakeBuilderSC` builds the surface code snakes required to perform lattice surgery between logical folded surface codes. However, this can only display snakes where you can easily embed the snake in 2d.
+First, the class [SnakeBuilderSTDW](mqt.qecc.cococo.snake_builder.SnakeBuilderSTDW) builds stabilizers and subsets of stabilizers to perform logical meausurements for the color code connected by semi transparent domain walls (STDW).
+The class [SnakeBuilderSC](mqt.qecc.cococo.snake_builder.SnakeBuilderSC) builds the surface code snakes required to perform lattice surgery between logical folded surface codes. However, this can only display snakes where you can easily embed the snake in 2d.
 A notebook with example constructions can be found in [/scripts/co3/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/snake_examples.ipynb).
 
 ## Compilation with Movable Logical Qubits (2)
 
-Compilation with movable logical qubits as described in (2) builds upon the BasicRouter from above. Based on the basic router we constructed a lookahead routine with simulated annealing which can be used via the {py:class}`mqt.qecc.cococo.TeleportationRouter`. Examples are shown in the notebook [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).
+Compilation with movable logical qubits as described in (2) builds upon the BasicRouter from above. Based on the basic router we constructed a lookahead routine with simulated annealing which can be used via the [TeleportationRouter](mqt.qecc.cococo.utils_routing.TeleportationRouter). Examples are shown in the notebook [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).
 
 Results shown in (2) can be reproduced in [scripts/cococo/evaluations_movable_qubits](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_movable_qubits)
 

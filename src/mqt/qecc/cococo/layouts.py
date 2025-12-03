@@ -194,7 +194,7 @@ def gen_layout_scalable(
         return list(factory_ring)
 
     g = nx.Graph()
-    if layout_type not in {"row", "pair", "hex", "triple", "single"}:
+    if layout_type not in {"row", "pair", "hex", "triple", "single"}:  # pragma: no cover
         msg = "Wrong Layout type!"
         raise ValueError(msg)
 

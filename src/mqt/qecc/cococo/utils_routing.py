@@ -78,7 +78,7 @@ class BasicRouter:
         self.logical_pos = logical_pos
         self.factory_pos = factory_pos
         if valid_path not in {"cc", "sc"}:
-            msg = "Other valid path setups are not implemented yet."
+            msg = "Other valid path setups are not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
         self.valid_path = valid_path
         self.use_dag = use_dag
@@ -92,7 +92,7 @@ class BasicRouter:
 
         self.metric = metric
         if metric not in {"crossing", "exact"}:
-            msg = "Other metrics than crossing and exact not implemented yet."
+            msg = "Other metrics than crossing and exact not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
 
     @staticmethod
@@ -144,7 +144,7 @@ class BasicRouter:
             for n in self.g.nodes():
                 if "pos" not in self.g.nodes[n]:
                     msg = "Node does not have pos attribute."
-                    raise RuntimeError(msg)
+                    raise RuntimeError(msg)  # pragma: no cover
                 if self.g.nodes[n]["pos"] != n:
                     msg = """
                             Node pos attribute does not match node label.
@@ -155,10 +155,10 @@ class BasicRouter:
                             for node in g.nodes():
                                 g.nodes[node]["pos"] = node
                         """
-                    raise RuntimeError(msg)
+                    raise RuntimeError(msg)  # pragma: no cover
             return self.path_sc
 
-        msg = "Other valid paths not implemented yet."
+        msg = "Other valid paths not implemented yet."  # pragma: no cover
         raise NotImplementedError(msg)
 
     @staticmethod
@@ -325,7 +325,7 @@ class BasicRouter:
                     elif shortest_path[-1] == t_p:
                         factory_times_temp[shortest_path[0]] = self.t + 1
                     else:
-                        msg = "Factory not in path."
+                        msg = "Factory not in path."  # pragma: no cover
                         raise RuntimeError(msg)
 
                 # remove nodes from g_temp from path
@@ -346,10 +346,10 @@ class BasicRouter:
         for pair, path in vdp_dict.items():
             start, end = path[0], path[-1]
             if isinstance(pair[1], tuple) and set(pair) != {start, end}:
-                msg = f"The path does not coincide with the terminal pair. There is a bug. terminal_pair = {pair} but path = {path}"
+                msg = f"The path does not coincide with the terminal pair. There is a bug. terminal_pair = {pair} but path = {path}"  # pragma: no cover
                 raise RuntimeError(msg)
             if isinstance(pair[1], int) and pair not in {start, end}:
-                msg = f"The path does not coincide with the T gate location. There is a bug. terminal_pair = {pair} but path = {path}"
+                msg = f"The path does not coincide with the T gate location. There is a bug. terminal_pair = {pair} but path = {path}"  # pragma: no cover
                 raise RuntimeError(msg)
 
         return vdp_dict, terminal_pairs_remainder, factory_times_temp
@@ -396,9 +396,7 @@ class BasicRouter:
                 remainder = [item for sublayer in layers[1:] for item in sublayer]
                 i += 1
             else:
-                msg = (
-                    f"Something weird happened during pushing remainders. len(layers)={len(layers)}, layers = {layers}"
-                )
+                msg = f"Something weird happened during pushing remainders. len(layers)={len(layers)}, layers = {layers}"  # pragma: no cover
                 raise RuntimeError(msg)
 
         return initial_layers
@@ -427,7 +425,7 @@ class BasicRouter:
         Dynamically pushes remaining gates into the next layers.
         """
         if self.use_dag and layout is None:
-            msg = "If self.use_dag=True you need to enter a layout in find_total_vdp_layers_dyn"  # type: ignore[unreachable]
+            msg = "If self.use_dag=True you need to enter a layout in find_total_vdp_layers_dyn"  # type: ignore[unreachable] # pragma: no cover
             raise ValueError(msg)
 
         factory_times_temp = factory_times.copy()
@@ -593,7 +591,7 @@ class BasicRouter:
                         path = nx.dijkstra_path(g_temp, t_p[0], t_p[1])
                         paths.append(path)
                     except nx.NetworkXNoPath as exc:
-                        msg = (
+                        msg = (  # pragma: no cover
                             "Your choice of terminal pairs locks in at least one terminal. "
                             "Reconsider your choice of terminal pairs."
                         )
@@ -611,7 +609,7 @@ class BasicRouter:
                         try:
                             path = nx.dijkstra_path(g_temp, t_p, factory)
                         except nx.NetworkXNoPath as exc:
-                            msg = (
+                            msg = (  # pragma: no cover
                                 "Your choice of terminal pairs locks in at least one terminal. "
                                 "Reconsider your choice of terminal pairs."
                             )
@@ -703,7 +701,7 @@ class TeleportationRouter(BasicRouter):
         g_temp.remove_nodes_from(self.logical_pos)
 
         if steiner_init_type not in {"full_random", "on_path_random"}:
-            msg = "Make sure that `steiner_init_type` is either full_random or on_path_random. Other possibilities not implemented yet."
+            msg = "Make sure that `steiner_init_type` is either full_random or on_path_random. Other possibilities not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
 
         steiner_dct = {}
@@ -752,7 +750,7 @@ class TeleportationRouter(BasicRouter):
                     terminal_node
                 ]  # terminal on the path does not need an extended path, but list should not be empty, otherwise error.
             else:
-                msg = "steiner_init_type must be on_path_random or full_random."
+                msg = "steiner_init_type must be on_path_random or full_random."  # pragma: no cover
                 raise ValueError(msg)
             # add to list
             if isinstance(key[0], tuple):  # if CNOT
@@ -772,7 +770,7 @@ class TeleportationRouter(BasicRouter):
         For each tree in steiner_dct a new location of the 3rd terminal is updated randomly.
         """
         if self.logical_pos_temp is None:
-            msg = "Need to initialize logical pos temp properly in a summarizing method."
+            msg = "Need to initialize logical pos temp properly in a summarizing method."  # pragma: no cover
             raise RuntimeError(msg)
         g_temp = self.g.copy()  # type: ignore[unreachable]
         g_temp.remove_nodes_from(self.factory_pos)
@@ -806,7 +804,7 @@ class TeleportationRouter(BasicRouter):
                     pos for keyy, path in steiner_dct_update.items() if keyy != (a, terminal) for pos in path[1]
                 ]
             else:
-                msg = "Something is wrong with the allocation of keys in the steiner_dict"
+                msg = "Something is wrong with the allocation of keys in the steiner_dict"  # pragma: no cover
                 raise RuntimeError(msg)
 
             # a terminal can be placed on the path. in this case you are NOT allowed to remove it! the above somehow sometimes add terminal, hence remove it again
@@ -883,7 +881,7 @@ class TeleportationRouter(BasicRouter):
                 elif len(key_tree) == 2:
                     (a, terminal) = key_tree
                 else:
-                    msg = "steiner dct keys are wrong."
+                    msg = "steiner dct keys are wrong."  # pragma: no cover
                     raise ValueError(msg)
                 other_paths = [
                     pos for keyy, path in steiner_dct_update_second.items() if keyy != key_tree for pos in path[0][1:-1]
@@ -997,10 +995,10 @@ class TeleportationRouter(BasicRouter):
         # !TODO INCLUDE IDLE MOVING GAPS AS PART OF THE ANNEALING TO AVOID SEQUENTIALIZATION
         factory_times_copy = self.factory_times.copy()
         if T_start < T_end:
-            msg = "T_start must be larger than T_end"
+            msg = "T_start must be larger than T_end"  # pragma: no cover
             raise ValueError(msg)
         if alpha >= 1.0 or alpha <= 0:
-            msg = "alpha must be between 0 and 1"
+            msg = "alpha must be between 0 and 1"  # pragma: no cover
             raise ValueError(msg)
 
         steiner_dct = init_steiner_dct.copy()
@@ -1018,7 +1016,7 @@ class TeleportationRouter(BasicRouter):
             )  # initially the self.logical pos can be used. later you need a logical_pos outside of self
             cost = len(schedule) if schedule is not None else lock_penalty
         else:
-            msg = "Other metrics than crossing and exact not implemented yet."
+            msg = "Other metrics than crossing and exact not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
         best_steiner: steiner_type | None = steiner_dct
         best_cost = cost
@@ -1084,7 +1082,7 @@ class TeleportationRouter(BasicRouter):
                     label = layout_rev[a]
                     layout_mod[label] = terminal
                 else:
-                    msg = "Something wrong with keys of candidate tree"  # type: ignore[unreachable]
+                    msg = "Something wrong with keys of candidate tree"  # type: ignore[unreachable] # pragma: no cover
                     raise RuntimeError(msg)
             # 2. compute the crossing metric for next_layer
             # try:
@@ -1099,7 +1097,7 @@ class TeleportationRouter(BasicRouter):
                 )
                 candidate_cost = len(schedule) if schedule is not None else lock_penalty
             else:
-                msg = "Other metrics than crossing and exact not implemented yet."
+                msg = "Other metrics than crossing and exact not implemented yet."  # pragma: no cover
                 raise NotImplementedError(msg)
 
             # except ValueError:
@@ -1179,7 +1177,7 @@ class TeleportationRouter(BasicRouter):
                     elif len(key_subset) == 2:
                         (a, terminal) = key_subset
                     else:
-                        msg = "something wrong with subset steiner keys"  # type: ignore[unreachable]
+                        msg = "something wrong with subset steiner keys"  # type: ignore[unreachable] # pragma: no cover
                         raise RuntimeError(msg)
 
                     # randomly choose whether we shift control to ancilla or target to ancilla
@@ -1202,7 +1200,7 @@ class TeleportationRouter(BasicRouter):
                         label = layout_rev[a]
                         layout_mod[label] = terminal
                     else:
-                        msg = f"other move type than expected: {move_type}"
+                        msg = f"other move type than expected: {move_type}"  # pragma: no cover
                         raise RuntimeError(msg)
                 # 2. compute the crossing metric for next_layer
                 try:
@@ -1219,7 +1217,7 @@ class TeleportationRouter(BasicRouter):
                         )
                         candidate_cost = len(schedule) if schedule is not None else lock_penalty
                     else:
-                        msg = "Other metrics than crossing and exact not implemented yet."
+                        msg = "Other metrics than crossing and exact not implemented yet."  # pragma: no cover
                         raise NotImplementedError(msg)
                 except ValueError:
                     continue
@@ -1281,7 +1279,7 @@ class TeleportationRouter(BasicRouter):
         # distinguish between the cases with jump_harvest = True and False. If true, you need to check more than schedule[-1] but also the future layers from "best_schedule" which was retrieved during SA.
         # we want to avoid moves if the qubits are included in the k_lookahead layers since we want to guarantee that the routing computed for the metric in SA is the same as effectively used in k_lookahead layers to exploit the SA optimization fully without destroying stuff
         if jump_harvesting and best_schedule is None:
-            msg = "If `jump_harvest = True` you need to give a best_schedule as input for idle_move_back!"
+            msg = "If `jump_harvest = True` you need to give a best_schedule as input for idle_move_back!"  # pragma: no cover
             raise ValueError(msg)
 
         # !Try to move re-allocated qubits back into the left gaps (does not need to be the original position, in case some other gap is closer)
@@ -1435,7 +1433,7 @@ class TeleportationRouter(BasicRouter):
             later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
         """
         if idle_move_type not in {"asap", "later"}:
-            msg = "`move_idle_type` must be `asap` or `later`"
+            msg = "`move_idle_type` must be `asap` or `later`"  # pragma: no cover
             raise ValueError(msg)
 
         schedule: Any = []
@@ -1454,7 +1452,7 @@ class TeleportationRouter(BasicRouter):
         else:
             layers = self.split_layer_terminal_pairs(terminal_pairs)
         if len(layers) == 1:
-            msg = "Your choice of terminal pairs does not lead to multiple layers. This method is not suitable for your input."
+            msg = "Your choice of terminal pairs does not lead to multiple layers. This method is not suitable for your input."  # pragma: no cover
             raise RuntimeError(msg)
         # if some qubit is locked due to replacement, you will end up in an infinite loop here. make sure this does not happen
         no_progress_counter = 0
@@ -1650,7 +1648,7 @@ class TeleportationRouter(BasicRouter):
                     elif len(key_tree) == 2:
                         (a, terminal) = key_tree
                     else:
-                        msg = "something wrong with keys of best_steiner"  # type: ignore[unreachable]
+                        msg = "something wrong with keys of best_steiner"  # type: ignore[unreachable] # pragma: no cover
                         raise RuntimeError(msg)
 
                     # update the available_gaps and danger_qubits (add and remove accordingly later)
@@ -1679,7 +1677,7 @@ class TeleportationRouter(BasicRouter):
                         layout_mod[label] = terminal
                         available_gaps_temp.append(a)
                     else:
-                        msg = f"other move type than expected: {move_type}"
+                        msg = f"other move type than expected: {move_type}"  # pragma: no cover
                         raise RuntimeError(msg)
                 self.logical_pos = logical_pos_temp.copy()
                 self.logical_pos_temp = logical_pos_temp.copy()
@@ -1742,7 +1740,7 @@ class TeleportationRouter(BasicRouter):
                         best_schedule,
                     )
                 else:
-                    msg = "Other combinations of jump_harvesting and flag_skip_steiner relevant???"  # type: ignore[unreachable]
+                    msg = "Other combinations of jump_harvesting and flag_skip_steiner relevant???"  # type: ignore[unreachable] # pragma: no cover
                     raise RuntimeError(msg)
             elif idle_move_type == "later":
                 # since the idle move is before the steiner search we do not need danger_qubits_temp actually, but needs to be added nevertheless.
@@ -1763,7 +1761,7 @@ class TeleportationRouter(BasicRouter):
                 available_gaps_temp = []
                 danger_qubits_temp = {}
                 if self.metric != "exact":
-                    msg = "if `jump_harvesting=True` you also need to use the exact metric"
+                    msg = "if `jump_harvesting=True` you also need to use the exact metric"  # pragma: no cover
                     raise ValueError(msg)
                 # this is appears like a redundant routing step, but the routes from best_schedule will not necessarily fully coincide with the routing here, since idle_move_back can make it happen that routings can be shorter than in best_schedule
                 flag_identical_schedules = True  # the schedules of best_schedule and the routing here can be the same. however, if there is some idle move it can happen that the routing here becomes better than in the computation of the metric
@@ -1815,7 +1813,7 @@ class TeleportationRouter(BasicRouter):
                             if matching:
                                 del cast("list[dict[pos | tuple[pos, pos],list[pos],]]", best_schedule)[0]
                             else:
-                                msg = "Mismatch between exact metric routing and real routing in jump harvest. If you do not care you should turn on `idle_move_type == asap`"
+                                msg = "Mismatch between exact metric routing and real routing in jump harvest. If you do not care you should turn on `idle_move_type == asap`"  # pragma: no cover
                                 raise RuntimeError(msg)
 
                     # push
