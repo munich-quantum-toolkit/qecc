@@ -133,12 +133,21 @@ def test_one_way_transversal(simple_graph):
     assert switch_pos == [(0, 0)]  # Switch on qubit 0 at depth 0
 
     simple_graph = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
-    simple_graph.build_from_qiskit(qc, one_way_gates={"CX"})
+    simple_graph.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
     num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
 
     # Now, no switches should be needed
     assert num_switches == 0
-    assert switch_pos == []  # Switch on qubit 0 at depth 0
+    assert switch_pos == []
+
+    # One-way transversal should be invariant of source/sink definition
+    simple_graph = MinimalCodeSwitchingCompiler({"T", "CX"}, {"H", "CX"})
+    simple_graph.build_from_qiskit(qc, one_way_gates={"CX": ("SRC", "SNK")})
+    num_switches, switch_pos, _, _ = simple_graph.compute_min_cut()
+
+    # Again, no switches should be needed
+    assert num_switches == 0
+    assert switch_pos == []
 
 
 def test_code_bias(simple_graph):

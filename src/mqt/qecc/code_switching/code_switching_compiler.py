@@ -111,14 +111,21 @@ class MinimalCodeSwitchingCompiler:
         return node_id
 
     def _add_edge_with_capacity(
-        self, u: str, v: str, capacity: float, edge_type: str = "temporal", *, bidirectional: bool = True
+        self,
+        u: str,
+        v: str,
+        capacity: float,
+        edge_type: str = "temporal",
+        *,
+        bidirectional: bool = True,
+        one_way_is_snk2src: bool = True,
     ) -> None:
         """Add a directed edge with specified capacity between two nodes.
 
         Parameters
         ----------
         u : str
-            Source node identifier.
+            Control node identifier.
         v : str
             Target node identifier.
         capacity : float
@@ -128,11 +135,15 @@ class MinimalCodeSwitchingCompiler:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
+        if not one_way_is_snk2src:
+            u, v = v, u
         self.G.add_edge(u, v, capacity=capacity, edge_type=edge_type)
         if bidirectional:
             self.G.add_edge(v, u, capacity=capacity, edge_type=edge_type)
 
-    def _add_infinite_edge(self, u: str, v: str, *, bidirectional: bool = True) -> None:
+    def _add_infinite_edge(
+        self, u: str, v: str, *, bidirectional: bool = True, one_way_is_snk2src: bool | None = None
+    ) -> None:
         """Add an edge of infinite capacity between two nodes. Possibly bidirectional.
 
         Parameters
@@ -144,7 +155,16 @@ class MinimalCodeSwitchingCompiler:
         bidirectional : bool, optional
             If True, add the reverse edge as well (default is True).
         """
-        self._add_edge_with_capacity(u, v, capacity=float("inf"), edge_type="fixed", bidirectional=bidirectional)
+        if one_way_is_snk2src is None:
+            one_way_is_snk2src = True
+        self._add_edge_with_capacity(
+            u,
+            v,
+            capacity=float("inf"),
+            edge_type="fixed",
+            bidirectional=bidirectional,
+            one_way_is_snk2src=one_way_is_snk2src,
+        )
 
     def _add_regular_edge(self, u: str, v: str, capacity: float | None = None, *, bidirectional: bool = True) -> None:
         """Add a regular (finite-capacity) directed edge.
@@ -248,7 +268,7 @@ class MinimalCodeSwitchingCompiler:
         self,
         circuit: QuantumCircuit,
         *,
-        one_way_gates: set[str] | None = None,
+        one_way_gates: dict[str, tuple[str, str]] | None = None,
         code_bias: bool = False,
         idle_bonus: bool = False,
     ) -> None:
@@ -270,7 +290,7 @@ class MinimalCodeSwitchingCompiler:
             both qubits must be in the same code (bidirectional infinite edges).
         """
         if one_way_gates is None:
-            one_way_gates = set()
+            one_way_gates = {}
 
         dag = circuit_to_dag(circuit)
         layers = list(dag.layers())
@@ -303,7 +323,7 @@ class MinimalCodeSwitchingCompiler:
         circuit: QuantumCircuit,
         qubit_activity: dict[int, list[int]],
         qubit_last_node: list[str | None],
-        one_way_gates: set[str],
+        one_way_gates: dict[str, tuple[str, str]],
         code_bias: bool,
         idle_bonus: bool,
         total_temporal_edges: int,
@@ -340,7 +360,11 @@ class MinimalCodeSwitchingCompiler:
         self._apply_code_constraints(gate_type, current_step_nodes, one_way_gates, code_bias)
 
     def _apply_code_constraints(
-        self, gate_type: str, current_step_nodes: list[tuple[int, str]], one_way_gates: set[str], code_bias: bool
+        self,
+        gate_type: str,
+        current_step_nodes: list[tuple[int, str]],
+        one_way_gates: dict[str, tuple[str, str]],
+        code_bias: bool,
     ) -> None:
         """Apply infinite edges or bias edges based on gate sets."""
         is_source_unique = gate_type in self.gate_set_source and gate_type not in self.gate_set_sink
@@ -361,16 +385,32 @@ class MinimalCodeSwitchingCompiler:
             # Single qubit common gates are ignored (they float freely)
             if is_multi_qubit:
                 is_one_way = gate_type in one_way_gates
+                direction_is_snk2src = None
+                if is_one_way:
+                    direction = one_way_gates[gate_type]
+                    direction_is_snk2src = self._parse_one_way_direction(direction)
 
                 _, target_node = current_step_nodes[-1]
                 controls = current_step_nodes[:-1]
 
                 for _, ctrl_node in controls:
-                    self._add_infinite_edge(ctrl_node, target_node, bidirectional=not is_one_way)
+                    self._add_infinite_edge(
+                        ctrl_node, target_node, bidirectional=not is_one_way, one_way_is_snk2src=direction_is_snk2src
+                    )
 
                 if code_bias:
                     for _, node_id in current_step_nodes:
                         self._add_bias_edges(node_id)
+
+    @staticmethod
+    def _parse_one_way_direction(direction: tuple[str, str]) -> bool:
+        """Parse the one-way direction tuple into a boolean for control."""
+        if direction == ("SRC", "SNK"):
+            return False
+        if direction == ("SNK", "SRC"):
+            return True
+        msg = f"Invalid one-way direction: {direction}. Must be ('SRC', 'SNK') or ('SNK', 'SRC')."
+        raise ValueError(msg)
 
     def compute_min_cut(self) -> tuple[int, list[tuple[int, int]], set[str], set[str]]:
         """Compute the minimum s-t cut between the source and sink.
