@@ -41,7 +41,7 @@ Let's look at how to use the `MinimalCodeSwitchingCompiler` to analyze a simple 
 from qiskit import QuantumCircuit
 from mqt.qecc.code_switching import MinimalCodeSwitchingCompiler, CompilerConfig
 
-# Define the transversal gate sets (names must be uppercase to match Qiskit's node names)
+# Define the transversal gate sets:
 # Code A (Source): 2D Color Code
 SOURCE_GATES = {"H", "CX"}
 
@@ -49,7 +49,7 @@ SOURCE_GATES = {"H", "CX"}
 SINK_GATES = {"T", "CX"}
 
 # Initialize the compiler
-compiler = MinimalCodeSwitchingCompiler(
+mcsc = MinimalCodeSwitchingCompiler(
     gate_set_code_source=SOURCE_GATES,
     gate_set_code_sink=SINK_GATES
 )
@@ -88,10 +88,10 @@ We can now build the graph from the circuit and compute the minimum cut.
 
 ```{code-cell} ipython3
 # Build the graph representation of the circuit
-compiler.build_from_qiskit(qc)
+mcsc.build_from_qiskit(qc)
 
 # Compute Min-Cut
-num_switches, switch_pos, set_S, set_T = compiler.compute_min_cut()
+num_switches, switch_pos, set_S, set_T = mcsc.compute_min_cut()
 
 print(f"Total switches required: {num_switches}")
 print("Switch locations (qubit, depth):")
@@ -99,13 +99,13 @@ for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-The output pEositions provides the exact locations (qubit, depth) where a code switch operation must be inserted into the circuit.
+The output positions provide the exact locations (qubit, depth) where a code switch operation must be inserted into the circuit.
 
-Under specific conditions, CNOT operations can be implemented transversally even when the control and target qubits
+Note that under specific conditions, CNOT operations can be implemented transversally even when the control and target qubits
 are encoded in different codes. This property, however, is directional. In the 2D-3D color code scheme, it holds only when the
-control qubit is encoded in the 3D color code and the target qubit in the 2D color code
+control qubit is encoded in the 3D color code and the target qubit in the 2D color code.
 
-To account for this, we can can pass a dictionary specifying gates that can be implemented one-way transverally together with their direction.
+To account for this, we can pass a dictionary specifying gates that can be implemented one-way transverally together with their direction.
 To see how this affect the optimization, consider the following circuit:
 
 ```{code-cell} ipython3
@@ -126,6 +126,10 @@ Calculating the minimum number of switches without considering the one-way trans
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc)
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
+```
+
+```{code-cell} ipython3
+:tags: [hide-input]
 print(f"Total switches required (without one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in switch_pos:
@@ -138,24 +142,25 @@ Hence, a single switch right after the T gate on qubit 0 is required. However, i
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
-print(f"Total switches required (without one-way CNOT): {num_switches}")
-print("Switch locations (qubit, depth):")
-for pos in switch_pos:
-    print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-We tell here the graph construction method `build_from_qiskit` that CNOTs `CX` can be implemented transversally when the control qubit is in the Sink code (3D color code) and the target qubit is in the Source code (2D color code) `(control, target)=("SNK","SRC")`.
+```{code-cell} ipython3
+:tags: [hide-input]
+print(f"Total switches required: {num_switches}")
+```
+
+We specify in the graph-construction method `build_from_qiskit` that CNOTs (`CX`) are implemented transversally when the control qubit is encoded in the Sink code (3D color code) and the target qubit is encoded in the Source code (2D color code), i.e., `(control, target) <=> ("SNK", "SRC")`.
 
 ## Extensions to the Min-Cut Model
 
 Finding the minimum number of switches is a good starting point, but in practice, we might want to consider additional factors such as:
 
-- **Depth Optimization:** Choosing the positions of the switching positions such that switching operations are placed preferribly on idling qubits while keeping the total number of switches minimal. This has the potential to reduce the overall circuit depth increase caused by the switching operations.
+- **Depth Optimization:** Choosing the placing of the switching positions such that switching operations are placed preferribly on idling qubits while keeping the total number of switches minimal. This has the potential to reduce the overall circuit depth increase caused by the switching operations.
 - **Code Bias:** If one of the codes has a significantly higher overhead for switching operations, we might want to minimize switches into that code specifically.
 
 ### Depth Optimization
 
-To incorporate depth optimization, we can assign weights to the temporal edges based on whether the qubit is idling or active. For example, we can assign a lower weight to edges corresponding to idling qubits, encouraging the min-cut algorithm to place switches there.
+To incorporate depth optimization, we can assign an idle bonus to weights of the temporal edges based on whether the qubit is idling or active. For example, we can assign a lower weight to edges corresponding to idling qubits, encouraging the min-cut algorithm to place switches there.
 
 ```{code-cell} ipython3
 qc = QuantumCircuit(3)
@@ -171,13 +176,17 @@ qc.cx(0, 2)
 qc.draw('mpl')
 ```
 
-Running the regular min-cut computation yields a switch on qubit 2 after the T gate:
+Running the regular min-cut computation yields a switch on qubit 2 after the T gate (we allow one-way CNOTs here):
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
-print(f"Total switches required (without one-way CNOT): {num_switches}")
+```
+
+```{code-cell} ipython3
+:tags: [hide-input]
+print(f"Total switches required (with one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
@@ -189,7 +198,11 @@ However, if we assign a lower weight to the temporal edge of qubit 0 (which is i
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, idle_bonus=True)
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
-print(f"Total switches required (without one-way CNOT): {num_switches}")
+```
+
+```{code-cell} ipython3
+:tags: [hide-input]
+print(f"Total switches required (with one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
@@ -217,7 +230,11 @@ The default behavior with a bias towards the source code yields that the switch 
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")})
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
-print(f"Total switches required (without one-way CNOT): {num_switches}")
+```
+
+```{code-cell} ipython3
+:tags: [hide-input]
+print(f"Total switches required (with one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
@@ -230,7 +247,11 @@ config = CompilerConfig(biased_code="SNK")
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"}, config=config)
 mcsc.build_from_qiskit(qc, one_way_gates={"CX": ("SNK", "SRC")}, code_bias=True)
 num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
-print(f"Total switches required (without one-way CNOT): {num_switches}")
+```
+
+```{code-cell} ipython3
+:tags: [hide-input]
+print(f"Total switches required (with one-way CNOT): {num_switches}")
 print("Switch locations (qubit, depth):")
 for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
