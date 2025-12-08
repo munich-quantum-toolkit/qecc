@@ -261,6 +261,10 @@ reinstall-package = ["mqt.qecc"]
 [tool.uv.sources]
 mqt-qecc = { workspace = true }
 
+[tool.check-sdist]
+sdist-only = [
+  "src/mqt/qecc/_version.py",
+]
 
 [dependency-groups]
 docs = [
