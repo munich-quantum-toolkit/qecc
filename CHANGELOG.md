@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Added
 
+- New `MinimalCodeSwitchingCompiler` class that implements a compiler for minimal-overhead code switching on the logical level. ([#524], [arXiv:2512.04170](https://arxiv.org/abs/2512.04170)) ([**@inctechs**])
 - Added `gottesman_encoding_circuit` methods that constructs a stim encoding circuit for a given stabilizer code using the method described in Gottesman's "Surviving as a Quantum Computer in a Classical World" Chapter 6.4.1. ([#486]) ([**@pehamtom**])
 - Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. ([#462]) ([**@pehamtom**])
 - Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). ([#462]) ([**@pehamtom**])
