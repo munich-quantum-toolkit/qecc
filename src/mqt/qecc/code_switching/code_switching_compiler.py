@@ -25,7 +25,7 @@ pattern = re.compile(r".*_q(\d+)_d(\d+)")
 
 @dataclass
 class CompilerConfig:
-    """Holds all configuration parameters for the CodeSwitchGraph."""
+    """Holds all configuration parameters for the MinimalCodeSwitchingCompiler."""
 
     edge_capacity_ratio: float = 0.001
     default_temporal_edge_capacity: float = 1.0
@@ -69,7 +69,7 @@ class MinimalCodeSwitchingCompiler:
     def __init__(
         self, gate_set_code_source: set[str], gate_set_code_sink: set[str], config: CompilerConfig | None = None
     ) -> None:
-        """Initialize the CodeSwitchGraph with source and sink nodes."""
+        """Initialize the MinimalCodeSwitchingCompiler with source and sink nodes."""
         if config is None:
             self.config = CompilerConfig()
         else:
