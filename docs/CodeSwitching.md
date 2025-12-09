@@ -17,11 +17,7 @@ to the other.
 
 However, code switching is a costly operation in terms of space and time overhead. Therefore, given a quantum circuit, we want to find the **minimum number of switches** required to execute it.
 
-For this documentation we consider the combination of a 2D and 3D color code as a possible QECC pair for code switching.
-2D color codes implement, among others, CNOT and Hadamard gates transversally. On the other hand, 3D color codes
-have CNOT and T gates in their transversal gate set. The union of both sets provides a universal gate set {$H$,$T$,$CNOT$}.
-So for simplicity we will only consider these three gates in the following examples.
-
+QECC has functionality to automatically determine the minimum number of switching operations required to perform a circuit using two complementary gate sets.
 We model this problem as a **Min-Cut / Max-Flow** problem on a directed graph. The graph is constructed such that:
 
 - **Source (SRC):** Represents the first code (e.g., 2D Color Code).
