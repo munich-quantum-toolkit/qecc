@@ -247,6 +247,8 @@ class MinimalCodeSwitchingCompiler:
         ----------
         depths : list[int]
             The ordered list of depth indices for a given qubit's gates.
+        total_edges : int
+            The total count of temporal edges in the circuit, used for normalization.
         base_capacity : float, optional
             The default temporal edge capacity.
 
@@ -283,10 +285,11 @@ class MinimalCodeSwitchingCompiler:
         idle_bonus : bool, optional
             If True, reduce temporal edge capacities based on idle durations via
             `_edge_capacity_with_idle_bonus`. Default is False.
-        one_way_gates : set[str], optional
-            A set of multi-qubit gate names (e.g. {"CX"}) that are in `common_gates`
-            but allow for one-way transversality (mixed codes).
-            If a common multi-qubit gate is NOT in this set, it is assumed
+        one_way_gates : dict[str, tuple[str, str]], optional
+            A dict mapping multi-qubit gate names (e.g., "CX") to direction tuples
+            (e.g., ("SNK", "SRC")) specifying which code the control and target
+            qubits should be in for one-way transversal execution.
+            If a common multi-qubit gate is NOT in this dict, it is assumed
             both qubits must be in the same code (bidirectional infinite edges).
         """
         if one_way_gates is None:
