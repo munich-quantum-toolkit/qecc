@@ -631,9 +631,6 @@ def simulate_recursive_cat_construction(
         remaining = np.ones(this_batch, dtype=bool)
         corrections = np.zeros((this_batch, w), dtype=np.uint8)  # frame on data qubits
 
-        for i in range(this_batch):
-            {q: anc_bits_all[i, c] for q, c in meas_index_of_qubit.items()}
-
         for ancillas, data_qubits in measurements:
             if len(ancillas) == 0:
                 # No checks: nothing to post-select; also no uniform flip here.
