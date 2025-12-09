@@ -44,6 +44,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
+[#524]: https://github.com/munich-quantum-toolkit/qecc/pull/524
 [#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
@@ -57,6 +58,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 [**@pehamtom**]: https://github.com/pehamtom
 [**@denialhaag**]: https://github.com/denialhaag
+[**@inctechs**]: https://github.com/inctechs
 
 <!-- General links -->
 
