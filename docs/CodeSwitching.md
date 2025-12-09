@@ -18,7 +18,7 @@ to the other.
 However, code switching is a costly operation in terms of space and time overhead. Therefore, given a quantum circuit, we want to find the **minimum number of switches** required to execute it.
 
 QECC has functionality to automatically determine the minimum number of switching operations required to perform a circuit using two complementary gate sets.
-We model this problem as a **Min-Cut / Max-Flow** problem on a directed graph. The graph is constructed such that:
+The problem can be modelled as a **Min-Cut / Max-Flow** problem on a directed graph. The graph is constructed such that:
 
 - **Source (SRC):** Represents the first code (e.g., 2D Color Code).
 - **Sink (SNK):** Represents the second code (e.g., 3D Color Code).
@@ -31,7 +31,7 @@ The minimum cut separating the Source from the Sink corresponds to the optimal s
 
 ## Basic Usage
 
-Let's look at how to use the `MinimalCodeSwitchingCompiler` to analyze a simple quantum circuit. We start by defining the gate sets supported by our two hypothetical codes.
+Let's look at how to use the `MinimalCodeSwitchingCompiler` to analyze a simple quantum circuit. Assume the two codes in question are the 2D and 3D color codes, which have transversal gate sets $\{H, CX\}$ and $\{T, CX\}$, respectively.
 
 ```{code-cell} ipython3
 from qiskit import QuantumCircuit
