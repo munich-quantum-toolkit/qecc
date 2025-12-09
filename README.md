@@ -38,6 +38,10 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 > Usage for _Lattice Surgery Compilation Beyond the Surface Code_ as well as _Exploiting Movable Logical Qubits for Lattice Surgery Compilation_ is described in [`docs/cococo.md`](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/docs/cococo.md) in the `cococo` branch.
 > The code quality in the branch is actively being improved.
 
+> [!NOTE]
+> Usage for _Minimizing the Number of Code Switching Operations in Fault-Tolerant Quantum Circuits_ is described in [`docs/CodeSwitching.md`](https://github.com/munich-quantum-toolkit/qecc/blob/code-switching-compiler/docs/CodeSwitching.md) in the `code-switching-compiler` branch.
+> This branch undergoes some final improvements before being merged into `main`.
+
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
 > QECC is now entirely a Python package.

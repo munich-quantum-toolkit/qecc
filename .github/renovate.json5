@@ -1,16 +1,22 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["config:recommended", ":gitSignOff", "helpers:pinGitHubActionDigestsToSemver"],
-  prHourlyLimit: 10,
+  extends: [
+    "config:recommended",
+    ":gitSignOff",
+    "helpers:pinGitHubActionDigestsToSemver",
+    ":automergeDigest",
+    ":automergeStableNonMajor",
+    ":combinePatchMinorReleases",
+    ":configMigration",
+    ":enablePreCommit",
+    ":prConcurrentLimitNone",
+    ":prHourlyLimitNone",
+  ],
   enabledManagers: ["cargo", "github-actions", "npm", "pep621", "pre-commit"],
-  "pre-commit": {
-    enabled: true
-  },
   lockFileMaintenance: {
     enabled: true,
     automerge: true
   },
-  configMigration: true,
   labels: ["dependencies"],
   schedule: ["every weekend"],
   packageRules: [
@@ -45,16 +51,11 @@
       commitMessagePrefix: "⬆\uFE0F\uD83D\uDD12\uFE0F",
     },
     {
-      description: "Automerge patch updates",
+      description: "Group and automerge all patch updates",
+      groupName: "patch updates",
+      groupSlug: "all-patch",
       matchUpdateTypes: ["patch"],
       automerge: true
     },
-    {
-      description: "Automerge minor updates for stable dependencies",
-      matchManagers: ["cargo", "npm", "pep621", "pre-commit"],
-      matchUpdateTypes: ["minor", "patch"],
-      matchCurrentVersion: "!/^0/",
-      automerge: true
-    }
   ]
 }
