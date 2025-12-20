@@ -170,8 +170,7 @@ def _compute_distances(hx: NDArray[np.int32], hz: NDArray[np.int32], codename: s
     code_dict["dX"] = int(code_dict["dX"])
     code_dict["dZ"] = int(code_dict["dZ"])
 
-    with Path(f"/codes/generated_codes/{codename}/code_params.txt").open("w", encoding="utf-8") as file:
-        file.write(json.dumps(code_dict))
+    Path(f"/codes/generated_codes/{codename}/code_params.txt").write_text(json.dumps(code_dict), encoding="utf-8")
 
 
 def _store_code_params(hx: csr_matrix, hz: csr_matrix, codename: str) -> None:
@@ -182,8 +181,7 @@ def _store_code_params(hx: csr_matrix, hz: csr_matrix, codename: str) -> None:
     code_k = n - rank(hx) - rank(hz)
     code_dict["n"] = n
     code_dict["k"] = code_k
-    with Path(f"/codes/generated_codes/{codename}/code_params.txt").open("w", encoding="utf-8") as file:
-        file.write(json.dumps(code_dict))
+    Path(f"/codes/generated_codes/{codename}/code_params.txt").write_text(json.dumps(code_dict), encoding="utf-8")
 
 
 def create_code(
