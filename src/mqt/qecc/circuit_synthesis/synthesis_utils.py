@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import ldpc.mod2.mod2_numpy as mod2
 import multiprocess
@@ -23,6 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     import numpy.typing as npt
+    from numpy.ma.core import MaskedArray
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
 
 
@@ -125,7 +126,7 @@ def heuristic_gaussian_elimination(
         m[used_columns, :] = True
         m[:, used_columns] = True
 
-        costs_unused = np.ma.array(costs, mask=m)  # type: ignore[no-untyped-call]
+        costs_unused = cast("MaskedArray", np.ma.array(costs, mask=m))  # type: ignore[no-untyped-call]
         if np.all(costs_unused >= 0) or len(used_columns) == matrix.shape[1]:  # no more reductions possible
             if used_columns == []:  # local minimum => get out by making matrix triangular
                 logger.warning("Local minimum reached. Making matrix triangular.")
