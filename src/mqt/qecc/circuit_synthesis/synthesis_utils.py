@@ -125,7 +125,7 @@ def heuristic_gaussian_elimination(
         m[used_columns, :] = True
         m[:, used_columns] = True
 
-        costs_unused = np.ma.array(costs, mask=m)  # type: ignore[no-untyped-call]
+        costs_unused = np.ma.array(costs, mask=m)  # type: ignore[no-untyped-call, unused-ignore]
         if np.all(costs_unused >= 0) or len(used_columns) == matrix.shape[1]:  # no more reductions possible
             if used_columns == []:  # local minimum => get out by making matrix triangular
                 logger.warning("Local minimum reached. Making matrix triangular.")
