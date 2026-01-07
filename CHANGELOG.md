@@ -23,6 +23,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Changed
 
+- Stop testing on x86 macOS systems ([#592]) ([**@denialhaag**])
 - Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
 - `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. ([#462]) ([**@pehamtom**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
@@ -45,6 +46,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
+[#592]: https://github.com/munich-quantum-toolkit/qecc/pull/592
 [#543]: https://github.com/munich-quantum-toolkit/qecc/pull/543
 [#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
