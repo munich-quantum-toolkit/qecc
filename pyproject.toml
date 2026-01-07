@@ -49,17 +49,17 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
   "qiskit[qasm3-import]>=1.0.0",
-  "numpy>=2.1; python_version >= '3.13'",
-  "numpy>=1.26; python_version >= '3.12'",
   "numpy>=1.24.1",
-  "numba>=0.61; python_version >= '3.13'",
-  "numba>=0.59; python_version >= '3.12'",
+  "numpy>=1.26; python_version >= '3.12'",
+  "numpy>=2.1; python_version >= '3.13'",
   "numba>=0.57",
+  "numba>=0.59; python_version >= '3.12'",
+  "numba>=0.61; python_version >= '3.13'",
   "scipy>=1.15.2",
   "z3-solver>=4.15.3",
-  "multiprocess >= 0.70.17",
+  "multiprocess>=0.70.17",
   "ldpc>=2.3.10",
-  "stim >= 1.14.0",
+  "stim>=1.14.0",
   "pymatching>=2.2.2",
   "bposd>=1.6",
   "qecsim>=1.0b9",
@@ -254,12 +254,13 @@ nd = "nd"
 [tool.repo-review]
 ignore = ["GH200"]
 
+
 [tool.uv]
 required-version = ">=0.5.20"
-reinstall-package = ["mqt.qecc"]
 
 [tool.uv.sources]
 mqt-qecc = { workspace = true }
+
 
 [tool.check-sdist]
 sdist-only = [
