@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 project = "QECC"
 author = "Chair for Design Automation, TUM"
 language = "en"
-project_copyright = "2023 - 2025, Chair for Design Automation, TUM"
+project_copyright = "2023 - 2026, Chair for Design Automation, TUM"
 
 master_doc = "index"
 
