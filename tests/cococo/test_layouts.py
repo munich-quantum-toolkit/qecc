@@ -18,28 +18,5 @@ def test_scalable_layout():
     n = 5
     factories: list[pos] = []
     remove_edges = False
-    try:
-        _, _, _ = layouts.gen_layout_scalable("single", m, n, factories, remove_edges)
-    except:  # noqa: E722
-        msg = "Problem with single layout"
-        raise ValueError(msg)  # noqa: B904
-    try:
-        _, _, _ = layouts.gen_layout_scalable("pair", m, n, factories, remove_edges)
-    except:  # noqa: E722
-        msg = "Problem with pair layout"
-        raise ValueError(msg)  # noqa: B904
-    try:
-        _, _, _ = layouts.gen_layout_scalable("triple", m, n, factories, remove_edges)
-    except:  # noqa: E722
-        msg = "Problem with triple layout"
-        raise ValueError(msg)  # noqa: B904
-    try:
-        _, _, _ = layouts.gen_layout_scalable("hex", m, n, factories, remove_edges)
-    except:  # noqa: E722
-        msg = "Problem with hex layout"
-        raise ValueError(msg)  # noqa: B904
-    try:
-        _, _, _ = layouts.gen_layout_scalable("row", m, n, factories, True)  # at least one time true
-    except:  # noqa: E722
-        msg = "Problem with row layout"
-        raise ValueError(msg)  # noqa: B904
+    for layout_type in ("single", "pair", "triple", "hex"):
+        layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)

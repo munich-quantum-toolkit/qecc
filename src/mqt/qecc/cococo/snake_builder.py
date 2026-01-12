@@ -71,6 +71,8 @@ class SnakeBuilderSC:
     def fill_snake(self) -> list[list[NodePos]]:
         """Finds the true interior nodes by marking exterior nodes from all four edges.
 
+        Requires that we have a closed region present.
+
         Returns:
             list[list[NodePos]]: Positions of ALL nodes in the snakes.
         """

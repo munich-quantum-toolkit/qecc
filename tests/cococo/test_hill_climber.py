@@ -280,8 +280,9 @@ def test_translate_layout_circuit():
 
     terminal_pairs_result = layouts.translate_layout_circuit(pairs, layout)
 
-    for el1, el2 in zip(terminal_pairs_desired, terminal_pairs_result, strict=False):
-        assert el1 == el2, "The translation from layout and circuit to terminal pairs has at least one problem."
+    assert terminal_pairs_result == terminal_pairs_desired, (
+        "The translation from layout and circuit to terminal pairs has at least one problem."
+    )
 
 
 def hillclimbing_run():

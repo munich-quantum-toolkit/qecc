@@ -181,7 +181,7 @@ def test_remainder_dag_helper():
         cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]", layout),
     )
 
-    assert layer0_layout == layer_0_trans, "Layer extraction or translation deos not work."
+    assert layer0_layout == layer_0_trans, "Layer extraction or translation does not work."
 
     terminal_pairs_remainder = [(0, 0)]
 

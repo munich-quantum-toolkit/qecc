@@ -110,6 +110,9 @@ def generate_max_parallel_circuit(
     Otherwise, the last layer might be a bit empty.
     """
     gates_counter = 0
+    if q < 2 or q % 2 != 0:
+        msg = "q must be an even integer larger than 2."
+        raise ValueError(msg)
     circuit: list[tuple[int, int] | int] = []
     labels = list(range(q))
     while gates_counter <= min_depth:
@@ -137,6 +140,14 @@ def generate_min_parallel_circuit(
     lst = []
     all_labels_used = set()  # Track which labels have been used
 
+    if q < 2 or q % 2 != 0:
+        msg = "q must be an even integer larger than 2."
+        raise ValueError(msg)
+    max_layer_size = q // 2
+    if not (1 <= layer_size <= max_layer_size):
+        msg = "layer_size must be larger than 1 and lower than q//2."
+        raise ValueError(msg)
+
     # first layer
     labels = list(range(q))
     random.shuffle(labels)
@@ -161,13 +172,12 @@ def generate_min_parallel_circuit(
 
         # fill up layer, avoid duplicates
         while len(temp) < layer_size:
-            random_tuple = random.choice(  # noqa: S311
-                [(labels_copy[i], labels_copy[i + 1]) for i in range(0, len(labels_copy), 2)]
-            )
-            # Check for duplicates in the layer
-            if all(
-                t[0] not in [tup[0] for tup in temp] and t[1] not in [tup[1] for tup in temp] for t in [random_tuple]
-            ):
+            pairs = [(labels_copy[i], labels_copy[i + 1]) for i in range(0, len(labels_copy) - 1, 2)]
+            if not pairs:
+                break
+            random_tuple = random.choice(pairs)  # noqa: S311
+            used = {v for p in temp for v in p}
+            if random_tuple[0] not in used and random_tuple[1] not in used:
                 temp.append(random_tuple)
                 labels_copy.remove(random_tuple[0])
                 labels_copy.remove(random_tuple[1])
@@ -189,7 +199,7 @@ def generate_random_circuit(
     """Random CNOT Pairs. Optional: random T gates.
 
     makes it deep enough that each qubit is used at least once
-    min_depth is the minimum number of cnots
+    min_depth is the minimum number of gates
     circuit = set of terminal pairs
     the labeling does not yet follow the labels of a networkx.Graph but only range(q).
 
@@ -205,11 +215,8 @@ def generate_random_circuit(
             Defaults to 0.5.
             ratio = num_cnots/(num_t + num_cnots)
 
-    Raises:
-        ValueError: _description_
-
     Returns:
-        list[tuple[int, int]]: _description_
+        list[tuple[int, int]]: random circuit of cnot gates and t gates.
     """
     if q < 2:
         msg = "q must be at least 2 to form pairs."
@@ -227,13 +234,13 @@ def generate_random_circuit(
     available_qubits = list(range(q))
     random.shuffle(available_qubits)
 
-    while len(cnot_pairs) <= num_cnot_gates:
+    while len(cnot_pairs) < num_cnot_gates:
         a, b = random.sample(range(q), 2)
         cnot_pairs.append((a, b))
         used_qubits.update([a, b])
 
-    if tgate is True:
-        while len(t_gates) <= num_t_gates:
+    if tgate:
+        while len(t_gates) < num_t_gates:
             a = random.randrange(q)  # noqa: S311
             t_gates.append(a)
             used_qubits.add(a)
@@ -263,9 +270,10 @@ def generate_random_circuit(
     num_c = len(list(cnot_pairs))
     num_t = len(list(t_gates))
     final_ratio = num_c / (num_c + num_t)
-    assert abs(ratio - final_ratio) < 0.07, (
-        "The final ratio deviates more than 0.05 from desired ratio= cnot/total gates"
-    )
+    if tgate:
+        assert abs(ratio - final_ratio) < 0.07, (
+            "The final ratio deviates more than 0.07 from desired ratio= cnot/total gates"
+        )
     random.shuffle(circuit)
 
     return circuit

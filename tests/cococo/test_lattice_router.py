@@ -51,9 +51,9 @@ def test_basicrouter():
         _vdp_layers, _ = router.find_total_vdp_layers_dyn(
             layers, data_qubit_locs, router.factory_times, layout, testing=True
         )
-    except:  # noqa: E722
+    except Exception as exc:
         msg = "Something is wrong with the BasicRouter."
-        raise ValueError(msg)  # noqa: B904
+        raise ValueError(msg) from exc
 
 
 def test_basicrouter_2():

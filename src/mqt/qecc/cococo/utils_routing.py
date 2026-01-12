@@ -29,24 +29,16 @@ from mqt.qecc.cococo import dag_helper
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    logger.addHandler(handler)
 logger.setLevel(logging.INFO)
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-logger.handlers = [handler]
 
 
 pos = tuple[int, int]
 steiner_type = dict[tuple[pos, pos, pos] | tuple[pos, pos], list[list[pos]]]
-# schedule_full_type = list[dict[str,
-#                                steiner_type |
-#                                dict[ str | pos | tuple[pos, pos], list[pos]]] |
-#                                dict[tuple[pos,pos] | tuple[pos,pos,pos], str]|
-#                                list[pos] |
-#                                dict[int, pos] |
-#                                list[tuple[int, list[list[tuple[pos,pos]|pos]]]] |
-#                                list[str]
-#                                ]
 lock_penalty = 200
 
 
@@ -297,17 +289,6 @@ class BasicRouter:
 
                 if flag_problem:
                     break  # type: ignore[unreachable]
-
-            # add case for flag problem to avoid infinite loop
-            # if only t gates in terminal_pairs_current and empty paths_temp_lst, because then we are stuck because of reset time of factories
-            all_t = []
-            for _ in terminal_pairs_current:
-                if isinstance(t_p[0], int) and isinstance(t_p[1], int):
-                    all_t.append(True)
-                else:
-                    all_t.append(False)
-            if all(all_t) and len(paths_temp_lst) == 0:
-                flag_problem = True
 
             if len(paths_temp_lst) != 0 and not flag_problem:
                 shortest_path = min(paths_temp_lst, key=len)
@@ -683,7 +664,7 @@ class TeleportationRouter(BasicRouter):
             layers_temp = layers[:k_lookahead]
             terminals = []
             for _layer in layers_temp:
-                terminals += layers
+                terminals += _layer
             qubits_k_lookahead = [t for outer in terminals for t in outer]
             # remove those from vdp_cit which are not used, such that no tree is created for them
             vdp_dict_reduced = {}
@@ -843,7 +824,7 @@ class TeleportationRouter(BasicRouter):
                         g_temp_temp, path2[0], new_terminal
                     )  # path2[0] is the connecting node on the path
                 except nx.NetworkXNoPath:
-                    warnings.warning("If this is called you need to check why this is happening.")
+                    warnings.warn("If this is called you need to check why this is happening.")  # noqa: B028
                 if path_terminal:
                     break
 
@@ -1001,6 +982,8 @@ class TeleportationRouter(BasicRouter):
             msg = "alpha must be between 0 and 1"  # pragma: no cover
             raise ValueError(msg)
 
+        self.logical_pos_temp = self.logical_pos.copy()  # type: ignore[assignment]
+
         steiner_dct = init_steiner_dct.copy()
         if self.metric == "crossing":
             cost = self.count_crossings(
@@ -1027,8 +1010,6 @@ class TeleportationRouter(BasicRouter):
         cost_history = [(cost, next_layers[:k_lookahead])]  # add initial cost to cost history
         steiner_history = []
         graph_history = []
-
-        self.logical_pos_temp = self.logical_pos.copy()  # type: ignore[assignment]
 
         T = T_start  # noqa: N806
         for _step in range(max_iters):

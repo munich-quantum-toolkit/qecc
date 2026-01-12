@@ -61,16 +61,16 @@ def plot_lattice(
 
 
 def plot_history(
-    hill_climber_obj: any,
     score_history: dict[int, HistoryTemp],
+    metric: str,
     filename: str = "./hc_history_plot.pdf",
     size: tuple[float, float] = (5, 5),
 ) -> None:
     """Plots the scores for each restart and iteration. from a hill climber run for initial mapping opt.
 
     Args:
-        hill_climber_obj (any): current hill climber object.
         score_history (dict): Score history from HillClimber.run
+        metric (str): used metric during the HillClimber.run
         filename (str, optional): Path to store the plot. Defaults to "./hc_history_plot.pdf".
         size (tuple[float,float], optional): Size of the plot. Defaults to (3.5,3.5).
     """
@@ -85,11 +85,8 @@ def plot_history(
             label=f"Restart {rep}",
         )
     plt.legend()
-    plt.ylabel(f"{hill_climber_obj.metric}")
+    plt.ylabel(f"{metric}")
     plt.xlabel("Hill Climbing Iteration")
-    plt.title(
-        f"$q=${hill_climber_obj.q}, Layout-Type = {hill_climber_obj.layout_type}, Num CNOTS = {len(hill_climber_obj.circuit)}"
-    )
     plt.savefig(filename)
 
 
@@ -103,19 +100,19 @@ def plot_lattice_paths(
         | None
     ),
     steiner_dct: dict | None = None,
-    layout: dict[tuple[int, int], int] | None = None,
+    layout: dict[int, tuple[int, int]] | None = None,
     factory_locs: list[tuple[int, int]] | None = None,
     size: tuple[float, float] = (3.5, 3.5),
 ) -> None:
     """Plots the graph and the corresponding VDP of a layer.
 
     Args:
-        g (nx.Graph): Graph on which we route
-        vdp_dict (dict): Output of router.find_total_vdp_layers
-        steiner_dct (dict): dct of trees.
-        layout (dict): potentially also display the qubit labels. keys = qubit label, value = node label
-        factory_locs (list[tuple[int,int]] | None): factory locations.
-        size (tuple[float,float], optional): _description_. Size of the plot. Defaults to (3.5,3.5).
+        g (nx.Graph): routing graph
+        vdp_dict (dict[ tuple[int, int]  |  tuple[tuple[int, int], tuple[int, int]], list[tuple[int, int]], ]  |  None): vdp dict of the current layer of the CNOT routing (no movements)
+        steiner_dct (dict | None): dct for the steiner trees. Defaults to None.
+        layout (dict[int, tuple[int, int]] | None, optional): qubit label to position mapping. Defaults to None.
+        factory_locs (list[tuple[int, int]] | None, optional): positions of factories. Defaults to None.
+        size (tuple[float, float], optional): plot size. Defaults to (3.5, 3.5).
     """
     if layout is None:
         layout = {}
@@ -126,7 +123,7 @@ def plot_lattice_paths(
     plt.figure(figsize=size)
     nx.draw(g, pos, with_labels=True, node_color="gray", edge_color="lightblue", font_size=8)
 
-    num_paths = len(vdp_dict.keys())
+    num_paths = len(vdp_dict.keys()) if vdp_dict is not None else 0
     num_trees = len(steiner_dct.keys()) if steiner_dct is not None else 0
     num = num_paths + num_trees
     colormap = plt.cm.get_cmap("rainbow", num)

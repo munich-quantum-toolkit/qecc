@@ -60,40 +60,35 @@ class HillClimbing:
         IMPORTANT: ALWAYS USE CUSTOM LAYOUTS TO MAKE SURE THAT THE CONNECTIVITY IS CORRECT AND REPRESENTS CC CORRECTLY
         (e.g. you have to remove edges between directly neighboring logical nodes, because a path between those would not allow to put a ancilla for LS)
 
+
         Args:
             max_restarts (int): Maximum number of random restarts.
             max_iterations (int): Maximum number of iterations per restart.
-            circuit (list[tuple[int,int]]): list of qubits to connect (terminal pairs aka cnots)
-            metric (str): "crossing", "routing"
-            possible_factory_positions (list[tuple[int,int]] | None): possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout)
-                ! important: these positions must already respect the "free_rows"!, only the data_qubt_locs are changed depending on free_rows.
-            num_factories (int | None): Number of factories to be used (subset of possible_factory_positions).
-            free_rows (list[str] | None): Adds one or more rows to lattice, either top or right (easier to implement than also adding bottom, left). Defaults to None.
-            t (int): waiting time for factories. Defaults to None
-            optimize_factories (int): decides whether factories are optimized or not. Defaults to false.
-            custom_layout (list[list[tuple[int,int]] | nx.Graph] | None): Defaults to None because custom layouts not assumed to be standard. The first list in the list should be
+            circuit (list[tuple[int, int]  |  int]): list of qubits to connect (terminal pairs aka cnots)
+            metric (str): `crossing` or `exact`
+            t (int): waiting time for factories.
+            custom_layout (list[list[tuple[int, int]]  |  nx.Graph]): The first list in the list should be
                 a `data_qubits_loc` of the node locations of data qubits and nx.Graph the corresponding graph (possibly differing from the standard networkx hex graph shape)
-                With custom_layout one can avoid using the `free_rows` related stuff.
-            t (int): reset time
             use_dag (bool): use dag for layer structure or not.
             valid_path (str): which type of valid path is used. actually one should only use "cc".
-
-        Raises:
-            ValueError: _description_
+            possible_factory_positions (list[tuple[int, int]] | None, optional): possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout). Defaults to None.
+            num_factories (int | None, optional): Number of factories to be used (subset of possible_factory_positions). Defaults to None.
+            optimize_factories (bool, optional): decides whether factories are optimized or not. Defaults to false.
         """
         # if circuit includes also single ints (i.e. T gates on qubit i), then ensure, that possible_factory_positions and num_factories are not None
         if any(type(el) is int for el in circuit):
-            assert possible_factory_positions is not None, (
-                "If T gates included in circuit, `possible_factory_positions` must NOT be None."
-            )
-            assert num_factories is not None, "If T gates included in circuit, `num_factories` must NOT be None."
-            assert t is not None, "If T gates included in circuit, `num_factories` must NOT be None."
-            if possible_factory_positions is not None:
-                assert len(possible_factory_positions) >= num_factories, (
-                    f"`possible_factory_positions` must have more or equal elements than `num_factories`. But {len(possible_factory_positions)} ? {num_factories}"
-                )
-        else:
-            assert optimize_factories is False, "If no T gates present, optimize_factories must be false."
+            if possible_factory_positions is None:
+                msg = "If T gates included in circuit, `possible_factory_positions` must NOT be None."
+                raise ValueError(msg)
+            if num_factories is None:
+                msg = "If T gates included in circuit, `num_factories` must NOT be None."
+                raise ValueError(msg)
+            if possible_factory_positions is not None and num_factories > len(possible_factory_positions):  # type: ignore[redundant-expr]
+                msg = f"`possible_factory_positions` must have more or equal elements than `num_factories`. But {len(possible_factory_positions)} ? {num_factories}"
+                raise ValueError(msg)
+        elif optimize_factories:
+            msg = "If no T gates present, optimize_factories must be false."
+            raise ValueError(msg)
         self.possible_factory_positions = possible_factory_positions
         self.num_factories = num_factories
         self.optimize_factories = optimize_factories
@@ -112,7 +107,9 @@ class HillClimbing:
         self.g = custom_layout[1]
 
         self.data_qubit_locs = data_qubit_locs
-        assert metric in {"crossing", "exact"}
+        if metric not in {"crossing", "exact"}:
+            msg = "metric must be either 'crossing' or  'exact'"
+            raise ValueError(msg)
         self.metric = metric
         self.circuit = circuit
         if any(type(el) is int for el in circuit):
@@ -140,8 +137,9 @@ class HillClimbing:
     def evaluate_solution(self, layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]]) -> int:
         """Evaluates the layout=solution according to self.metric."""
         terminal_pairs = translate_layout_circuit(self.circuit, layout)
-        # factory_positions: list[tuple[int, int]]
-        # if type(layout["factory_positions"]) is list[tuple[int,int]] or list:
+        if "factory_positions" not in layout:
+            msg = "you need the `factory_positions` in the layout passed here."
+            raise KeyError(msg)
         factory_positions_temp = layout["factory_positions"]
         if isinstance(factory_positions_temp, list):
             pass

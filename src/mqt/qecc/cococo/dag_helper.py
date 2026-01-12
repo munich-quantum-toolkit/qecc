@@ -74,8 +74,11 @@ def extract_layer_from_dag_agnostic(
     dag: qiskit._accelerate.circuit.DAGCircuit, layer: int
 ) -> list[tuple[int, int] | int]:
     """Extracts a layer from the dag without assuming a layout. i.e. returns tuple[int,int] and int."""
-    layers = dag.layers()
-    chosen = list(layers)[layer]["graph"]
+    layers = list(dag.layers())
+    if layer >= len(layers):
+        msg = f"layer {layer} is larger than the number of layers."
+        raise ValueError(msg)
+    chosen = layers[layer]["graph"]
     circuit = dag_to_circuit(chosen)
     terminal_pairs_trans: list[int | tuple[int, int]] = []
     for ci in circuit.data:
@@ -138,8 +141,6 @@ def push_remainder_into_layers_dag(
     """
     # remove layer 0
     first_layer = next(iter(dag.layers()))["graph"]
-    # print(extract_layer_from_dag(dag, layout, 0))
-    # print("current layer", current_layer)
     nodes_to_remove = list(first_layer.op_nodes())
     assert len(nodes_to_remove) == len(current_layer), (
         "mismatch between current_layer and the 0th layer extracted in helper"
@@ -147,17 +148,19 @@ def push_remainder_into_layers_dag(
     layers = list(dag.layers())
     layers.pop(0)
     new_dag = dag.copy_empty_like()
-    for layer in list(dag.layers())[1:]:
+    for layer in list(dag.layers())[
+        1:
+    ]:  # the [1:] appears redundant, but without it, the overall routing ends up in an endless loop.
         new_dag.compose(layer["graph"], inplace=True)
     dag = new_dag
     # translate terminal_pairs_remainder
     layout_rev: dict[pos, int] = {j: i for i, j in layout.items()}
     # translate and add to dag in front
     for pair in terminal_pairs_remainder:
-        if isinstance(pair[0], tuple):
+        if isinstance(pair[0], tuple):  # cnot
             gate = (layout_rev[pair[0]], layout_rev[pair[1]])
             dag.apply_operation_front(CXGate(), qargs=[dag.qubits[gate[0]], dag.qubits[gate[1]]], cargs=[])
-        elif isinstance(pair[0], int):
+        elif isinstance(pair[0], int):  # t gate
             gate2 = layout_rev[pair]
             dag.apply_operation_front(TGate(), qargs=[dag.qubits[gate2]], cargs=[])
         else:

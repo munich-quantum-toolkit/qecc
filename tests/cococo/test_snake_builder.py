@@ -201,9 +201,9 @@ def check_matchable(h: np.ndarray) -> None:
     for i in range(num_cols):
         col = h[:, i]
         num_nonzero = np.sum(col)
-        # print(num_nonzero)
         if num_nonzero > 2:
-            break
+            msg = f"Column {i} has {num_nonzero} non-zero entries (expected ≤ 2)."
+            raise AssertionError(msg)
 
 
 def translate_intstabs_to_str(plaquettes: list[list[int]], q: int, stab_type: str) -> list[str]:
@@ -299,10 +299,10 @@ def logicals(
 def test_snake_builder_sc():
     """Tests a surface code snake."""
     m, n = 20, 20
-    G = nx.grid_2d_graph(m, n)  # noqa: N806
+    g = nx.grid_2d_graph(m, n)
 
     # Define the position with the origin at the lower left
-    {(x, y): (x, y) for x, y in G.nodes()}  # Keep y as positive
+    {(x, y): (x, y) for x, y in g.nodes()}  # Keep y as positive
 
     d = 5
 
@@ -345,7 +345,7 @@ def test_snake_builder_sc():
         ],
     ]
 
-    snake = snake_builder.SnakeBuilderSC(G, positions_rough, positions_smooth, d)
+    snake = snake_builder.SnakeBuilderSC(g, positions_rough, positions_smooth, d)
     _, _ = snake.create_stabs()
     hx, hz, _trans_dict = snake.gen_checks()
 
