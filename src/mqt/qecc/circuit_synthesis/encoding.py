@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -79,7 +80,7 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy.typing as npt
 from ortools.sat.python import cp_model
@@ -541,7 +542,7 @@ def depth_optimal_encoding_circuit_non_css(
         correction_symplectic = ker[-1]
         zc = correction_symplectic[:n]
         xc = correction_symplectic[n:-1]
-        for i, (xv, zv) in enumerate(zip(xc, zc)):
+        for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
             if xv == 1 and zv == 1:
                 enc_circ.append("Y", [i])
             elif xv == 1:
@@ -1298,3 +1299,366 @@ def greedy_adapted_volanto(
     # and application order reverses.
     op_list_inv = list(reversed(op_list))
     return op_list_inv, Uc
+
+
+# ---------- helpers for the terminal form P (perm + 1Q) ----------
+
+# ---------- helpers for the terminal form P (perm + 1Q) ----------
+
+
+def _det_fij(P: np.ndarray) -> np.ndarray:
+    """R2(P) via det(F_ij)=1 over GF(2)."""
+    n = P.shape[0] // 2
+    A_xx = P[:n, :n]
+    A_xz = P[:n, n:]
+    A_zx = P[n:, :n]
+    A_zz = P[n:, n:]
+    return ((A_xx & A_zz) ^ (A_xz & A_zx)).astype(np.int8)
+
+
+def _get_perm_and_blocks(P: np.ndarray):
+    """For terminal P: R2(P) is permutation, so for each output qubit i there is exactly one input qubit j
+    with det(F_ij)=1. Store that j and the 2×2 block F_ij.
+    """
+    n = P.shape[0] // 2
+    R2 = _det_fij(P)
+    perm_out_to_in = np.full(n, -1, dtype=int)
+    blocks = [None] * n
+
+    for i in range(n):
+        js = np.flatnonzero(R2[i])
+        if len(js) != 1:
+            msg = "P not in terminal form (row of R2 not one-hot)."
+            raise ValueError(msg)
+        j = int(js[0])
+        perm_out_to_in[i] = j
+        blocks[i] = np.array(
+            [
+                [int(P[i, j]), int(P[i, j + n])],
+                [int(P[i + n, j]), int(P[i + n, j + n])],
+            ],
+            dtype=np.int8,
+        )
+
+    if len(set(perm_out_to_in.tolist())) != n:
+        msg = "P not in terminal form (R2 columns not one-hot)."
+        raise ValueError(msg)
+
+    return perm_out_to_in, blocks
+
+
+def _inverse_perm_out_to_in(perm_out_to_in: np.ndarray) -> np.ndarray:
+    """If perm_out_to_in[i]=j means 'output i comes from input j', then to realize it as a wire permutation
+    you need the inverse mapping input->output.
+    """
+    n = len(perm_out_to_in)
+    inv = np.empty(n, dtype=int)
+    for out_i, in_j in enumerate(perm_out_to_in):
+        inv[in_j] = out_i
+    return inv
+
+
+def _append_perm_as_swaps(c: stim.Circuit, perm_in_to_out: np.ndarray) -> None:
+    """Apply SWAPs to realize permutation on wire labels.
+    perm_in_to_out[q] = new_position_of_q.
+    """
+    perm = np.asarray(perm_in_to_out, dtype=int)
+    n = len(perm)
+    seen = np.zeros(n, dtype=bool)
+    for start in range(n):
+        if seen[start] or perm[start] == start:
+            continue
+        cycle = []
+        cur = start
+        while not seen[cur]:
+            seen[cur] = True
+            cycle.append(cur)
+            cur = perm[cur]
+        a0 = cycle[0]
+        for a in cycle[1:]:
+            c.append("SWAP", [a0, a])
+
+
+def _sqc_from_2x2_block_row_image(F: np.ndarray) -> list[str]:
+    """Map a 2×2 symplectic matrix to a short word over {H,S} UNDER ROW-IMAGE CONVENTION.
+
+    Gate actions (row-image):
+      H: X->Z, Z->X  => [[0,1],[1,0]]
+      S: X->XZ, Z->Z => [[1,1],[0,1]]
+
+    Composition for a word like "HS" means apply H then S, so matrix = H @ S?  NO:
+    For row-image matrices, circuit order multiplies on the RIGHT:
+      U_total = U_H * U_S  for "H then S".
+    We'll generate all 6 candidates by that rule.
+    """
+    F = (F % 2).astype(np.int8)
+
+    I = np.array([[1, 0], [0, 1]], dtype=np.int8)
+    H = np.array([[0, 1], [1, 0]], dtype=np.int8)
+    S = np.array([[1, 1], [0, 1]], dtype=np.int8)
+
+    def mul(A, B):
+        return ((A @ B) % 2).astype(np.int8)
+
+    # Build matrices by RIGHT-multiplying in circuit order
+    # "HS" = H then S => I * H * S
+    mats = {
+        "I": I,
+        "H": H,
+        "S": S,
+        "HS": mul(H, S),
+        "SH": mul(S, H),
+        "HSH": mul(mul(H, S), H),
+    }
+
+    for name, M in mats.items():
+        if np.array_equal(F, M):
+            return [] if name == "I" else list(name)
+    msg = f"Unknown 2×2 block under row-image convention:\n{F}"
+    raise ValueError(msg)
+
+
+def _append_1q_word(c: stim.Circuit, word: list[str], q: int) -> None:
+    for g in word:
+        if g == "H":
+            c.append("H", [q])
+        elif g == "S":
+            c.append("S", [q])
+        else:
+            raise ValueError(g)
+
+
+def _get_perm_in_to_out_and_blocks(P: np.ndarray):
+    """For terminal P: for each INPUT qubit i (row i), find the unique OUTPUT qubit j
+    where det(F_ij)=1. That gives perm_in_to_out[i]=j and the 2×2 block F_ij.
+    """
+    P = P.astype(np.int8)
+    n = P.shape[0] // 2
+    R2 = _det_fij(P)
+
+    perm_in_to_out = np.full(n, -1, dtype=int)
+    block_for_input = [None] * n  # 2×2 per input i
+
+    for i in range(n):
+        js = np.flatnonzero(R2[i])
+        if len(js) != 1:
+            msg = "P not in terminal form (R2 row not one-hot)."
+            raise ValueError(msg)
+        j = int(js[0])
+        perm_in_to_out[i] = j
+
+        block_for_input[i] = np.array(
+            [
+                [int(P[i, j]), int(P[i, j + n])],
+                [int(P[i + n, j]), int(P[i + n, j + n])],
+            ],
+            dtype=np.int8,
+        )
+
+    if len(set(perm_in_to_out.tolist())) != n:
+        msg = "P not in terminal form (R2 columns not one-hot)."
+        raise ValueError(msg)
+
+    return perm_in_to_out, block_for_input
+
+
+def _invert_perm_in_to_out(perm_in_to_out: np.ndarray) -> np.ndarray:
+    """inv[out] = in such that perm_in_to_out[in] = out."""
+    n = len(perm_in_to_out)
+    inv = np.empty(n, dtype=int)
+    for i, j in enumerate(perm_in_to_out):
+        inv[int(j)] = i
+    return inv
+
+
+def P_to_stim_prefix(P: np.ndarray) -> stim.Circuit:
+    """Correct terminal P synthesis (Stim/row-image consistent):
+
+    1) SWAP network realizing perm_in_to_out (input i goes to output perm[i])
+    2) apply 1Q Clifford on each OUTPUT wire j using the block coming from its source input i = inv_perm[j]
+    """
+    P = P.astype(np.int8)
+    n = P.shape[0] // 2
+
+    perm_in_to_out, block_for_input = _get_perm_in_to_out_and_blocks(P)
+    inv = _invert_perm_in_to_out(perm_in_to_out)
+
+    circ = stim.Circuit()
+
+    # 1) Permute wires: input i -> output perm[i]
+    _append_perm_as_swaps(circ, perm_in_to_out)
+
+    # 2) Apply 1Q cliffords on OUTPUT wires.
+    # Output wire j originated from input i = inv[j].
+    for j in range(n):
+        i = int(inv[j])
+        word = _sqc_from_2x2_block_row_image(block_for_input[i])
+        _append_1q_word(circ, word, j)
+
+    return circ
+
+
+# ---------- helpers for transvections √(P_i P_j) ----------
+
+_PAULI_FROM_XZ = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
+
+
+def _c_for_pauli(p: str) -> list[str]:
+    """Local Clifford C(P) such that C(P) Z C(P)† = P."""
+    if p == "Z":
+        return []
+    if p == "X":
+        return ["H"]
+    if p == "Y":
+        return ["S", "H"]  # (S·H) Z (S·H)† = Y
+    raise ValueError(p)
+
+
+def _c_dag_for_pauli(p: str) -> list[str]:
+    """Inverse of C(P)."""
+    if p == "Z":
+        return []
+    if p == "X":
+        return ["H"]
+    if p == "Y":
+        return ["H", "S_DAG"]  # ["S_DAG", "H"]
+    raise ValueError(p)
+
+
+def _append_transvection_as_hs_cz(
+    c: stim.Circuit,
+    v_bits: tuple[int, int, int, int],
+    ij: tuple[int, int],
+) -> None:
+    i, j = ij
+    xi, xj, zi, zj = v_bits
+    Pi = _PAULI_FROM_XZ[xi, zi]
+    Pj = _PAULI_FROM_XZ[xj, zj]
+    if Pi == "I" or Pj == "I":
+        msg = f"Expected non-trivial Pauli on both qubits, got {Pi},{Pj}"
+        raise ValueError(msg)
+
+    # Basis change: map Pi,Pj to Z on each qubit
+    for g in _c_for_pauli(Pi):
+        c.append(g, [i])
+    for g in _c_for_pauli(Pj):
+        c.append(g, [j])
+
+    # Core: √(Z_i Z_j) == CZ(i,j) then S on i and j (up to global phase)
+    c.append("CZ", [i, j])
+    c.append("S", [i])
+    c.append("S", [j])
+
+    # Undo basis change
+    for g in _c_dag_for_pauli(Pj):
+        c.append(g, [j])
+    for g in _c_dag_for_pauli(Pi):
+        c.append(g, [i])
+
+
+# ---------- main conversion ----------
+
+
+def greedy_result_to_stim(ops_inv, P: np.ndarray) -> stim.Circuit:
+    circ = stim.Circuit()
+
+    circ += P_to_stim_prefix(P)
+
+    # Apply transvections in forward order to reconstruct U
+    for v_bits, (i, j) in reversed(ops_inv):
+        _append_transvection_as_hs_cz(circ, tuple(int(b) for b in v_bits), (int(i), int(j)))
+
+    return circ
+
+
+def stim_circuit_to_symplectic(circuit: stim.Circuit) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Convert a stim circuit into:
+      - U: 2n×2n symplectic matrix in row-image convention, dtype int8
+      - x_signs: bool vector length n (signs of X_i images)
+      - z_signs: bool vector length n (signs of Z_i images)
+    using stim.Tableau.to_numpy().
+    """
+    tab = circuit.to_tableau()
+    x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
+
+    U = np.block([
+        [x2x.astype(np.int8), x2z.astype(np.int8)],
+        [z2x.astype(np.int8), z2z.astype(np.int8)],
+    ]).astype(np.int8)
+
+    return U, x_signs.astype(bool), z_signs.astype(bool)
+
+
+def _fix_tableau_signs_in_place(out: stim.Circuit, target_x: np.ndarray, target_z: np.ndarray) -> None:
+    """Append Pauli corrections so that out.to_tableau() matches desired signs.
+
+    Rule:
+      - If X_i image has wrong sign, append Z on i (anticommutes with X_i).
+      - If Z_i image has wrong sign, append X on i (anticommutes with Z_i).
+
+    This works because Pauli gates are Cliffords and only affect signs.
+    """
+    got = out.to_tableau()
+    _, _, _, _, got_x, got_z = got.to_numpy(bit_packed=False)
+
+    got_x = got_x.astype(bool)
+    got_z = got_z.astype(bool)
+
+    n = len(got)
+    for q in range(n):
+        if got_x[q] != bool(target_x[q]):
+            out.append("Z", [q])
+        if got_z[q] != bool(target_z[q]):
+            out.append("X", [q])
+
+
+# ---------------------------------------------------------------------
+# Main: optimize by resynthesis
+# ---------------------------------------------------------------------
+
+
+def optimize_stim_clifford_with_volanto(
+    circuit: stim.Circuit,
+    *,
+    params: GreedyParams = GreedyParams(max_wait=50),
+    choose_op: ChooseOpFn | None = None,
+    use_all_pairs: bool = False,
+    sign_fix: bool = True,
+) -> stim.Circuit:
+    """Takes a stim circuit, converts it to a tableau/symplectic matrix, resynthesizes it
+    using the (greedy) adapted Volanto synthesis in this file, and returns a new stim circuit.
+
+    - Uses your existing greedy_adapted_volanto(U, ...)
+    - Converts back with greedy_result_to_stim(ops_inv, P)
+    - Optionally fixes tableau signs so the result exactly matches the original tableau.
+    """
+    U, x_signs, z_signs = stim_circuit_to_symplectic(circuit)
+
+    ops_inv, P = greedy_adapted_volanto(
+        U,
+        params=params,
+        choose_op=choose_op,
+        use_all_pairs=use_all_pairs,
+    )
+
+    assert_prefix_matches_P(P)
+
+    out = greedy_result_to_stim(ops_inv, P)
+
+    if sign_fix:
+        _fix_tableau_signs_in_place(out, x_signs, z_signs)
+
+    return out
+
+
+def stim_tableau_to_U(tab: stim.Tableau) -> np.ndarray:
+    x2x, x2z, z2x, z2z, *_ = tab.to_numpy(bit_packed=False)
+    return np.block([[x2x, x2z], [z2x, z2z]]).astype(np.int8)
+
+
+def assert_prefix_matches_P(P: np.ndarray) -> None:
+    pref = P_to_stim_prefix(P)
+    U_pref = stim_tableau_to_U(pref.to_tableau())
+    if not np.array_equal(U_pref, P.astype(np.int8)):
+        msg = "P_to_stim_prefix(P) does not implement P (symplectic mismatch)."
+        raise AssertionError(msg)
