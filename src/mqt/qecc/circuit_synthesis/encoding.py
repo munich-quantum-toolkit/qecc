@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import operator
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,8 +27,6 @@ from .synthesis_utils import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy.typing as npt
-
     from ..codes import CSSCode
     from ..codes.css_code import CSSCode
 
@@ -57,7 +54,6 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
 
     checks, cnots = heuristic_gaussian_elimination(np.vstack((checks, logicals)), **kwargs)
 
-
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
 
     encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]
@@ -84,9 +80,9 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
     return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
 
 
-z3.set_param("sat.cardinality.solver", True)
-z3.set_param("sat.threads", 4)  # if you want some parallelism
+from typing import Callable
 
+import numpy.typing as npt
 from ortools.sat.python import cp_model
 
 
@@ -837,7 +833,7 @@ def reduce_checks_by_row_ops(
 
     The arrays are modified in place.
     """
-    r, n = checks.shape
+    r, _n = checks.shape
     # logicals can be empty (shape (0, n)), that's fine
 
     def total_ones() -> int:
@@ -846,7 +842,7 @@ def reduce_checks_by_row_ops(
     improved = True
     while improved:
         improved = False
-        current_total = total_ones()
+        total_ones()
 
         best_op: tuple[int, int] | None = None
         best_delta = 0  # positive = global reduction
@@ -882,7 +878,6 @@ def reduce_checks_by_row_ops(
             i, j = best_op
             checks[j] = (checks[j] + checks[i]) % 2
             improved = True
-
 
 
 def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
@@ -974,3 +969,337 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
             circ.insert(0, stim.CircuitInstruction("X", [row]))
     uninitialized = list(set(range(nq)) - set(initialized))
     return circ, uninitialized
+
+
+# def synthesize_clifford(tableau: StabilizerTableau) -> stim.Circuit:
+#     """Synthesize a Clifford circuit from the given stabilizer tableau.
+
+#     Tableau must contain both stabilizers and destabilizers, i.e. be of size (2n x 2n), ignoring phases.
+#     We use the approach from https://arxiv.org/abs/2503.14660
+
+#     Args:
+#         tableau: The stabilizer tableau to synthesize the Clifford circuit from.
+#     """
+#     if tableau.n * 2 != tableau.tableau.matrix.shape[0]:
+#         msg = "Tableau must contain both stabilizers and destabilizers."
+#         raise ValueError(msg)
+
+#     n = tableau.n
+#     mat = tableau.tableau.matrix.copy()
+
+#     circ = stim.Circuit()
+#     pivot_options = list(range(n))
+#     P = mat
+#     for i in range(n):
+#         R = [pivot for pivot in pivot_options if submatrix_rank(P, i, pivot) == 2]
+#         if len(R)%2==0:
+#             msg = "Cannot synthesize Clifford: even number of full-rank options."
+#             raise ValueError(msg)
+#         # remove smallest pivot from options
+#         pivot = min(R)
+#         pivot_options.remove(pivot)
+#         for a in range(len(R)//2):
+#             j = R[2*a]
+#             k = R[2*a+1]
+#             op =
+
+
+# def submatrix_rank(P: npt.NDArray[np.int8], row: int, col: int) -> int:
+#     """Return the rank of the 2x2 submatrix at (row, col) in the stabilizer tableau P."""
+#     n = P.shape[1] // 2
+#     submatrix = np.array(
+#         [
+#             [P[row, col], P[row, col + n]],
+#             [P[row + n, col], P[row + n, col + n]],
+#         ],
+#         dtype=int,
+#     )
+#     return mod2.rank(submatrix)
+
+# from __future__ import annotations
+
+# from dataclasses import dataclass
+# from typing import Callable, Iterable, Optional
+
+# import numpy as np
+# import numpy.typing as npt
+
+
+# ---------------------------------------------------------------------
+# Types
+# ---------------------------------------------------------------------
+TV2 = tuple[int, int, int, int]  # (x_i, x_j, z_i, z_j) in {0,1}^4, non-trivial on both qubits
+Op = tuple[TV2, tuple[int, int]]  # (v_bits, (i, j))
+
+
+# ---------------------------------------------------------------------
+# Basic symplectic helpers
+# ---------------------------------------------------------------------
+def sym_shape(U: npt.NDArray[np.int8]) -> int:
+    """Return n for a 2n×2n symplectic matrix U."""
+    m, n2 = U.shape
+    if m != n2 or m % 2 != 0:
+        msg = f"Expected square 2n×2n matrix, got {U.shape}."
+        raise ValueError(msg)
+    return m // 2
+
+
+def bin2set(row: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
+    """Indices of 1s in a 0/1 row."""
+    return np.flatnonzero(row)
+
+
+def r2_matrix(U: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+    """R2(U)[i,j] = 1 iff det(F_ij)=1 over GF(2), i.e. rank(F_ij)=2 (invertible).
+    This matches Eq. (12) via determinant test. :contentReference[oaicite:5]{index=5}.
+    """
+    n = sym_shape(U)
+    # det(F_ij) = A_xx[i,j]*A_zz[i,j] XOR A_xz[i,j]*A_zx[i,j]
+    A_xx = U[:n, :n]
+    A_xz = U[:n, n:]
+    A_zx = U[n:, :n]
+    A_zz = U[n:, n:]
+    det = (A_xx & A_zz) ^ (A_xz & A_zx)
+    return det.astype(np.int8)
+
+
+def r0_matrix(U: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+    """R0(U)[i,j]=1 iff F_ij is all-zero (rank 0)."""
+    n = sym_shape(U)
+    A_xx = U[:n, :n]
+    A_xz = U[:n, n:]
+    A_zx = U[n:, :n]
+    A_zz = U[n:, n:]
+    zero = (A_xx == 0) & (A_xz == 0) & (A_zx == 0) & (A_zz == 0)
+    return zero.astype(np.int8)
+
+
+def r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+    """R1 = 1 iff rank(F_ij)=1.
+    Since rank ∈ {0,1,2}, we can do: R1 = NOT(R2 OR R0).
+    This matches Eq. (11) / discussion. :contentReference[oaicite:6]{index=6}.
+    """
+    return (1 ^ (R2 | R0)).astype(np.int8)
+
+
+def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
+    R2 = r2_matrix(U)
+    R0 = r0_matrix(U)
+    R1 = r1_matrix_from_r2_r0(R2, R0)
+    return R1, R2
+
+
+# ---------------------------------------------------------------------
+# Two-qubit transvections (support on exactly qubits i and j)
+# ---------------------------------------------------------------------
+def all_two_qubit_transvections() -> list[TV2]:
+    """The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial) correspond to
+    choosing (x,z) in {(1,0),(0,1),(1,1)} for each of the two qubits. :contentReference[oaicite:7]{index=7}.
+    """
+    nontrivial = [(1, 0), (0, 1), (1, 1)]  # X, Z, Y in (x,z)
+    out: list[TV2] = []
+    for xi, zi in nontrivial:
+        for xj, zj in nontrivial:
+            out.append((xi, xj, zi, zj))
+    return out
+
+
+def apply_tv2(U: npt.NDArray[np.int8], v: TV2, ij: tuple[int, int]) -> npt.NDArray[np.int8]:
+    """Right-multiply U by the 2-qubit transvection corresponding to v on qubits (i,j),
+    using the fast update U -> U + (U Ω v^T) v (GF(2)). :contentReference[oaicite:8]{index=8}
+    This is the same fast method as the reference implementation's applyTv2. :contentReference[oaicite:9]{index=9}.
+    """
+    n = sym_shape(U)
+    i, j = ij
+
+    # Indices of v support in the 2n columns: [x_i, x_j, z_i, z_j]
+    cols_v = [i, j, i + n, j + n]
+    # Indices of Ω v^T support: Ω swaps X<->Z blocks, so [z_i, z_j, x_i, x_j]
+    cols_ov = [i + n, j + n, i, j]
+
+    v_bits = np.array(v, dtype=np.int8)
+    nz = np.flatnonzero(v_bits)  # which of the 4 components are 1
+
+    # Compute C = U * Ω v^T  (a length-2n column vector over GF(2))
+    C = np.zeros((2 * n,), dtype=np.int8)
+    for k in nz:
+        C ^= U[:, cols_ov[k]]
+
+    # Update the columns where v has 1s: col ^= C
+    out = U.copy()
+    for k in nz:
+        out[:, cols_v[k]] ^= C
+    return out
+
+
+# ---------------------------------------------------------------------
+# Gate option generation (symplectic case)
+# ---------------------------------------------------------------------
+def sp_gate_options(U: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
+    """Return a reduced set of candidate pairs (i,j) to consider, based on R2/R1 structure.
+    The paper's greedy considers all pairs (i,j), but using structure often speeds things up.
+    This mirrors the reference's SpOptions pattern.
+
+    If you want *exactly* "all pairs", replace the body with:
+        return [(i,j) for i in range(n) for j in range(i+1,n)]
+    """
+    n = sym_shape(U)
+    R1, R2 = r1_r2(U)
+    pairs: set[tuple[int, int]] = set()
+
+    for row in range(n):
+        r2_cols = bin2set(R2[row])
+        r1_cols = bin2set(R1[row])
+
+        # pair up columns that both have rank-2 blocks in the same row
+        for a in range(len(r2_cols) - 1):
+            for b in range(a + 1, len(r2_cols)):
+                i, j = int(r2_cols[a]), int(r2_cols[b])
+                if i != j:
+                    pairs.add((min(i, j), max(i, j)))
+
+        # pair a rank-2 with a rank-1 in the same row
+        for i0 in r2_cols:
+            for j0 in r1_cols:
+                i, j = int(i0), int(j0)
+                if i != j:
+                    pairs.add((min(i, j), max(i, j)))
+
+    return sorted(pairs)
+
+
+# ---------------------------------------------------------------------
+# Heuristic (Eq. 13)
+# ---------------------------------------------------------------------
+@dataclass(frozen=True)
+class GreedyParams:
+    max_wait: int = 10
+    use_transpose_terms: bool = True
+    # Weighting trick noted under Eq. (13): downweight R1 by /n; implemented as integer n*c2 + c1. :contentReference[oaicite:11]{index=11}
+    use_integer_weighting: bool = True
+
+
+def default_sp_heuristic(U: npt.NDArray[np.int8], params: GreedyParams) -> tuple[tuple[int, ...], int]:
+    """Return (h_vector, h_scalar_like) for lexicographic minimization.
+
+    h_vector matches Eq. (13) up to the integer-weighting trick mentioned in text:
+        sorted(colSums(R2 + R1/n), colSums(R2^T + R1^T/n)) :contentReference[oaicite:12]{index=12}
+
+    We avoid fractions by using key = n*colSum(R2) + colSum(R1).
+    """
+    n = sym_shape(U)
+    R1, R2 = r1_r2(U)
+
+    c1 = R1.sum(axis=0).astype(int)
+    c2 = R2.sum(axis=0).astype(int)
+
+    if params.use_transpose_terms:
+        c1t = R1.sum(axis=1).astype(int)  # colSums(R1^T) = rowSums(R1)
+        c2t = R2.sum(axis=1).astype(int)
+        if params.use_integer_weighting:
+            vec = np.concatenate([n * c2 + c1, n * c2t + c1t])
+        else:
+            # fallback: approximate real weighting
+            vec = np.concatenate([c2 + c1 / n, c2t + c1t / n])
+    else:
+        vec = n * c2 + c1 if params.use_integer_weighting else (c2 + c1 / n)
+
+    h_vec = tuple(sorted(int(x) for x in vec))
+    # A simple scalar for termination / monitoring; zero iff already in target form in practice.
+    # (You can replace this with a stronger check if you want.)
+    h_scalar = int(R1.sum() + R2.sum())
+    return h_vec, h_scalar
+
+
+def is_terminal_form(U: npt.NDArray[np.int8]) -> bool:
+    """Terminal condition from Chapter 3.3:
+    R2(U) is a permutation matrix and R1(U) is all-zero. :contentReference[oaicite:13]{index=13}.
+    """
+    sym_shape(U)
+    R1, R2 = r1_r2(U)
+    if np.any(R1):
+        return False
+    # permutation matrix: each row/col has exactly one 1
+    if not np.all(R2.sum(axis=0) == 1):
+        return False
+    return np.all(R2.sum(axis=1) == 1)
+
+
+# ---------------------------------------------------------------------
+# Main greedy loop (Algorithm 5 specialized to symplectic transvections)
+# ---------------------------------------------------------------------
+ChooseOpFn = Callable[
+    [npt.NDArray[np.int8], list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]]],
+    tuple[Op, npt.NDArray[np.int8]],
+]
+
+
+def greedy_adapted_volanto(
+    U: npt.NDArray[np.int8],
+    params: GreedyParams = GreedyParams(),
+    *,
+    choose_op: ChooseOpFn | None = None,
+    use_all_pairs: bool = False,
+) -> tuple[list[Op], npt.NDArray[np.int8]]:
+    """Greedy adapted Volanto synthesis:
+      input: 2n×2n symplectic matrix U
+      output: (op_list, P) where P is in 'perm + 1Q Clifford' form and
+              applying op_list (in reverse/inverse sense) reconstructs U.
+
+    This follows Algorithm 5 (greedy loop) and Chapter 3.3's goal state.
+    """
+    Uc = U.astype(np.int8).copy()
+    n = sym_shape(Uc)
+
+    transvections = all_two_qubit_transvections()
+    op_list: list[Op] = []
+
+    # initial heuristic
+    h_last_vec, _ = default_sp_heuristic(Uc, params)
+    h_min_vec = h_last_vec
+    curr_wait = 0
+
+    while not is_terminal_form(Uc):
+        # Candidate (i,j) pairs
+        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)] if use_all_pairs else sp_gate_options(Uc)
+
+        # Evaluate all candidates
+        scored: list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]] = []
+        for i, j in pairs:
+            for v in transvections:
+                op: Op = (v, (i, j))
+                B = apply_tv2(Uc, v, (i, j))
+                h_vec, h_s = default_sp_heuristic(B, params)
+                scored.append((op, (h_vec, h_s), B))
+
+        if not scored:
+            msg = "No gate options generated; cannot proceed."
+            raise RuntimeError(msg)
+
+        # Default choice: minimize h_vec lexicographically (Eq. 13).
+        if choose_op is None:
+            op_best, (h_best_vec, _), B_best = min(scored, key=lambda t: t[1][0])
+        else:
+            op_best, B_best = choose_op(Uc, scored)
+            h_best_vec, _ = default_sp_heuristic(B_best, params)
+
+        # Apply the chosen operation
+        op_list.append(op_best)
+        Uc = B_best
+        h_last_vec = h_best_vec
+
+        # max-wait early exit as in Algorithm 5 :contentReference[oaicite:15]{index=15}
+        if h_last_vec < h_min_vec:
+            h_min_vec = h_last_vec
+            curr_wait = 0
+        else:
+            curr_wait += 1
+            if params.max_wait > 0 and curr_wait > params.max_wait:
+                msg = "Greedy synthesis appears stuck (max_wait exceeded)."
+                raise RuntimeError(msg)
+
+    # Algorithm 5 returns inverse(opList), P. :contentReference[oaicite:16]{index=16}
+    # Here: our ops are involutions (transvections are self-inverse up to phase),
+    # and application order reverses.
+    op_list_inv = list(reversed(op_list))
+    return op_list_inv, Uc
