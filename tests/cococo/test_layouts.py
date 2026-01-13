@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -19,4 +19,8 @@ def test_scalable_layout():
     factories: list[pos] = []
     remove_edges = False
     for layout_type in ("single", "pair", "triple", "hex"):
-        layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
+        try:
+            layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
+        except Exception as e:  # noqa: PERF203
+            msg = f"Problem with {layout_type} scalable layouts."
+            raise ValueError(msg) from e

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -183,7 +183,12 @@ class HillClimbing:
                 layout=clean_layout,
                 testing=False,  # testing does not work with adapted layouts
             )
-            cost = len(cast("list[dict[pos | tuple[pos, pos], list[pos]]]", vdp_layers))
+            if vdp_layers is None:
+                msg = (
+                    "Infeasible circuit + layout configuration. Maybe reconsider your factory locations/layout/circuit."
+                )
+                raise ValueError(msg)
+            cost = len(vdp_layers)
         return cost
 
     def gen_random_qubit_assignment(
@@ -236,7 +241,7 @@ class HillClimbing:
 
         return neighborhood
 
-    def _parallel_hill_climbing(
+    def _single_hill_climbing(
         self, restart: int
     ) -> tuple[int, dict[int | str, tuple[int, int] | list[tuple[int, int]]], int, HistoryTemp]:
         """Helper method for parallel execution of hill climbing restarts.
@@ -316,7 +321,7 @@ class HillClimbing:
             with multiprocessing.Pool(processes=processes) as pool:
                 results = list(
                     tqdm(
-                        pool.imap(self._parallel_hill_climbing, range(self.max_restarts)),
+                        pool.imap(self._single_hill_climbing, range(self.max_restarts)),
                         total=self.max_restarts,
                         desc="Hill Climbing Restarts...",
                     )
@@ -332,36 +337,7 @@ class HillClimbing:
 
         else:  # sequential
             for restart in tqdm(range(self.max_restarts), desc="Hill Climbing Restarts..."):
-                base_seed = 45  # You can change this to any fixed value
-                seed = base_seed + restart
-                random.seed(seed)
-
-                current_solution = self.gen_random_qubit_assignment()
-                current_score = self.evaluate_solution(current_solution)
-                history_temp: HistoryTemp = {
-                    "scores": [],
-                    "layout_init": current_solution.copy(),
-                }
-                for _ in range(self.max_iterations):
-                    neighbors = self.gen_neighborhood(current_solution)
-                    if not neighbors:
-                        break  # No neighbors, end this restart
-
-                    # Find the best neighbor
-                    neighbor_scores = [(neighbor, self.evaluate_solution(neighbor)) for neighbor in neighbors]
-                    best_neighbor, best_neighbor_score = min(
-                        neighbor_scores, key=operator.itemgetter(1)
-                    )  # Change to min for minimization
-
-                    # If no improvement, stop searching in this path
-                    if best_neighbor_score >= current_score:
-                        break
-
-                    # Update current solution
-                    current_solution, current_score = best_neighbor, best_neighbor_score
-                    history_temp["scores"].append(current_score)
-
-                history_temp.update({"layout_final": current_solution.copy()})
+                _, current_solution, current_score, history_temp = self._single_hill_climbing(restart)
                 score_history.update({restart: history_temp})
                 with Path(path).open("wb") as pickle_file:
                     pickle.dump(score_history, pickle_file)

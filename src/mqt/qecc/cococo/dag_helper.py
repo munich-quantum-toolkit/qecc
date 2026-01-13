@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -16,13 +16,16 @@ from qiskit.circuit.library import CXGate, TGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 
 if TYPE_CHECKING:
-    import qiskit
+    from qiskit.dagcircuit import DAGCircuit
 
 pos = tuple[int, int]
 
 
-def count_cx_gates_per_layer(dag: qiskit._accelerate.circuit.DAGCircuit) -> list[int]:
-    """Count CX gates per DAG layer."""
+def count_cx_gates_per_layer(dag: DAGCircuit) -> list[int]:
+    """Count CX gates per DAG layer.
+
+    If a layer has no CX layers, it is skipped.
+    """
     layer_counts = []
     for layer in dag.layers():
         graph = layer["graph"]
@@ -32,7 +35,7 @@ def count_cx_gates_per_layer(dag: qiskit._accelerate.circuit.DAGCircuit) -> list
     return layer_counts
 
 
-def pairs_into_dag_agnostic(pairs: list[tuple[int, int] | int], q: int) -> qiskit._accelerate.circuit.DAGCircuit:
+def pairs_into_dag_agnostic(pairs: list[tuple[int, int] | int], q: int) -> DAGCircuit:
     """Assumes tuples of int, and int values (i.e. agnostic of layout)."""
     circ = QuantumCircuit(q)
     for pair in pairs:
@@ -40,21 +43,30 @@ def pairs_into_dag_agnostic(pairs: list[tuple[int, int] | int], q: int) -> qiski
             circ.t(pair)
         elif isinstance(pair, tuple):
             circ.cx(pair[0], pair[1])
+        else:
+            msg = f"Expected int or tuple[int,int] got {pair!r} ({type(pair).__name__})"  # type: ignore[unreachable]
+            raise TypeError(msg)
     # dag
     return circuit_to_dag(circ)
 
 
-def terminal_pairs_into_dag(
-    terminal_pairs: list[tuple[pos, pos] | pos], layout: dict[int, pos]
-) -> qiskit._accelerate.circuit.DAGCircuit:
-    """Given (a subset of) terminal pairs used in LookaheadQuilting translate it back to integer qubit labels using layout and transform it into its dag."""
+def terminal_pairs_into_dag(terminal_pairs: list[tuple[pos, pos] | pos], layout: dict[int, pos]) -> DAGCircuit:
+    """Given (a subset of) terminal pairs used in TeleportationRouter translate it back to integer qubit labels using layout and transform it into its dag.
+
+    Args:
+        terminal_pairs (list[tuple[pos, pos]  |  pos]): A list of gates in terms where quibt labels are their positions (type pos) on the grid. 'pos' is a T gate and 'tuple[pos,pos]' a CNOT gate.
+        layout (dict[int, pos]): keys are integer logical qubit labels and values are the `pos` values on the respective logical qubit on the grid.
+
+    Returns:
+        DAGCircuit: DAG of the circuit.
+    """
     # translate into integers
     layout_rev: dict[pos, int] = {j: i for i, j in layout.items()}
     terminal_pairs_trans: list[int | tuple[int, int]] = []
     for pair in terminal_pairs:
-        if isinstance(pair[0], int):
+        if isinstance(pair[0], int):  # t gate
             terminal_pairs_trans.append(layout_rev[pair])
-        elif isinstance(pair[0], tuple):
+        elif isinstance(pair[0], tuple):  # cnot gate
             terminal_pairs_trans.append((layout_rev[pair[0]], layout_rev[pair[1]]))
         else:
             msg = "other gate types not implemented yet"  # type: ignore[unreachable]
@@ -70,9 +82,7 @@ def terminal_pairs_into_dag(
     return circuit_to_dag(circ)
 
 
-def extract_layer_from_dag_agnostic(
-    dag: qiskit._accelerate.circuit.DAGCircuit, layer: int
-) -> list[tuple[int, int] | int]:
+def extract_layer_from_dag_agnostic(dag: DAGCircuit, layer: int) -> list[tuple[int, int] | int]:
     """Extracts a layer from the dag without assuming a layout. i.e. returns tuple[int,int] and int."""
     layers = list(dag.layers())
     if layer >= len(layers):
@@ -95,9 +105,7 @@ def extract_layer_from_dag_agnostic(
     return terminal_pairs_trans
 
 
-def extract_layer_from_dag(
-    dag: qiskit._accelerate.circuit.DAGCircuit, layout: dict[int, pos], layer: int
-) -> list[tuple[pos, pos] | pos]:
+def extract_layer_from_dag(dag: DAGCircuit, layout: dict[int, pos], layer: int) -> list[tuple[pos, pos] | pos]:
     """Extracts a layer from the dag and translates it into a terminal pairs list depending on the given layout."""
     layers = dag.layers()
     chosen = list(layers)[layer]["graph"]
@@ -130,11 +138,11 @@ def extract_layer_from_dag(
 
 
 def push_remainder_into_layers_dag(
-    dag: qiskit._accelerate.circuit.DAGCircuit,
+    dag: DAGCircuit,
     terminal_pairs_remainder: list[tuple[pos, pos] | pos],
     layout: dict[int, pos],
     current_layer: list[tuple[pos, pos] | pos],
-) -> tuple[list[list[tuple[pos, pos] | pos]], qiskit._accelerate.circuit.DAGCircuit]:
+) -> tuple[list[list[tuple[pos, pos] | pos]], DAGCircuit]:
     """This step could be avoided in principle but i do not want to change the structure of utils too much.
 
     Take the dag, remove the very first layer and add terminal pairs remainder as operationis in front.

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -90,9 +90,9 @@ def test_basicrouter_2():
         _vdp_layers, _ = router.find_total_vdp_layers_dyn(
             layers, data_qubit_locs, router.factory_times, layout, testing=True
         )
-    except:  # noqa: E722
+    except Exception as e:
         msg = "Something is wrong with the BasicRouter."
-        raise ValueError(msg)  # noqa: B904
+        raise ValueError(msg) from e
 
 
 def test_basicrouter_3_sc_validpath():
@@ -128,9 +128,9 @@ def test_basicrouter_3_sc_validpath():
         _vdp_layers, _ = router.find_total_vdp_layers_dyn(
             layers, data_qubit_locs, router.factory_times, layout, testing=True
         )
-    except:  # noqa: E722
+    except Exception as e:
         msg = "Something is wrong with the BasicRouter."
-        raise ValueError(msg)  # noqa: B904
+        raise ValueError(msg) from e
 
 
 def test_teleportationrouter():
@@ -193,9 +193,9 @@ def test_teleportationrouter():
             reduce_init_steiner=False,
             stimtest=True,
         )
-    except:  # noqa: E722
+    except Exception as e:
         msg = "Something is wrong with the TeleportationRouter class."
-        raise ValueError(msg)  # noqa: B904
+        raise ValueError(msg) from e
 
     # also run with reduce_init_steiner=True and other steiner init type --> increase coverage
     router = utils.TeleportationRouter(
@@ -218,9 +218,9 @@ def test_teleportationrouter():
             reduce_init_steiner=True,
             stimtest=True,
         )
-    except:  # noqa: E722
+    except Exception as e:
         msg = "Something is wrong with the TeleportationRouter class (on path_random, reduce init steiner true)."
-        raise ValueError(msg)  # noqa: B904
+        raise ValueError(msg) from e
 
 
 def test_count_crossings():

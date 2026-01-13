@@ -167,7 +167,9 @@ class SnakeBuilderSC:
 
         nodes = self.boundary_nodes + self.inner_nodes  # all nodes
         # add qubits on each horizontal/vertical edge which is contained in the snake
-        for edge in itertools.combinations(nodes, 2):
+        for edge in itertools.combinations(
+            nodes, 2
+        ):  # Note: this can get expensive for large lattices. If larger lattices needed, avoid quadratic blowup by going through the edges and then looking for the vertical/horizontal edge.
             neighborhood_bool = self.neighbors_ver_hor(edge[0], edge[1])
             if neighborhood_bool:
                 qubit_edges.append(edge)
@@ -199,7 +201,6 @@ class SnakeBuilderSC:
         # if star is placed on rough boundary, it must be removed
         stars_new = []
         for star in stars:
-            {tup for pair in star for tup in pair}  # flatten edges such that nodes can be compared
             lst_on_rough = []
             for rough_b in self.positions_rough:  # through both rough boundaries
                 # check whether the central node of the star is on the rough boundary
@@ -220,6 +221,15 @@ class SnakeBuilderSC:
 
     def gen_plaquettes(self) -> list[list[tuple[NodePos, NodePos]]]:
         """Generates Plaquette Operators.
+
+        The algorithm works as follows:
+        1. Collects all lattice nodes, including boundary and inner nodes.
+        2. Extends the node set slightly to ensure all possible plaquettes are considered
+        even at the lattice edges.
+        3. Scans through nodes, treating each as the potential upper-left corner of a square plaquette.
+        4. Identifies all edges within each square that correspond to actual qubits in the code.
+        5. Discards trivial plaquettes (single-qubit) and those that violate boundary constraints
+        6. Collects the remaining edges into plaquette operators.
 
         Returns:
             list[list[tuple[NodePos, NodePos]]]: A List of Plaquette Operators. Each Plaquette Operator is a list of tuple[NodePos, NodePos] since qubits are placed on edges.
@@ -359,6 +369,7 @@ class SnakeBuilderSC:
         """Plots plaquettes and star operators as well as the snake itself.
 
         opz and opx are the logical operators retrieved via mqt.qecc.CSSCode which are already translated as edges on the graph.
+        This only works if gen_checks was called before.
 
         Args:
             opz (list[tuple[NodePos, NodePos]] | None, optional): Logical Operator Z_L as list of qubit positions. Each qubit position is an edge on the graph. Defaults to None.
@@ -513,9 +524,9 @@ class SnakeBuilderSTDW:
         t = (d - 1) / 2
         q = int(3 * t**2 + 3 * t + 1)
         for i, triangle in enumerate(self.positions):
-            assert len(triangle) == q, (
-                f"Your set of vertices for triangle {i} does not fit the expected number of qubits for distance d={d}."
-            )
+            if len(triangle) != q:
+                msg = f"Your set of vertices for triangle {i} does not fit the expected number of qubits for distance d={d}."
+                raise ValueError(msg)
         p = int((q - 1) / 2)
         self.q = q
         self.p = p
@@ -547,12 +558,12 @@ class SnakeBuilderSTDW:
             elif len(outside_neighbors) == 3:
                 msg = f"There is an isolated qubit in your input triangle {n_triangle}."
                 raise ValueError(msg)
-        assert len(lst_corner) == 3, (
-            f"Something weird happened. lst_corner has {len(lst_corner)} elements instead of 3."
-        )
-        assert len(lst_boundary) == (self.d - 2) * 3, (
-            f"Something weird happened. lst_boundary has {len(lst_boundary)} elements instead of {(self.d - 2) * 3}."
-        )
+        if len(lst_corner) != 3:
+            msg = f"Something weird happened. lst_corner has {len(lst_corner)} elements instead of 3."
+            raise ValueError(msg)
+        if len(lst_boundary) != (self.d - 2) * 3:
+            msg = f"Something weird happened. lst_boundary has {len(lst_boundary)} elements instead of {(self.d - 2) * 3}."
+            raise ValueError(msg)
 
         return [lst_corner, lst_boundary]
 
@@ -598,6 +609,8 @@ class SnakeBuilderSTDW:
 
     def hex_plaquettes(self) -> list[list[NodePos]]:
         """Find all hexagonal plaquettes on original g.
+
+        This can become expensive if lattices are too large since calling simple_cycles can become expensive then.
 
         Returns:
             list[list[NodePos]]: all possible hexagonal plaquettes as vertices on g.
@@ -902,7 +915,7 @@ class SnakeBuilderSTDW:
     # helper functions for fill_triangle
     @staticmethod
     def _get_single_nodes(subset_stabs: list[list[NodePos]]) -> list[NodePos]:
-        """Flatten a list of stabilizers."""
+        """Flatten a list of stabilizers and remove duplicates."""
         flattened_nodes = [item for sublist in subset_stabs for item in sublist]
         counts = Counter(flattened_nodes)
         return [key for key, value in counts.items() if value == 1]
@@ -912,7 +925,7 @@ class SnakeBuilderSTDW:
         return [
             pair
             for pair in itertools.combinations(single_nodes_in_plaq, 2)
-            if pair in self.g.edges() and (pair[1], pair[0]) in self.g.edges()
+            if self.g.has_edge(*pair)  # if pair in self.g.edges() and (pair[1], pair[0]) in self.g.edges()
         ]
 
     @staticmethod
@@ -982,9 +995,9 @@ class SnakeBuilderSTDW:
                 count % 2 != 0 and node not in left_logical and node not in right_logical
             ):  # exclude the logical patches' boundaries, because they should of course not vanish as they constitute the ZL ZL
                 # check whether part of interface ancillas, b.c. we only can do corrections there
-                assert node in interface_ancillas_flat, (
-                    "There is a correction to be done which you cannot do with the current stabilizer construction..."
-                )
+                if node not in interface_ancillas_flat:
+                    msg = "There is a correction to be done which you cannot do with the current stabilizer construction..."
+                    raise RuntimeError(msg)
                 # find stdw ancilla neighbor
                 neighbors: list[NodePos] = self.g.neighbors(node)
                 pair = None
@@ -1072,7 +1085,9 @@ class SnakeBuilderSteane:
         self.positions = positions
         self.n = len(positions)
         for tile in self.positions:
-            assert sorted(tile.values()) == list(range(7)), "Your 0-6 labeling of each Steane Tile is wrong!"
+            if sorted(tile.values()) != list(range(7)):
+                msg = "Your 0-6 labeling of each Steane Tile is wrong!"
+                raise ValueError(msg)
 
         # determine global labeling for all vertices in the n-snake
         all_pos = []
@@ -1208,6 +1223,7 @@ class SnakeBuilderSteane:
         for i in range(1, len(self.positions) - 1):
             current_patch = self.positions[i]
             next_patch = self.positions[i + 1]
+            temp_occupied_i1 = None
             for el in compatible_x_stabs:
                 # find the present stab which includes el["i"]
                 stab = self.find_matching_dict(x_stabilizers, el["i"], i)
@@ -1225,6 +1241,9 @@ class SnakeBuilderSteane:
                         x_stabilizers.append(x_stab_new)
                         break
             # add remaining weight 4 stabilizers on i+1
+            if temp_occupied_i1 is None:
+                msg = "temp_occupied_i1 was not initialized, but it has to be at this point. Check your inputs."
+                raise ValueError(msg)
             remainder = [
                 element for element in standard_steane_plaquettes if sorted(element) != sorted(temp_occupied_i1)
             ]
@@ -1376,7 +1395,10 @@ class SnakeBuilderSteane:
         return None
 
     def translate_checks(self) -> tuple[list[list[int]], list[list[int]]]:
-        """Translates the x/z_stabilizers into check matrices."""
+        """Translates the x/z_stabilizers into check matrices.
+
+        Returns the check_z and checks_x.
+        """
         # translate stabilizers in lists of global labels
         x_stabs_temp: list[list[int]] = []
         z_stabs_temp: list[list[int]] = []

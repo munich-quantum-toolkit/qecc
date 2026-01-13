@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -90,8 +90,6 @@ class BasicRouter:
     @staticmethod
     def path_sc(g: nx.Graph, control: pos, target: pos) -> list[pos]:
         """Find the shortest path with Dijkstra but with constraints for standard sc.
-
-        #TODO Extract this method out of the LookaheadQuilting Class
 
         This means, that control qubits are only entered horizontally, targets vertically.
         thus horizontal bdrys are Z_L and vertical X_L.
@@ -636,7 +634,7 @@ class TeleportationRouter(BasicRouter):
             factory_pos (list[pos]): Positions of the factories. Also from mqt.cococo.layouts
             valid_path (str): Either "cc" or "sc" for color code and surface code. However, revisit usefulness of "sc".
             t (int): Reset time for the factories
-            metric (str): Either "exact" or "crossing", but it is recommended to use "exact"
+            metric (str): Either "exact" or "crossing", but it is recommended to use "exact". Using "crossing" is not safe (as it is not tested and not fully implemented.)
             use_dag (bool, optional): Determines whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
             seed (int): Seed for the randomized parts in the optimization.
         """
@@ -663,8 +661,8 @@ class TeleportationRouter(BasicRouter):
         if layers is not None and k_lookahead is not None:
             layers_temp = layers[:k_lookahead]
             terminals = []
-            for _layer in layers_temp:
-                terminals += _layer
+            for layer in layers_temp:
+                terminals += layer
             qubits_k_lookahead = [t for outer in terminals for t in outer]
             # remove those from vdp_cit which are not used, such that no tree is created for them
             vdp_dict_reduced = {}

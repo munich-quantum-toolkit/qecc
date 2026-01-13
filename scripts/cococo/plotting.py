@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -74,6 +74,10 @@ def plot_history(
         filename (str, optional): Path to store the plot. Defaults to "./hc_history_plot.pdf".
         size (tuple[float,float], optional): Size of the plot. Defaults to (3.5,3.5).
     """
+    if len(score_history) == 0:
+        msg = "to plot the score_history it should not be empty."
+        raise ValueError(msg)
+
     plt.figure(figsize=size)
     for rep, history in score_history.items():
         scores = history["scores"]

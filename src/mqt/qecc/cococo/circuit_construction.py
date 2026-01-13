@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -10,21 +10,15 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING
 
 from qiskit import QuantumRegister
 from qiskit.circuit.library import CXGate
 from qiskit.dagcircuit import DAGCircuit
 
-if TYPE_CHECKING:
-    import qiskit
-
 random.seed(45)
 
 
-def create_random_sequential_circuit_dag(
-    j: int, q: int, num_gates: int
-) -> tuple[qiskit._accelerate.circuit.DAGCircuit, list[tuple[int, int]]]:
+def create_random_sequential_circuit_dag(j: int, q: int, num_gates: int) -> tuple[DAGCircuit, list[tuple[int, int]]]:
     """Creates a sequential circuit with j gates per layer on q qubits with at least num_gates in total.
 
     takes layers from perspective of DAG into account
@@ -38,7 +32,7 @@ def create_random_sequential_circuit_dag(
 
     num_layers = (num_gates + j - 1) // j
 
-    if q < j // 2:
+    if q // 2 < j:
         msg = "j is too large, cannot fit that many disjoint gates in a layer with q qubits"
         raise ValueError(msg)
 
@@ -229,10 +223,6 @@ def generate_random_circuit(
     cnot_pairs: list[tuple[int, int]] = []
     t_gates: list[int] = []
     used_qubits = set()
-
-    # Ensure each qubit is used at least once
-    available_qubits = list(range(q))
-    random.shuffle(available_qubits)
 
     while len(cnot_pairs) < num_cnot_gates:
         a, b = random.sample(range(q), 2)

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -10,12 +10,10 @@
 from __future__ import annotations
 
 import itertools
-import random
 from typing import cast
 
 import networkx as nx
 
-random.seed(45)
 pos = tuple[int, int]
 
 
@@ -25,11 +23,10 @@ def translate_layout_circuit(
 ) -> list[tuple[tuple[int, int], tuple[int, int]] | tuple[int, int]]:
     """Translates a `pairs` circuit (with int labels) into the lattice's labels for a given layout.
 
-    However, pairs does not only include tuple[int,int] but can include int as well for T gates. Then, layout will also include
-    a list of factory positions in the key="factory_positions". but this will be ignored for this
+    However, pairs does not only include tuple[int,int] but can include int as well for T gates.
+    Layout will also include a list of factory positions in the key="factory_positions". For this key, there can be the list[tuple[int,int]].
+    This key is never called here, so we do not need a case for the value being a list. One should note that the type annotation is not fully unambiguous here.
     """
-    # return [(layout[pair[0]], layout[pair[1]]) for pair in pairs]
-    # terminal_pairs = [(layout[pair[0]], layout[pair[1]]) if isinstance(pair, tuple) else layout[pair] for pair in pairs]
     terminal_pairs: list[tuple[tuple[int, int], tuple[int, int]] | tuple[int, int]] = []
     for pair in pairs:
         if isinstance(pair, tuple):
@@ -74,38 +71,44 @@ def gen_layout_scalable(
 
     Be aware that the number of data qubits depens on m,n and the unit of the lattice type!
 
-    smallest unit for pair layout:
-    x--x--x
-    |  |  |
-    o--o--x--x
-             |
-             x
-    x = ancilla, o = data
+    smallest unit for pair layout::
 
-    smallest unit for row layout:
-    x
-    |
-    o
+        x--x--x
+        |  |  |
+        o--o--x--x
+                |
+                x
+        x = ancilla, o = data
+
+    smallest unit for row layout::
+
+        x
+        |
+        o
+
     but the edge is not necessary here
 
-    smallest unit for hex layout:
-       o--o--o
-       |     |
-    x--o--o--o--x
-    |     |     |
-    x--x--x--x--x
-       |
-       x
+    smallest unit for hex layout::
 
-    smallest unit for triple layout:
-    o--o--o--x--x--o--o--o--x--x
-    |     |     |     |     |
-    x--x--x--x--x--x--x--x--x--x
+        o--o--o
+        |     |
+        x--o--o--o--x
+        |     |     |
+        x--x--x--x--x
+        |
+        x
 
-    smallest unit for single layout:
-    x--x--o--x
-    |     |
-    x--x--x--x
+    smallest unit for triple layout::
+
+        o--o--o--x--x--o--o--o--x--x
+        |     |     |     |     |
+        x--x--x--x--x--x--x--x--x--x
+
+    smallest unit for single layout::
+
+        x--x--o--x
+        |     |
+        x--x--x--x
 
     ATTENTION: It's the user's responsibility to place factories in a reasonable way on the factory_ring!
     """
@@ -155,13 +158,23 @@ def gen_layout_scalable(
         return corridor_nodes
 
     def hex_cycles_from_position(node: pos) -> list[list[pos]]:
+        """This method finds hex cycles around some node.
+
+        Note that this function calls minimum_cycle_basis and is repeatedly used in e.g. `add_factory_ring` or `add_outer_corridor_diag`.
+        This can become expensive for huge lattices, but has not been a runtime issue so far. Rewrite this, if it becomes too slow.
+        """
         x, y = node
         gtemp = nx.Graph()
         for dx, dy in itertools.product(range(-2, 3), range(-1, 2)):
             gtemp.add_node((x + dx, y + dy))
         gtemp.add_node(node)
         add_hex_edges(gtemp)
-        return cast("list[list[pos]]", nx.minimum_cycle_basis(gtemp, 6))
+        hex_cycles = cast("list[list[pos]]", nx.minimum_cycle_basis(gtemp))
+        for cycle in hex_cycles:
+            if len(cycle) != 6:
+                msg = f"Unexpected cycle length {len(cycle)} at node {node}: {cycle}. Maybe your input graph is not hexagonal?"
+                raise ValueError(msg)
+        return hex_cycles
 
     def add_outer_corridor_diag(g: nx.Graph, data_qubit_locs: list[pos]) -> list[pos]:
         """For hex layout there is not standard rectangular layout. instead you need diagonal boundaries of the layout."""
@@ -295,7 +308,7 @@ def gen_layout_scalable(
             neighbours: list[tuple[int, int]] = list(g.neighbors(data_qubit))
             for neigh in neighbours:
                 if neigh in data_qubit_locs:  # if a neighbor is also a logical qubit
-                    g.remove_edges_from([(data_qubit, neigh), (neigh, data_qubit)])
+                    g.remove_edge(data_qubit, neigh)
 
     nx.set_node_attributes(g, {n: n for n in g.nodes()}, "pos")
     return g, data_qubit_locs, factory_ring

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -7,12 +7,14 @@
 
 """Type definitions."""
 
-from typing import Any, TypedDict
+from typing import TypedDict
+
+pos = tuple[int, int]
 
 
 class HistoryTemp(TypedDict, total=False):
     """Type for history dictionaries."""
 
     scores: list[int]
-    layout_init: dict[int | str, Any]  # tuple[int, int] | list[tuple[int, int]]]
-    layout_final: dict[int | str, Any]  # tuple[int, int] | list[tuple[int, int]]]
+    layout_init: dict[int | str, pos | list[pos]]
+    layout_final: dict[int | str, pos | list[pos]]

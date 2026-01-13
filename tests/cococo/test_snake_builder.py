@@ -226,7 +226,9 @@ def translate_intstabs_to_str(plaquettes: list[list[int]], q: int, stab_type: st
     return stabs_str
 
 
-def encoding_circuit(snake: snake_builder.SnakeBuilderSC, opx: list[pos], opz: list[pos]) -> stim.Circuit:
+def encoding_circuit(
+    snake: snake_builder.SnakeBuilderSC, opx: list[pos], opz: list[pos]
+) -> tuple[stim.Circuit, stim.Circuit]:
     """Checks whether an encoding circuit of a state defined by tableau can be built. just as sanity check."""
     stars_int = [[snake.trans_dict[el] for el in op] for op in snake.stars]
 
