@@ -85,7 +85,7 @@ depths_std_log = [np.std(lst) for lst in depths_log]
 print("depths_mean_log", depths_mean_log)
 
 
-labels = [f"({g},\n {d})" for g, d in zip(gates_list, depths_list, strict=False)]
+labels = [f"({gates},\n {d})" for gates, d in zip(gates_list, depths_list, strict=False)]
 
 
 # mean and std of standard approach, choose best results among sigma runs
@@ -95,8 +95,8 @@ depths_std_opt = []
 for i, results in enumerate(results_list_opt):
     print(f"-----log. depth {i}------")
     depths_n = []  # the n results from which we take the mean
-    for j, run in enumerate(results):
-        print(f"------run number {j}-------")
+    for n_j, run in enumerate(results):
+        print(f"------run number {n_j}-------")
         lengths = [len(schedule) for schedule in run]
         print("depths of sigma opt runs:", lengths)
         min_depth = min(lengths)
@@ -218,7 +218,11 @@ improvements_std = []
 for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log, strict=False):
     temp = []
     for el_opt, el_st, c in zip(lst_opt, lst_st, c_list, strict=False):
-        temp.append((el_opt - c) / (el_st - c))
+        denominator = el_st - c
+        if denominator != 0:
+            temp.append((el_opt - c) / denominator)
+        else:
+            temp.append(np.nan)  # or handle as appropriate
         print("el opt", el_opt)
         print("el st", el_st)
         print("c", c)

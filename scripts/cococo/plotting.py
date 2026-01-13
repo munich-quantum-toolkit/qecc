@@ -172,15 +172,15 @@ def plot_lattice_paths(
                 color="white",
                 horizontalalignment="center",
             )
-            # also highlight data qubits
-            nx.draw_networkx_nodes(
-                g,
-                pos,
-                nodelist=layout.values(),  # Nodes to highlight
-                node_color="none",  # Unfilled circles
-                edgecolors="lime",  # Neon green outline
-                linewidths=1.5,  # Line width for the outline
-            )
+        # also highlight data qubits
+        nx.draw_networkx_nodes(
+            g,
+            pos,
+            nodelist=layout.values(),  # Nodes to highlight
+            node_color="none",  # Unfilled circles
+            edgecolors="lime",  # Neon green outline
+            linewidths=1.5,  # Line width for the outline
+        )
 
     plt.legend()
     plt.show()
@@ -189,7 +189,7 @@ def plot_lattice_paths(
 def plot_schedule(
     g: nx.Graph, schedule: list[dict[str, Any]], factory_pos: list[tuple[int, int]], size: tuple[int, int] = (5, 5)
 ) -> None:
-    """Plots the layers of a whole schedule from TeleportationRouter."""
+    """Plots the layers of a whole schedule from TeleportationRouter. Repeated plots if used in a jupyter nb."""
     for i, step in enumerate(schedule):
         print(f"Step {i + 1}: Move Type - {step['move_type']}, Idle Move - {step['idle_move_label']}")
         print("vdp dict", step["vdp_dict"].keys())

@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Creates results for circuits with 24 qubits. Run this from the src/mqt/qecc/co3/plots directory."""
+"""Creates results for circuits with 24 qubits. Run this from the scripts/cococo/evaluations_beyond_the_surface_code directory."""
 
 from __future__ import annotations
 

@@ -50,7 +50,7 @@ Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evalua
 In (1), we consider two microscopic substrates, both leading to a hexagonal routing graph.
 First, the class [SnakeBuilderSTDW](mqt.qecc.cococo.snake_builder.SnakeBuilderSTDW) builds stabilizers and subsets of stabilizers to perform logical measurements for the color code connected by semi transparent domain walls (STDW).
 The class [SnakeBuilderSC](mqt.qecc.cococo.snake_builder.SnakeBuilderSC) builds the surface code snakes required to perform lattice surgery between logical folded surface codes. However, this can only display snakes where you can easily embed the snake in 2d.
-A notebook with example constructions can be found in [/scripts/co3/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/snake_examples.ipynb).
+A notebook with example constructions can be found in [/scripts/cococo/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/snake_examples.ipynb).
 
 ## Compilation with Movable Logical Qubits (2)
 

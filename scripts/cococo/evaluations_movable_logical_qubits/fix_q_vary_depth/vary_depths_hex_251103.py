@@ -133,8 +133,8 @@ for num_gates in gates_list:
         # opt
         schedule_list_opt_temp = []
         history_temp = []
-        for j in range(sigma):
-            print(f"-----sigma run ={j}-----")
+        for n_j in range(sigma):
+            print(f"-----sigma run ={n_j}-----")
             quilt = utils.TeleportationRouter(
                 g,
                 data_qubit_locs,
@@ -143,7 +143,7 @@ for num_gates in gates_list:
                 t,
                 metric,
                 use_dag=use_dag,
-                seed=j,
+                seed=n_j,
             )
             schedule, history = quilt.optimize_layers(
                 temp_circuit,

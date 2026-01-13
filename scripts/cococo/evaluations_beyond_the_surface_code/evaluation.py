@@ -65,10 +65,6 @@ def collect_data_space_time(
     }
     for instance in instances:
         assert set(instance.keys()) == instances_set, "Wrong input for `instances`."
-    # if no "circuit type" given, choose standard
-    for instance in instances:
-        if "circuit_type" not in set(instance.keys()):
-            instance.update({"circuit_type": "random"})
     hc_par_set = {
         "max_restarts",
         "max_iterations",
@@ -185,17 +181,12 @@ def collect_data_space_time(
         time2 = []
 
         # extract variables from instances
-        instance["q"]
         t = instance["t"]
-        instance["min_depth"]
-        instance["tgate"]
-        instance["ratio"]
         custom_layout = instance["custom_layout"]
         g = custom_layout[1]
         space = len(list(g.nodes()))
         data_qubit_locs = custom_layout[0]
         factory_locs = instance["factory_locs"]
-        instance["layout_name"]
 
         init_layout_lst = []
         final_layout_lst = []
@@ -444,7 +435,6 @@ def plot_improvement_circuit_types(
     unique_q = {entry["q"] for entry in dct_mat}
     unique_circuit_types = {entry["circuit_type"] for entry in dct_mat}
     unique_layout_names = {entry["layout_name"] for entry in dct_mat}
-    {entry["min_depth"] for entry in dct_mat}
 
     # define order of circuit_types
     circuit_types_ordered = ["sequential", "random", "parallelmax"]
@@ -474,9 +464,6 @@ def plot_improvement_circuit_types(
                     lst_std_abslayers.append(el["std_final_layers"])
         dct_plot.update({key: [lst_improvement, lst_std]})
         dct_plot_abs.update({key: [lst_abslayers, lst_std_abslayers]})
-
-    for _, _ in dct_plot.items():
-        pass
 
     colors = plt.cm.rainbow(np.linspace(0, 1, 7))
     # Define marker and color for each layout type
