@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -12,8 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
-from ldpc import mod2
 
 from .pauli import StabilizerTableau
 from .stabilizer_code import StabilizerCode
@@ -268,10 +268,10 @@ class CSSCode(StabilizerCode):
                 msg = f"Invalid stabilizer: {stab}"
                 raise InvalidCSSCodeError(msg)
         # convert to numpy arrays
-        x_stabs = np.array(x_stabs, dtype=np.int8)
-        z_stabs = np.array(z_stabs, dtype=np.int8)
+        x_stabs_array = np.array(x_stabs, dtype=np.int8)
+        z_stabs_array = np.array(z_stabs, dtype=np.int8)
         # check if the code is valid
-        return CSSCode(x_stabs, z_stabs)
+        return CSSCode(x_stabs_array, z_stabs_array)
 
     def _normalize_logicals(self) -> None:
         """Normalize the logical operators.

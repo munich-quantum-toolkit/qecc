@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -520,7 +520,7 @@ def test_filter_faults_weight_threshold():
 
     # Define a predicate to filter faults with weight >= 2
     def weight_at_least_2(fault: np.ndarray) -> bool:
-        return np.sum(fault) >= 2
+        return bool(np.sum(fault) >= 2)
 
     # Apply the filter
     fault_set.filter_faults(weight_at_least_2)

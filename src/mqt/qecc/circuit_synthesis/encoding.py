@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -13,12 +13,11 @@ import functools
 import logging
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 import z3
-from ldpc import mod2
 
-from ..codes import InvalidCSSCodeError
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
 from .synthesis_utils import (
@@ -760,10 +759,6 @@ def depth_optimal_encoding_circuit(
 
 def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
     """Return the stabilizer matrix with the fewest checks, the corresponding logicals and a bool indicating whether X- or Z-checks have been returned."""
-    if code.Hx is None or code.Hz is None:
-        msg = "The code must have both X and Z stabilizers defined."
-        raise InvalidCSSCodeError(msg)
-
     use_x_checks = code.Hx.shape[0] < code.Hz.shape[0]
     checks = code.Hx if use_x_checks else code.Hz
     logicals = code.Lx if use_x_checks else code.Lz
@@ -771,7 +766,7 @@ def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8],
 
 
 def _final_matrix_constraint_partially_full_reduction(
-    columns: npt.NDArray[z3.BoolRef | bool], full_reduction_rows: list[int], rank: int
+    columns: npt.NDArray[np.bool_], full_reduction_rows: list[int], rank: int
 ) -> z3.BoolRef:
     assert len(columns.shape) == 3
 

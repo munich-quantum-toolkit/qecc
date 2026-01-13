@@ -14,11 +14,11 @@ jobs:
       pull-requests: write
     steps:
       - id: create-token
-        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - uses: munich-quantum-toolkit/templates@aa244c8b5ea6b44f4834aebc8f8269c75e10be96 # v1.1.2
+      - uses: munich-quantum-toolkit/templates@4299ec8bbb21d85c1b32ac6ac6fd6701586dea21 # v1.1.11
         with:
           token: ${{ steps.create-token.outputs.token }}
           name: QECC

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -24,14 +24,13 @@ import numpy as np
 class BpParams:
     """Class to store parameters for BP decoding."""
 
-    bp_method: str = "msl"
+    bp_method: str = "minimum_sum"
     max_bp_iter: int = 30
     osd_order: int = 10
     osd_method: str = "osd_cs"
     ms_scaling_factor: float = 0.75
     schedule: str = "parallel"
     omp_thread_count: int = 1
-    random_serial_schedule: int = 0
     serial_schedule_order: list[int] | None = None
     cutoff: float = np.inf
 
@@ -196,12 +195,12 @@ def product_dict(**kwargs: Any) -> Any:  # noqa: ANN401
     keys = kwargs.keys()
     vals = kwargs.values()
     for instance in itertools.product(*vals):
-        yield dict(zip(keys, instance))
+        yield dict(zip(keys, instance, strict=False))
 
 
 def zip_dict(**kwargs: dict[str, Any]) -> Any:  # noqa: ANN401
     """Create a iterator of dictionaries where each dictionary contains the zip() of the values associated with each key in the input dictionary."""
-    return (dict(zip(kwargs.keys(), values)) for values in zip(*kwargs.values()))
+    return (dict(zip(kwargs.keys(), values, strict=False)) for values in zip(*kwargs.values(), strict=False))
 
 
 def _update_error_rates(success_cnt: int, runs: int, code_k: int) -> tuple[float, float, float, float]:

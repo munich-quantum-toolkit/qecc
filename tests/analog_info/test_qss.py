@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -45,7 +45,7 @@ def qss_simulator(pcm: NDArray[np.int32], code_params: dict[str, int]) -> QssSim
         logicals=np.array([1, 1, 1, 1, 1, 1, 1]),
         bias=np.array([1.0, 1.0, 1.0]),
         codename="test",
-        bp_params=BpParams(osd_method="osd0"),
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
         outpath="./results",
         repetitions=2,
         code_params=code_params,

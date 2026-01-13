@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -15,12 +15,12 @@ from pathlib import Path
 from time import time
 from typing import TYPE_CHECKING
 
-import mqt.qecc.ft_stateprep as ftsp
 import numpy as np
 import pandas as pd
 import qsample as qs
 from qiskit import QuantumCircuit
 
+import mqt.qecc.ft_stateprep as ftsp
 from mqt.qecc import codes
 
 if TYPE_CHECKING:
@@ -149,7 +149,10 @@ def run_parallel(path: Path) -> pd.DataFrame:
     results_run = pd.DataFrame()
     verifications = ["heuristic", "optimal", "global"]
     for name, verify, stats in zip(
-        verifications, [verify_heuristic, verify_optimal, verify_global], [stats_heuristic, stats_optimal, stats_global]
+        verifications,
+        [verify_heuristic, verify_optimal, verify_global],
+        [stats_heuristic, stats_optimal, stats_global],
+        strict=False,
     ):
         results_run = pd.concat([
             results_run,

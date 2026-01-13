@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -25,9 +25,4 @@ def check_and_load_json(file_name: str, results_dir: str) -> dict[str, Any]:
     assert result_file.is_file()
     with result_file.open("r") as f:
         result: dict[str, Any] = json.load(f)
-
-    for file in results_path.iterdir():
-        file.unlink()
-    results_path.rmdir()
-
     return result

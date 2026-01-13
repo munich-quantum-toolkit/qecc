@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ldpc.code_util
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
 import scipy.sparse as scs
 from bposd.hgp import hgp
-from ldpc import mod2
 from scipy import sparse
 
 if TYPE_CHECKING:
@@ -131,7 +131,7 @@ def save_code(
     path = create_outpath(codename)
     ms = [hx, hz, mx, mz, lx, lz] if lx is not None and lz is not None else [hx, hz, mx, mz]
     names: list[str] = ["hx", "hz", "mx", "mz", "lx", "lz"]
-    for mat, name in zip(ms, names):
+    for mat, name in zip(ms, names, strict=False):
         if mat is not None:
             np.savetxt(path + name + ".txt", mat, fmt="%i")
             sio.mmwrite(
@@ -164,8 +164,7 @@ def _compute_distances(hx: NDArray[np.int32], hz: NDArray[np.int32], codename: s
     code_dict["dMX"] = int(code_dict["dMX"])
     code_dict["dMZ"] = int(code_dict["dMZ"])
 
-    with Path(f"generated_codes/{codename}/code_params.txt").open("w", encoding="utf-8") as file:
-        file.write(json.dumps(code_dict))
+    Path(f"generated_codes/{codename}/code_params.txt").write_text(json.dumps(code_dict), encoding="utf-8")
 
 
 def _compute_logicals(hx: NDArray[np.int32], hz: NDArray[np.int32]) -> tuple[NDArray[np.int32], NDArray[np.int32]]:

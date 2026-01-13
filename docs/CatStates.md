@@ -45,7 +45,7 @@ noisy_cnot(circ, 6, 7, p)
 QuantumCircuit.from_qasm_str(circ.without_noise().to_qasm(open_qasm_version=2)).draw('mpl')
 ```
 
-This circuit is not fault-tolerant. A single $X$-error in the circuit might spread to high-weight $X$-errors. We can show this by simulating the circuit. The cat state is a particularly easy state to analyse because it is resilient to $Z$-errors (every $Z$-error is equivalent to a weight-zero or weight-one error) and all $X$ errors simply flip a bit in the state. The distribution of bit flips can be obtained via simulations.
+This circuit is not fault-tolerant. A single $X$-error in the circuit might spread to high-weight $X$-errors. We can show this by simulating the circuit. The cat state is a particularly easy state to analyse because it is resilient to $Z$-errors (every $Z$-error is equivalent to a weight-zero or weight-one error) and all $X$ errors simply flip a bit in the state.
 
 ```{code-cell} ipython3
 :tags: [hide-input]
@@ -94,7 +94,7 @@ plt.title(f"Error distribution for w = {w}, p = {p:.2f}")
 plt.show()
 ```
 
-We see that 1,2 and 4 errors occur on the order of the physical error rate, which we set to $p = 0.05$. Interestingly, 3 errors occur only with a probability of about $p^2$. This is due to the structure of the circuit. If an $X$ error occurs, it either propagates to one or two CNOTs, or it doesn't propagate at all. Three errors are caused by a propagated error and another single-qubit error.
+We see that 1,2 and 4 errors occur on the order of the physical error rate, which we set to $p = 0.05$. In fact, there are about twice as many weight-four errors as there are weight-two errors, since there are four CNOTs that propagate an $X$ fault to a weight-two error and two CNOTs that propagate an $X$ fault to a weight-four error. Weight-three errors occur only with a probability of about $p^2$. This is due to the structure of the circuit. If an $X$ error occurs, it either propagates to one or two CNOTs, or it doesn't propagate at all. Three errors are caused by a propagated error and another single-qubit error.
 
 ## First Attempt at Fault-tolerant Preparation
 
@@ -135,9 +135,9 @@ The problem in the previous construction is that both circuits propagate errors 
 - Prepare the ancilla with a different circuit.
 - Permute the transversal CNOTs.
 
-The second case is actually a special case of the first one. Permuting how qubits are connected via the transversal CNOT is equivalent to permuting the CNOTs in the ancilla preparation circuit. We want to find a permutation such that no errors cancel each other out anymore.
+Permuting how qubits are connected via the transversal CNOT is equivalent to permuting the CNOTs in the ancilla preparation circuit. We want to find a permutation such that no errors cancel each other out anymore.
 
-We have seen that weight-four errors can cancel out in these circuits. There actually only two weight-four errors that can occur as a consequence of a weight-one error in the circuits, namely $X_0X_1X_2X_3$ and $X_4X_5X_6X_7$ (these are actually stabilizer equivalent). Therefore, performing the transversal such that it connects qubit $q_0$ of the data with qubit $q_7$ of the ancilla and vice versa should avoid that the weight-four errors cancel out.
+We have seen that weight-four errors can cancel out in these circuits. There actually only two weight-four errors that can occur as a consequence of a weight-one error in the circuits, namely $X_0X_1X_2X_3$ and $X_4X_5X_6X_7$ (these are actually stabilizer equivalent). Therefore, performing the transversal cnot such that it connects qubit $q_0$ of the data with qubit $q_7$ of the ancilla and vice versa should avoid that the weight-four errors cancel out.
 
 In QECC we can pass a permutation on integers $0, \cdot, w-1$ to the `CatStatePreparationExperiment` object during construction.
 
@@ -162,67 +162,73 @@ experiment.plot_one_p(p, n_samples=100000)
 
 It worked! And it doesn't even come at the cost of a lower acceptance rate.
 
+## Reducing Qubit Overhead
+
+When copying errors from the data to the ancilla cat state, it is not necessary, that the ancilla state has the same size as the data state. In fact, as long as the ancilla state consists of at least two qubits, any transversal CNOT connecting a subset of the data qubits to all ancilla qubits acts trivially on the data state. For the eight qubit case, it turns out that a six qubit ancilla is sufficient. Care still needs to be taken with how the (partial) transversal CNOT is connected.
+
+```{code-cell} ipython3
+from mqt.qecc.circuit_synthesis.cat_states import cat_state_pruned_balanced_circuit
+
+w1 = 8
+w2 = 6
+data = cat_state_pruned_balanced_circuit(w1)
+ancilla = cat_state_pruned_balanced_circuit(w2)
+
+ctrls = [1,2,3,5,6,7]
+perm = [2,5,0,4,3,1]
+experiment = CatStatePreparationExperiment(data, ancilla, perm, ctrls)
+experiment.plot_one_p(p, n_samples=100000)
+```
+
 ## Preparing larger cat states
 
-The question now is whether we can make this work for higher-weight cat states. With the framework in place, we can just plug in higher-weight cat states and try different permutations. Let's consider the case of $w=16$ and try the following:
+Constructing fault tolerant partial transversal CNOTs and finding the required ancilla sizes for given cat state preparation circuits becomes more difficult at higher qubit counts and fault distances. QECC has functions for finding such CNOTs automatically.
 
-- $\pi_1 = \mathrm{id}$
-- $\pi_2 = (0 \quad 15)$
-- $\pi_2 =
-  \begin{pmatrix}
-0  & 1  & 2   & 3   & 4   & 5 & 6  & 7   & 8  & 9   & 10  & 11  & 12  & 13  & 14  & 15\\
-0  & 1  & 6   & 10  & 12  & 3 & 5  & 15  & 2  & 8   & 11  & 14  & 4   & 9   & 12  & 7
-\end{pmatrix}$
+The most general search approach is `search_ft_cnot_cegar` which uses counterexample-guided abstraction refinement (CEGAR) to construct both a selection of control qubits and the fault-tolerant permutation at the same time.
 
 ```{code-cell} ipython3
-from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree
+from mqt.qecc.circuit_synthesis.cat_states import search_ft_cnot_cegar
 
-w = 16
-data = cat_state_balanced_tree(w)
-ancilla = cat_state_balanced_tree(w)
+t = 4
+ctrls, perm, _ = search_ft_cnot_cegar(data, ancilla, t)
 
-pi_1 = list(range(w))
-
-pi_2 = list(range(w))
-pi_2[0] = 15
-pi_2[15] = 0
-
-pi_3 = [0, 1, 6, 10, 13, 3, 5, 15, 2, 8, 11, 14, 4, 9, 12, 7]
-
-e_1 = CatStatePreparationExperiment(data, ancilla, pi_1)
-e_2 = CatStatePreparationExperiment(data, ancilla, pi_2)
-e_3 = CatStatePreparationExperiment(data, ancilla, pi_3)
-
+experiment = CatStatePreparationExperiment(data, ancilla, perm, ctrls)
+experiment.plot_one_p(p, n_samples=100000)
 ```
 
-Let's see the distribution for the identity permutation $\pi_1$ first.
+The `search_ft_cnot_local_search` method uses a heuristic local repair strategy to find fault-tolerant CNOTs. This is faster than the CEGAR approach but is not guaranteed to converge:
 
 ```{code-cell} ipython3
-:tags: [hide-input]
-e_1.plot_one_p(p, n_samples=10000000)
+from mqt.qecc.circuit_synthesis.cat_states import search_ft_cnot_local_search
+
+w1 = 16
+w2 = 15
+t= 8
+data = cat_state_pruned_balanced_circuit(w1)
+ancilla = cat_state_pruned_balanced_circuit(w2)
+ctrls = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
+ctrls, perm, _ = search_ft_cnot_local_search(data, ancilla, t, ctrls=ctrls)
+
+experiment = CatStatePreparationExperiment(data, ancilla, perm, ctrls)
+experiment.plot_one_p(p, n_samples=100000)
 ```
 
-At $p=0.05$ we only accept about $12\%$ of all states. We also see that while errors of weight three or higher are less likely as lower-weight errors, the distribution shows that higher-weight errors all occur more or less similarly often.
-
-When we permute the transversal CNOT slightly according to $\pi_2$, we also suppress the errors to some extent.
+If we already know a good selection of control qubits, performance-wise somewhere in the middle is the `search_ft_cnot_smt` method, which directly encodes all problematic fault propagations instead of iteratively refining the SMT encoding. Especially for UNSAT instances this usually terminates quickly.
 
 ```{code-cell} ipython3
-:tags: [hide-input]
-e_2.plot_one_p(p, n_samples=10000000)
-print(e_2.circ.to_crumble_url())
+from mqt.qecc.circuit_synthesis.cat_states import search_ft_cnot_smt
+
+w1 = 12
+w2 = 11
+t= 6
+data = cat_state_pruned_balanced_circuit(w1)
+ancilla = cat_state_pruned_balanced_circuit(w2)
+ctrls, perm, _ = search_ft_cnot_smt(data, ancilla, t)
+
+experiment = CatStatePreparationExperiment(data, ancilla, perm, ctrls)
+experiment.plot_one_p(p, n_samples=100000)
 ```
 
-We see that simply exchanging two qubits is not sufficient to protect the $w=16$ cat state against higher-weight errors cancelling out. There are, in fact many undetected weight-four errors that lead to a residual error of higher weight on the data qubits. One example is shown in [this crumble circuit](<https://algassert.com/crumble#circuit=Q(0,0)0;Q(0,1)1;Q(0,2)2;Q(0,3)3;Q(0,4)4;Q(0,5)5;Q(0,6)6;Q(0,7)7;Q(0,8)8;Q(0,9)9;Q(0,10)10;Q(0,11)11;Q(0,12)12;Q(0,13)13;Q(0,14)14;Q(0,15)15;Q(0,16)16;Q(0,17)17;Q(0,18)18;Q(0,19)19;Q(0,20)20;Q(0,21)21;Q(0,22)22;Q(0,23)23;Q(0,24)24;Q(0,25)25;Q(0,26)26;Q(0,27)27;Q(0,28)28;Q(0,29)29;Q(0,30)30;Q(0,31)31;H_0_16;TICK;CX_0_8_16_24;MARKX(0)0_16;TICK;CX_0_4_16_20;TICK;CX_0_2_16_18;TICK;CX_0_1_2_3_4_6_16_17_18_19_20_22;TICK;CX_4_5_6_7_8_12_20_21_22_23_24_28;TICK;CX_8_10_24_26;TICK;CX_8_9_10_11_12_14_24_25_26_27_28_30;TICK;CX_12_13_14_15_28_29_30_31;TICK;TICK;CX_0_31;TICK;CX_1_17;TICK;CX_2_18;TICK;CX_3_19;TICK;CX_4_20;TICK;CX_5_21;TICK;CX_6_22;TICK;CX_7_23;TICK;CX_8_24;TICK;CX_9_25;TICK;CX_10_26;MARKX(0)16_31;TICK;CX_11_27;TICK;CX_12_28;TICK;CX_13_29;TICK;CX_14_30;TICK;CX_15_16;TICK;MR_16_17_18_19_20_21_22_23_24_25_26_27_28_29_30_31>).
+## Loading already Constructed FT Cat States
 
-Since there are fewer combinations of errors that cancel out in such a fashion, the error rate still declines, but for a fault-tolerant preparation we would wish for an error of weight $t$ on the data to occur with probability $O(p^t)$
-
-Applying $\pi_3$ actually yields the desired result:
-
-```{code-cell} ipython3
-:tags: [hide-input]
-e_3.plot_one_p(p, n_samples=10000000)
-```
-
-At some point, high-weight errors are so unlikely that they do not occur during the simulation. Getting a better error estimate therefore requires a larger sample-size. Furthermore, to get an estimate of the scaling of the probability of a residual error of a certain size on the data requires sampling at different physical error rates. The `cat_prep_experiment` method of the `CatStatePreparationExperiment` class returns the histogram over multiple physical error rates.
-
-Permuting the connectivity of the transversal CNOT is not the only way to improve the robustness of non-deterministic cat state preparation. Another way would be to use different circuits or combine the two methods. The `CatStatePreparationExperiment` class is intended for evaluating such different preparation schemes.
+To avoid redoing redundant computations, stim circuits for cat states of sizes up $49$ qubits and fault distances up to $9$ can be found [here](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cat_states/circuits). There is also a [json file](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cat_states/constructions.json) which explicitly lists control qubits and target permutation for a given combination of data cat state size ($w_1$), ancilla cat state size ($w_2$) and fault distance ($t$).
