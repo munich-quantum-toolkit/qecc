@@ -82,8 +82,6 @@ reduce_steiner = True
 idle_move_type = "later"
 reduce_init_steiner = False
 
-testing = True
-
 terminal_pairs_list = []
 for pairs in pairs_lst[:n_circ]:
     print("Number of gates", len(pairs))
@@ -112,7 +110,6 @@ for num_gates in gates_list:
         temp_circuit = circ[:num_gates]  # cut off the gates
 
         # standard
-        j = 0
         quilt = utils.BasicRouter(
             g,
             data_qubit_locs,
@@ -122,7 +119,7 @@ for num_gates in gates_list:
             metric,
             use_dag=use_dag,
         )  # reinitialize because logical pos changes
-        layers = quilt.split_layer_terminal_pairs(terminal_pairs)
+        layers = quilt.split_layer_terminal_pairs(temp_circuit)
         vdp_layers, _ = quilt.find_total_vdp_layers_dyn(layers, data_qubit_locs, {}, layout)
         results_temp_st.append(vdp_layers.copy())
 
@@ -149,7 +146,7 @@ for num_gates in gates_list:
                 seed=j,
             )
             schedule, history = quilt.optimize_layers(
-                terminal_pairs,
+                temp_circuit,
                 layout,
                 max_iters,
                 T_start,
@@ -277,7 +274,11 @@ improvements_std = []
 for lst_opt, lst_st, c_list in zip(depths_opt, depths_st, depths_log, strict=False):
     temp = []
     for el_opt, el_st, c in zip(lst_opt, lst_st, c_list, strict=False):
-        temp.append((el_opt - c) / (el_st - c))
+        denominator = el_st - c
+        if denominator != 0:
+            temp.append((el_opt - c) / denominator)
+        else:
+            temp.append(np.nan)
     print("improvements temp", temp)
     improvements_mean.append(np.mean(temp))
     improvements_std.append(np.std(temp))

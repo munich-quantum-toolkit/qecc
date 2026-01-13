@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -187,7 +187,7 @@ def plot_lattice_paths(
 
 
 def plot_schedule(
-    g: nx.Graph, schedule: dict[any], factory_pos: list[tuple[int, int]], size: tuple[int, int] = (5, 5)
+    g: nx.Graph, schedule: list[dict[str, Any]], factory_pos: list[tuple[int, int]], size: tuple[int, int] = (5, 5)
 ) -> None:
     """Plots the layers of a whole schedule from TeleportationRouter."""
     for i, step in enumerate(schedule):

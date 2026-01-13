@@ -10,7 +10,7 @@
 import json
 import pathlib
 
-from cococo import circuit_construction, dag_helper
+from mqt.qecc.cococo import circuit_construction, dag_helper
 
 q = 120
 j = 8
@@ -25,8 +25,8 @@ for _ in range(reps):
 
     # check whether the number of layers you want
     layers = dag_helper.count_cx_gates_per_layer(dag)
-    print(layers)
-    print(len(layers))
+    print("Layers circuit", layers)
+    print("Number of layers", len(layers))
 
 
 path = f"true_seq_circs_j{j}_q{q}_numgates{num_gates}d{d}_x{reps}.json"

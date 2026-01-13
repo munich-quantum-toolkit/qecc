@@ -27,12 +27,12 @@ custom_layout_q24_hex_f8 = [data_qubit_locs, g]
 
 
 # ROW
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("hex", 6, 4, [], remove_edges=False)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("row", 6, 4, [], remove_edges=False)
 custom_layout_q24_row_f8 = [data_qubit_locs, g]
 
 
 # PAIR
-g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("hex", 3, 4, [], remove_edges=False)
+g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable("pair", 3, 4, [], remove_edges=False)
 custom_layout_q24_pair_f8 = [data_qubit_locs, g]
 
 
@@ -54,8 +54,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_pair_f8,
         "factory_locs": [],
         "layout_name": "pair",
@@ -65,8 +65,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_row_f8,
         "factory_locs": [],
         "layout_name": "row",
@@ -76,8 +76,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_hex_f8,
         "factory_locs": [],
         "layout_name": "hex",
@@ -87,8 +87,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_pair_f8,
         "factory_locs": [],
         "layout_name": "pair",
@@ -98,8 +98,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_row_f8,
         "factory_locs": [],
         "layout_name": "row",
@@ -109,8 +109,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_hex_f8,
         "factory_locs": [],
         "layout_name": "hex",
@@ -120,8 +120,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_pair_f8,
         "factory_locs": [],
         "layout_name": "pair",
@@ -131,8 +131,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_row_f8,
         "factory_locs": [],
         "layout_name": "row",
@@ -142,8 +142,8 @@ instances = [
         "q": 24,
         "t": 2,
         "min_depth": 24 * 4,
-        "tgate": True,
-        "ratio": 0.8,
+        "tgate": False,
+        "ratio": 1.0,
         "custom_layout": custom_layout_q24_hex_f8,
         "factory_locs": [],
         "layout_name": "hex",

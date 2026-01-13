@@ -21,7 +21,7 @@ The routing routines for movable qubits (2) are tailored for the color code as w
 
 ## Layouts
 
-Different layouts ("row", "pair", "hex", "triple", "single") can be generated with the function [gen_layout_scalable](mqt.qecc.cococo.layouts.gen_layout_scalable). One can place factory patches along the boundary. The construction of such layouts is described in the notebook [scripts/cococo/layouts_general.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/layouts_general.ipynb).
+Different layouts ("row", "pair", "hex", "triple", "single") can be generated with the function [gen_layout_scalable](mqt.qecc.cococo.layouts.gen_layout_scalable). One can place factory patches along the boundary. The construction of such layouts is described in the notebook [scripts/cococo/layouts_general.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/layouts_general.ipynb).
 
 A layout describes which nodes on the routing graph are used as logical data qubits and factory locations. The remainder is the routing ancilla space.
 The mapping of logical qubit labels onto those chosen data qubit locations on the graph is another task.
@@ -41,22 +41,22 @@ and particularly the method `find_total_vdp_layers_dyn` should be used to perfor
 ### Optimization of Qubit Label Allocation by Hill Climbing
 
 Once chosen a layout, one can optimize the qubit label allocation. This is important to exploit more parallelism of the original circuit.
-The class [HillClimbing](mqt.qecc.cococo.hill_climber.HillClimbing) performs a simple hill climbing routine to optimize the qubit label mapping based on a heuristic metric which computes the initial crossing of shortest paths as well as a more reliable (yet expensive) metric which computes the routing for each Hill climbing iteration and directly aims to reduce the resulting layers. How it works can be seen in the notebook [scripts/cococo/hill_climbing_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/hill_climbing_examples.ipynb).
+The class [HillClimbing](mqt.qecc.cococo.hill_climber.HillClimbing) performs a simple hill climbing routine to optimize the qubit label mapping based on a heuristic metric which computes the initial crossing of shortest paths as well as a more reliable (yet expensive) metric which computes the routing for each Hill climbing iteration and directly aims to reduce the resulting layers. How it works can be seen in the notebook [scripts/cococo/hill_climbing_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/hill_climbing_examples.ipynb).
 
-Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evaluations_beyond_the_surface_code](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_beyond_the_surface_code).
+Plots shown in (1) can be reproduced from pickle files in [scripts/cococo/evaluations_beyond_the_surface_code](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/evaluations_beyond_the_surface_code).
 
 ### Microscopic Details of Snakes
 
 In (1), we consider two microscopic substrates, both leading to a hexagonal routing graph.
-First, the class [SnakeBuilderSTDW](mqt.qecc.cococo.snake_builder.SnakeBuilderSTDW) builds stabilizers and subsets of stabilizers to perform logical meausurements for the color code connected by semi transparent domain walls (STDW).
+First, the class [SnakeBuilderSTDW](mqt.qecc.cococo.snake_builder.SnakeBuilderSTDW) builds stabilizers and subsets of stabilizers to perform logical measurements for the color code connected by semi transparent domain walls (STDW).
 The class [SnakeBuilderSC](mqt.qecc.cococo.snake_builder.SnakeBuilderSC) builds the surface code snakes required to perform lattice surgery between logical folded surface codes. However, this can only display snakes where you can easily embed the snake in 2d.
-A notebook with example constructions can be found in [/scripts/co3/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/snake_examples.ipynb).
+A notebook with example constructions can be found in [/scripts/co3/snake_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/snake_examples.ipynb).
 
 ## Compilation with Movable Logical Qubits (2)
 
-Compilation with movable logical qubits as described in (2) builds upon the BasicRouter from above. Based on the basic router we constructed a lookahead routine with simulated annealing which can be used via the [TeleportationRouter](mqt.qecc.cococo.utils_routing.TeleportationRouter). Examples are shown in the notebook [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).
+Compilation with movable logical qubits as described in (2) builds upon the BasicRouter from above. Based on the basic router we constructed a lookahead routine with simulated annealing which can be used via the [TeleportationRouter](mqt.qecc.cococo.utils_routing.TeleportationRouter). Examples are shown in the notebook [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/movable_qubit_router_examples.ipynb).
 
-Results shown in (2) can be reproduced in [scripts/cococo/evaluations_movable_qubits](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/evaluations_movable_qubits)
+Results shown in (2) can be reproduced in [scripts/cococo/evaluations_movable_qubits](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/evaluations_movable_qubits)
 
 ## Selected Examples
 
@@ -291,4 +291,4 @@ plotting.plot_schedule(g, schedule[:3], factories, size = (12,4))
 
 In the first layer one can see that a tree for moving a data qubit was found.
 
-A larger example, with larger absolute improvement, can be found in the notebook mentioned above: [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/scripts/cococo/movable_qubit_router_examples.ipynb).
+A larger example, with larger absolute improvement, can be found in the notebook mentioned above: [scripts/cococo/movable_qubit_router_examples.ipynb](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/movable_qubit_router_examples.ipynb).

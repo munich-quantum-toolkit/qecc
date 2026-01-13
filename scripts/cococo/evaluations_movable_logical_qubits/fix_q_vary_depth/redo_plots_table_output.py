@@ -53,7 +53,7 @@ gates_str = "_".join(map(str, gates_list))
 use_dag = True
 
 date_str = datetime.now().strftime("%Y-%m-%d")
-date_str = "2025-11-09"
+date_str = "2025-11-09"  # use this if you need the specific file
 # path = f"circuit_depths_m{m}_n{n}_layout{layout_type}_sigma{sigma}_ncirc{n_circ}_num_gates{gates_str}_j{j}_{date_str}_usedag{use_dag}_p.pkl"
 path = f"circuit_depths_m{m}_n{n}_layout{layout_type}_sigma{sigma}_ncirc{n_circ}_num_gates{gates_str}_{date_str}_usedag{use_dag}_p.pkl"
 
@@ -268,7 +268,7 @@ def fmt(mean: float, std: float, precision: int = 2) -> str:
     return f"${mean:.{precision}f} \\pm {std:.{precision}f}$"
 
 
-def latex_table_rows(gate_counts: int, *cols: any) -> None:
+def latex_table_rows(gate_counts: int, *cols: tuple[list[float], list[float]]) -> None:
     """gate_counts: list of gate values.
 
     cols: list of tuples [(mean_list, std_list), ...].
@@ -319,7 +319,7 @@ latex_table_rows(
 
 
 # print quality of fit
-def r_squared(y_true: float, y_pred: float) -> float:
+def r_squared(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Quality of the fit."""
     ss_res = np.sum((y_true - y_pred) ** 2)
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)

@@ -129,7 +129,7 @@ for i, res in enumerate(res_lst_routing):
     print("layout type", layout_type)
     print("factories", factories)
     print("t", t)
-    print("imrprovements", improvement_lst)
+    print("improvements", improvement_lst)
 
 for i, res in enumerate(res_lst_2):
     layout_type = res["instances"][i]["layout_name"]
@@ -145,4 +145,4 @@ for i, res in enumerate(res_lst_2):
     print("layout type", layout_type)
     print("factories", factories)
     print("t", t)
-    print("imrprovements", improvement_lst)
+    print("improvements", improvement_lst)

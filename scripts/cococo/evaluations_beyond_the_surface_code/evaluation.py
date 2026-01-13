@@ -36,6 +36,8 @@ def collect_data_space_time(
 ) -> list[dict[str, Any]]:
     """Collects the data for a run which will compare space and time cost.
 
+    Note that the prefix and suffix of the filestrings are hardcoded. Consider changing them if you work with this.
+
     Args:
         instances (list[dict]): A list of dicts which collects parameters of instances to be run.
             Each dict must contain these keys: q, t, ratio, min_depth,... also "layout_name" must be added to track the shape, since "layout_type" will be "custom".
@@ -129,8 +131,6 @@ def collect_data_space_time(
             msg = "No other circuit types than random, sequential, parallelmax"
             raise NotImplementedError(msg)
         circuits.append(circuit)
-        for _circ in circuits:
-            pass
 
     for l, instance in enumerate(instances):  # noqa: E741
         logger = logging.getLogger(__name__)
@@ -179,8 +179,6 @@ def collect_data_space_time(
                         raise NotImplementedError(msg)
                     circuits.append(circuit)
                 logger.info("new circuits sampled")
-            for _circ in circuits:
-                pass
 
         logger.info(f"=======Instance {l}=======")
         time = []
@@ -441,8 +439,7 @@ def plot_improvement_circuit_types(
                 "layout_name": instance["layout_name"],
                 "min_depth": instance["min_depth"],
             })
-    for _ in dct_mat:
-        pass
+
     # reshape such that one gets lists with fixed layout_name and fixed q
     unique_q = {entry["q"] for entry in dct_mat}
     unique_circuit_types = {entry["circuit_type"] for entry in dct_mat}
