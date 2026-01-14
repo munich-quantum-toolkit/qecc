@@ -13,11 +13,11 @@ mystnb:
 
 # `cococo` color code compilation
 
-This submodule contains routing routines as described in in the papers (1) `Lattice Surgery Compilation Beyond the Surface Code` ([arXiv:2504.10591](https://arxiv.org/pdf/2504.10591)) as well as (2) `Exploiting Movable Logical Qubits for Lattice Surgery Compilation`.
+This submodule contains routing routines as described in in the papers (1) `Lattice Surgery Compilation Beyond the Surface Code` ([arXiv:2504.10591](https://arxiv.org/pdf/2504.10591)) as well as (2) `Exploiting Movable Logical Qubits for Lattice Surgery Compilation` ([arXiv:2512.04169](https://arxiv.org/pdf/2512.04169)).
 
 The elementary routing routines for CNOT + T compilation in (1) assume a hexagonal routing graph and accessible Z and X operators along each boundary of a patch for lattice surgery. Hence, it is tailored to the color code, but could in principle be adapted for e.g. the folded surface code substrate as described in Fig. 8 of (1), by adapting the Dijkstra routine.
 
-The routing routines for movable qubits (2) are tailored for the color code as well and would require more fundamental changes in order to allow other codes.
+The routing routines for movable qubits (2) are tailored for the color code as well and would require more fundamental changes to allow other codes.
 
 ## Layouts
 
@@ -210,7 +210,7 @@ Then, choose a circuit.
 
 ```{code-cell} ipython3
 q = len(data_qubit_locs)
-j = 8
+j = 8 #the number of gates per logical layer
 num_gates = q * 2
 dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     j,
@@ -233,7 +233,7 @@ vdp_layers, _ = router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router
 print("Len of schedule without teleportation: ", len(vdp_layers))
 ```
 
-Afterwards, let's run the router with movable qubits.
+Afterward, let's run the router with movable qubits.
 
 ```{code-cell} ipython3
 router = utils.TeleportationRouter(

@@ -280,15 +280,15 @@ def latex_table_rows(gate_counts: int, *cols: tuple[list[float], list[float]]) -
     for i, _gates in enumerate(gate_counts):
         # row = [f" & {gates}"]
         row = []
-        for j, (means, stds) in enumerate(cols):
+        for nj, (means, stds) in enumerate(cols):
             # Use 3 decimals for 'r', others 2
             prec = 1
-            if j == 0:
+            if nj == 0:
                 row.append(f"& ${int(means[i])}$")  # integer for logical depth
-            elif j == 3 or j == len(cols) - 1:
+            elif nj == 3 or nj == len(cols) - 1:
                 # row.append(f" & {fmt(means[i], stds[i], 3)}")
                 row.append(f" & {fmt(means[i] * 100, stds[i] * 100, 1)}\\%")  # percentage
-            # elif j == len(cols)-1:
+            # elif nj == len(cols)-1:
             #    row.append(f" & {fmt(means[i], stds[i], 2)}")
 
             else:

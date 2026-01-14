@@ -176,7 +176,7 @@ def collect_data_space_time(
                     circuits.append(circuit)
                 logger.info("new circuits sampled")
 
-        logger.info(f"=======Instance {l}=======")
+        logger.info("=======Instance %d=======", l)
         time = []
         time2 = []
 

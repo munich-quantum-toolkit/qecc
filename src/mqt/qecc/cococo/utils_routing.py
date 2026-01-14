@@ -1398,18 +1398,37 @@ class TeleportationRouter(BasicRouter):
         """Optimize the positions in batches of size k_lookahead.
 
         This means we do the following:
-        1. find an initial layer structure # !TODO copy from old code split layer
+
+        1. find an initial layer structure
+
         2. route the first layer, and push remainder into next layers
+
         3. run SA with k_lookahead layers (i.e. k layers are counted in the metric)
+
         4. move idling qubits back (in different points in time depending on `idle_move_type.`)
         Repeat this layer by layer.
 
-        `jump_harvesting`: bool
-            False: Default sliding window method.
-            True: 1 layer is used for steiner search of k future layers. but then you do not just iterate through EACH layer but you skip the k layers, because you do not want to destroy the optimization by optimizing too much!
         `idle_move_type`: str
-            asap: moving back is done as frequent as possible. this may destroy however structure of the predicted routing from the steiner search.
-            later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
+
+
+        Args:
+            terminal_pairs (list[tuple[pos, pos]  |  pos]): Circuit of CNOT + T gates in terms of qubit positions `pos` on the lattice.
+            layout (dict[int, pos]): mapping between logical qubit labels `int` and their positions `pos` on the lattice.
+            max_iters (int): Maximum  number of iterations per simulated annealing run
+            T_start (float): Start temperature of each simulated annealing run
+            T_end (float): End temperature of each simulated annealing run
+            alpha (float): Factor by which the temperature is decreased per iteration in a simulated annealing run. T*alpha per iteration.
+            radius (int): Radius in which the 3rd terminal of the tree can be randomly placed (radius in terms of edges on the macroscopic routing graph)
+            k_lookahead (int): Number of logical lookahead layers on which the optimization is done per simulated annealing.
+            steiner_init_type (str): recommended to use `full_random`. on_path_random: terminal placement on the routing path - or full_random: fully random placement on the macroscopic routing graph.
+            jump_harvesting (bool): Recommended to use True. False: Default sliding window method. True: 1 layer is used for steiner search of k future layers. but then you do not just iterate through EACH layer but you skip the k layers, because you do not want to destroy the optimization by optimizing too much!
+            reduce_steiner (bool): Recommended to use True. Decides whether the trees are reduced again (True), such that possibly useless movements are removed. Using False may reduce rutnime however.
+            idle_move_type (str): Recommended to use `later`. asap: moving back is done as frequent as possible. this may destroy however structure of the predicted routing from the steiner search. later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
+            reduce_init_steiner (bool, optional): Defaults to False and is recommended not to be changed.
+            stimtest (bool, optional): If True, at the end of the computation the schedule is sanity checked. Defaults to False but recommended to use.
+
+        Returns:
+            tuple[Any, list[tuple[int, Any]]]: schedule and improvement_history.
         """
         if idle_move_type not in {"asap", "later"}:
             msg = "`move_idle_type` must be `asap` or `later`"  # pragma: no cover

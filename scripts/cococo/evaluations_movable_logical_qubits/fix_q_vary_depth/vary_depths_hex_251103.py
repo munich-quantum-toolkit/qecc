@@ -209,8 +209,8 @@ depths_std_opt = []
 for i, results in enumerate(results_list_opt):
     print(f"-----log. depth {i}------")
     depths_n = []  # the n results from which we take the mean
-    for j, run in enumerate(results):
-        print(f"------run number {j}-------")
+    for nj, run in enumerate(results):
+        print(f"------run number {nj}-------")
         lengths = [len(schedule) for schedule in run]
         print("depths of sigma opt runs:", lengths)
         min_depth = min(lengths)
@@ -257,7 +257,7 @@ plt.errorbar(
 plt.xlabel("Num. Gates / Log. Depth")
 plt.ylabel("Depth of Schedule")
 plt.xscale("log")
-plt.grid(True, which="both", ls="--", alpha=0.7)
+plt.grid(visible=True, which="both", ls="--", alpha=0.7)
 # plt.xticks(gates_list, gates_list)
 plt.xticks(gates_list, labels)
 plt.gca().xaxis.set_minor_formatter(plt.NullFormatter())
@@ -288,7 +288,7 @@ plt.errorbar(gates_list, improvements_mean, yerr=improvements_std, fmt=".-", cap
 plt.ylabel(r"$\frac{d_{opt}-c}{d_{st}-c}$")
 plt.xlabel("Num. Gates / Log. Depth")
 plt.xscale("log")
-plt.grid(True, which="both", ls="--", alpha=0.7)
+plt.grid(visible=True, which="both", ls="--", alpha=0.7)
 # plt.xticks(gates_list, gates_list)
 plt.xticks(gates_list, labels)
 plt.gca().xaxis.set_minor_formatter(plt.NullFormatter())
@@ -312,6 +312,6 @@ plt.xscale("log")
 # plt.xticks(gates_list, gates_list)
 plt.xticks(gates_list, labels)
 plt.gca().xaxis.set_minor_formatter(plt.NullFormatter())
-plt.grid(True, which="both", ls="--", alpha=0.7)
+plt.grid(visible=True, which="both", ls="--", alpha=0.7)
 plt.tight_layout()
 plt.savefig("plot_abs_reductions_total_" + path.replace(".pkl", ".pdf"))
