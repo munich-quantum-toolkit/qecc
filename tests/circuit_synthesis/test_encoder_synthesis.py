@@ -27,6 +27,7 @@ from mqt.qecc.circuit_synthesis import (
 from mqt.qecc.circuit_synthesis.encoding import (
     greedy_adapted_volanto,
     reduce_with_single_qubit_gates,
+    stim_circuit_to_symplectic,
 )
 from mqt.qecc.codes.pauli import Pauli
 
@@ -323,3 +324,46 @@ def test_volanto_ghz():
     _single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
     assert len(transvections) == 2
     assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
+
+
+def test_stim_circuit_to_symplectic_empty() -> None:
+    """Test conversion from stim circuit to symplectic matrix."""
+    import stim
+
+    circuit = stim.Circuit()
+
+    U = stim_circuit_to_symplectic(circuit)
+    n = circuit.num_qubits
+    expected_U = np.eye(2 * n, dtype=np.int8)
+    assert np.array_equal(U, expected_U)
+
+
+def test_stim_circuit_to_symplectic_cnot() -> None:
+    """Test conversion from stim circuit to symplectic matrix."""
+    import stim
+
+    circuit = stim.Circuit()
+    circuit.append_operation("CNOT", [0, 1])
+
+    U = stim_circuit_to_symplectic(circuit)
+    n = circuit.num_qubits
+    expected_U = np.eye(2 * n, dtype=np.int8)
+    expected_U[:, 0] ^= expected_U[:, 1]  # CNOT from qubit 1 to qubit 0
+    expected_U[:, n + 1] ^= expected_U[:, n]
+
+    assert np.array_equal(U, expected_U)
+
+
+def test_stim_circuit_to_symplectic_hadamard() -> None:
+    """Test conversion from stim circuit to symplectic matrix."""
+    import stim
+
+    circuit = stim.Circuit()
+    circuit.append_operation("H", [0])
+
+    U = stim_circuit_to_symplectic(circuit)
+    n = circuit.num_qubits
+    expected_U = np.eye(2 * n, dtype=np.int8)
+    expected_U[:, [0, 1]] = expected_U[:, [1, 0]]  # Hadamard on qubit 0
+
+    assert np.array_equal(U, expected_U)

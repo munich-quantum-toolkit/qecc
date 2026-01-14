@@ -1761,111 +1761,6 @@ def _append_transvection_as_hs_cz(
 # # ---------- main conversion ----------
 
 
-# def greedy_result_to_stim(ops_inv, P: np.ndarray) -> stim.Circuit:
-#     circ = stim.Circuit()
-
-#     circ += P_to_stim_prefix(P)
-
-#     # Apply transvections in forward order to reconstruct U
-#     for v_bits, (i, j) in reversed(ops_inv):
-#         _append_transvection_as_hs_cz(circ, tuple(int(b) for b in v_bits), (int(i), int(j)))
-
-#     return circ
-
-
-# def stim_circuit_to_symplectic(circuit: stim.Circuit) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-#     """Convert a stim circuit into:
-#       - U: 2n×2n symplectic matrix in row-image convention, dtype int8
-#       - x_signs: bool vector length n (signs of X_i images)
-#       - z_signs: bool vector length n (signs of Z_i images)
-#     using stim.Tableau.to_numpy().
-#     """
-#     tab = circuit.to_tableau()
-#     x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
-
-#     U = np.block([
-#         [x2x.astype(np.int8), x2z.astype(np.int8)],
-#         [z2x.astype(np.int8), z2z.astype(np.int8)],
-#     ]).astype(np.int8)
-
-#     return U, x_signs.astype(bool), z_signs.astype(bool)
-
-
-# def _fix_tableau_signs_in_place(out: stim.Circuit, target_x: np.ndarray, target_z: np.ndarray) -> None:
-#     """Append Pauli corrections so that out.to_tableau() matches desired signs.
-
-#     Rule:
-#       - If X_i image has wrong sign, append Z on i (anticommutes with X_i).
-#       - If Z_i image has wrong sign, append X on i (anticommutes with Z_i).
-
-#     This works because Pauli gates are Cliffords and only affect signs.
-#     """
-#     got = out.to_tableau()
-#     _, _, _, _, got_x, got_z = got.to_numpy(bit_packed=False)
-
-#     got_x = got_x.astype(bool)
-#     got_z = got_z.astype(bool)
-
-#     n = len(got)
-#     for q in range(n):
-#         if got_x[q] != bool(target_x[q]):
-#             out.append("Z", [q])
-#         if got_z[q] != bool(target_z[q]):
-#             out.append("X", [q])
-
-
-# # ---------------------------------------------------------------------
-# # Main: optimize by resynthesis
-# # ---------------------------------------------------------------------
-
-
-# def optimize_stim_clifford_with_volanto(
-#     circuit: stim.Circuit,
-#     *,
-#     params: GreedyParams = GreedyParams(max_wait=50),
-#     choose_op: ChooseOpFn | None = None,
-#     use_all_pairs: bool = False,
-#     sign_fix: bool = True,
-# ) -> stim.Circuit:
-#     """Takes a stim circuit, converts it to a tableau/symplectic matrix, resynthesizes it
-#     using the (greedy) adapted Volanto synthesis in this file, and returns a new stim circuit.
-
-#     - Uses your existing greedy_adapted_volanto(U, ...)
-#     - Converts back with greedy_result_to_stim(ops_inv, P)
-#     - Optionally fixes tableau signs so the result exactly matches the original tableau.
-#     """
-#     U, x_signs, z_signs = stim_circuit_to_symplectic(circuit)
-
-#     ops_inv, P = greedy_adapted_volanto(
-#         U,
-#         params=params,
-#         choose_op=choose_op,
-#         use_all_pairs=use_all_pairs,
-#     )
-
-#     assert_prefix_matches_P(P)
-
-#     out = greedy_result_to_stim(ops_inv, P)
-
-#     if sign_fix:
-#         _fix_tableau_signs_in_place(out, x_signs, z_signs)
-
-#     return out
-
-
-# def stim_tableau_to_U(tab: stim.Tableau) -> np.ndarray:
-#     x2x, x2z, z2x, z2z, *_ = tab.to_numpy(bit_packed=False)
-#     return np.block([[x2x, x2z], [z2x, z2z]]).astype(np.int8)
-
-
-# def assert_prefix_matches_P(P: np.ndarray) -> None:
-#     pref = P_to_stim_prefix(P)
-#     U_pref = stim_tableau_to_U(pref.to_tableau())
-#     if not np.array_equal(U_pref, P.astype(np.int8)):
-#         msg = "P_to_stim_prefix(P) does not implement P (symplectic mismatch)."
-#         raise AssertionError(msg)
-
-
 def _append_reduction_ops_as_stim(
     circ: stim.Circuit,
     swaps: list[tuple[int, int]],
@@ -1897,21 +1792,17 @@ def synthesize_clifford_volanto(
     choose_op: ChooseOpFn | None = None,
     use_all_pairs: bool = False,
 ) -> stim.Circuit:
-    """Synthesize a stim circuit implementing the given 2n×2n symplectic matrix U
-    using:
-      1) greedy_adapted_volanto(U) to reach terminal form P via 2Q transvections (right-multiply),
-      2) reduce_with_single_qubit_gates(P) to reach identity via SWAP/H/S (right-multiply),
-      3) return inverse of the resulting "elimination" circuit.
+    """Synthesize a stim circuit implementing symplectic U using:
+      - greedy_adapted_volanto (right-multiply transvections) -> terminal P
+      - reduce_with_single_qubit_gates(P) (right-multiply SWAP/H/S) -> I.
 
-    Assumptions:
-      - U is symplectic (over GF(2))
-      - We are ignoring phases (pure symplectic synthesis)
-      - _append_transvection_as_hs_cz correctly implements apply_tv2 (you already tested this)
+    We have: U * (G1 ... Gm) = I  =>  U = (G1 ... Gm)^-1
+    Circuit should append G1^-1, G2^-1, ..., Gm^-1 in that order.
     """
     U = U.astype(np.int8, copy=False)
     n = sym_shape(U)
 
-    # 1) Greedy reduction to terminal P
+    # 1) Greedy: Uc = U * T1 * ... * TL = P (terminal)
     ops_inv, P = greedy_adapted_volanto(
         U,
         params=greedy_params,
@@ -1919,35 +1810,47 @@ def synthesize_clifford_volanto(
         use_all_pairs=use_all_pairs,
     )
 
-    # 2) Reduce terminal P to identity via SWAP/H/S (right-multiply)
+    # The actual applied order was op_list = [T1, ..., TL] = reversed(ops_inv)
+    op_list = list(reversed(ops_inv))
+
+    # 2) Reduce terminal: P * R1 * ... * Rr = I
     (swaps, oneq_ops), P_reduced = reduce_with_single_qubit_gates(P)
     if not np.array_equal(P_reduced, np.eye(2 * n, dtype=np.int8)):
         msg = "Single-qubit reduction failed: did not reach identity."
         raise RuntimeError(msg)
 
-    # 3) Build the elimination circuit E such that U * E = I (symplectically),
-    #    then return E^{-1} which implements U.
-    elim = stim.Circuit()
+    # 3) Emit circuit for U = (T1..TL R1..Rr)^-1
+    # i.e. append inverses in the SAME order they were applied: T1^-1, ..., TL^-1, R1^-1, ..., Rr^-1
+    circ = stim.Circuit()
 
-    # IMPORTANT: ops_inv returned by greedy is already "inverse(op_list)" per your code:
-    # op_list_inv = reversed(op_list).
-    # In your previous emitter you used `reversed(ops_inv)` to reconstruct U from P.
-    # Here we want the *right-multiply* sequence that was applied during reduction:
-    # that's exactly op_list (the forward sequence), i.e. reversed(ops_inv).
-    #
-    # So: append transvections in reversed(ops_inv) order to match U -> ... -> P.
-    for v_bits, (i, j) in reversed(ops_inv):
+    # Transvections: inverse is itself (symplectic involution), so emit same gate.
+    for v_bits, (i, j) in op_list:
         _append_transvection_as_hs_cz(
-            elim,
+            circ,
             tuple(int(b) for b in v_bits),
             (int(i), int(j)),
         )
 
-    # Then append the single-qubit reductions that turn P into I.
-    _append_reduction_ops_as_stim(elim, swaps, oneq_ops)
+    # Swaps: self-inverse
+    for a, b in swaps:
+        circ.append("SWAP", [int(a), int(b)])
 
-    # Finally, invert to get a circuit that maps I -> U (implements U).
-    return elim.inverse()
+    # 1Q reductions were applied as right-multiplies by H/S to reduce P.
+    # For U we need the inverse gates:
+    #   H^-1 = H
+    #   S^-1 = S_DAG
+    for q, word in oneq_ops:
+        q = int(q)
+        for g in word:
+            if g == "H":
+                circ.append("H", [q])
+            elif g == "S":
+                circ.append("S_DAG", [q])
+            else:
+                msg = f"Unsupported 1Q gate in reduction word: {g}"
+                raise ValueError(msg)
+
+    return circ
 
 
 def stim_circuit_to_symplectic(
@@ -1975,24 +1878,6 @@ def stim_circuit_to_symplectic(
         return U_volanto
 
     return U_volanto, x_signs.astype(np.int8), z_signs.astype(np.int8)
-
-
-def stim_tableau_to_symplectic(
-    tab: stim.Tableau,
-    *,
-    with_signs: bool = False,
-) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]:
-    x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
-
-    U = np.block([
-        [x2x.astype(np.int8), x2z.astype(np.int8)],
-        [z2x.astype(np.int8), z2z.astype(np.int8)],
-    ]).astype(np.int8)
-
-    if not with_signs:
-        return U
-
-    return U, x_signs.astype(np.int8), z_signs.astype(np.int8)
 
 
 def _fix_tableau_signs_in_place(
