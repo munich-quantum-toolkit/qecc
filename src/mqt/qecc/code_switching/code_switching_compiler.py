@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -331,15 +331,7 @@ class MinimalCodeSwitchingCompiler:
         idle_bonus: bool,
         total_temporal_edges: int,
     ) -> None:
-        """Handle node creation, temporal edges, and code constraints for a single gate.
-
-        Parameters.
-        ----------
-        node : DAGOpNode
-            The gate operation node from the DAG.
-        depth : int
-            The depth (layer index) of the operation in the circuit.
-        """
+        """Handle node creation, temporal edges, and code constraints for a single gate."""
         qubits_indices = [circuit.find_bit(q).index for q in node.qargs]
         gate_type = node.name.upper()
 

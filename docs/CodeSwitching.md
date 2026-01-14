@@ -151,7 +151,7 @@ We specify in the graph-construction method `build_from_qiskit` that CNOTs (`CX`
 
 Finding the minimum number of switches is a good starting point, but in practice, we might want to consider additional factors such as:
 
-- **Depth Optimization:** Choosing the placing of the switching positions such that switching operations are placed preferribly on idling qubits while keeping the total number of switches minimal. This has the potential to reduce the overall circuit depth increase caused by the switching operations.
+- **Depth Optimization:** Choosing the placing of the switching positions such that switching operations are placed preferably on idling qubits while keeping the total number of switches minimal. This has the potential to reduce the overall circuit depth increase caused by the switching operations.
 - **Code Bias:** If one of the codes has a significantly higher overhead for switching operations, we might want to minimize switches into that code specifically.
 
 ### Depth Optimization
