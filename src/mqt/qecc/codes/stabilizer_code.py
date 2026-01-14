@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc.mod2.mod2_numpy import rank
+from ldpc.mod2.mod2_numpy import nullspace, rank
 
 from .pauli import Pauli, StabilizerTableau
 
@@ -69,7 +69,6 @@ class StabilizerCode:
             self.z_logicals = self.get_generators(z_logicals)
         if x_logicals is not None:
             self.x_logicals = self.get_generators(x_logicals)
-
 
         self._check_code_correct()
 
@@ -193,12 +192,12 @@ class StabilizerCode:
         """
         # Trivial code (no stabilizers): identity logicals
         if self.generators.n_rows == 0:
-            self.z_logicals = StabilizerTableau.from_pauli_strings(
-                ["I"*i + "Z" + "I"*(self.n - i - 1) for i in range(self.n)]
-            )
-            self.x_logicals = StabilizerTableau.from_pauli_strings(
-                ["I"*i + "X" + "I"*(self.n - i - 1) for i in range(self.n)]
-            )
+            self.z_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "Z" + "I" * (self.n - i - 1) for i in range(self.n)
+            ])
+            self.x_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "X" + "I" * (self.n - i - 1) for i in range(self.n)
+            ])
             return
 
         import numpy as np  # local import for safety
@@ -214,7 +213,7 @@ class StabilizerCode:
 
         # Centralizer: nullspace of M Λ
         B = (M @ Lambda) % 2
-        C = mod2.nullspace(B).astype(np.int8)  # rows span centralizer
+        C = nullspace(B).astype(np.int8)  # rows span centralizer
 
         if C.size == 0:
             self.z_logicals = StabilizerTableau.empty(n)
@@ -222,7 +221,7 @@ class StabilizerCode:
             return
 
         def mod2_rank(A: np.ndarray) -> int:
-            return int(mod2.rank(A % 2))
+            return int(rank(A % 2))
 
         # Build basis of the quotient C / span(M) with size 2k = 2(n - r)
         base = M.copy()
@@ -271,7 +270,7 @@ class StabilizerCode:
 
         def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
             a = a.copy()
-            for Zp, Xp in zip(Zs, Xs):
+            for Zp, Xp in zip(Zs, Xs, strict=False):
                 if symp(a, Xp):
                     a ^= Zp
                 if symp(a, Zp):
@@ -308,7 +307,7 @@ class StabilizerCode:
 
             # Clean remaining vectors to commute with the new pair
             for t in range(len(vecs)):
-                if t == i or t == j or t in used:
+                if t in {i, j} or t in used:
                     continue
                 u = vecs[t]
                 if symp(u, w):
@@ -332,7 +331,6 @@ class StabilizerCode:
         x_mat = np.vstack(Xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
         self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
-
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:
