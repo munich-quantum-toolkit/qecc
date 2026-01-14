@@ -96,7 +96,7 @@ def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
         [0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0],
         [0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1],
     ])
-    code = CSSCode(distance=3, Hx=check_matrix, Hz=check_matrix)
+    code = CSSCode(Hx=check_matrix, Hz=check_matrix, distance=3)
     sp_circ = heuristic_prep_circuit(code)
     sp_circ.compute_fault_sets()
     return sp_circ
