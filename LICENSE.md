@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2023 Chair for Design Automation, Technical University of Munich
+Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

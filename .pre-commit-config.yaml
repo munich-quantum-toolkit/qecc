@@ -60,13 +60,13 @@ repos:
 
   # Ensure uv lock file is up-to-date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.16
+    rev: 0.9.24
     hooks:
       - id: uv-lock
 
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.8
+    rev: v0.14.11
     hooks:
       - id: ruff-check
       - id: ruff-format
@@ -86,7 +86,7 @@ repos:
 
   # Check static types with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         files: ^(src/mqt|tests|noxfile.py)
@@ -98,8 +98,8 @@ repos:
           - pytest-mock
 
   # Check for spelling
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.40.0
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.42.0
     hooks:
       - id: typos
 
@@ -128,7 +128,7 @@ repos:
 
   # Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.35.0
+    rev: 0.36.0
     hooks:
       - id: check-dependabot
       - id: check-github-workflows
@@ -136,7 +136,7 @@ repos:
 
   # Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2025.11.21
+    rev: 2026.01.10
     hooks:
       - id: validate-pyproject
 

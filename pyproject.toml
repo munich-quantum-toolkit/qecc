@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -29,12 +29,12 @@ license = "MIT"
 license-files = ["LICENSE.md"]
 
 classifiers = [
-    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
-    "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -43,23 +43,23 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Development Status :: 5 - Production/Stable",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
     "Typing :: Typed",
 ]
 requires-python = ">=3.10"
 dependencies = [
   "qiskit[qasm3-import]>=1.0.0",
-  "numpy>=2.1; python_version >= '3.13'",
-  "numpy>=1.26; python_version >= '3.12'",
   "numpy>=1.24.1",
-  "numba>=0.61; python_version >= '3.13'",
-  "numba>=0.59; python_version >= '3.12'",
+  "numpy>=1.26; python_version >= '3.12'",
+  "numpy>=2.1; python_version >= '3.13'",
   "numba>=0.57",
+  "numba>=0.59; python_version >= '3.12'",
+  "numba>=0.61; python_version >= '3.13'",
   "scipy>=1.15.2",
   "z3-solver>=4.15.3",
-  "multiprocess >= 0.70.17",
+  "multiprocess>=0.70.17",
   "ldpc>=2.3.10",
-  "stim >= 1.14.0",
+  "stim>=1.14.0",
   "pymatching>=2.2.2",
   "bposd>=1.6",
   "qecsim>=1.0b9",
@@ -253,14 +253,23 @@ nd = "nd"
 
 
 [tool.repo-review]
-ignore = ["GH200"]
+ignore = [
+  "GH200", # We use Renovate instead of Dependabot
+  "PC160", # We use a mirror of crate-ci/typos
+]
+
 
 [tool.uv]
 required-version = ">=0.5.20"
-reinstall-package = ["mqt.qecc"]
+environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'linux'",
+  "sys_platform == 'win32' and platform_machine != 'arm64'",
+]
 
 [tool.uv.sources]
 mqt-qecc = { workspace = true }
+
 
 [tool.check-sdist]
 sdist-only = [

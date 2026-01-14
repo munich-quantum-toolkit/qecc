@@ -52,7 +52,7 @@
     },
     {
       description: "Group and automerge all patch updates",
-      groupName: "patch updates",
+      groupName: "patch versions",
       groupSlug: "all-patch",
       matchUpdateTypes: ["patch"],
       automerge: true

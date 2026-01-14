@@ -10,11 +10,11 @@ on:
 jobs:
   build-sdist:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@89734354f64f30a80dd16602d4e271df34348987 # v1.17.4
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@d6314c45667c131055a0389afc110e8dedc6da3f # v1.17.11
 
   build-wheel:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@89734354f64f30a80dd16602d4e271df34348987 # v1.17.4
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@d6314c45667c131055a0389afc110e8dedc6da3f # v1.17.11
 
   deploy:
     if: github.event_name == 'release' && github.event.action == 'published'
@@ -29,13 +29,13 @@ jobs:
       contents: read
     needs: [build-sdist, build-wheel]
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: cibw-*
           path: dist
           merge-multiple: true
       - name: Generate artifact attestation for sdist and wheel(s)
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
         with:
           subject-path: "dist/*"
       - uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0

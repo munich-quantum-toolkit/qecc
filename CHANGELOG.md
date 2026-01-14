@@ -20,14 +20,17 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
+- Combinatorial search methods for constructing fault-tolerant cat state preparation circuits. ([#543]) ([**@pehamtom**])
 
 ### Changed
 
+- Stop testing on x86 macOS systems ([#592]) ([**@denialhaag**])
 - Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
 - `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. ([#462]) ([**@pehamtom**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
+- Changed the construction in `CatStatePreparationExperiment` to allow for ancillas with less qubits than the data cat state.
 
 ### Removed
 
@@ -45,6 +48,8 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 <!-- PR links -->
 
 [#524]: https://github.com/munich-quantum-toolkit/qecc/pull/524
+[#592]: https://github.com/munich-quantum-toolkit/qecc/pull/592
+[#543]: https://github.com/munich-quantum-toolkit/qecc/pull/543
 [#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486

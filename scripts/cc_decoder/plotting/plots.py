@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -321,8 +321,7 @@ def generate_plots_comp(results_dir: Path, results_file: Path) -> None:
             idx += 1
         for f in files:
             fp = subdir + "/" + f
-            with Path(fp).open(encoding="utf-8") as ff:
-                data.append(json.loads(ff.read()))
+            data.append(json.loads(Path(fp).read_text(encoding="utf-8")))
 
         metrics: dict[int, dict[str, Any]] = {}
         for result in data:
