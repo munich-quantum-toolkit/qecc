@@ -868,57 +868,20 @@ Op = tuple[TV2, tuple[int, int]]  # (v_bits, (i, j))
 # ---------------------------------------------------------------------
 # Basic symplectic helpers
 # ---------------------------------------------------------------------
+from ..codes.pauli import StabilizerTableau
+
+
 def sym_shape(U: npt.NDArray[np.int8]) -> int:
     """Return n for a 2n×2n symplectic matrix U."""
-    m, n2 = U.shape
-    if m != n2 or m % 2 != 0:
-        msg = f"Expected square 2n×2n matrix, got {U.shape}."
-        raise ValueError(msg)
-    return m // 2
-
-
-def bin2set(row: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
-    """Indices of 1s in a 0/1 row."""
-    return np.flatnonzero(row)
-
-
-def r2_matrix(U: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    """R2(U)[i,j] = 1 iff det(F_ij)=1 over GF(2), i.e. rank(F_ij)=2 (invertible).
-    This matches Eq. (12) via determinant test. :contentReference[oaicite:5]{index=5}.
-    """
-    n = sym_shape(U)
-    # det(F_ij) = A_xx[i,j]*A_zz[i,j] XOR A_xz[i,j]*A_zx[i,j]
-    A_xx = U[:n, :n]
-    A_xz = U[:n, n:]
-    A_zx = U[n:, :n]
-    A_zz = U[n:, n:]
-    det = (A_xx & A_zz) ^ (A_xz & A_zx)
-    return det.astype(np.int8)
-
-
-def r0_matrix(U: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    """R0(U)[i,j]=1 iff F_ij is all-zero (rank 0)."""
-    n = sym_shape(U)
-    A_xx = U[:n, :n]
-    A_xz = U[:n, n:]
-    A_zx = U[n:, :n]
-    A_zz = U[n:, n:]
-    zero = (A_xx == 0) & (A_xz == 0) & (A_zx == 0) & (A_zz == 0)
-    return zero.astype(np.int8)
-
-
-def r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    """R1 = 1 iff rank(F_ij)=1.
-    Since rank ∈ {0,1,2}, we can do: R1 = NOT(R2 OR R0).
-    This matches Eq. (11) / discussion. :contentReference[oaicite:6]{index=6}.
-    """
-    return (1 ^ (R2 | R0)).astype(np.int8)
+    tableau = StabilizerTableau.from_matrix(U)
+    return tableau.num_qubits
 
 
 def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
-    R2 = r2_matrix(U)
-    R0 = r0_matrix(U)
-    R1 = r1_matrix_from_r2_r0(R2, R0)
+    """Compute R1 and R2 matrices using StabilizerTableau."""
+    tableau = StabilizerTableau.from_matrix(U)
+    R1 = tableau.compute_r1_matrix()
+    R2 = tableau.compute_r2_matrix()
     return R1, R2
 
 
