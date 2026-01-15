@@ -648,7 +648,6 @@ def depth_optimal_encoding_circuit(
     return _build_css_encoder_from_cnot_list(n_checks, reduced_checks_and_logicals, cnots, use_x_checks)
 
 
-
 def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
     """Return the stabilizer matrix with the fewest checks, the corresponding logicals and a bool indicating whether X- or Z-checks have been returned."""
     use_x_checks = code.Hx.shape[0] < code.Hz.shape[0]
@@ -869,6 +868,7 @@ Op = tuple[TV2, tuple[int, int]]  # (v_bits, (i, j))
 # Basic symplectic helpers
 # ---------------------------------------------------------------------
 
+
 def sym_shape(U: npt.NDArray[np.int8]) -> int:
     """Return n for a 2n×2n symplectic matrix U."""
     tableau = StabilizerTableau.from_matrix(U)
@@ -922,6 +922,7 @@ def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np
 def bin2set(row: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
     """Indices of 1s in a 0/1 row."""
     return np.flatnonzero(row)
+
 
 def all_two_qubit_transvections() -> list[TV2]:
     """The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial) correspond to
@@ -1441,7 +1442,6 @@ def synthesize_clifford_volanto(
     We have: U * (G1 ... Gm) = I  =>  U = (G1 ... Gm)^-1
     Circuit should append G1^-1, G2^-1, ..., Gm^-1 in that order.
     """
-
     # 1) Greedy: Uc = tableau * T1 * ... * TL = P (terminal)
     ops_inv, P = greedy_adapted_volanto(
         tableau.tableau.matrix,
@@ -1493,33 +1493,6 @@ def synthesize_clifford_volanto(
     return circ
 
 
-def stim_circuit_to_symplectic(
-    circ: stim.Circuit,
-    *,
-    with_signs: bool = False,
-) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Returns U in the *column-image* convention expected by your Volanto code,
-    i.e. suitable for right-multiplication + column-xor updates (apply_tv2).
-
-    Relation:
-        U_volanto = (U_stim_row_image).T
-    """
-    tab = circ.to_tableau()
-    x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
-
-    U_row = np.block([
-        [x2x.astype(np.int8), x2z.astype(np.int8)],
-        [z2x.astype(np.int8), z2z.astype(np.int8)],
-    ]).astype(np.int8)
-
-    U_volanto = U_row.T.copy()
-
-    if not with_signs:
-        return U_volanto
-
-    return U_volanto, x_signs.astype(np.int8), z_signs.astype(np.int8)
-
-
 def _fix_tableau_signs_in_place(
     out: stim.Circuit,
     target_x_signs: np.ndarray,
@@ -1560,8 +1533,8 @@ def resynthesize_stim_circuit_with_volanto(
     """
     tableau = StabilizerTableau.from_stim_circuit(circ)
     U = tableau.tableau.matrix
-    x_signs = tableau.phase[:tableau.n]
-    z_signs = tableau.phase[tableau.n:]
+    x_signs = tableau.phase[: tableau.n]
+    z_signs = tableau.phase[tableau.n :]
 
     out = synthesize_clifford_volanto(
         U,

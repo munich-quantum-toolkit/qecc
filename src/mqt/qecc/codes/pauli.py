@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
     import numpy.typing as npt
+    import stim
 
 
 class Pauli:
@@ -143,6 +144,37 @@ class StabilizerTableau:
         self.shape = (self.n_rows, self.n)
 
     @classmethod
+    def from_stim_circuit(cls, circ: stim.Circuit) -> StabilizerTableau:
+        """Create a StabilizerTableau from a stim.Circuit.
+
+        Args:
+            circ: A stim.Circuit object.
+
+        Returns:
+            A StabilizerTableau instance.
+        """
+        tab = circ.to_tableau()
+        x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
+
+        tableau_matrix = np.block([
+            [x2x.astype(np.int8), x2z.astype(np.int8)],
+            [z2x.astype(np.int8), z2z.astype(np.int8)],
+        ]).astype(np.int8)
+
+        phase = np.concatenate((x_signs.astype(np.int8), z_signs.astype(np.int8)))
+        return cls(SymplecticMatrix(tableau_matrix), phase)
+
+    @classmethod
+    def from_pauli_strings(cls, pauli_strings: Sequence[str]) -> StabilizerTableau:
+        """Create a new stabilizer tableau from a list of Pauli strings."""
+        if len(pauli_strings) == 0:
+            msg = "At least one Pauli string is required."
+            raise InvalidPauliError(msg)
+
+        paulis = [Pauli.from_pauli_string(p) for p in pauli_strings]
+        return cls.from_paulis(paulis)
+
+    @classmethod
     def from_paulis(cls, paulis: Sequence[Pauli]) -> StabilizerTableau:
         """Create a new stabilizer tableau from a list of Pauli operators."""
         if len(paulis) == 0:
@@ -158,16 +190,6 @@ class StabilizerTableau:
             mat[i] = p.symplectic.vector
             phase[i] = p.phase
         return cls(mat, phase)
-
-    @classmethod
-    def from_pauli_strings(cls, pauli_strings: Sequence[str]) -> StabilizerTableau:
-        """Create a new stabilizer tableau from a list of Pauli strings."""
-        if len(pauli_strings) == 0:
-            msg = "At least one Pauli string is required."
-            raise InvalidPauliError(msg)
-
-        paulis = [Pauli.from_pauli_string(p) for p in pauli_strings]
-        return cls.from_paulis(paulis)
 
     @classmethod
     def empty(cls, n: int) -> StabilizerTableau:
@@ -193,7 +215,7 @@ class StabilizerTableau:
             msg = f"Expected a square 2n×2n symplectic matrix, got shape {matrix.shape}."
             raise ValueError(msg)
 
-        n = matrix.shape[0] // 2
+        matrix.shape[0] // 2
         symplectic_matrix = SymplecticMatrix(matrix)
         return cls(symplectic_matrix)
 
