@@ -33,14 +33,11 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
     The SMT solver Z3 is used to determine minimal solutions of the MaxSAT problem, resulting in minimum-weight decoding estimates.
 - Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological (cat qubit) noise.
 - Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
+- Find the minimum number of code switching operations and their placement in a given quantum circuit that employs code switching as a way to implement logical operations fault-tolerantly.
 
 > [!NOTE]
 > Usage for _Lattice Surgery Compilation Beyond the Surface Code_ as well as _Exploiting Movable Logical Qubits for Lattice Surgery Compilation_ is described in [`docs/cococo.md`](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/docs/cococo.md) in the `cococo` branch.
 > The code quality in the branch is actively being improved.
-
-> [!NOTE]
-> Usage for _Minimizing the Number of Code Switching Operations in Fault-Tolerant Quantum Circuits_ is described in [`docs/CodeSwitching.md`](https://github.com/munich-quantum-toolkit/qecc/blob/code-switching-compiler/docs/CodeSwitching.md) in the `code-switching-compiler` branch.
-> This branch undergoes some final improvements before being merged into `main`.
 
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
