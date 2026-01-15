@@ -1217,7 +1217,7 @@ def _extract_perm_in_to_out_and_blocks(U: npt.NDArray[np.int8]) -> tuple[np.ndar
     blocks[i] = 2×2 block F_ij for that (i,j).
     """
     n = sym_shape(U)
-    R2 = StabilizerTableau.from_matrix(U).compute_r2_matrix()
+    R2 = compute_r2_matrix(U)
 
     perm = np.full(n, -1, dtype=int)
     blocks: list[np.ndarray] = [None] * n  # type: ignore
