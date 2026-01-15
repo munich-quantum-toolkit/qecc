@@ -886,8 +886,11 @@ def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np
 
 
 # ---------------------------------------------------------------------
-# Two-qubit transvections (support on exactly qubits i and j)
+# Helper functions
 # ---------------------------------------------------------------------
+def bin2set(row: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
+    """Indices of 1s in a 0/1 row."""
+    return np.flatnonzero(row)
 def all_two_qubit_transvections() -> list[TV2]:
     """The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial) correspond to
     choosing (x,z) in {(1,0),(0,1),(1,1)} for each of the two qubits. :contentReference[oaicite:7]{index=7}.
@@ -1182,7 +1185,7 @@ def _extract_perm_in_to_out_and_blocks(U: npt.NDArray[np.int8]) -> tuple[np.ndar
     blocks[i] = 2×2 block F_ij for that (i,j).
     """
     n = sym_shape(U)
-    R2 = r2_matrix(U)
+    R2 = StabilizerTableau.from_matrix(U).compute_r2_matrix()
 
     perm = np.full(n, -1, dtype=int)
     blocks: list[np.ndarray] = [None] * n  # type: ignore
