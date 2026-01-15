@@ -1277,7 +1277,7 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[SwapOp]:
     return swaps
 
 
-def reduce_with_single_qubit_gates(
+def reduce_single_qubit_gates_and_swaps(
     U: npt.NDArray[np.int8],
 ) -> tuple[tuple[list[SwapOp], list[SingleQOp]], npt.NDArray[np.int8]]:
     """Reduce a TERMINAL symplectic matrix U to identity using only SWAP/H/S by right-multiplication.
@@ -1428,25 +1428,23 @@ def _append_reduction_ops_as_stim(
 
 
 def synthesize_clifford_volanto(
-    U: np.ndarray,
+    tableau: StabilizerTableau,
     *,
     greedy_params: GreedyParams = GreedyParams(),
     choose_op: ChooseOpFn | None = None,
     use_all_pairs: bool = False,
 ) -> stim.Circuit:
-    """Synthesize a stim circuit implementing symplectic U using:
+    """Synthesize a stim circuit implementing a StabilizerTableau using:
       - greedy_adapted_volanto (right-multiply transvections) -> terminal P
       - reduce_with_single_qubit_gates(P) (right-multiply SWAP/H/S) -> I.
 
     We have: U * (G1 ... Gm) = I  =>  U = (G1 ... Gm)^-1
     Circuit should append G1^-1, G2^-1, ..., Gm^-1 in that order.
     """
-    U = U.astype(np.int8, copy=False)
-    n = sym_shape(U)
 
-    # 1) Greedy: Uc = U * T1 * ... * TL = P (terminal)
+    # 1) Greedy: Uc = tableau * T1 * ... * TL = P (terminal)
     ops_inv, P = greedy_adapted_volanto(
-        U,
+        tableau.tableau.matrix,
         params=greedy_params,
         choose_op=choose_op,
         use_all_pairs=use_all_pairs,
@@ -1456,8 +1454,8 @@ def synthesize_clifford_volanto(
     op_list = list(reversed(ops_inv))
 
     # 2) Reduce terminal: P * R1 * ... * Rr = I
-    (swaps, oneq_ops), P_reduced = reduce_with_single_qubit_gates(P)
-    if not np.array_equal(P_reduced, np.eye(2 * n, dtype=np.int8)):
+    (swaps, oneq_ops), P_reduced = reduce_single_qubit_gates_and_swaps(P)
+    if not np.array_equal(P_reduced, np.eye(2 * tableau.n, dtype=np.int8)):
         msg = "Single-qubit reduction failed: did not reach identity."
         raise RuntimeError(msg)
 
@@ -1560,7 +1558,10 @@ def resynthesize_stim_circuit_with_volanto(
     If fix_signs=True, the returned circuit matches circ.to_tableau() exactly.
     Otherwise it matches only the symplectic (phase-free) action.
     """
-    U, x_signs, z_signs = stim_circuit_to_symplectic(circ, with_signs=True)
+    tableau = StabilizerTableau.from_stim_circuit(circ)
+    U = tableau.tableau.matrix
+    x_signs = tableau.phase[:tableau.n]
+    z_signs = tableau.phase[tableau.n:]
 
     out = synthesize_clifford_volanto(
         U,
