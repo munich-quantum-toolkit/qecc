@@ -179,17 +179,23 @@ class StabilizerTableau:
         """Create a new identity stabilizer tableau."""
         return cls(SymplecticMatrix.identity(n), np.zeros(0, dtype=np.int8))
 
-    def __eq__(self, other: object) -> bool:
-        """Check if two stabilizer tableaus are equal."""
-        if isinstance(other, list):
-            if len(other) != self.n_rows:
-                return False
-            if isinstance(other[0], Pauli):
-                other = StabilizerTableau.from_paulis(other)
-            elif isinstance(other[0], str):
-                other = StabilizerTableau.from_pauli_strings(other)
-            else:
-                return False
+    @classmethod
+    def from_matrix(cls, matrix: npt.NDArray[np.int8]) -> StabilizerTableau:
+        """Create a StabilizerTableau from a symplectic matrix.
+
+        Args:
+            matrix: A 2n x 2n symplectic matrix representing the stabilizer tableau.
+
+        Returns:
+            A StabilizerTableau instance.
+        """
+        if matrix.shape[0] % 2 != 0 or matrix.shape[0] != matrix.shape[1]:
+            msg = f"Expected a square 2n×2n symplectic matrix, got shape {matrix.shape}."
+            raise ValueError(msg)
+
+        n = matrix.shape[0] // 2
+        symplectic_matrix = SymplecticMatrix(matrix)
+        return cls(symplectic_matrix)
 
         if not isinstance(other, StabilizerTableau):
             return False
