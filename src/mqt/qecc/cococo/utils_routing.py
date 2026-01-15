@@ -502,7 +502,6 @@ class BasicRouter:
         If there is a shortest path which is not possible at all (due to locking), then add high, hard coded penalty.
         This only works for CNOT circuits only.
         """
-        # lock_penalty = 50
         total_penalty = 0
         lst_crossings = []
         for layer in layers:
@@ -971,7 +970,6 @@ class TeleportationRouter(BasicRouter):
             graph_history
 
         """
-        # !TODO INCLUDE IDLE MOVING GAPS AS PART OF THE ANNEALING TO AVOID SEQUENTIALIZATION
         factory_times_copy = self.factory_times.copy()
         if T_start < T_end:
             msg = "T_start must be larger than T_end"  # pragma: no cover
@@ -1064,7 +1062,6 @@ class TeleportationRouter(BasicRouter):
                     msg = "Something wrong with keys of candidate tree"  # type: ignore[unreachable] # pragma: no cover
                     raise RuntimeError(msg)
             # 2. compute the crossing metric for next_layer
-            # try:
             layers_for_metric = next_layers_copy[:k_lookahead]
             if self.metric == "crossing":
                 candidate_cost = self.count_crossings(
@@ -1355,7 +1352,6 @@ class TeleportationRouter(BasicRouter):
 
         danger_qubits = danger_qubits_copy.copy()
         # add those danger qubits and empty spots which where added in this layer
-        # danger_qubits += danger_qubits_temp #those temp danger qubits have k_lookahead as timelabel
         danger_qubits |= danger_qubits_temp
         available_gaps += available_gaps_temp
 

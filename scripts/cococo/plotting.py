@@ -182,7 +182,10 @@ def plot_lattice_paths(
             linewidths=1.5,  # Line width for the outline
         )
 
-    plt.legend()
+    handles, _ = plt.gca().get_legend_handles_labels()
+    if handles:
+        plt.legend()
+
     plt.show()
 
 

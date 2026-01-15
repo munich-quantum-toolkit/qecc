@@ -33,7 +33,6 @@ def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos, pos]
         gates_temp = [el for el in gates_temp if not isinstance(el, str)]
         layout = schedule[i]["layout"]
         layout_rev = {j: i for i, j in layout.items()}
-        # gates_temp = [(layout_rev[el[0]], layout_rev[el[1]]) for el in gates_temp]
         gates_temp_temp = []
         # translate the gates into number labels, not pos on graph
         for el in gates_temp:
@@ -72,7 +71,6 @@ def check_order_dyn_gates_st(
 
     Includes both CNOT and T gates in a circuit.
     """
-    # flattened_pairs = [item for pair in terminal_pairs for item in pair]
     flattened_pairs = [
         p
         for elem in terminal_pairs
@@ -86,16 +84,13 @@ def check_order_dyn_gates_st(
     initial_state = random_initial_state(n_qubits)
 
     layout_rev = {j: i for i, j in layout.items()}
-    # terminal_pairs_trans = [(layout_rev[el[0]], layout_rev[el[1]]) for el in terminal_pairs]
     terminal_pairs_trans: list[int | tuple[int, int]] = []
     for el in terminal_pairs:
-        # print("el", el)
         if isinstance(el[0], tuple):
             # cnot
             terminal_pairs_trans.append((layout_rev[el[0]], layout_rev[el[1]]))
         elif isinstance(el[0], int):
             terminal_pairs_trans.append(layout_rev[el])
-        # print("terminal pairs trans", terminal_pairs_trans)
     gates_schedule = []
     for vdp_dict in vdp_layers:
         gates_schedule += [
@@ -113,10 +108,8 @@ def check_order_dyn_gates_st(
     initial_circ_order = initial_state.copy()
     for el3 in terminal_pairs_trans:
         if isinstance(el3, tuple):
-            # print("tuple el", el)
             initial_circ_order.append("CNOT", [el3[0], el3[1]])
         elif isinstance(el3, int):
-            # print("int el", el)
             initial_circ_order.append("s", el3)
 
     dyn_circ_order = initial_state.copy()
@@ -143,7 +136,6 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule:
     simulates the gate order in the schedule (changed from pushing) and from initial terminal pairs on a random initial state.
     the results must coincide to make sure that the pushing is performed correctly.
     """
-    # flattened_pairs = [item for pair in terminal_pairs for item in pair]
     flattened_pairs = [
         p
         for elem in terminal_pairs
@@ -157,7 +149,6 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule:
 
     layout = schedule[0]["layout"]
     layout_rev = {j: i for i, j in layout.items()}
-    # terminal_pairs_trans = [(layout_rev[el[0]], layout_rev[el[1]]) for el in terminal_pairs]
     terminal_pairs_trans = []
     for el in terminal_pairs:
         if isinstance(el[0], tuple):
@@ -312,7 +303,7 @@ def test_times_t_gates_opt(schedule: Any, t: int, factories: list[pos]) -> bool:
 def test_times_t_gates_st(
     vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]], t: int, factories: list[pos]
 ) -> bool:
-    """Checks whether the t timestamps make sense in a finisehd vdp layeyrs (st)."""
+    """Checks whether the t timestamps make sense in a finished vdp layeyrs (st)."""
     factory_times = dict.fromkeys(factories, t)
     for vdp_dict in vdp_layers:
         for t_gate, path in vdp_dict.items():

@@ -29,8 +29,6 @@ if TYPE_CHECKING:
 
     pos = tuple[int, int]
 
-random.seed(45)
-
 
 def save_to_file(path: str, data: Any) -> None:  # noqa: ANN401
     """Safely saves data to a file."""
@@ -54,6 +52,7 @@ class HillClimbing:
         possible_factory_positions: list[tuple[int, int]] | None = None,
         num_factories: int | None = None,
         optimize_factories: bool = False,
+        seed: int = 45,
     ) -> None:
         """Initializes the Hill Climbing with Random Restarts algorithm.
 
@@ -74,7 +73,10 @@ class HillClimbing:
             possible_factory_positions (list[tuple[int, int]] | None, optional): possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout). Defaults to None.
             num_factories (int | None, optional): Number of factories to be used (subset of possible_factory_positions). Defaults to None.
             optimize_factories (bool, optional): decides whether factories are optimized or not. Defaults to false.
+            seed (int): seed for random stuff
         """
+        rng = random.Random(seed)  # noqa: S311
+        self.rng = rng
         # if circuit includes also single ints (i.e. T gates on qubit i), then ensure, that possible_factory_positions and num_factories are not None
         if any(type(el) is int for el in circuit):
             if possible_factory_positions is None:
@@ -197,7 +199,7 @@ class HillClimbing:
         """Yields a random qubit assignment given the `data_qubit_locs`."""
         layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]] = {}
         perm = list(range(self.q))
-        random.shuffle(perm)
+        self.rng.shuffle(perm)
         for i, j in zip(
             perm, self.data_qubit_locs, strict=False
         ):  # this also respects custom layouts, because we adapted self.data_qubit_locs in case of layout_type="custom"
@@ -208,7 +210,7 @@ class HillClimbing:
         if any(type(el) is int for el in self.circuit):
             possible_factory_positions = cast("list[tuple[int,int]]", self.possible_factory_positions)
             num_factories = cast("int", self.num_factories)
-            factory_positions = random.sample(possible_factory_positions, num_factories)
+            factory_positions = self.rng.sample(possible_factory_positions, num_factories)
         layout.update({"factory_positions": factory_positions})
 
         return layout
@@ -252,10 +254,6 @@ class HillClimbing:
         Returns:
             Tuple of (restart index, best solution, best score, history for this restart)
         """
-        base_seed = 45  # You can change this to any fixed value
-        seed = base_seed + restart
-        random.seed(seed)
-
         current_solution = self.gen_random_qubit_assignment()
         current_score = self.evaluate_solution(current_solution)
         history_temp: HistoryTemp = {

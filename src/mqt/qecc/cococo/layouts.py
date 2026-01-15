@@ -18,16 +18,16 @@ pos = tuple[int, int]
 
 
 def translate_layout_circuit(
-    pairs: list[tuple[int, int] | int],
-    layout: dict[int | str, tuple[int, int] | list[tuple[int, int]]],
-) -> list[tuple[tuple[int, int], tuple[int, int]] | tuple[int, int]]:
+    pairs: list[pos | int],
+    layout: dict[int | str, pos | list[pos]],
+) -> list[tuple[pos, pos] | pos]:
     """Translates a `pairs` circuit (with int labels) into the lattice's labels for a given layout.
 
     However, pairs does not only include tuple[int,int] but can include int as well for T gates.
     Layout will also include a list of factory positions in the key="factory_positions". For this key, there can be the list[tuple[int,int]].
     This key is never called here, so we do not need a case for the value being a list. One should note that the type annotation is not fully unambiguous here.
     """
-    terminal_pairs: list[tuple[tuple[int, int], tuple[int, int]] | tuple[int, int]] = []
+    terminal_pairs: list[tuple[pos, pos] | pos] = []
     for pair in pairs:
         if isinstance(pair, tuple):
             pos1_raw = layout[pair[0]]
@@ -53,9 +53,9 @@ def gen_layout_scalable(
     layout_type: str,
     m: int,
     n: int,
-    factories: list[tuple[int, int]],
+    factories: list[pos],
     remove_edges: bool = True,
-) -> tuple[nx.Graph, list[tuple[int, int]], list[tuple[int, int]]]:
+) -> tuple[nx.Graph, list[pos], list[pos]]:
     """Generates layouts automatically, similar to those manual layouts in  `gen_layouts`.
 
     remove_edges: bool = whether or not to remove edges of adjacent data qubit locs
@@ -305,7 +305,7 @@ def gen_layout_scalable(
 
     if remove_edges:
         for data_qubit in data_qubit_locs:
-            neighbours: list[tuple[int, int]] = list(g.neighbors(data_qubit))
+            neighbours: list[pos] = list(g.neighbors(data_qubit))
             for neigh in neighbours:
                 if neigh in data_qubit_locs:  # if a neighbor is also a logical qubit
                     g.remove_edge(data_qubit, neigh)
@@ -315,8 +315,8 @@ def gen_layout_scalable(
 
 
 def filter_factory_nodes(
-    g: nx.Graph, factory_ring: list[tuple[int, int]], factories: list[tuple[int, int]]
-) -> tuple[nx.Graph, set[tuple[int, int]], set[tuple[int, int]]]:
+    g: nx.Graph, factory_ring: list[pos], factories: list[pos]
+) -> tuple[nx.Graph, set[pos], set[pos]]:
     """Filter ancillas from factory_ring which should be kept in the graph considering the included factories.
 
     Note that one should place the factories in a suitable way such that they are not weirdly connected.

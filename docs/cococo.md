@@ -75,90 +75,10 @@ g = nx.hexagonal_lattice_graph(m=m, n=n, periodic=False, with_positions=True, cr
 
 # qubit positions within each patch, must be given in the right order of adjacent patches
 positions = [
-    [
-        (1, 1),
-        (2, 1),
-        (3, 1),
-        (4, 1),
-        (5, 1),
-        (5, 2),
-        (4, 2),
-        (3, 2),
-        (2, 2),
-        (2, 3),
-        (3, 3),
-        (4, 3),
-        (4, 4),
-        (3, 4),
-        (2, 4),
-        (3, 5),
-        (4, 5),
-        (3, 6),
-        (3, 7),
-    ],
-    [
-        (6, 2),
-        (6, 3),
-        (6, 4),
-        (7, 4),
-        (7, 5),
-        (6, 5),
-        (5, 5),
-        (5, 6),
-        (6, 6),
-        (7, 6),
-        (8, 7),
-        (7, 7),
-        (6, 7),
-        (5, 7),
-        (4, 8),
-        (5, 8),
-        (6, 8),
-        (7, 8),
-        (8, 8),
-    ],
-    [
-        (4, 10),
-        (5, 10),
-        (6, 10),
-        (7, 10),
-        (8, 10),
-        (8, 11),
-        (7, 11),
-        (6, 11),
-        (5, 11),
-        (5, 12),
-        (6, 12),
-        (7, 12),
-        (7, 13),
-        (6, 13),
-        (5, 13),
-        (6, 14),
-        (7, 14),
-        (6, 15),
-        (6, 16),
-    ],
-    [
-        (9, 11),
-        (9, 12),
-        (9, 13),
-        (10, 13),
-        (10, 14),
-        (9, 14),
-        (8, 14),
-        (8, 15),
-        (9, 15),
-        (10, 15),
-        (11, 16),
-        (10, 16),
-        (9, 16),
-        (8, 16),
-        (7, 17),
-        (8, 17),
-        (9, 17),
-        (10, 17),
-        (11, 17),
-    ],
+    [(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (5, 2), (4, 2), (3, 2), (2, 2), (2, 3), (3, 3), (4, 3), (4, 4), (3, 4), (2, 4), (3, 5), (4, 5), (3, 6), (3, 7),],
+    [(6, 2), (6, 3), (6, 4), (7, 4), (7, 5), (6, 5), (5, 5), (5, 6), (6, 6), (7, 6), (8, 7), (7, 7), (6, 7), (5, 7), (4, 8), (5, 8), (6, 8), (7, 8), (8, 8),],
+    [(4, 10), (5, 10), (6, 10), (7, 10), (8, 10), (8, 11), (7, 11), (6, 11), (5, 11), (5, 12), (6, 12), (7, 12), (7, 13), (6, 13), (5, 13), (6, 14), (7, 14), (6, 15), (6, 16),],
+    [(9, 11), (9, 12), (9, 13), (10, 13), (10, 14), (9, 14), (8, 14), (8, 15), (9, 15), (10, 15), (11, 16), (10, 16), (9, 16), (8, 16), (7, 17), (8, 17), (9, 17), (10, 17), (11, 17),],
 ]
 
 d = 5 #distance
@@ -187,9 +107,13 @@ snake.plot_stabilizers(subset_stabs)
 To run the compilation with movable qubits, construct a layout first.
 
 ```{code-cell} ipython3
+:tags: [hide-input]
+
 import sys
 sys.path.append("../scripts/cococo") #since plotting is part of scripts and not part of the submodule it must be included separately.
+```
 
+```{code-cell} ipython3
 import plotting
 
 import mqt.qecc.cococo.utils_routing as utils
@@ -218,7 +142,7 @@ dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
     num_gates,
 )
 
-#for reproducibility and quicker result for illustration, copy the circuit here:
+#randomly chosen circuit:
 pairs = [(8, 13), (15, 2), (9, 10), (0, 3), (23, 20), (1, 19), (4, 6), (22, 5), (13, 20), (2, 1), (10, 6), (0, 3), (23, 15), (9, 19), (5, 4), (8, 22), (3, 20), (1, 19), (6, 10), (4, 0), (2, 15), (22, 9), (13, 5), (8, 23), (3, 1), (8, 19)]
 ```
 
@@ -226,14 +150,14 @@ Then, one can run the basic router first to receive a reference result.
 
 ```{code-cell} ipython3
 terminal_pairs = layouts.translate_layout_circuit(pairs, layout)  # let's stick to the simple layout
-t=4
+t=4 #mock reset time for pure cnot circuit
 router = utils.BasicRouter(g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True)
 layers = router.split_layer_terminal_pairs(terminal_pairs)
-vdp_layers, _ = router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=True)
+vdp_layers, _ = router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=False) #usually recommended to use `testing=True`
 print("Len of schedule without teleportation: ", len(vdp_layers))
 ```
 
-Afterward, let's run the router with movable qubits.
+Afterward, let's run the router with movable qubits, i.e. logical qubits can be moved during the execution of a CNOT gate as described in paper (2). A couple of parameters need to be defined, which are described in detail in [optimize_layers](mqt.qecc.cococo.utils_routing.TeleportationRouter.optimize_layers).
 
 ```{code-cell} ipython3
 router = utils.TeleportationRouter(
@@ -245,17 +169,14 @@ max_iters = 100
 T_start = 100.0
 T_end = 0.1
 alpha = 0.95
-t = 4  # mock value for cnot circuit
 radius = 10
 k_lookahead = 5
-metric = "exact"
-
 steiner_init_type = "full_random"
 jump_harvesting = True
-stimtest = True
-
 reduce_steiner = True
 idle_move_type = "later"
+reduce_init_steiner = False
+stimtest = True
 
 schedule, _ = router.optimize_layers(
     terminal_pairs,
@@ -270,8 +191,8 @@ schedule, _ = router.optimize_layers(
     jump_harvesting=jump_harvesting,
     reduce_steiner=reduce_steiner,
     idle_move_type=idle_move_type,
-    reduce_init_steiner=False,
-    stimtest=True,
+    reduce_init_steiner=reduce_init_steiner,
+    stimtest=stimtest,
 )
 
 print("Len of schedule with teleport router: ", len(schedule))
