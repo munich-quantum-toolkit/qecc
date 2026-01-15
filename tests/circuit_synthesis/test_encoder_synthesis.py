@@ -246,83 +246,33 @@ def test_depth_optimal_encoding_non_css_timeout(code: StabilizerCode, request) -
     assert encoder is not None
 
 
-def test_volanto_id():
-    """Test greedy adapted Volanto on identity."""
-    n = 4
+@pytest.mark.parametrize(
+    "n, operations, expected_transvections, expected_single_qubit_ops",
+    [
+        (4, [], 0, 0),  # Identity
+        (2, [(0, 1, "CNOT")], 1, 0),  # CNOT
+        (1, [(0, 1, "HADAMARD")], 0, 1),  # Hadamard
+        (2, [(1, 3, "HADAMARD"), (0, 1, "CNOT"), (3, 2, "CNOT")], 1, 0),  # Bell state
+        (2, [(0, 1, "CNOT"), (3, 2, "CNOT"), (1, 0, "CNOT"), (2, 3, "CNOT")], 1, 1),  # SWAP
+        (3, [(0, 3, "HADAMARD"), (1, 0, "CNOT"), (3, 4, "CNOT"), (2, 1, "CNOT"), (4, 5, "CNOT")], 2, 0),  # GHZ
+    ],
+)
+def test_volanto_cases(n, operations, expected_transvections, expected_single_qubit_ops):
+    """Test greedy adapted Volanto on various cases."""
     U = np.eye(2 * n, dtype=np.int8)
-    ops, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    assert len(ops) == 0
-    assert np.array_equal(final_U, U)
 
-
-def test_volanto_cnot():
-    """Test greedy adapted Volanto on a CNOT."""
-    n = 2
-    U = np.eye(2 * n, dtype=np.int8)
-    U[:, 0] ^= U[:, 1]  # CNOT from qubit 1 to qubit 0
-    U[:, n + 1] ^= U[:, n]
-
-    transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    _single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
-    assert len(transvections) == 1
-    assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
-
-
-def test_volanto_hadamard():
-    """Test greedy adapted Volanto on a Hadamard."""
-    n = 1
-    U = np.eye(2 * n, dtype=np.int8)
-    U[:, [0, 1]] = U[:, [1, 0]]  # Hadamard on qubit 0
+    for op in operations:
+        if op[2] == "CNOT":
+            U[:, op[0]] ^= U[:, op[1]]
+            U[:, n + op[1]] ^= U[:, n + op[0]]
+        elif op[2] == "HADAMARD":
+            U[:, [op[0], op[1]]] = U[:, [op[1], op[0]]]
 
     transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
     single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
-    assert len(transvections) == 0
-    assert len(single_qubit_ops[1]) == 1
-    assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
 
-
-def test_volanto_bell():
-    """Test greedy adapted Volanto on a Bell state."""
-    n = 2
-    U = np.eye(2 * n, dtype=np.int8)
-    U[:, [1, n + 1]] = U[:, [n + 1, 1]]  # Hadamard on qubit 1
-    U[:, 0] ^= U[:, 1]  # CNOT from qubit 1 to qubit 0
-    U[:, n + 1] ^= U[:, n]
-
-    transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    _single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
-    assert len(transvections) == 1
-    assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
-
-
-def test_volanto_iswap():
-    """Test greedy adapted Volanto on a SWAP."""
-    n = 2
-    U = np.eye(2 * n, dtype=np.int8)
-    U[:, 0] ^= U[:, 1]  # CNOT from qubit 1 to qubit 0
-    U[:, n + 1] ^= U[:, n]
-    U[:, 1] ^= U[:, 0]  # CNOT from qubit 0 to qubit 1
-    U[:, n] ^= U[:, n + 1]
-
-    transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
-    assert len(transvections) == 1  # only one two-qubit gate needed, the rest is absorbed into swaps at the start
-    assert len(single_qubit_ops[0]) == 1  # swaps
-    assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
-
-
-def test_volanto_ghz():
-    """Test greedy adapted Volanto on a GHZ state."""
-    n = 3
-    U = np.eye(2 * n, dtype=np.int8)
-    U[:, [0, n]] = U[:, [n, 0]]  # Hadamard on qubit 0
-    U[:, 1] ^= U[:, 0]  # CNOT from qubit 0 to qubit 1
-    U[:, n] ^= U[:, n + 1]
-    U[:, 2] ^= U[:, 1]  # CNOT from qubit 1 to qubit 2
-    U[:, n + 1] ^= U[:, n + 2]
-    transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    _single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
-    assert len(transvections) == 2
+    assert len(transvections) == expected_transvections
+    assert len(single_qubit_ops[0]) == expected_single_qubit_ops
     assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
 
 
