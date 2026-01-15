@@ -197,10 +197,6 @@ class StabilizerTableau:
         symplectic_matrix = SymplecticMatrix(matrix)
         return cls(symplectic_matrix)
 
-        if not isinstance(other, StabilizerTableau):
-            return False
-        return bool(self.tableau == other.tableau and np.all(self.phase == other.phase))
-
     def __ne__(self, other: object) -> bool:
         """Check if two stabilizer tableaus are not equal."""
         return not self == other
