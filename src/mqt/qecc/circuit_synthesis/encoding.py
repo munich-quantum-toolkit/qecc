@@ -868,8 +868,6 @@ Op = tuple[TV2, tuple[int, int]]  # (v_bits, (i, j))
 # ---------------------------------------------------------------------
 # Basic symplectic helpers
 # ---------------------------------------------------------------------
-from ..codes.pauli import StabilizerTableau
-
 
 def sym_shape(U: npt.NDArray[np.int8]) -> int:
     """Return n for a 2n×2n symplectic matrix U."""
@@ -891,6 +889,7 @@ def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np
 def bin2set(row: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
     """Indices of 1s in a 0/1 row."""
     return np.flatnonzero(row)
+
 def all_two_qubit_transvections() -> list[TV2]:
     """The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial) correspond to
     choosing (x,z) in {(1,0),(0,1),(1,1)} for each of the two qubits. :contentReference[oaicite:7]{index=7}.
