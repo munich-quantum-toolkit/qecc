@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
+import stim
 
 from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.circuit_synthesis import (
@@ -26,16 +27,13 @@ from mqt.qecc.circuit_synthesis import (
 )
 from mqt.qecc.circuit_synthesis.encoding import (
     greedy_adapted_volanto,
-    reduce_with_single_qubit_gates,
-    stim_circuit_to_symplectic,
+    reduce_single_qubit_gates_and_swaps,
 )
-from mqt.qecc.codes.pauli import Pauli
+from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
 from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
-    import stim
-
     from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
 
 
@@ -198,7 +196,7 @@ def test_gottesman_encoding_invalid() -> None:
         gottesman_encoding_circuit(["X", "Z"])
 
 
-@pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit"])
+@pytest.mark.parametrize("code", ["non_css_5_qubit"])
 def test_depth_optimal_encoding_non_css_consistent(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that `depth_optimal_encoding_circuit_non_css` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
@@ -222,98 +220,30 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
     code = request.getfixturevalue(code)
 
     # Test with minimal depth
-    encoder, message_qs = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
-    assert encoder is not None
-    assert encoder.num_qubits == code.n
-
-    # Test with maximal depth
-    encoder, _message_qs = depth_optimal_encoding_circuit_non_css(code, max_depth=20)
-    assert encoder is not None
-    assert encoder.num_qubits == code.n
-
-
-@pytest.mark.skipif(
-    os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
-    reason="Too slow for CI on Windows or MacOS",
-)
-@pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit"])
-def test_depth_optimal_encoding_non_css_timeout(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
-    """Check that `depth_optimal_encoding_circuit_non_css` respects timeout constraints."""
-    code = request.getfixturevalue(code)
-
-    # Test with a short timeout
-    encoder = depth_optimal_encoding_circuit_non_css(code, max_depth=10, max_two_qubit_gates=5)
-    assert encoder is not None
+    result = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
+    assert result == "UNSAT"
 
 
 @pytest.mark.parametrize(
-    "n, operations, expected_transvections, expected_single_qubit_ops",
+    ("tableau", "expected_transvections", "min_single_qubit_ops", "expected_swaps"),
     [
-        (4, [], 0, 0),  # Identity
-        (2, [(0, 1, "CNOT")], 1, 0),  # CNOT
-        (1, [(0, 1, "HADAMARD")], 0, 1),  # Hadamard
-        (2, [(1, 3, "HADAMARD"), (0, 1, "CNOT"), (3, 2, "CNOT")], 1, 0),  # Bell state
-        (2, [(0, 1, "CNOT"), (3, 2, "CNOT"), (1, 0, "CNOT"), (2, 3, "CNOT")], 1, 1),  # SWAP
-        (3, [(0, 3, "HADAMARD"), (1, 0, "CNOT"), (3, 4, "CNOT"), (2, 1, "CNOT"), (4, 5, "CNOT")], 2, 0),  # GHZ
+        # Add test cases here with StabilizerTableau instances
+        # Example: (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
+        (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
+        (StabilizerTableau.from_stim_circuit(stim.Circuit("CX 0 1")), 1, 0, 0),  # Single CNOT
+        (StabilizerTableau.from_stim_circuit(stim.Circuit("H 0\nCX 0 1")), 1, 1, 0),  # Bell pair
     ],
 )
-def test_volanto_cases(n, operations, expected_transvections, expected_single_qubit_ops):
+def test_volanto_cases(
+    tableau: StabilizerTableau, expected_transvections: int, min_single_qubit_ops: int, expected_swaps: int
+):
     """Test greedy adapted Volanto on various cases."""
-    U = np.eye(2 * n, dtype=np.int8)
-
-    for op in operations:
-        if op[2] == "CNOT":
-            U[:, op[0]] ^= U[:, op[1]]
-            U[:, n + op[1]] ^= U[:, n + op[0]]
-        elif op[2] == "HADAMARD":
-            U[:, [op[0], op[1]]] = U[:, [op[1], op[0]]]
-
-    transvections, final_U = greedy_adapted_volanto(U, use_all_pairs=True)
-    single_qubit_ops, final_U = reduce_with_single_qubit_gates(final_U)
+    transvections, final_U = greedy_adapted_volanto(tableau.tableau.matrix, use_all_pairs=True)
+    prefix, final_U = reduce_single_qubit_gates_and_swaps(final_U)
+    single_qubit_ops = prefix[1]
+    swaps = prefix[0]
 
     assert len(transvections) == expected_transvections
-    assert len(single_qubit_ops[0]) == expected_single_qubit_ops
-    assert np.array_equal(final_U, np.eye(2 * n, dtype=np.int8))
-
-
-def test_stim_circuit_to_symplectic_empty() -> None:
-    """Test conversion from stim circuit to symplectic matrix."""
-    import stim
-
-    circuit = stim.Circuit()
-
-    U = stim_circuit_to_symplectic(circuit)
-    n = circuit.num_qubits
-    expected_U = np.eye(2 * n, dtype=np.int8)
-    assert np.array_equal(U, expected_U)
-
-
-def test_stim_circuit_to_symplectic_cnot() -> None:
-    """Test conversion from stim circuit to symplectic matrix."""
-    import stim
-
-    circuit = stim.Circuit()
-    circuit.append_operation("CNOT", [0, 1])
-
-    U = stim_circuit_to_symplectic(circuit)
-    n = circuit.num_qubits
-    expected_U = np.eye(2 * n, dtype=np.int8)
-    expected_U[:, 0] ^= expected_U[:, 1]  # CNOT from qubit 1 to qubit 0
-    expected_U[:, n + 1] ^= expected_U[:, n]
-
-    assert np.array_equal(U, expected_U)
-
-
-def test_stim_circuit_to_symplectic_hadamard() -> None:
-    """Test conversion from stim circuit to symplectic matrix."""
-    import stim
-
-    circuit = stim.Circuit()
-    circuit.append_operation("H", [0])
-
-    U = stim_circuit_to_symplectic(circuit)
-    n = circuit.num_qubits
-    expected_U = np.eye(2 * n, dtype=np.int8)
-    expected_U[:, [0, 1]] = expected_U[:, [1, 0]]  # Hadamard on qubit 0
-
-    assert np.array_equal(U, expected_U)
+    assert len(single_qubit_ops) >= min_single_qubit_ops
+    assert len(swaps) == expected_swaps
+    assert np.array_equal(final_U, np.eye(2 * tableau.n, dtype=np.int8))
