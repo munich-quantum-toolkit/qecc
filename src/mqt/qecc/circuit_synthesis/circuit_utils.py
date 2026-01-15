@@ -115,7 +115,7 @@ def apply_clifford_circuit(stabs: StabilizerTableau, circ: QuantumCircuit | stim
     return new_stabs
 
 
-def compact_stim_circuit(circ: Circuit) -> Circuit:
+def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circuit:
     """Move circuit instructions to the front and ignore TICKS.
 
     Args:
