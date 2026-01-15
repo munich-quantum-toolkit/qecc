@@ -872,7 +872,7 @@ Op = tuple[TV2, tuple[int, int]]  # (v_bits, (i, j))
 def sym_shape(U: npt.NDArray[np.int8]) -> int:
     """Return n for a 2n×2n symplectic matrix U."""
     tableau = StabilizerTableau.from_matrix(U)
-    return tableau.num_qubits
+    return tableau.n
 
 
 def r1_r2(U: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
