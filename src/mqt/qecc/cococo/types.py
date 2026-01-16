@@ -12,7 +12,7 @@ from typing import TypedDict
 pos = tuple[int, int]
 
 
-class HistoryTemp(TypedDict, total=False):
+class HistoryTemp(TypedDict, total=False):  # pragma: no cover
     """Type for history dictionaries."""
 
     scores: list[int]

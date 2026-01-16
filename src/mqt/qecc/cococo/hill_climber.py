@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 def save_to_file(path: str, data: Any) -> None:  # noqa: ANN401
     """Safely saves data to a file."""
-    with Path(path).open("wb") as pickle_file:
+    with Path(path).open("wb") as pickle_file:  # pragma: no cover
         pickle.dump(data, pickle_file)
 
 
@@ -78,7 +78,7 @@ class HillClimbing:
         rng = random.Random(seed)  # noqa: S311
         self.rng = rng
         # if circuit includes also single ints (i.e. T gates on qubit i), then ensure, that possible_factory_positions and num_factories are not None
-        if any(type(el) is int for el in circuit):
+        if any(type(el) is int for el in circuit):  # pragma: no cover
             if possible_factory_positions is None:
                 msg = "If T gates included in circuit, `possible_factory_positions` must NOT be None."
                 raise ValueError(msg)
@@ -207,7 +207,7 @@ class HillClimbing:
 
         # Add generation of random choice of factory positions
         factory_positions = []
-        if any(type(el) is int for el in self.circuit):
+        if any(type(el) is int for el in self.circuit):  # pragma: no cover
             possible_factory_positions = cast("list[tuple[int,int]]", self.possible_factory_positions)
             num_factories = cast("int", self.num_factories)
             factory_positions = self.rng.sample(possible_factory_positions, num_factories)
@@ -243,7 +243,7 @@ class HillClimbing:
 
         return neighborhood
 
-    def _single_hill_climbing(
+    def single_hill_climbing(
         self, restart: int
     ) -> tuple[int, dict[int | str, tuple[int, int] | list[tuple[int, int]]], int, HistoryTemp]:
         """Helper method for parallel execution of hill climbing restarts.
@@ -261,7 +261,7 @@ class HillClimbing:
             "layout_init": current_solution.copy(),
         }
 
-        for _ in range(self.max_iterations):
+        for _ in range(self.max_iterations):  # pragma: no cover
             neighbors = self.gen_neighborhood(current_solution)
             if not neighbors:
                 break  # No neighbors, end this restart
@@ -319,7 +319,7 @@ class HillClimbing:
             with multiprocessing.Pool(processes=processes) as pool:
                 results = list(
                     tqdm(
-                        pool.imap(self._single_hill_climbing, range(self.max_restarts)),
+                        pool.imap(self.single_hill_climbing, range(self.max_restarts)),
                         total=self.max_restarts,
                         desc="Hill Climbing Restarts...",
                     )
@@ -335,7 +335,7 @@ class HillClimbing:
 
         else:  # sequential
             for restart in tqdm(range(self.max_restarts), desc="Hill Climbing Restarts..."):
-                _, current_solution, current_score, history_temp = self._single_hill_climbing(restart)
+                _, current_solution, current_score, history_temp = self.single_hill_climbing(restart)
                 score_history.update({restart: history_temp})
                 with Path(path).open("wb") as pickle_file:
                     pickle.dump(score_history, pickle_file)

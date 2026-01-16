@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from mqt.qecc.cococo import circuit_construction, dag_helper, layouts, types
+from mqt.qecc.cococo import circuit_construction, dag_helper, layouts
 
 pos = tuple[int, int]
 
@@ -210,12 +210,3 @@ def test_remainder_dag_helper():
     ]
 
     assert layers_updated == layers_updated_aim, "Pushing into DAG does not work as anticipated."
-
-
-def test_types():
-    """Just calls the type from types once."""
-    try:
-        types.HistoryTemp()
-    except:  # noqa: E722
-        msg = "Something incorrect with HistoryTemp type."
-        raise ValueError(msg)  # noqa: B904

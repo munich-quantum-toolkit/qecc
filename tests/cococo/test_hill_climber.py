@@ -287,51 +287,52 @@ def test_translate_layout_circuit():
 
 def hillclimbing_run():
     """Does an error occur when the hill climbing is run?"""
-    layout_type = "hex"
-    m = 2
-    n = 2
-    factories = [(5, -1), (10, 0), (7, 7), (12, 5), (-2, 2)]
-    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges=False)
+    factories = [(-4, 11), (3, -1), (5, -1), (9, 2), (8, 0), (5, 13)]
+    m, n = 6, 2
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable("pair", m, n, factories, remove_edges=False)
     t = 4
 
-    len(data_qubit_locs)
-
     pairs = [
-        (1, 5),
-        0,
-        (10, 3),
-        (8, 18),
-        (13, 2),
-        (4, 20),
-        (9, 6),
+        (0, 3),
+        19,
+        (4, 8),
+        (19, 13),
+        (10, 12),
+        (10, 8),
+        (7, 8),
+        (18, 22),
         (11, 23),
-        15,
-        7,
-        (16, 21),
+        16,
+        (15, 8),
+        (20, 1),
         (22, 23),
         (0, 10),
-        (23, 19),
-        (10, 12),
-        (2, 19),
-        (21, 1),
-        (13, 4),
-        22,
-        (14, 13),
-        (22, 1),
-        (15, 11),
-        (22, 20),
-        (6, 11),
-        (10, 8),
-        13,
-        19,
-        (17, 20),
+        (2, 9),
+        (1, 5),
+        (6, 22),
+        (14, 20),
+        21,
+        (19, 2),
+        (13, 2),
+        (10, 3),
+        (4, 22),
+        (9, 23),
+        (8, 13),
+        (13, 2),
+        (2, 15),
+        20,
+        (9, 3),
+        (23, 4),
+        17,
+        23,
+        (10, 0),
     ]
 
     custom_layout = [data_qubit_locs, g]
 
     hc = hill_climber.HillClimbing(
-        max_restarts=20,
-        max_iterations=50,
+        max_restarts=3,
+        max_iterations=100,
         circuit=cast("list[pos|int]", pairs),
         metric="exact",
         t=t,
@@ -347,5 +348,42 @@ def hillclimbing_run():
     processes = 4  # depending on your hardware
     prefix = "./"  # adapt the path depending on where you want to have stored the output
     suffix = "test_hc"
-    _best_solution, _best_score, _best_rep, _score_history = hc.run(prefix, suffix, parallel, processes)
-    _best_solution, _best_score, _best_rep, _score_history = hc.run(prefix, suffix, False, processes)
+    best_solution1, best_score1, _best_rep1, _score_history1 = hc.run(prefix, suffix, parallel, processes)
+    best_solution2, best_score2, _best_rep2, _score_history2 = hc.run(prefix, suffix, False, processes)
+
+    solution_test = {
+        20: (0, 1),
+        3: (1, 1),
+        5: (4, 1),
+        18: (5, 1),
+        6: (0, 3),
+        21: (1, 3),
+        14: (4, 3),
+        17: (5, 3),
+        22: (0, 5),
+        11: (1, 5),
+        12: (4, 5),
+        4: (5, 5),
+        1: (0, 7),
+        16: (1, 7),
+        7: (4, 7),
+        19: (5, 7),
+        0: (0, 9),
+        10: (1, 9),
+        9: (4, 9),
+        2: (5, 9),
+        23: (0, 11),
+        15: (1, 11),
+        13: (4, 11),
+        8: (5, 11),
+        "factory_positions": [(-4, 11), (8, 0), (9, 2), (5, 13), (5, -1), (3, -1)],
+    }
+
+    assert best_solution1 == solution_test, (
+        "Somehow the solution (of the parallel run) does not match up with a previous run's solution. Issue with seed or more serious?"
+    )
+    assert best_solution2 == solution_test, (
+        "Somehow the solution (of the non parallel run) does not match up with a previous run's solution. Issue with seed or more serious?"
+    )
+    assert best_score1 == 11, "scores do not match (parallel)"
+    assert best_score2 == 11, "scores do not match (non parallel)"

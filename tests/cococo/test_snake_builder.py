@@ -361,3 +361,18 @@ def test_snake_builder_sc():
 
     with patch("matplotlib.pyplot.show"):
         snake.plot_stabs(cast("list[tuple[pos,pos]]|None", opz), cast("list[tuple[pos,pos]]|None", opx), size=(8, 8))
+
+    hx_desired: list[list[int]] = []
+    path = PROJECT_ROOT / "cococo/hx_desired_sc.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
+        reader = csv.reader(f)
+        hx_desired.extend([int(x) for x in row] for row in reader)
+
+    hz_desired: list[list[int]] = []
+    path = PROJECT_ROOT / "cococo/hz_desired_sc.csv"
+    with pathlib.Path(path).open(encoding="utf-8") as f:
+        reader = csv.reader(f)
+        hz_desired.extend([int(x) for x in row] for row in reader)
+
+    assert hx.tolist() == hx_desired, "The X stabilizers of a SC snake do not look as expected."
+    assert hz.tolist() == hz_desired, "The Z stabilizers of a SC snake do not look as expected."

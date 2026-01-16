@@ -20,6 +20,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
 - Combinatorial search methods for constructing fault-tolerant cat state preparation circuits. ([#543]) ([**@pehamtom**])
+- Lattice surgery compilation for the color code with and without movable logical qubits and layout optimization. ([#559]) ([**@LSHerzog**])
 
 ### Changed
 
