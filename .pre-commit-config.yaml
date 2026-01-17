@@ -60,13 +60,13 @@ repos:
 
   # Ensure uv lock file is up-to-date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.24
+    rev: 0.9.26
     hooks:
       - id: uv-lock
 
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.11
+    rev: v0.14.13
     hooks:
       - id: ruff-check
       - id: ruff-format
