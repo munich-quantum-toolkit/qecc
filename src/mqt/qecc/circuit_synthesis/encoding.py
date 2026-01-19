@@ -1213,9 +1213,19 @@ def _inv_word(word: str) -> str:
 
 
 def _extract_perm_in_to_out_and_blocks(U: npt.NDArray[np.int8]) -> tuple[np.ndarray, list[np.ndarray]]:
-    """For terminal U:
-    perm[i] = unique j where det(F_ij)=1 (row i of R2).
-    blocks[i] = 2×2 block F_ij for that (i,j).
+    """Extract the permutation and corresponding 2×2 blocks from a terminal symplectic matrix.
+
+    This function processes a terminal symplectic matrix `U` to determine the permutation
+    of input qubits to output qubits and the associated 2×2 symplectic blocks.
+
+    Args:
+        U: A 2n×2n symplectic matrix in terminal form.
+
+    Returns:
+        A tuple containing:
+        - perm: A 1D array where `perm[i]` gives the index `j` such that the determinant
+          of the 2×2 block F_ij is 1 (indicating a valid symplectic transformation).
+        - blocks: A list of 2×2 symplectic blocks corresponding to the permutation.
     """
     n = sym_shape(U)
     R2 = compute_r2_matrix(U)
