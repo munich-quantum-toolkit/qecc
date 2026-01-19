@@ -65,7 +65,8 @@ dependencies = [
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
-  "ortools>=9.8.0"
+  "ortools>=9.8.0",
+  "protobuf==6.31.1"
 ]
 dynamic = ["version"]
 
