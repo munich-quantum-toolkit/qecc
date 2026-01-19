@@ -39,6 +39,10 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 > Usage for _Lattice Surgery Compilation Beyond the Surface Code_ as well as _Exploiting Movable Logical Qubits for Lattice Surgery Compilation_ is described in [`docs/cococo.md`](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/docs/cococo.md) in the `cococo` branch.
 > The code quality in the branch is actively being improved.
 
+> [!NOTE]
+> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch ['ft-stateprep-qubit-perm'](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
+> The documentation is a work in progress and this branch undergoes some final improvements before being merged into `main`.
+
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
 > QECC is now entirely a Python package.
