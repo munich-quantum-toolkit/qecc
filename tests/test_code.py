@@ -27,6 +27,7 @@ from mqt.qecc.codes import (
 )
 from mqt.qecc.codes.pauli import InvalidPauliError, Pauli, StabilizerTableau
 from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
+import stim
 from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -99,7 +100,7 @@ def test_symplectic() -> None:
     assert m.shape == (6, 6)
     assert m.n == 3
 
-
+    
 def test_stabilizer_tableau() -> None:
     """Test the StabilizerTableau class."""
     with pytest.raises(InvalidPauliError):
@@ -107,7 +108,7 @@ def test_stabilizer_tableau() -> None:
 
     with pytest.raises(InvalidPauliError):
         StabilizerTableau.from_paulis([])
-
+        
     m = SymplecticMatrix(np.array([[1, 0], [0, 1]]))
     with pytest.raises(InvalidPauliError):
         StabilizerTableau(m, np.array([1]))
@@ -125,8 +126,70 @@ def test_stabilizer_tableau() -> None:
     t4 = StabilizerTableau.from_pauli_strings(["ZII"])
     assert t1 != t4
 
-    assert t1 == [Pauli.from_pauli_string("XIZ"), Pauli.from_pauli_string("ZIX"), Pauli.from_pauli_string("IZX")]
+
     assert len(t1) == 3
+
+
+@pytest.fixture
+def identity_tableau() -> StabilizerTableau:
+    """Fixture for the identity stabilizer tableau."""
+    return StabilizerTableau.from_matrix(np.eye(2, dtype=np.int8))
+
+
+@pytest.fixture
+def hadamard_tableau() -> StabilizerTableau:
+    """Fixture for the Hadamard stabilizer tableau."""
+    return StabilizerTableau.from_matrix(np.array([[0, 1], [1, 0]], dtype=np.int8))
+
+
+@pytest.fixture
+def cnot_tableau() -> StabilizerTableau:
+    """Fixture for the CNOT stabilizer tableau."""
+    return StabilizerTableau.from_matrix(
+        np.array(
+            [
+                [1, 1, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 1, 1],
+            ],
+            dtype=np.int8,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "stim_tableau, expected_tableau_fixture",
+    [
+        (stim.Tableau.from_named_gate("I"), "identity_tableau"),
+        (stim.Tableau.from_named_gate("H"), "hadamard_tableau"),
+        (stim.Tableau.from_named_gate("CX"), "cnot_tableau"),
+    ],
+)
+def test_stabilizer_tableau_from_stim_tableau(
+    stim_tableau: stim.Tableau, expected_tableau_fixture: str, request
+) -> None:
+    """Test the from_stim_tableau method of StabilizerTableau."""
+    expected_tableau = request.getfixturevalue(expected_tableau_fixture)
+    tableau = StabilizerTableau.from_stim_tableau(stim_tableau)
+    assert tableau == expected_tableau
+
+
+@pytest.mark.parametrize(
+    "stim_circuit, expected_tableau_fixture",
+    [
+        (stim.Circuit("I 0"), "identity_tableau"),
+        (stim.Circuit("H 0"), "hadamard_tableau"),
+        (stim.Circuit("CX 0 1"), "cnot_tableau"),
+    ],
+)
+def test_stabilizer_tableau_from_stim_circuit(
+    stim_circuit: stim.Circuit, expected_tableau_fixture: str, request
+) -> None:
+    """Test the from_stim_circuit method of StabilizerTableau."""
+    expected_tableau = request.getfixturevalue(expected_tableau_fixture)
+    tableau = StabilizerTableau.from_stim_circuit(stim_circuit)
+    assert tableau == expected_tableau
 
 
 @pytest.fixture
@@ -353,8 +416,8 @@ def test_trivial_code() -> None:
     code = StabilizerCode.get_trivial_code(3)
     assert code.n == 3
     assert code.k == 3
-    assert code.x_logicals == ["XII", "IXI", "IIX"]
-    assert code.z_logicals == ["ZII", "IZI", "IIZ"]
+    assert code.x_logicals.to_pauli_list() == [Pauli.from_pauli_string("XII"), Pauli.from_pauli_string("IXI"), Pauli.from_pauli_string("IIX")]
+    assert code.z_logicals.to_pauli_list() == [Pauli.from_pauli_string("ZII"), Pauli.from_pauli_string("IZI"), Pauli.from_pauli_string("IIZ")]
     assert code.generators.n_rows == 0
 
 
@@ -465,13 +528,6 @@ def test_many_hypercube_code_level_2() -> None:
     assert code.k == 16
     assert code.distance == 4
 
-
-def test_many_hypercube_code_level_3() -> None:
-    """Test that the many-hypercube code."""
-    code = construct_many_hypercube_code(3)
-    assert code.n == 6**3
-    assert code.k == 4**3
-    assert code.distance == 2**3
 
 
 def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]

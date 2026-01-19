@@ -153,8 +153,19 @@ class StabilizerTableau:
         Returns:
             A StabilizerTableau instance.
         """
-        tab = circ.to_tableau()
-        x2x, x2z, z2x, z2z, x_signs, z_signs = tab.to_numpy(bit_packed=False)
+        return cls.from_stim_tableau(circ.to_tableau())
+
+    @classmethod
+    def from_stim_tableau(cls, stim_tableau: stim.Tableau) -> StabilizerTableau:
+        """Create a StabilizerTableau from a stim.Tableau.
+
+        Args:
+            stim_tableau: A stim.Tableau object.
+
+        Returns:
+            A StabilizerTableau instance.
+        """
+        x2x, x2z, z2x, z2z, x_signs, z_signs = stim_tableau.to_numpy(bit_packed=False)
 
         tableau_matrix = np.block([
             [x2x.astype(np.int8), x2z.astype(np.int8)],
