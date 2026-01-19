@@ -1085,9 +1085,9 @@ def lookahead_volanto(
         if is_terminal_form(Uc):
             return 0, []
         if depth == 0:
-            # Base case: return the result of the greedy algorithm
+            # Base case: perform greedy synthesis without lookahead
             transvections, _ = greedy_adapted_volanto(Uc, params=params, use_all_pairs=use_all_pairs)
-            return len(transvections), []
+            return len(transvections), transvections
 
         transvections = all_two_qubit_transvections()
         best_score = float("inf")

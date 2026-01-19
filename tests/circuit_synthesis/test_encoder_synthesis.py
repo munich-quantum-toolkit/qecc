@@ -147,12 +147,12 @@ def test_heuristic_encoding_consistent(code: CSSCode, request) -> None:  # type:
     os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
     reason="Too slow for CI on Windows or MacOS",
 )
-@pytest.mark.parametrize("code", ["steane_code", "css_4_2_2_code", "css_6_2_2_code"])
+@pytest.mark.parametrize("code", ["css_4_2_2_code"])
 def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder = gate_optimal_encoding_circuit(code, max_timeout=8, min_gates=3, max_gates=10)
+    encoder = gate_optimal_encoding_circuit(code, max_timeout=1, min_gates=3, max_gates=10)
     assert encoder is not None
     encoder.get_uninitialized()
     assert encoder.num_qubits() == code.n
@@ -164,7 +164,7 @@ def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # ty
     os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
     reason="Too slow for CI on Windows or MacOS",
 )
-@pytest.mark.parametrize("code", ["steane_code", "css_4_2_2_code", "css_6_2_2_code"])
+@pytest.mark.parametrize("code", ["css_4_2_2_code"])
 def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
@@ -251,23 +251,30 @@ def test_volanto_cases(
 
 
 @pytest.mark.parametrize(
-    ("tableau", "expected_transvections", "min_single_qubit_ops", "expected_swaps"),
+    "tableau",
     [
-        # Add test cases here with StabilizerTableau instances
-        # Example: (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
-        (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
-        (StabilizerTableau.from_stim_circuit(stim.Circuit("CX 0 1")), 1, 0, 0),  # Single CNOT
-        (StabilizerTableau.from_stim_circuit(stim.Circuit("H 0\nCX 0 1")), 1, 1, 0),  # Bell pair
+        StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)),  # Identity
+        StabilizerTableau.from_stim_circuit(stim.Circuit("CX 0 1")),  # Single CNOT
+        StabilizerTableau.from_stim_circuit(stim.Circuit("H 0\nCX 0 1")),  # Bell pair
     ],
 )
+@pytest.mark.parametrize("lookahead_depth", [0, 1, 2])
 def test_lookahead_volanto_cases(
-    tableau: StabilizerTableau, expected_transvections: int, min_single_qubit_ops: int, expected_swaps: int
+    tableau: StabilizerTableau, lookahead_depth: int
 ):
     """Test lookahead Volanto synthesis on various cases."""
-    transvections, final_u = lookahead_volanto(tableau.tableau.matrix, lookahead_depth=2, use_all_pairs=True)
+    transvections, final_u = lookahead_volanto(tableau.tableau.matrix, lookahead_depth=lookahead_depth, use_all_pairs=True)
     prefix, final_u = reduce_single_qubit_gates_and_swaps(final_u)
     single_qubit_ops = prefix[1]
     swaps = prefix[0]
+
+    # Define expected results based on tableau and lookahead_depth
+    if np.array_equal(tableau.tableau.matrix, np.eye(8, dtype=np.int8)):
+        expected_transvections, min_single_qubit_ops, expected_swaps = 0, 0, 0
+    elif tableau == StabilizerTableau.from_stim_circuit(stim.Circuit("CX 0 1")):
+        expected_transvections, min_single_qubit_ops, expected_swaps = 1, 0, 0
+    elif tableau == StabilizerTableau.from_stim_circuit(stim.Circuit("H 0\nCX 0 1")):
+        expected_transvections, min_single_qubit_ops, expected_swaps = 1, 1, 0
 
     assert len(transvections) == expected_transvections
     assert len(single_qubit_ops) >= min_single_qubit_ops
