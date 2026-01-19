@@ -773,14 +773,14 @@ wheels = [
 
 [[package]]
 name = "fastcore"
-version = "1.11.3"
+version = "1.12.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/94/c2f13884c15744a958aadf429e2f40e37b75c5a974b61f6e9983b709020d/fastcore-1.11.3.tar.gz", hash = "sha256:5eac82affc11d529f5ed1c3ab1eea6c957301f876a9077f8425a9ead895ecc36", size = 86479, upload-time = "2026-01-09T23:45:18.035Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/9f/10ba070937da0ddab01b23dc01f64f521e3632d5ff1897bc3d73a02ba29f/fastcore-1.12.2.tar.gz", hash = "sha256:01c0c9e19cd0c3cb7a208311d2826da3f0269babc32bd9aa21c7b7976ad5626e", size = 91650, upload-time = "2026-01-18T00:52:35.387Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/f8/78832c84a957a01a332612ea6ee5a34f63690737000bf4f90995dcca367d/fastcore-1.11.3-py3-none-any.whl", hash = "sha256:998825f8f69c44ab16a156bb60e9a6d0988f3e8aa5b2459ec95289b520cf1c0b", size = 89119, upload-time = "2026-01-09T23:45:16.174Z" },
+    { url = "https://files.pythonhosted.org/packages/12/97/b0f340e715629fdab003fa5af9b32264ae0aaa04c8521694cb60a3007f2c/fastcore-1.12.2-py3-none-any.whl", hash = "sha256:11fccdc9dc0a13a0d15f6b63bed3f45e6bc8ab73458f8795300d2bd8e35d8ba6", size = 94347, upload-time = "2026-01-18T00:52:33.555Z" },
 ]
 
 [[package]]
@@ -1386,12 +1386,40 @@ wheels = [
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version < '3.11' and sys_platform == 'linux'",
+    "python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32'",
+]
 dependencies = [
-    { name = "mdurl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
+    { name = "mdurl", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/38/71/3b932df36c1a044d397a1f92d1cf91ee0a503d91e470cbd670aa66b07ed0/markdown-it-py-3.0.0.tar.gz", hash = "sha256:e3f60a94fa066dc52ec76661e37c851cb232d92f9886b15cb560aaada2df8feb", size = 74596, upload-time = "2023-06-03T06:41:14.443Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/d7/1ec15b46af6af88f19b8e5ffea08fa375d433c998b8a7639e76935c14f1f/markdown_it_py-3.0.0-py3-none-any.whl", hash = "sha256:355216845c60bd96232cd8d8c40e8f9765cc86f46880e43a8fd22dc1a1a8cab1", size = 87528, upload-time = "2023-06-03T06:41:11.019Z" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.11.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version >= '3.13' and sys_platform == 'linux'",
+    "python_full_version == '3.12.*' and sys_platform == 'linux'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux'",
+    "python_full_version >= '3.13' and platform_machine != 'arm64' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and platform_machine != 'arm64' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and platform_machine != 'arm64' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "mdurl", marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321, upload-time = "2025-08-11T12:57:51.923Z" },
 ]
 
 [[package]]
@@ -1555,7 +1583,8 @@ name = "mdit-py-plugins"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
+    { name = "markdown-it-py", version = "3.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "markdown-it-py", version = "4.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b2/fd/a756d36c0bfba5f6e39a1cdbdbfdd448dc02692467d83816dff4592a1ebc/mdit_py_plugins-0.5.0.tar.gz", hash = "sha256:f4918cb50119f50446560513a8e311d574ff6aaed72606ddae6d35716fe809c6", size = 44655, upload-time = "2025-08-11T07:25:49.083Z" }
 wheels = [
@@ -1735,7 +1764,8 @@ dependencies = [
     { name = "ipython", version = "8.38.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
     { name = "ipython", version = "9.9.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
     { name = "jupyter-cache", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
-    { name = "myst-parser", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
+    { name = "myst-parser", version = "4.0.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "myst-parser", version = "5.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
     { name = "nbclient", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
     { name = "nbformat", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
     { name = "pyyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
@@ -1752,18 +1782,50 @@ wheels = [
 name = "myst-parser"
 version = "4.0.1"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version < '3.11' and sys_platform == 'linux'",
+    "python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32'",
+]
 dependencies = [
-    { name = "docutils", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
-    { name = "jinja2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
-    { name = "markdown-it-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
-    { name = "mdit-py-plugins", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and sys_platform == 'win32') or sys_platform == 'linux'" },
+    { name = "docutils", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "jinja2", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "markdown-it-py", version = "3.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "mdit-py-plugins", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
+    { name = "pyyaml", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
     { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version < '3.11' and sys_platform == 'linux')" },
-    { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/a5/9626ba4f73555b3735ad86247a8077d4603aa8628537687c839ab08bfe44/myst_parser-4.0.1.tar.gz", hash = "sha256:5cfea715e4f3574138aecbf7d54132296bfd72bb614d31168f48c477a830a7c4", size = 93985, upload-time = "2025-02-12T10:53:03.833Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/df/76d0321c3797b54b60fef9ec3bd6f4cfd124b9e422182156a1dd418722cf/myst_parser-4.0.1-py3-none-any.whl", hash = "sha256:9134e88959ec3b5780aedf8a99680ea242869d012e8821db3126d427edc9c95d", size = 84579, upload-time = "2025-02-12T10:53:02.078Z" },
+]
+
+[[package]]
+name = "myst-parser"
+version = "5.0.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.11.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version >= '3.13' and sys_platform == 'linux'",
+    "python_full_version == '3.12.*' and sys_platform == 'linux'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux'",
+    "python_full_version >= '3.13' and platform_machine != 'arm64' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and platform_machine != 'arm64' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and platform_machine != 'arm64' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "docutils", marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "jinja2", marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "markdown-it-py", version = "4.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "mdit-py-plugins", marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "pyyaml", marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+    { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and platform_machine != 'arm64' and sys_platform == 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/fa/7b45eef11b7971f0beb29d27b7bfe0d747d063aa29e170d9edd004733c8a/myst_parser-5.0.0.tar.gz", hash = "sha256:f6f231452c56e8baa662cc352c548158f6a16fcbd6e3800fc594978002b94f3a", size = 98535, upload-time = "2026-01-15T09:08:18.036Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/ac/686789b9145413f1a61878c407210e41bfdb097976864e0913078b24098c/myst_parser-5.0.0-py3-none-any.whl", hash = "sha256:ab31e516024918296e169139072b81592336f2fef55b8986aa31c9f04b5f7211", size = 84533, upload-time = "2026-01-15T09:08:16.788Z" },
 ]
 
 [[package]]
@@ -3118,11 +3180,11 @@ wheels = [
 
 [[package]]
 name = "soupsieve"
-version = "2.8.1"
+version = "2.8.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/89/23/adf3796d740536d63a6fbda113d07e60c734b6ed5d3058d1e47fc0495e47/soupsieve-2.8.1.tar.gz", hash = "sha256:4cf733bc50fa805f5df4b8ef4740fc0e0fa6218cf3006269afd3f9d6d80fd350", size = 117856, upload-time = "2025-12-18T13:50:34.655Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/f2/21d6ca70c3cf35d01ae9e01be534bf6b6b103c157a728082a5028350c310/soupsieve-2.8.2.tar.gz", hash = "sha256:78a66b0fdee2ab40b7199dc3e747ee6c6e231899feeaae0b9b98a353afd48fd8", size = 118601, upload-time = "2026-01-18T16:21:31.09Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/f3/b67d6ea49ca9154453b6d70b34ea22f3996b9fa55da105a79d8732227adc/soupsieve-2.8.1-py3-none-any.whl", hash = "sha256:a11fe2a6f3d76ab3cf2de04eb339c1be5b506a8a47f2ceb6d139803177f85434", size = 36710, upload-time = "2025-12-18T13:50:33.267Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/9a/b4450ccce353e2430621b3bb571899ffe1033d5cd72c9e065110f95b1a63/soupsieve-2.8.2-py3-none-any.whl", hash = "sha256:0f4c2f6b5a5fb97a641cf69c0bd163670a0e45e6d6c01a2107f93a6a6f93c51a", size = 37016, upload-time = "2026-01-18T16:21:29.7Z" },
 ]
 
 [[package]]
