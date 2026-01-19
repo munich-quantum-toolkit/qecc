@@ -1048,18 +1048,80 @@ def is_terminal_form(U: npt.NDArray[np.int8]) -> bool:
     R2(U) is a permutation matrix and R1(U) is all-zero. :contentReference[oaicite:13]{index=13}.
     """
     sym_shape(U)
-    R1, R2 = r1_r2(U)
-    if np.any(R1):
+    r1, r2 = r1_r2(U)
+    if np.any(r1):
         return False
     # permutation matrix: each row/col has exactly one 1
-    if not np.all(R2.sum(axis=0) == 1):
+    if not np.all(r2.sum(axis=0) == 1):
         return False
-    return np.all(R2.sum(axis=1) == 1)
+    return np.all(r2.sum(axis=1) == 1)
 
 
 # ---------------------------------------------------------------------
-# Main greedy loop (Algorithm 5 specialized to symplectic transvections)
+# Lookahead Volanto synthesis
 # ---------------------------------------------------------------------
+
+def lookahead_volanto(
+    U: npt.NDArray[np.int8],  # noqa: N803
+    params: GreedyParams = GreedyParams(),
+    *,
+    lookahead_depth: int = 1,
+    use_all_pairs: bool = False,
+) -> tuple[list[Op], npt.NDArray[np.int8]]:
+    """Find minimal number of transvectins to synthesize U using a lookahead scheme.
+    
+      input: 2nx2n symplectic matrix U
+      output: (op_list, P) where P is in 'perm + 1Q Clifford' form and
+              applying op_list (in reverse/inverse sense) reconstructs U.
+
+    Args:
+        U: The symplectic matrix to synthesize.
+        params: Parameters for the greedy synthesis.
+        lookahead_depth: Number of steps to look ahead in the synthesis process.
+        use_all_pairs: Whether to consider all pairs of qubits.
+    """
+    def evaluate_with_lookahead(Uc: npt.NDArray[np.int8], depth: int) -> tuple[int, list[Op]]:  # noqa: N803
+        """Evaluate the best transvection using a lookahead strategy."""
+        if is_terminal_form(Uc):
+            return 0, []
+        if depth == 0:
+            # Base case: return the result of the greedy algorithm
+            transvections, _ = greedy_adapted_volanto(Uc, params=params, use_all_pairs=use_all_pairs)
+            return len(transvections), []
+
+        transvections = all_two_qubit_transvections()
+        best_score = float("inf")
+        best_op = None
+        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)] if use_all_pairs else sp_gate_options(Uc)
+        for i, j in pairs:
+            for v in transvections:
+                op: Op = (v, (i, j))
+                B = apply_tv2(Uc, v, (i, j))  # noqa: N806
+                score, _ = evaluate_with_lookahead(B, depth - 1)
+                score += 1  # count this operation
+                if score < best_score:
+                    best_score = score
+                    best_op = op
+                if score == 1:
+                    return 1, [op]
+        return best_score, [best_op] if best_op else []
+
+    Uc = U.astype(np.int8).copy()  # noqa: N806
+    n = sym_shape(Uc)
+    all_two_qubit_transvections()
+    op_list: list[Op] = []
+
+    while not is_terminal_form(Uc):
+        _, best_ops = evaluate_with_lookahead(Uc, lookahead_depth)
+        if not best_ops:
+            msg = "No gate options generated; cannot proceed."
+            raise RuntimeError(msg)
+
+        op_best = best_ops[0]
+        Uc = apply_tv2(Uc, op_best[0], op_best[1])  # noqa: N806
+        op_list.append(op_best)
+
+    return list(reversed(op_list)), Uc
 ChooseOpFn = Callable[
     [npt.NDArray[np.int8], list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]]],
     tuple[Op, npt.NDArray[np.int8]],

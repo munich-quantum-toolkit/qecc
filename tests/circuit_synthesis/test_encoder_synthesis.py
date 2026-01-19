@@ -27,6 +27,7 @@ from mqt.qecc.circuit_synthesis import (
 )
 from mqt.qecc.circuit_synthesis.encoding import (
     greedy_adapted_volanto,
+    lookahead_volanto,
     reduce_single_qubit_gates_and_swaps,
 )
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
@@ -238,12 +239,37 @@ def test_volanto_cases(
     tableau: StabilizerTableau, expected_transvections: int, min_single_qubit_ops: int, expected_swaps: int
 ):
     """Test greedy adapted Volanto on various cases."""
-    transvections, final_U = greedy_adapted_volanto(tableau.tableau.matrix, use_all_pairs=True)
-    prefix, final_U = reduce_single_qubit_gates_and_swaps(final_U)
+    transvections, final_u = greedy_adapted_volanto(tableau.tableau.matrix, use_all_pairs=True)
+    prefix, final_u = reduce_single_qubit_gates_and_swaps(final_u)
     single_qubit_ops = prefix[1]
     swaps = prefix[0]
 
     assert len(transvections) == expected_transvections
     assert len(single_qubit_ops) >= min_single_qubit_ops
     assert len(swaps) == expected_swaps
-    assert np.array_equal(final_U, np.eye(2 * tableau.n, dtype=np.int8))
+    assert np.array_equal(final_u, np.eye(2 * tableau.n, dtype=np.int8))
+
+
+@pytest.mark.parametrize(
+    ("tableau", "expected_transvections", "min_single_qubit_ops", "expected_swaps"),
+    [
+        # Add test cases here with StabilizerTableau instances
+        # Example: (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
+        (StabilizerTableau.from_matrix(np.eye(8, dtype=np.int8)), 0, 0, 0),  # Identity
+        (StabilizerTableau.from_stim_circuit(stim.Circuit("CX 0 1")), 1, 0, 0),  # Single CNOT
+        (StabilizerTableau.from_stim_circuit(stim.Circuit("H 0\nCX 0 1")), 1, 1, 0),  # Bell pair
+    ],
+)
+def test_lookahead_volanto_cases(
+    tableau: StabilizerTableau, expected_transvections: int, min_single_qubit_ops: int, expected_swaps: int
+):
+    """Test lookahead Volanto synthesis on various cases."""
+    transvections, final_u = lookahead_volanto(tableau.tableau.matrix, lookahead_depth=2, use_all_pairs=True)
+    prefix, final_u = reduce_single_qubit_gates_and_swaps(final_u)
+    single_qubit_ops = prefix[1]
+    swaps = prefix[0]
+
+    assert len(transvections) == expected_transvections
+    assert len(single_qubit_ops) >= min_single_qubit_ops
+    assert len(swaps) == expected_swaps
+    assert np.array_equal(final_u, np.eye(2 * tableau.n, dtype=np.int8))
