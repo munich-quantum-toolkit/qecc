@@ -341,6 +341,15 @@ class StabilizerTableau:
         """Return the tableau as a list of Paulis."""
         return [Pauli(SymplecticVector(self.tableau[i]), self.phase[i]) for i in range(self.n_rows)]
 
+    def to_numpy(self) -> npt.NDArray[np.int8]:
+        """Convert the stabilizer tableau to a NumPy array.
+
+        Returns:
+            A NumPy array where the first 2n columns represent the symplectic matrix
+            and the last column represents the phase vector.
+        """
+        return np.hstack((self.tableau.matrix, self.phase[:, np.newaxis]))
+
 
 def is_pauli_string(p: str) -> bool:
     """Check if a string is a valid Pauli string."""

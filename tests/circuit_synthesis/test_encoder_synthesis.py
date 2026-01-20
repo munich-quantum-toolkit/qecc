@@ -26,11 +26,11 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_encoding_circuit,
 )
 from mqt.qecc.circuit_synthesis.encoding import (
+    fix_tableau_signs_in_place,
     greedy_adapted_volanto,
     lookahead_volanto,
     reduce_single_qubit_gates_and_swaps,
     resynthesize_stim_circuit_with_volanto,
-    fix_tableau_signs_in_place
 )
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
@@ -315,33 +315,25 @@ def test_resynthesize_stim_circuit_with_volanto(circuit: stim.Circuit, lookahead
 
     
 @pytest.mark.parametrize(
-    "circuit, target_x_signs, target_z_signs",
+    "circuit, target_phase",
     [
         (
             stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit
-            np.array([0, 1, 0]),  # Target X signs
-            np.array([1, 0, 1]),  # Target Z signs
+            np.array([0, 1, 0, 1, 0, 1]),  # Target phase
         ),
         (
             stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
-            np.array([1, 0, 1, 0]),  # Target X signs
-            np.array([0, 1, 0, 1]),  # Target Z signs
+            np.array([1, 0, 1, 0, 0, 1, 0, 1]),  # Target phase
         ),
     ],
 )
-def test_fix_tableau_signs_in_place(circuit: stim.Circuit, target_x_signs: np.ndarray, target_z_signs: np.ndarray):
+def test_fix_tableau_signs_in_place(circuit: stim.Circuit, target_phase: np.ndarray):
     """Test that fix_tableau_signs_in_place correctly adjusts tableau signs."""
-    # Get the original tableau
-    circuit.to_tableau()
-    
     # Apply the fix_tableau_signs_in_place function
-    fix_tableau_signs_in_place(circuit, target_x_signs, target_z_signs)
+    fix_tableau_signs_in_place(circuit, target_phase)
 
-    # Get the updated tableau
-    updated_tableau = circuit.to_tableau()
-    updated_x_signs = updated_tableau.x_output_pauli_signs()
-    updated_z_signs = updated_tableau.z_output_pauli_signs()
+    # Convert circuit to StabilizerTableau
+    tableau = StabilizerTableau.from_stim_circuit(circuit)
 
-    # Assert that the signs are correctly updated
-    assert np.array_equal(updated_x_signs, target_x_signs)
-    assert np.array_equal(updated_z_signs, target_z_signs)
+    # Assert that the phase is correctly updated
+    assert np.array_equal(tableau.phase, target_phase)

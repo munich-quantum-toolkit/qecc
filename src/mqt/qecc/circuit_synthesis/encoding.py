@@ -1566,35 +1566,39 @@ def synthesize_clifford_volanto(
 
 
 def fix_tableau_signs_in_place(
-    tableau: StabilizerTableau,
-    target_x_signs: np.ndarray,
-    target_z_signs: np.ndarray,
+    circ: stim.Circuit,
+    target_phase: np.ndarray,
 ) -> None:
     """Append Pauli corrections so that the tableau matches the desired sign bits.
 
     This function ensures that the tableau matches the target signs
     by appending the necessary Pauli corrections.
     """
-    stabs_numpy = tableau.to_numpy()
-    x_part = stabs_numpy[2].astype(int)
-    z_part = stabs_numpy[3].astype(int)
-    signs = stabs_numpy[-1].astype(int)
-    tableau = np.hstack((x_part, z_part, np.array([signs]).T))
+    tableau = StabilizerTableau.from_stim_circuit(circ)
+    n = tableau.n
+    # Extract the current signs from the tableau
+    x_part = tableau.tableau.matrix[: , :n]
+    z_part = tableau.tableau.matrix[:, n:]
 
-    if not np.all(tableau[:, -1] == 0):
-        ker = mod2.nullspace(tableau)
-        assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
-        correction_symplectic = ker[-1]
-        zc = correction_symplectic[:len(target_x_signs)]
-        xc = correction_symplectic[len(target_x_signs):-1]
+    # Compute the corrections needed to match the target signs
+    phase_diff = tableau.phase ^ target_phase
 
-        for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
-            if xv == 1 and zv == 1:
-                tableau.apply_pauli("Y", i)
-            elif xv == 1:
-                tableau.apply_pauli("X", i)
-            elif zv == 1:
-                tableau.apply_pauli("Z", i)
+    if not np.any(phase_diff):
+        return  # No corrections needed
+
+    tableau_with_phase = np.hstack((x_part, z_part, np.array([phase_diff]).T))
+    ker = mod2.nullspace(tableau_with_phase)
+    assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
+    correction_symplectic = ker[-1]
+    zc = correction_symplectic[:n]
+    xc = correction_symplectic[n:-1]
+    for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
+        if xv == 1 and zv == 1:
+            circ.append("Y", [i])
+        elif xv == 1:
+            circ.append("X", [i])
+        elif zv == 1:
+            circ.append("Z", [i])
 
 
 def resynthesize_stim_circuit_with_volanto(
