@@ -529,7 +529,7 @@ def depth_optimal_encoding_circuit_non_css(
 
     encoding_qubits = np.array(positions, dtype=int)
 
-    # Invert & sign fix (your original tail)
+    # Invert & sign fix
     enc_circ = circ.inverse()
     stabs_numpy = enc_circ.to_tableau().to_numpy()
     x_part = stabs_numpy[2].astype(int)
