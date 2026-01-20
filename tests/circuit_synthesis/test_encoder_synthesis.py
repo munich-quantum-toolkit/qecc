@@ -25,6 +25,7 @@ from mqt.qecc.circuit_synthesis import (
     gottesman_encoding_circuit,
     heuristic_encoding_circuit,
 )
+from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
 from mqt.qecc.circuit_synthesis.encoding import (
     fix_tableau_signs_in_place,
     greedy_adapted_volanto,
@@ -299,7 +300,7 @@ def test_lookahead_volanto_cases(
 def test_resynthesize_stim_circuit_with_volanto(circuit: stim.Circuit, lookahead_depth: int) -> None:
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
-    original_two_qubit_gates = sum(1 for op in circuit if op.name in {"CX", "CZ", "SWAP"})
+    original_two_qubit_gates = num_two_qubit_gates(circuit)
 
     resynthesized_circuit = resynthesize_stim_circuit_with_volanto(
         circuit, lookahead_depth=lookahead_depth, fix_signs=True
