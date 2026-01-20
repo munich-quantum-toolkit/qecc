@@ -29,6 +29,8 @@ from mqt.qecc.circuit_synthesis.encoding import (
     greedy_adapted_volanto,
     lookahead_volanto,
     reduce_single_qubit_gates_and_swaps,
+    resynthesize_stim_circuit_with_volanto,
+    fix_tableau_signs_in_place
 )
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
@@ -280,3 +282,66 @@ def test_lookahead_volanto_cases(
     assert len(single_qubit_ops) >= min_single_qubit_ops
     assert len(swaps) == expected_swaps
     assert np.array_equal(final_u, np.eye(2 * tableau.n, dtype=np.int8))
+    
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        # stim.Circuit(),
+        # stim.Circuit("H 0"),
+        # stim.Circuit("CX 0 1"),
+        # stim.Circuit("H 0\nCX 0 1"),
+        stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit with H and CX gates
+        # stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
+        # stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
+    ],
+)
+@pytest.mark.parametrize("lookahead_depth", [1])
+def test_resynthesize_stim_circuit_with_volanto(circuit: stim.Circuit, lookahead_depth: int) -> None:
+    """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
+    original_tableau = circuit.to_tableau()
+    original_two_qubit_gates = sum(1 for op in circuit if op.name in {"CX", "CZ", "SWAP"})
+
+    resynthesized_circuit = resynthesize_stim_circuit_with_volanto(
+        circuit, lookahead_depth=lookahead_depth, fix_signs=True
+    )
+    resynthesized_tableau = resynthesized_circuit.to_tableau()
+    resynthesized_two_qubit_gates = sum(1 for op in resynthesized_circuit if op.name in {"CX", "CZ", "SWAP"})
+
+    # Assert that the tableaus are identical
+    assert original_tableau == resynthesized_tableau
+
+    # Assert that the resynthesized circuit has fewer or equal two-qubit gates
+    assert resynthesized_two_qubit_gates <= original_two_qubit_gates
+
+    
+@pytest.mark.parametrize(
+    "circuit, target_x_signs, target_z_signs",
+    [
+        (
+            stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit
+            np.array([0, 1, 0]),  # Target X signs
+            np.array([1, 0, 1]),  # Target Z signs
+        ),
+        (
+            stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
+            np.array([1, 0, 1, 0]),  # Target X signs
+            np.array([0, 1, 0, 1]),  # Target Z signs
+        ),
+    ],
+)
+def test_fix_tableau_signs_in_place(circuit: stim.Circuit, target_x_signs: np.ndarray, target_z_signs: np.ndarray):
+    """Test that fix_tableau_signs_in_place correctly adjusts tableau signs."""
+    # Get the original tableau
+    circuit.to_tableau()
+    
+    # Apply the fix_tableau_signs_in_place function
+    fix_tableau_signs_in_place(circuit, target_x_signs, target_z_signs)
+
+    # Get the updated tableau
+    updated_tableau = circuit.to_tableau()
+    updated_x_signs = updated_tableau.x_output_pauli_signs()
+    updated_z_signs = updated_tableau.z_output_pauli_signs()
+
+    # Assert that the signs are correctly updated
+    assert np.array_equal(updated_x_signs, target_x_signs)
+    assert np.array_equal(updated_z_signs, target_z_signs)

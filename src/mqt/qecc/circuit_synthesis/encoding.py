@@ -1503,22 +1503,22 @@ def _append_reduction_ops_as_stim(
 def synthesize_clifford_volanto(
     tableau: StabilizerTableau,
     *,
+    lookahead_depth: int = 1,
     greedy_params: GreedyParams = GreedyParams(),
-    choose_op: ChooseOpFn | None = None,
     use_all_pairs: bool = False,
 ) -> stim.Circuit:
     """Synthesize a stim circuit implementing a StabilizerTableau using:
-      - greedy_adapted_volanto (right-multiply transvections) -> terminal P
+      - lookahead_volanto (right-multiply transvections with lookahead) -> terminal P
       - reduce_with_single_qubit_gates(P) (right-multiply SWAP/H/S) -> I.
 
     We have: U * (G1 ... Gm) = I  =>  U = (G1 ... Gm)^-1
     Circuit should append G1^-1, G2^-1, ..., Gm^-1 in that order.
     """
     # 1) Greedy: Uc = tableau * T1 * ... * TL = P (terminal)
-    ops_inv, P = greedy_adapted_volanto(
+    ops_inv, P = lookahead_volanto(
         tableau.tableau.matrix,
         params=greedy_params,
-        choose_op=choose_op,
+        lookahead_depth=lookahead_depth,
         use_all_pairs=use_all_pairs,
     )
 
@@ -1565,37 +1565,45 @@ def synthesize_clifford_volanto(
     return circ
 
 
-def _fix_tableau_signs_in_place(
-    out: stim.Circuit,
+def fix_tableau_signs_in_place(
+    tableau: StabilizerTableau,
     target_x_signs: np.ndarray,
     target_z_signs: np.ndarray,
 ) -> None:
-    """Append Pauli corrections so that out.to_tableau() matches the desired sign bits.
+    """Append Pauli corrections so that the tableau matches the desired sign bits.
 
-    If tableau(X_i) has wrong sign -> append Z_i
-    If tableau(Z_i) has wrong sign -> append X_i
+    This function ensures that the tableau matches the target signs
+    by appending the necessary Pauli corrections.
     """
-    tab = out.to_tableau()
-    _, _, _, _, got_x, got_z = tab.to_numpy(bit_packed=False)
+    stabs_numpy = tableau.to_numpy()
+    x_part = stabs_numpy[2].astype(int)
+    z_part = stabs_numpy[3].astype(int)
+    signs = stabs_numpy[-1].astype(int)
+    tableau = np.hstack((x_part, z_part, np.array([signs]).T))
 
-    got_x = got_x.astype(np.int8)
-    got_z = got_z.astype(np.int8)
+    if not np.all(tableau[:, -1] == 0):
+        ker = mod2.nullspace(tableau)
+        assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
+        correction_symplectic = ker[-1]
+        zc = correction_symplectic[:len(target_x_signs)]
+        xc = correction_symplectic[len(target_x_signs):-1]
 
-    n = len(tab)
-    for q in range(n):
-        if got_x[q] != target_x_signs[q]:
-            out.append("Z", [q])
-        if got_z[q] != target_z_signs[q]:
-            out.append("X", [q])
+        for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
+            if xv == 1 and zv == 1:
+                tableau.apply_pauli("Y", i)
+            elif xv == 1:
+                tableau.apply_pauli("X", i)
+            elif zv == 1:
+                tableau.apply_pauli("Z", i)
 
 
 def resynthesize_stim_circuit_with_volanto(
     circ: stim.Circuit,
     *,
     greedy_params: GreedyParams = GreedyParams(),
-    choose_op: ChooseOpFn | None = None,
     use_all_pairs: bool = False,
     fix_signs: bool = True,
+    lookahead_depth: int = 1,
 ) -> stim.Circuit:
     """Take a stim circuit, convert to symplectic matrix U, resynthesize using our
     Volanto+single-qubit reduction method, and return a new stim circuit.
@@ -1604,18 +1612,18 @@ def resynthesize_stim_circuit_with_volanto(
     Otherwise it matches only the symplectic (phase-free) action.
     """
     tableau = StabilizerTableau.from_stim_circuit(circ)
-    U = tableau.tableau.matrix
     x_signs = tableau.phase[: tableau.n]
     z_signs = tableau.phase[tableau.n :]
 
     out = synthesize_clifford_volanto(
-        U,
+        tableau,
         greedy_params=greedy_params,
-        choose_op=choose_op,
         use_all_pairs=use_all_pairs,
+        lookahead_depth=lookahead_depth,
     )
 
     if fix_signs:
-        _fix_tableau_signs_in_place(out, x_signs, z_signs)
+        fix_tableau_signs_in_place(out, x_signs, z_signs)
 
+    out = out.inverse()
     return out
