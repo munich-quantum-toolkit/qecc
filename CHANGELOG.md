@@ -65,7 +65,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 [**@pehamtom**]: https://github.com/pehamtom
 [**@denialhaag**]: https://github.com/denialhaag
-[**@LSHerzog**]: https://github.com/LSHerzog/ 
+[**@LSHerzog**]: https://github.com/LSHerzog/
 [**@inctechs**]: https://github.com/inctechs
 
 <!-- General links -->
