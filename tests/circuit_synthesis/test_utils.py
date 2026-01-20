@@ -25,6 +25,7 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
     compose_circuits,
     compose_compact_stim_circuits,
     measured_qubits,
+    num_two_qubit_gates,
     qiskit_to_stim_circuit,
     unmeasured_qubits,
 )
@@ -705,3 +706,19 @@ def test_compose_circuits(
     # Check the mappings
     assert mapping1 == expected_mapping1
     assert mapping2 == expected_mapping2
+
+
+@pytest.mark.parametrize(
+    ("circuit", "expected_count"),
+    [
+        (stim.Circuit(), 0),  # Empty circuit
+        (stim.Circuit("H 0"), 0),  # Single-qubit gate
+        (stim.Circuit("CX 0 1"), 1),  # Single two-qubit gate
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), 2),  # Two two-qubit gates
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), 2),  # Two two-qubit gates with single-qubit gates
+        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), 3),  # Three two-qubit gates
+    ],
+)
+def test_num_two_qubit_gates(circuit: stim.Circuit, expected_count: int) -> None:
+    """Test the num_two_qubit_gates function."""
+    assert num_two_qubit_gates(circuit) == expected_count

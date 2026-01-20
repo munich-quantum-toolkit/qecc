@@ -307,3 +307,14 @@ def compose_circuits(
     circ2_relabelled = relabel_qubits(circ2, mapping2)
     composed += circ2_relabelled
     return composed, mapping1, mapping2
+
+
+def num_two_qubit_gates(circ: Circuit) -> int:
+    """Return the number of two-qubit gates in the circuit."""
+    num_tqg = 0
+    for op in circ:
+        for grp in op.target_groups():
+            if len(grp) == 2:
+                num_tqg += 1
+
+    return num_tqg
