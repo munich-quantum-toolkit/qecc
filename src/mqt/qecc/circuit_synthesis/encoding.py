@@ -1616,8 +1616,6 @@ def resynthesize_stim_circuit_with_volanto(
     Otherwise it matches only the symplectic (phase-free) action.
     """
     tableau = StabilizerTableau.from_stim_circuit(circ)
-    x_signs = tableau.phase[: tableau.n]
-    z_signs = tableau.phase[tableau.n :]
 
     out = synthesize_clifford_volanto(
         tableau,
@@ -1625,9 +1623,9 @@ def resynthesize_stim_circuit_with_volanto(
         use_all_pairs=use_all_pairs,
         lookahead_depth=lookahead_depth,
     )
+    out = out.inverse()
 
     if fix_signs:
-        fix_tableau_signs_in_place(out, x_signs, z_signs)
+        fix_tableau_signs_in_place(out, tableau.phase)
 
-    out = out.inverse()
     return out

@@ -286,13 +286,13 @@ def test_lookahead_volanto_cases(
 @pytest.mark.parametrize(
     "circuit",
     [
-        # stim.Circuit(),
-        # stim.Circuit("H 0"),
-        # stim.Circuit("CX 0 1"),
-        # stim.Circuit("H 0\nCX 0 1"),
+        stim.Circuit(),
+        stim.Circuit("H 0"),
+        stim.Circuit("CX 0 1"),
+        stim.Circuit("H 0\nCX 0 1"),
         stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit with H and CX gates
-        # stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
-        # stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
+        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
+        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
     ],
 )
 @pytest.mark.parametrize("lookahead_depth", [1])
