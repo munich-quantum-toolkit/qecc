@@ -1061,6 +1061,7 @@ def is_terminal_form(U: npt.NDArray[np.int8]) -> bool:
 # Lookahead Volanto synthesis
 # ---------------------------------------------------------------------
 
+
 def lookahead_volanto(
     U: npt.NDArray[np.int8],  # noqa: N803
     params: GreedyParams = GreedyParams(),
@@ -1069,7 +1070,7 @@ def lookahead_volanto(
     use_all_pairs: bool = False,
 ) -> tuple[list[Op], npt.NDArray[np.int8]]:
     """Find minimal number of transvectins to synthesize U using a lookahead scheme.
-    
+
       input: 2nx2n symplectic matrix U
       output: (op_list, P) where P is in 'perm + 1Q Clifford' form and
               applying op_list (in reverse/inverse sense) reconstructs U.
@@ -1080,6 +1081,7 @@ def lookahead_volanto(
         lookahead_depth: Number of steps to look ahead in the synthesis process.
         use_all_pairs: Whether to consider all pairs of qubits.
     """
+
     def evaluate_with_lookahead(Uc: npt.NDArray[np.int8], depth: int) -> tuple[int, list[Op]]:  # noqa: N803
         """Evaluate the best transvection using a lookahead strategy."""
         if is_terminal_form(Uc):
@@ -1122,6 +1124,8 @@ def lookahead_volanto(
         op_list.append(op_best)
 
     return list(reversed(op_list)), Uc
+
+
 ChooseOpFn = Callable[
     [npt.NDArray[np.int8], list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]]],
     tuple[Op, npt.NDArray[np.int8]],
@@ -1577,7 +1581,7 @@ def fix_tableau_signs_in_place(
     tableau = StabilizerTableau.from_stim_circuit(circ)
     n = tableau.n
     # Extract the current signs from the tableau
-    x_part = tableau.tableau.matrix[: , :n]
+    x_part = tableau.tableau.matrix[:, :n]
     z_part = tableau.tableau.matrix[:, n:]
 
     # Compute the corrections needed to match the target signs
@@ -1604,17 +1608,19 @@ def fix_tableau_signs_in_place(
 def resynthesize_stim_circuit_with_volanto(
     circ: stim.Circuit,
     *,
-    greedy_params: GreedyParams = GreedyParams(),
+    greedy_params: GreedyParams | None = None,
     use_all_pairs: bool = False,
     fix_signs: bool = True,
     lookahead_depth: int = 1,
 ) -> stim.Circuit:
-    """Take a stim circuit, convert to symplectic matrix U, resynthesize using our
-    Volanto+single-qubit reduction method, and return a new stim circuit.
+    """Optimize two-qubit gate count of a stim circuit using Volanto synthesis.
 
     If fix_signs=True, the returned circuit matches circ.to_tableau() exactly.
     Otherwise it matches only the symplectic (phase-free) action.
     """
+    if greedy_params is None:
+        greedy_params = GreedyParams()
+
     tableau = StabilizerTableau.from_stim_circuit(circ)
 
     out = synthesize_clifford_volanto(
