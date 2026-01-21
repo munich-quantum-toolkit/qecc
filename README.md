@@ -34,10 +34,7 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological (cat qubit) noise.
 - Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
 - Find the minimum number of code switching operations and their placement in a given quantum circuit that employs code switching as a way to implement logical operations fault-tolerantly.
-
-> [!NOTE]
-> Usage for _Lattice Surgery Compilation Beyond the Surface Code_ as well as _Exploiting Movable Logical Qubits for Lattice Surgery Compilation_ is described in [`docs/cococo.md`](https://github.com/munich-quantum-toolkit/qecc/blob/cococo/docs/cococo.md) in the `cococo` branch.
-> The code quality in the branch is actively being improved.
+- Performing lattice surgery compilation for the color code for CNOT + T circuits with static or movable qubits.
 
 > [!NOTE]
 > Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch ['ft-stateprep-qubit-perm'](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
