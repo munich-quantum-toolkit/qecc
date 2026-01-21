@@ -36,7 +36,6 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - Find the minimum number of code switching operations and their placement in a given quantum circuit that employs code switching as a way to implement logical operations fault-tolerantly.
 - Performing lattice surgery compilation for the color code for CNOT + T circuits with static or movable qubits.
 
-
 > [!NOTE]
 > Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch ['ft-stateprep-qubit-perm'](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
 > The documentation is a work in progress and this branch undergoes some final improvements before being merged into `main`.
