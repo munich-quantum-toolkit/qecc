@@ -1068,6 +1068,7 @@ def lookahead_volanto(
     *,
     lookahead_depth: int = 1,
     use_all_pairs: bool = False,
+    top_k: int = 10,
 ) -> tuple[list[Op], npt.NDArray[np.int8]]:
     """Find minimal number of transvectins to synthesize U using a lookahead scheme.
 
@@ -1080,6 +1081,7 @@ def lookahead_volanto(
         params: Parameters for the greedy synthesis.
         lookahead_depth: Number of steps to look ahead in the synthesis process.
         use_all_pairs: Whether to consider all pairs of qubits.
+        top_k: If not using all pairs, consider only the top_k pairs from sp_gate_options.
     """
 
     def evaluate_with_lookahead(Uc: npt.NDArray[np.int8], depth: int) -> tuple[int, list[Op]]:  # noqa: N803
@@ -1089,23 +1091,27 @@ def lookahead_volanto(
         if depth == 0:
             # Base case: perform greedy synthesis without lookahead
             transvections, _ = greedy_adapted_volanto(Uc, params=params, use_all_pairs=use_all_pairs)
-            return len(transvections), transvections
+            return len(transvections), list(reversed(transvections))
 
         transvections = all_two_qubit_transvections()
         best_score = float("inf")
         best_op = None
-        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)] if use_all_pairs else sp_gate_options(Uc)
-        for i, j in pairs:
-            for v in transvections:
-                op: Op = (v, (i, j))
-                B = apply_tv2(Uc, v, (i, j))  # noqa: N806
-                score, _ = evaluate_with_lookahead(B, depth - 1)
-                score += 1  # count this operation
-                if score < best_score:
-                    best_score = score
-                    best_op = op
-                if score == 1:
-                    return 1, [op]
+        pairs = (
+            [(i, j) for i in range(n) for j in range(i + 1, n)]
+            if use_all_pairs
+            else sp_gate_options(Uc)
+        )
+
+        ops = get_top_k_scored_operations(Uc, transvections, pairs, params, k=top_k)
+        for op, _ , reduced in ops:
+            score, _ = evaluate_with_lookahead(reduced, depth - 1)
+            score += 1  # count this operation
+            if score < best_score:
+                best_score = score
+                best_op = op
+            if score == 1:
+                return 1, [op]
+
         return best_score, [best_op] if best_op else []
 
     Uc = U.astype(np.int8).copy()  # noqa: N806
@@ -1114,7 +1120,7 @@ def lookahead_volanto(
     op_list: list[Op] = []
 
     while not is_terminal_form(Uc):
-        _, best_ops = evaluate_with_lookahead(Uc, lookahead_depth)
+        score, best_ops = evaluate_with_lookahead(Uc, lookahead_depth)
         if not best_ops:
             msg = "No gate options generated; cannot proceed."
             raise RuntimeError(msg)
@@ -1146,45 +1152,37 @@ def greedy_adapted_volanto(
 
     This follows Algorithm 5 (greedy loop) and Chapter 3.3's goal state.
     """
-    Uc = U.astype(np.int8).copy()
-    n = sym_shape(Uc)
+    tableau = U.astype(np.int8).copy()
+    n = sym_shape(tableau)
     # Uc = np.vstack((U[n:, :], U[:n, :]))
 
     transvections = all_two_qubit_transvections()
     op_list: list[Op] = []
 
     # initial heuristic
-    h_last_vec, _ = default_sp_heuristic(Uc, params)
+    h_last_vec, _ = default_sp_heuristic(tableau, params)
     h_min_vec = h_last_vec
     curr_wait = 0
 
-    while not is_terminal_form(Uc):
+    while not is_terminal_form(tableau):
         # Candidate (i,j) pairs
-        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)] if use_all_pairs else sp_gate_options(Uc)
+        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)] if use_all_pairs else sp_gate_options(tableau)
 
-        # Evaluate all candidates
-        scored: list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]] = []
-        for i, j in pairs:
-            for v in transvections:
-                op: Op = (v, (i, j))
-                B = apply_tv2(Uc, v, (i, j))
-                h_vec, h_s = default_sp_heuristic(B, params)
-                scored.append((op, (h_vec, h_s), B))
-
+        scored = get_top_k_scored_operations(tableau, transvections, pairs, params, k=len(pairs)*len(transvections))
         if not scored:
             msg = "No gate options generated; cannot proceed."
             raise RuntimeError(msg)
 
         # Default choice: minimize h_vec lexicographically (Eq. 13).
         if choose_op is None:
-            op_best, (h_best_vec, _), B_best = min(scored, key=lambda t: t[1][0])
+            op_best, (h_best_vec, _), best_reduced = scored[0]
         else:
-            op_best, B_best = choose_op(Uc, scored)
-            h_best_vec, _ = default_sp_heuristic(B_best, params)
+            op_best, best_reduced = choose_op(tableau, scored)
+            h_best_vec, _ = default_sp_heuristic(best_reduced, params)
 
         # Apply the chosen operation
         op_list.append(op_best)
-        Uc = B_best
+        tableau = best_reduced
         h_last_vec = h_best_vec
 
         # max-wait early exit as in Algorithm 5 :contentReference[oaicite:15]{index=15}
@@ -1201,7 +1199,7 @@ def greedy_adapted_volanto(
     # Here: our ops are involutions (transvections are self-inverse up to phase),
     # and application order reverses.
     op_list_inv = list(reversed(op_list))
-    return op_list_inv, Uc
+    return op_list_inv, tableau
 
 
 # Encoded 1Q gate sequence for a qubit: list of "H" and "S"
@@ -1209,10 +1207,10 @@ SingleQOp = tuple[int, list[str]]  # (qubit, ["H","S",...])
 SwapOp = tuple[int, int]  # (a, b)
 
 
-def _right_multiply_swap(U: npt.NDArray[np.int8], a: int, b: int) -> npt.NDArray[np.int8]:
+def _right_multiply_swap(tableau: npt.NDArray[np.int8], a: int, b: int) -> npt.NDArray[np.int8]:
     """Right-multiply U by SWAP(a,b) in symplectic form (permutes X_a<->X_b and Z_a<->Z_b columns)."""
-    n = sym_shape(U)
-    out = U.copy()
+    n = sym_shape(tableau)
+    out = tableau.copy()
     cols = list(range(2 * n))
     # swap X columns
     cols[a], cols[b] = cols[b], cols[a]
@@ -1221,58 +1219,53 @@ def _right_multiply_swap(U: npt.NDArray[np.int8], a: int, b: int) -> npt.NDArray
     return out[:, cols]
 
 
-def _right_multiply_H(U: npt.NDArray[np.int8], q: int) -> npt.NDArray[np.int8]:
+def _right_multiply_H(tableau: npt.NDArray[np.int8], q: int) -> npt.NDArray[np.int8]:
     """Right-multiply by H on qubit q (swap X_q and Z_q columns)."""
-    n = sym_shape(U)
-    out = U.copy()
+    n = sym_shape(tableau)
+    out = tableau.copy()
     out[:, [q, q + n]] = out[:, [q + n, q]]
     return out
 
 
-def _right_multiply_S(U: npt.NDArray[np.int8], q: int) -> npt.NDArray[np.int8]:
+def _right_multiply_S(tableau: npt.NDArray[np.int8], q: int) -> npt.NDArray[np.int8]:
     """Right-multiply by S on qubit q under ROW-IMAGE convention:
       X -> XZ   => column X_q unchanged, column Z_q ^= column X_q
       Z -> Z
     In symplectic matrix columns: Zcol := Zcol + Xcol.
     """
-    n = sym_shape(U)
-    out = U.copy()
+    n = sym_shape(tableau)
+    out = tableau.copy()
     out[:, q + n] ^= out[:, q]
     return out
 
 
-def _matmul2(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    return ((A @ B) % 2).astype(np.int8)
+def _matmul2(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
+    return ((m1 @ m2) % 2).astype(np.int8)
 
 
 def _one_qubit_group() -> dict[str, np.ndarray]:
-    """6 elements generated by H and S (row-image, right-multiply convention):
-    matrices act on columns [X, Z] of a single qubit.
-    """
-    I = np.array([[1, 0], [0, 1]], dtype=np.int8)
-    H = np.array([[0, 1], [1, 0]], dtype=np.int8)
-    S = np.array([[1, 1], [0, 1]], dtype=np.int8)
+    id = np.array([[1, 0], [0, 1]], dtype=np.int8)
+    hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
+    phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
 
     # For right-multiplication, sequence "HS" means multiply by H then S => I*H*S
     elems: dict[str, np.ndarray] = {
-        "": I,
-        "H": H,
-        "S": S,
-        "HS": _matmul2(H, S),
-        "SH": _matmul2(S, H),
-        "HSH": _matmul2(_matmul2(H, S), H),
+        "": id,
+        "H": hadamard,
+        "S": phase,
+        "HS": _matmul2(hadamard, phase),
+        "SH": _matmul2(phase, hadamard),
+        "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
     }
     return elems
 
 
 def _inv_word(word: str) -> str:
-    """Inverse in the {H,S} group: H^{-1}=H, S^{-1}=S^3=S^(-1) = 'SSS' but inside 6-element group we can table it."""
-    # easiest: brute force using the 6-element table
     elems = _one_qubit_group()
-    M = elems[word]
-    I = elems[""]
+    m = elems[word]
+    inverse = elems[""]
     for w2, M2 in elems.items():
-        if np.array_equal(_matmul2(M, M2), I):
+        if np.array_equal(_matmul2(m, M2), inverse):
             return w2
     msg = f"no inverse for {word}"
     raise ValueError(msg)
@@ -1329,9 +1322,7 @@ def _perm_inverse(perm_in_to_out: np.ndarray) -> np.ndarray:
 
 
 def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[SwapOp]:
-    """Return a SWAP list that realizes perm_in_to_out when right-multiplying the symplectic matrix,
-    i.e. permuting columns (wires). (Any decomposition is fine for the test.).
-    """
+    """Return a SWAP list that realizes perm_in_to_out when right-multiplying the symplectic matrix, i.e. permuting columns (wires). (Any decomposition is fine for the test.)."""
     perm = perm_in_to_out.copy().tolist()
     n = len(perm)
     swaps: list[SwapOp] = []
@@ -1355,7 +1346,7 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[SwapOp]:
 
 
 def reduce_single_qubit_gates_and_swaps(
-    U: npt.NDArray[np.int8],
+    tableau: npt.NDArray[np.int8],
 ) -> tuple[tuple[list[SwapOp], list[SingleQOp]], npt.NDArray[np.int8]]:
     """Reduce a TERMINAL symplectic matrix U to identity using only SWAP/H/S by right-multiplication.
 
@@ -1363,21 +1354,21 @@ def reduce_single_qubit_gates_and_swaps(
       ((swaps, one_qubit_ops), U_reduced)
     where U_reduced should be identity.
     """
-    Uc = U.astype(np.int8).copy()
-    n = sym_shape(Uc)
+    tableau_copy = tableau.astype(np.int8).copy()
+    n = sym_shape(tableau_copy)
 
-    if not is_terminal_form(Uc):
+    if not is_terminal_form(tableau_copy):
         msg = "reduce_with_single_qubit_gates expects a terminal-form matrix."
         raise ValueError(msg)
 
     # 1) Extract permutation and 2×2 blocks
-    perm, _blocks = _extract_perm_in_to_out_and_blocks(Uc)
+    perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
 
     # 2) Right-multiply by permutation inverse to bring blocks onto the diagonal
     inv = _perm_inverse(perm)
     swaps = _perm_to_swaps(inv)  # realize inv permutation
     for a, b in swaps:
-        Uc = _right_multiply_swap(Uc, a, b)
+        tableau_copy = _right_multiply_swap(tableau_copy, a, b)
 
     # After applying inv, each input i should land on output i, and blocks move to diagonal.
     # Re-extract diagonal blocks (now at (i,i)).
@@ -1387,8 +1378,8 @@ def reduce_single_qubit_gates_and_swaps(
     for q in range(n):
         F = np.array(
             [
-                [int(Uc[q, q]), int(Uc[q, q + n])],
-                [int(Uc[q + n, q]), int(Uc[q + n, q + n])],
+                [int(tableau_copy[q, q]), int(tableau_copy[q, q + n])],
+                [int(tableau_copy[q + n, q]), int(tableau_copy[q + n, q + n])],
             ],
             dtype=np.int8,
         )
@@ -1410,13 +1401,13 @@ def reduce_single_qubit_gates_and_swaps(
         # Apply the inverse word by right-multiplication
         for g in w_inv:
             if g == "H":
-                Uc = _right_multiply_H(Uc, q)
+                tableau_copy = _right_multiply_H(tableau_copy, q)
             elif g == "S":
-                Uc = _right_multiply_S(Uc, q)
+                tableau_copy = _right_multiply_S(tableau_copy, q)
             else:
                 raise ValueError(g)
 
-    return (swaps, inv_words), Uc
+    return (swaps, inv_words), tableau_copy
 
 
 # # ---------- helpers for transvections √(P_i P_j) ----------
@@ -1506,8 +1497,12 @@ def synthesize_clifford_volanto(
     lookahead_depth: int = 1,
     greedy_params: GreedyParams | None = None,
     use_all_pairs: bool = False,
+    top_k: int = 10,
 ) -> stim.Circuit:
     """Synthesize a stim circuit implementing a StabilizerTableau using a version of the greedy adapted Volanto synthesis from [arXiv:2503.14660].
+
+    The synthesis method uses a lookahead strategy to minimize the number of two-qubit gates.
+    The `top_k` parameter determines how many candidates are considered during the lookahead.
 
     The synthesis uses a lookahead strategy to minimize the number of two-qubit gates.
 
@@ -1527,6 +1522,7 @@ def synthesize_clifford_volanto(
         tableau.tableau.matrix,
         params=greedy_params,
         lookahead_depth=lookahead_depth,
+        top_k=top_k,
         use_all_pairs=use_all_pairs,
     )
 
@@ -1592,6 +1588,7 @@ def resynthesize_stim_circuit_with_volanto(
     *,
     greedy_params: GreedyParams | None = None,
     use_all_pairs: bool = False,
+    top_k: int = 10,
     fix_signs: bool = True,
     lookahead_depth: int = 1,
 ) -> stim.Circuit:
@@ -1610,6 +1607,7 @@ def resynthesize_stim_circuit_with_volanto(
         greedy_params=greedy_params,
         use_all_pairs=use_all_pairs,
         lookahead_depth=lookahead_depth,
+        top_k=top_k,
     )
     out = out.inverse()
 
@@ -1617,3 +1615,37 @@ def resynthesize_stim_circuit_with_volanto(
         fix_tableau_signs_in_place(out, tableau.phase)
 
     return out
+
+def get_top_k_scored_operations(
+    tableau: npt.NDArray[np.int8],
+    transvections: list[TV2],
+    pairs: list[tuple[int, int]],
+    params: GreedyParams,
+    k: int,
+) -> list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]]:
+    """Score all possible operations and return the top k scored operations.
+
+    Args:
+        tableau: The current symplectic matrix.
+        transvections: List of all two-qubit transvections.
+        pairs: List of qubit pairs to consider.
+        params: Parameters for the greedy synthesis.
+        k: Number of top scored operations to return.
+
+    Returns:
+        A list of the top k scored operations, each represented as a tuple of
+        (operation, heuristic vector and scalar, resulting matrix).
+    """
+    scored: list[tuple[Op, tuple[tuple[int, ...], int], npt.NDArray[np.int8]]] = []
+    for i, j in pairs:
+        for v in transvections:
+            op: Op = (v, (i, j))
+            B = apply_tv2(tableau, v, (i, j))
+            h_vec, h_s = default_sp_heuristic(B, params)
+            scored.append((op, (h_vec, h_s), B))
+
+    # Sort scored operations by heuristic vector lexicographically
+    scored.sort(key=lambda t: t[1][0])
+
+    # Return the top k scored operations
+    return scored[:k]

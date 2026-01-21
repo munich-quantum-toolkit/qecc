@@ -296,7 +296,7 @@ def test_lookahead_volanto_cases(
         stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
     ],
 )
-@pytest.mark.parametrize("lookahead_depth", [1])
+@pytest.mark.parametrize("lookahead_depth", [0,1,2])
 def test_resynthesize_stim_circuit_with_volanto(circuit: stim.Circuit, lookahead_depth: int) -> None:
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
@@ -306,7 +306,7 @@ def test_resynthesize_stim_circuit_with_volanto(circuit: stim.Circuit, lookahead
         circuit, lookahead_depth=lookahead_depth, fix_signs=True
     )
     resynthesized_tableau = resynthesized_circuit.to_tableau()
-    resynthesized_two_qubit_gates = sum(1 for op in resynthesized_circuit if op.name in {"CX", "CZ", "SWAP"})
+    resynthesized_two_qubit_gates = num_two_qubit_gates(resynthesized_circuit)
 
     # Assert that the tableaus are identical
     assert original_tableau == resynthesized_tableau
