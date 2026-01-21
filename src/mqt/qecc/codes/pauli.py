@@ -350,6 +350,20 @@ class StabilizerTableau:
         """
         return np.hstack((self.tableau.matrix, self.phase[:, np.newaxis]))
 
+    def is_css(self) -> bool:
+        """Check if the stabilizer tableau is in CSS form."""
+        x_part = self.tableau.matrix[:, : self.n]
+        z_part = self.tableau.matrix[:, self.n :]
+        return np.all(x_part[:, z_part.any(axis=0)] == 0) and np.all(z_part[:, x_part.any(axis=0)] == 0)
+
+    def get_x_part(self) -> npt.NDArray[np.int8]:
+        """Get the X part of the stabilizer tableau."""
+        return self.tableau.matrix[:, : self.n]
+
+    def get_z_part(self) -> npt.NDArray[np.int8]:
+        """Get the Z part of the stabilizer tableau."""
+        return self.tableau.matrix[:, self.n :]
+
 
 def is_pauli_string(p: str) -> bool:
     """Check if a string is a valid Pauli string."""

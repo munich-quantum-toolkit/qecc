@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
+import stim
+from numpy.testing import assert_array_equal
 
 from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.codes import (
@@ -27,7 +29,6 @@ from mqt.qecc.codes import (
 )
 from mqt.qecc.codes.pauli import InvalidPauliError, Pauli, StabilizerTableau
 from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
-import stim
 from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -101,6 +102,35 @@ def test_symplectic() -> None:
     assert m.n == 3
 
     
+@pytest.mark.parametrize(
+    "tableau_matrix, expected",
+    [
+        (np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.int8), True),
+        (np.array([[1, 0, 0, 1], [0, 1, 1, 0]], dtype=np.int8), False),
+    ],
+)
+def test_is_css(tableau_matrix, expected) -> None:
+    """Test the is_css method."""
+    tableau = StabilizerTableau(SymplecticMatrix(tableau_matrix))
+    assert tableau.is_css() == expected
+
+
+@pytest.mark.parametrize(
+    "tableau_fixture, expected_x_part, expected_z_part",
+    [
+        ("identity_tableau", np.array([[1], [0]], dtype=np.int8), np.array([[0],[1]], dtype=np.int8)),
+        ("hadamard_tableau", np.array([[0], [1]], dtype=np.int8), np.array([[1], [0]], dtype=np.int8)),
+    ],
+)
+def test_get_x_and_z_parts(tableau_fixture: str, expected_x_part: np.ndarray, expected_z_part: np.ndarray, request) -> None:
+    """Test the get_x_part and get_z_part methods with various tableaus."""
+    tableau = request.getfixturevalue(tableau_fixture)
+    x_part = tableau.get_x_part()
+    z_part = tableau.get_z_part()
+    assert_array_equal(x_part, expected_x_part)
+    assert_array_equal(z_part, expected_z_part)
+
+
 def test_stabilizer_tableau() -> None:
     """Test the StabilizerTableau class."""
     with pytest.raises(InvalidPauliError):
