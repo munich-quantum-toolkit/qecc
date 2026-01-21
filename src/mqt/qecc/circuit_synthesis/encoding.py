@@ -1486,21 +1486,17 @@ def _append_reduction_ops_as_stim(
     oneq_ops: list[tuple[int, list[str]]],
 ) -> None:
     """Append the SWAP/H/S operations (the right-multiplication reductions) as a stim circuit."""
-    # Swaps were produced to be applied (right-multiply) in the given order,
-    # and in a stim circuit, appending SWAP applies that gate in that order.
     for a, b in swaps:
         circ.append("SWAP", [int(a), int(b)])
 
-    # oneq_ops is a list of (q, ["H","S",...]) where gates are to be right-multiplied in that order.
     for q, word in oneq_ops:
-        q = int(q)
         for g in word:
             if g == "H":
                 circ.append("H", [q])
             elif g == "S":
                 circ.append("S", [q])
             else:
-                msg = f"Unsupported 1Q gate in reduction word: {g}"
+                msg = f"Unsupported 1Q gate: {g}"
                 raise ValueError(msg)
 
 
@@ -1508,38 +1504,41 @@ def synthesize_clifford_volanto(
     tableau: StabilizerTableau,
     *,
     lookahead_depth: int = 1,
-    greedy_params: GreedyParams = GreedyParams(),
+    greedy_params: GreedyParams | None = None,
     use_all_pairs: bool = False,
 ) -> stim.Circuit:
-    """Synthesize a stim circuit implementing a StabilizerTableau using:
-      - lookahead_volanto (right-multiply transvections with lookahead) -> terminal P
-      - reduce_with_single_qubit_gates(P) (right-multiply SWAP/H/S) -> I.
+    """Synthesize a stim circuit implementing a StabilizerTableau using a version of the greedy adapted Volanto synthesis from [arXiv:2503.14660].
 
-    We have: U * (G1 ... Gm) = I  =>  U = (G1 ... Gm)^-1
-    Circuit should append G1^-1, G2^-1, ..., Gm^-1 in that order.
+    The synthesis uses a lookahead strategy to minimize the number of two-qubit gates.
+
+    Args:
+        tableau: The StabilizerTableau to synthesize.
+        lookahead_depth: The depth of lookahead to use in the synthesis.
+        greedy_params: Parameters for the greedy synthesis.
+        use_all_pairs: Whether to consider all pairs of qubits during synthesis.
+
+    Returns:
+        A stim.Circuit that implements the given StabilizerTableau.
     """
-    # 1) Greedy: Uc = tableau * T1 * ... * TL = P (terminal)
-    ops_inv, P = lookahead_volanto(
+    if greedy_params is None:
+        greedy_params = GreedyParams()
+        
+    ops_inv, prefix = lookahead_volanto(
         tableau.tableau.matrix,
         params=greedy_params,
         lookahead_depth=lookahead_depth,
         use_all_pairs=use_all_pairs,
     )
 
-    # The actual applied order was op_list = [T1, ..., TL] = reversed(ops_inv)
     op_list = list(reversed(ops_inv))
 
-    # 2) Reduce terminal: P * R1 * ... * Rr = I
-    (swaps, oneq_ops), P_reduced = reduce_single_qubit_gates_and_swaps(P)
-    if not np.array_equal(P_reduced, np.eye(2 * tableau.n, dtype=np.int8)):
+    (swaps, oneq_ops), prefix_reduced = reduce_single_qubit_gates_and_swaps(prefix)
+    if not np.array_equal(prefix_reduced, np.eye(2 * tableau.n, dtype=np.int8)):
         msg = "Single-qubit reduction failed: did not reach identity."
         raise RuntimeError(msg)
 
-    # 3) Emit circuit for U = (T1..TL R1..Rr)^-1
-    # i.e. append inverses in the SAME order they were applied: T1^-1, ..., TL^-1, R1^-1, ..., Rr^-1
     circ = stim.Circuit()
 
-    # Transvections: inverse is itself (symplectic involution), so emit same gate.
     for v_bits, (i, j) in op_list:
         _append_transvection_as_hs_cz(
             circ,
@@ -1547,24 +1546,7 @@ def synthesize_clifford_volanto(
             (int(i), int(j)),
         )
 
-    # Swaps: self-inverse
-    for a, b in swaps:
-        circ.append("SWAP", [int(a), int(b)])
-
-    # 1Q reductions were applied as right-multiplies by H/S to reduce P.
-    # For U we need the inverse gates:
-    #   H^-1 = H
-    #   S^-1 = S_DAG
-    for q, word in oneq_ops:
-        q = int(q)
-        for g in word:
-            if g == "H":
-                circ.append("H", [q])
-            elif g == "S":
-                circ.append("S_DAG", [q])
-            else:
-                msg = f"Unsupported 1Q gate in reduction word: {g}"
-                raise ValueError(msg)
+    _append_reduction_ops_as_stim(circ, swaps, oneq_ops)
 
     return circ
 
