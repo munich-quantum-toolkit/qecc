@@ -1,4 +1,4 @@
-# copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -12,7 +12,6 @@ from __future__ import annotations
 import operator
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,32 +25,26 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
-
-
-class EliminationMetric(Enum):
-    """Enum for elimination metrics."""
-    
-    DEPTH: 1
-    TWO_QUBIT_GATES: 2
-    
 @dataclass
 class EliminationConfig:
     """Configuration for elimination methods."""
-    
+
     termination_criterion: Callable[[StabilizerTableau], bool]
     sorted_candidate_ops: Callable[[StabilizerTableau], list[TableauOperation]]
-    # optimization_metric: EliminationMetric
     filters: list[OperationFilter] = None
-    
+    post_process_fn: Callable[
+        [tuple[EliminationSequence, StabilizerTableau]], tuple[EliminationSequence, StabilizerTableau]
+    ] = lambda x: x
 
 
 CheckMatrix = np.ndarray[np.int8]
+
 
 class TableauOperation(ABC):
     """Represents an operation performed during tableau elimination."""
 
     @abstractmethod
-    def apply(self, tableau: StabilizerTableau) -> StabilizerTableau:
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the operation to the given stabilizer tableau.
 
         Args:
@@ -59,7 +52,7 @@ class TableauOperation(ABC):
         """
 
     @abstractmethod
-    def apply_css(self, check_matrix: CheckMatrix) -> CheckMatrix:
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
@@ -73,8 +66,7 @@ class TableauOperation(ABC):
         Args:
             circuit (stim.Circuit): The Stim circuit to append the operation to.
         """
-        
-        
+
     def to_stim_circuit(self) -> stim.Circuit:
         """Convert the operation to a Stim circuit representation.
 
@@ -92,13 +84,15 @@ class TableauOperation(ABC):
         Returns:
             set[int]: The set of qubit indices involved in the operation.
         """
-        
+
 
 TV2 = tuple[int, int, int, int]
+
+
 class Transvection(TableauOperation):
     """Class representing a transvection operation on a stabilizer tableau."""
-    
-    def __init__(self, v: TV2,  i: int, j: int) -> None:
+
+    def __init__(self, v: TV2, i: int, j: int) -> None:
         """Initialize the transvection operation.
 
         Args:
@@ -110,7 +104,7 @@ class Transvection(TableauOperation):
         self.j = j
         self.v = v
 
-    def apply(self, tableau: StabilizerTableau) -> StabilizerTableau:
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the transvection operation to the given stabilizer tableau.
 
         This uses the logic from the `apply_tv2` function to apply a transvection.
@@ -131,12 +125,13 @@ class Transvection(TableauOperation):
         for k in nz:
             c ^= tab[:, cols_ov[k]]
 
-        out = tab.copy()
+        out = tab if inplace else tab.copy()
+
         for k in nz:
             out[:, cols_v[k]] ^= c
-        return StabilizerTableau(out) # TODO: handle phase?
+        return StabilizerTableau(out)  # TODO: handle phase?
 
-    def apply_css(self, check_matrix: CheckMatrix) -> CheckMatrix:
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
@@ -145,7 +140,6 @@ class Transvection(TableauOperation):
         msg = "Transvection operations are not defined for CSS check matrices."
         raise ValueError(msg)
         return check_matrix
-
 
     def all_two_qubit_transvections() -> list[TV2]:
         """Get all 9 possible two-qubit transvections.
@@ -158,7 +152,7 @@ class Transvection(TableauOperation):
             for xj, zj in nontrivial:
                 out.append((xi, xj, zi, zj))
         return out
-    
+
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
         """Append the operation to a Stim circuit.
 
@@ -202,6 +196,64 @@ class Transvection(TableauOperation):
         return {self.i, self.j}
 
 
+class SingleQubitClifford(TableauOperation):
+    """Class representing a single-qubit Clifford operation on a stabilizer tableau."""
+
+    def __init__(self, qubit: int, clifford: str) -> None:
+        """Initialize the single-qubit Clifford operation.
+
+        Args:
+            qubit: The index of the qubit.
+            clifford: The Clifford operation to apply {H, S}.
+        """
+        self.qubit = qubit
+        self.clifford = clifford
+
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the single-qubit Clifford operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+        """
+        q = self.qubit
+
+        out = tableau if inplace else tableau.copy()
+        if self.clifford == "H":
+            out.apply_h(q)
+        elif self.clifford == "S":
+            out.apply_s(q)
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return out
+
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+        """
+        msg = "Single-qubit Clifford operations are not defined for CSS check matrices."
+        raise ValueError(msg)
+        return check_matrix
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append(self.clifford, [self.qubit])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit}
+
+
 class CNOT(TableauOperation):
     """Class representing a CNOT operation on a stabilizer tableau."""
 
@@ -215,30 +267,23 @@ class CNOT(TableauOperation):
         self.control = control
         self.target = target
 
-    def apply(self, tableau: StabilizerTableau) -> StabilizerTableau:
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the CNOT operation to the given stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
         """
-        tab = tableau.tableau
-        c = self.control
-        t = self.target
-
-        out = tab.copy()
-        x_part = out.get_x_part()
-        z_part = out.get_z_part()
-        x_part[:, t] ^= x_part[:, c]
-        z_part[:, c] ^= z_part[:, t]
+        out = tableau if inplace else tableau.copy()
+        out.apply_cx(self.control, self.target)
         return out
 
-    def apply_css(self, check_matrix: CheckMatrix) -> CheckMatrix:
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
             check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
         """
-        out = check_matrix.copy()
+        out = check_matrix if inplace else check_matrix.copy()
         out[:, self.target] ^= out[:, self.control]
         return out
 
@@ -258,9 +303,60 @@ class CNOT(TableauOperation):
         """
         return {self.control, self.target}
 
+
+class Swap(TableauOperation):
+    """Class representing a SWAP operation on a stabilizer tableau."""
+
+    def __init__(self, qubit_a: int, qubit_b: int) -> None:
+        """Initialize the SWAP operation.
+
+        Args:
+            qubit_a: The index of the first qubit.
+            qubit_b: The index of the second qubit.
+        """
+        self.qubit_a = qubit_a
+        self.qubit_b = qubit_b
+
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the SWAP operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+        """
+        out = tableau if inplace else tableau.copy()
+        out.apply_swap(self.qubit_a, self.qubit_b)
+        return out
+
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+        """
+        out = check_matrix.copy()
+        out[:, [self.qubit_a, self.qubit_b]] = out[:, [self.qubit_b, self.qubit_a]]
+        return out
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append("SWAP", [self.qubit_a, self.qubit_b])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit_a, self.qubit_b}
+
+
 class EliminationSequence:
     """Class representing a sequence of tableau operations."""
-    
+
     def __init__(self, operations: list[TableauOperation]) -> None:
         """Initialize the elimination sequence.
 
@@ -283,7 +379,7 @@ class EliminationSequence:
 
 class OperationFilter(ABC):
     """Abstract base class for filtering tableau operations."""
-    
+
     @abstractmethod
     def filter(self, operations: list[TableauOperation]) -> list[TableauOperation]:
         """Filter the given list of tableau operations.
@@ -303,11 +399,11 @@ class OperationFilter(ABC):
         Args:
             op: The tableau operation to update the filter with.
         """
-    
-        
+
+
 class ParallelFilter(OperationFilter):
     """Context for elimination process."""
-    
+
     def __init__(self) -> None:
         """Initialize the elimination context.
 
@@ -325,7 +421,9 @@ class ParallelFilter(OperationFilter):
         Returns:
             A filtered list of tableau operations.
         """
-        filtered_ops: list[TableauOperation] = [op for op in operations if not any(qubit in self.blocked_qubits for qubit in op.qubits())]
+        filtered_ops: list[TableauOperation] = [
+            op for op in operations if not any(qubit in self.blocked_qubits for qubit in op.qubits())
+        ]
         if not filtered_ops:
             self._reset()
             filtered_ops = operations
@@ -345,8 +443,9 @@ class ParallelFilter(OperationFilter):
         self.blocked_qubits.clear()
 
 
-    
-def eliminate(target_tableau: StabilizerTableau, config: EliminationConfig) -> tuple[list[TableauOperation], StabilizerTableau]:
+def eliminate(
+    target_tableau: StabilizerTableau, config: EliminationConfig
+) -> tuple[list[TableauOperation], StabilizerTableau]:
     """Perform Gaussian elimination on the given stabilizer tableau.
 
     Args:
@@ -360,21 +459,23 @@ def eliminate(target_tableau: StabilizerTableau, config: EliminationConfig) -> t
     operations: list[TableauOperation] = []
     is_reduced = config.termination_criterion
     get_candidate_ops = config.sorted_candidate_ops
-    
+
     while not is_reduced(tableau):
-        candidate_ops: EliminationSequence = get_candidate_ops(target_tableau)
-        filtered_ops = filter_candidates(candidate_ops, config)# [:top_k]
-        
+        candidate_ops: EliminationSequence = get_candidate_ops(tableau)
+        filtered_ops = filter_candidates(candidate_ops, config)  # [:top_k]
+
         if not filtered_ops:
             msg = "No more candidate operations available, but termination criterion not met."
             raise RuntimeError(msg)
-        
+
         op = filtered_ops[0]
         tableau = op.apply(tableau)
         operations.append(op)
 
         update_state(op, config)
-        
+
+    post_process_fn = config.post_process_fn
+    operations, tableau = post_process_fn((operations, tableau))
     return operations, tableau
 
 
@@ -396,7 +497,7 @@ def filter_candidates(ops: EliminationSequence, config: EliminationConfig) -> El
     Args:
         ops (EliminationSequence): The list of candidate tableau operations.
         config (EliminationConfig): Configuration parameters for the elimination process.
-    
+
     Returns:
         A filtered list of candidate tableau operations.
     """
@@ -404,7 +505,8 @@ def filter_candidates(ops: EliminationSequence, config: EliminationConfig) -> El
     for filter_ in config.filters:
         filtered_ops = filter_.filter(filtered_ops)
     return filtered_ops
-    
+
+
 def is_identity(tableau: StabilizerTableau) -> bool:
     """Check if the given stabilizer tableau is the identity tableau.
 
@@ -439,21 +541,25 @@ def _compute_r0_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]
     zero = (a_xx == 0) & (a_xz == 0) & (a_zx == 0) & (a_zz == 0)
     return zero.astype(np.int8)
 
+
 def _compute_r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     return (1 ^ (R2 | R0)).astype(np.int8)
-    
+
+
 def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
     """Compute R1 and R2 matrices."""
     r2 = _compute_r2_matrix(symplectic)
     r0 = _compute_r0_matrix(symplectic)
     r1 = _compute_r1_matrix_from_r2_r0(r2, r0)
     return r1, r2
-    
+
+
 def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     """Check if the given stabilizer tableau is in terminal form for transvection elimination.
 
     Args:
         tableau (StabilizerTableau): The stabilizer tableau to check.
+
     Returns:
         bool: True if the tableau is in terminal form, False otherwise.
     """
@@ -465,10 +571,10 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
         return False
     return np.all(r2.sum(axis=1) == 1)
 
+
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     """Score the given symplectic matrix using the default symplectic heuristic."""
     n = tableau.n
-
 
     symplectic = tableau.tableau.matrix
     r1, r2 = r1_r2(symplectic)
@@ -479,16 +585,17 @@ def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     c1t = r1.sum(axis=1).astype(int)  # colSums(R1^T) = rowSums(R1)
     c2t = r2.sum(axis=1).astype(int)
     vec = np.concatenate([n * c2 + c1, n * c2t + c1t])
-        # else:
-        #     # fallback: approximate real weighting
-        #     vec = np.concatenate([c2 + c1 / n, c2t + c1t / n])
+    # else:
+    #     # fallback: approximate real weighting
+    #     vec = np.concatenate([c2 + c1 / n, c2t + c1t / n])
     # else:
     #     vec = n * c2 + c1 if params.use_integer_weighting else (c2 + c1 / n)
 
     h_vec = tuple(sorted(int(x) for x in vec))
-    
+
     h_scalar = int(r1.sum() + r2.sum())
     return h_vec, h_scalar
+
 
 def get_candidate_transvections(
     tableau: StabilizerTableau,
@@ -509,13 +616,148 @@ def get_candidate_transvections(
     n = tableau.n
     pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
     transvections = Transvection.all_two_qubit_transvections()
-    scores: list[tuple(Transvection, list[int, ...])] = []    
+    scores: list[tuple(Transvection, list[int, ...])] = []
     for i, j in pairs:
         for v in transvections:
             op = Transvection(v, i, j)
             tablea_op_applied = op.apply(tableau)
             h_vec, _ = score_symplectic(tablea_op_applied)
             scores.append((op, h_vec))
-            
+
     scores.sort(key=operator.itemgetter(1))
     return [tv for tv, _ in scores]
+
+
+def reduce_single_qubit_gates_and_swaps(
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce a TERMINAL symplectic matrix U to identity using only SWAP/H/S by right-multiplication.
+
+    Returns:
+      ((swaps, one_qubit_ops), U_reduced)
+    where U_reduced should be identity.
+    """
+    tableau_copy = tableau.astype(np.int8).copy()
+    n = tableau.n
+
+    perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
+
+    # 2) Right-multiply by permutation inverse to bring blocks onto the diagonal
+    inv = _perm_inverse(perm)
+    swaps = _perm_to_swaps(inv)  # realize inv permutation
+    for swap in swaps:
+        tableau_copy = swap.apply(tableau_copy, inplace=True)
+
+    # After applying inv, each input i should land on output i, and blocks move to diagonal.
+    # Re-extract diagonal blocks (now at (i,i)).
+    oneq_table = _one_qubit_group()
+    inv_words: list[SingleQOp] = []
+
+    for q in range(n):
+        F = np.array(
+            [
+                [int(tableau_copy[q, q]), int(tableau_copy[q, q + n])],
+                [int(tableau_copy[q + n, q]), int(tableau_copy[q + n, q + n])],
+            ],
+            dtype=np.int8,
+        )
+
+        # Find which word produces F; then apply its inverse to cancel.
+        found = None
+        for w, M in oneq_table.items():
+            if np.array_equal(M, F):
+                found = w
+                break
+        if found is None:
+            msg = f"Diagonal block not a 1Q Clifford in {{H,S}} group:\n{F}"
+            raise ValueError(msg)
+
+        w_inv = _inv_word(found)
+        if w_inv:
+            inv_words.append((q, list(w_inv)))
+
+        # Apply the inverse word by right-multiplication
+        for g in w_inv:
+            if g == "H":
+                tableau_copy = _right_multiply_H(tableau_copy, q)
+            elif g == "S":
+                tableau_copy = _right_multiply_S(tableau_copy, q)
+            else:
+                raise ValueError(g)
+
+    return (swaps, inv_words), tableau_copy
+
+
+def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Extract the permutation and corresponding 2×2 blocks from a terminal symplectic matrix.
+
+    This function processes a terminal symplectic matrix `U` to determine the permutation
+    of input qubits to output qubits and the associated 2×2 symplectic blocks.
+
+    Args:
+        U: A 2n×2n symplectic matrix in terminal form.
+
+    Returns:
+        A tuple containing:
+        - perm: A 1D array where `perm[i]` gives the index `j` such that the determinant
+          of the 2×2 block F_ij is 1 (indicating a valid symplectic transformation).
+        - blocks: A list of 2×2 symplectic blocks corresponding to the permutation.
+    """
+    n = tableau.n
+    symplectic = tableau.tableau.matrix
+    r2 = _compute_r2_matrix(symplectic)
+
+    perm = np.full(n, -1, dtype=int)
+    blocks: list[np.ndarray] = [None] * n  # type: ignore
+
+    for i in range(n):
+        js = np.flatnonzero(r2[i])
+        if len(js) != 1:
+            msg = "Not terminal: R2 row is not one-hot."
+            raise ValueError(msg)
+        j = int(js[0])
+        perm[i] = j
+        blocks[i] = np.array(
+            [
+                [int(symplectic[i, j]), int(symplectic[i, j + n])],
+                [int(symplectic[i + n, j]), int(symplectic[i + n, j + n])],
+            ],
+            dtype=np.int8,
+        )
+
+    if len(set(perm.tolist())) != n:
+        msg = "Not terminal: R2 columns not one-hot."
+        raise ValueError(msg)
+    return perm, blocks
+
+
+def _perm_inverse(perm_in_to_out: np.ndarray) -> np.ndarray:
+    n = len(perm_in_to_out)
+    inv = np.empty(n, dtype=int)
+    for i, j in enumerate(perm_in_to_out):
+        inv[int(j)] = i
+    return inv
+
+
+def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
+    """Return a SWAP list that realizes perm_in_to_out when right-multiplying the symplectic matrix, i.e. permuting columns (wires). (Any decomposition is fine for the test.)."""
+    perm = perm_in_to_out.copy().tolist()
+    n = len(perm)
+    swaps: list[Swap] = []
+    pos = list(range(n))  # current label at position p
+
+    # We want to permute columns so that wire i ends up at perm[i].
+    # Do it via bubble-like swapping on positions.
+    for i in range(n):
+        target_pos = perm[i]
+        cur_pos = pos.index(i)
+        while cur_pos != target_pos:
+            step = cur_pos + 1 if cur_pos < target_pos else cur_pos - 1
+            swaps.append(Swap(cur_pos, step))
+            # swap labels in pos
+            pos[cur_pos], pos[step] = pos[step], pos[cur_pos]
+            cur_pos = step
+
+    # This is not minimal, but deterministic and fine for testing.
+    # You can replace with cycle decomposition later.
+    return swaps
