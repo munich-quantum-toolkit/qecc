@@ -14,11 +14,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 
 from ..codes.pauli import StabilizerTableau
-import ldpc.mod2.mod2_numpy as mod2
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -47,6 +47,10 @@ class TableauOperation(ABC):
     @abstractmethod
     def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the operation to the given stabilizer tableau.
+
+        Args:
+            tableau (StabilizerTableau): The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
 
         Args:
             tableau (StabilizerTableau): The stabilizer tableau to apply the operation to.
@@ -112,6 +116,7 @@ class Transvection(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
         tab = tableau.tableau
         n = tableau.n
@@ -137,6 +142,7 @@ class Transvection(TableauOperation):
 
         Args:
             check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
         """
         msg = "Transvection operations are not defined for CSS check matrices."
         raise ValueError(msg)
@@ -215,6 +221,7 @@ class SingleQubitClifford(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
         q = self.qubit
 
@@ -292,7 +299,6 @@ class SingleQubitClifford(TableauOperation):
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
         return SingleQubitClifford(self.qubit, inverse_map[self.clifford])
-    
 
     def available_cliffords() -> list[str]:
         """Get the list of available single-qubit Clifford operations."""
@@ -331,7 +337,7 @@ class SingleQubitClifford(TableauOperation):
         Args:
             block: A 2x2 symplectic block representing the single-qubit Clifford operation.
             qubit: The index of the qubit.
-        
+
         Returns:
             A single-qubit Clifford operation.
         """
@@ -360,6 +366,7 @@ class PauliOperation(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
         out = tableau if inplace else tableau.copy()
         if self.pauli == "X":
@@ -398,9 +405,11 @@ class PauliOperation(TableauOperation):
             set[int]: The set of qubit indices involved in the operation.
         """
         return {self.qubit}
-    
+
+
 def _matmul2(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
     return ((m1 @ m2) % 2).astype(np.int8)
+
 
 identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
 hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
@@ -414,7 +423,8 @@ elems: dict[str, np.ndarray] = {
     "HS": _matmul2(hadamard, phase),
     "SH": _matmul2(phase, hadamard),
     "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
-}        
+}
+
 
 class CNOT(TableauOperation):
     """Class representing a CNOT operation on a stabilizer tableau."""
@@ -434,6 +444,7 @@ class CNOT(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
         out = tableau if inplace else tableau.copy()
         out.apply_cx(self.control, self.target)
@@ -484,6 +495,7 @@ class Swap(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
         out = tableau if inplace else tableau.copy()
         out.apply_swap(self.qubit_a, self.qubit_b)
@@ -897,9 +909,7 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
     return swaps
 
 
-def fix_tableau_signs_in_place(
-    tableau: StabilizerTableau
-) -> EliminationSequence:
+def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequence:
     """Determine Pauli corrections so that the tableau matches the desired sign bits.
 
     This function ensures that the tableau matches the target signs
@@ -931,7 +941,7 @@ def fix_tableau_signs_in_place(
         elif zv == 1:
             op = PauliOperation(i, "Z")
         else:
-            continue # don't explicitly apply identity
+            continue  # don't explicitly apply identity
         op.apply(tableau, inplace=True)
 
     return ops
