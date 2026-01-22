@@ -16,6 +16,7 @@ from mqt.qecc.circuit_synthesis.elimination import (
     eliminate,
     get_candidate_transvections,
     is_terminal_transvection,
+    reduce_single_qubit_gates_and_swaps
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -41,6 +42,8 @@ def non_css_config() -> EliminationConfig:
         termination_criterion=is_terminal_transvection,
         sorted_candidate_ops=get_candidate_transvections,
         filters=[ParallelFilter()],
+        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+        
     )
 
 
@@ -57,4 +60,4 @@ def test_eliminate_non_css(
     """Test the eliminate function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
     _operations, result_tableau = eliminate(target_tableau, non_css_config)
-    assert result_tableau == identity_tableau
+    assert result_tableau.is_identity()

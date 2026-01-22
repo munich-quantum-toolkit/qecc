@@ -18,6 +18,7 @@ import numpy as np
 import stim
 
 from ..codes.pauli import StabilizerTableau
+import ldpc.mod2.mod2_numpy as mod2
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -204,7 +205,7 @@ class SingleQubitClifford(TableauOperation):
 
         Args:
             qubit: The index of the qubit.
-            clifford: The Clifford operation to apply {H, S}.
+            clifford: The Clifford operation to apply {H, S, HS, SH, HSH, I}.
         """
         self.qubit = qubit
         self.clifford = clifford
@@ -222,10 +223,80 @@ class SingleQubitClifford(TableauOperation):
             out.apply_h(q)
         elif self.clifford == "S":
             out.apply_s(q)
+        elif self.clifford == "HS":
+            out.apply_h(q)
+            out.apply_s(q)
+        elif self.clifford == "SH":
+            out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "HSH":
+            out.apply_h(q)
+            out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "I":
+            pass
         else:
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
         return out
+
+    def apply_inverse(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the inverse of the single-qubit Clifford operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: Whether to modify the tableau in place.
+
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the inverse operation.
+        """
+        q = self.qubit
+
+        out = tableau if inplace else tableau.copy()
+        if self.clifford == "H":
+            out.apply_h(q)
+        elif self.clifford == "S":
+            out.apply_sdg(q)
+        elif self.clifford == "HS":
+            out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "SH":
+            out.apply_h(q)
+            out.apply_sdg(q)
+        elif self.clifford == "HSH":
+            out.apply_h(q)
+            out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "I":
+            pass
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return out
+
+    def inverse(self) -> SingleQubitClifford:
+        """Get the inverse of the single-qubit Clifford operation.
+
+        Returns:
+            SingleQubitClifford: The inverse single-qubit Clifford operation.
+        """
+        inverse_map = {
+            "H": "H",
+            "S": "SH",
+            "HS": "SH",
+            "SH": "HS",
+            "HSH": "HSH",
+            "I": "I",
+        }
+        if self.clifford not in inverse_map:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return SingleQubitClifford(self.qubit, inverse_map[self.clifford])
+    
+
+    def available_cliffords() -> list[str]:
+        """Get the list of available single-qubit Clifford operations."""
+        return ["H", "S", "HS", "SH", "HSH", "I"]
 
     def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
@@ -253,6 +324,97 @@ class SingleQubitClifford(TableauOperation):
         """
         return {self.qubit}
 
+    @staticmethod
+    def from_symplectic_block(block: npt.NDArray[np.int8], qubit: int) -> SingleQubitClifford:
+        """Create a SingleQubitClifford from a symplectic block.
+
+        Args:
+            block: A 2x2 symplectic block representing the single-qubit Clifford operation.
+            qubit: The index of the qubit.
+        
+        Returns:
+            A single-qubit Clifford operation.
+        """
+        for name, mat in elems.items():
+            if np.array_equal(block, mat):
+                return SingleQubitClifford(qubit, name)
+        msg = f"Unsupported single-qubit Clifford symplectic block:\n{block}"
+        raise ValueError(msg)
+
+
+class PauliOperation(TableauOperation):
+    """Class representing a Pauli operation on a stabilizer tableau."""
+
+    def __init__(self, qubit: int, pauli: str) -> None:
+        """Initialize the Pauli operation.
+
+        Args:
+            qubit: The index of the qubit.
+            pauli: The Pauli operation to apply {X, Y, Z}.
+        """
+        self.qubit = qubit
+        self.pauli = pauli
+
+    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the Pauli operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+        """
+        out = tableau if inplace else tableau.copy()
+        if self.pauli == "X":
+            out.apply_x(self.qubit)
+        elif self.pauli == "Y":
+            out.apply_y(self.qubit)
+        elif self.pauli == "Z":
+            out.apply_z(self.qubit)
+        else:
+            msg = f"Unsupported Pauli operation: {self.pauli}"
+            raise ValueError(msg)
+        return out
+
+    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+        """
+        msg = "Pauli operations are not defined for CSS check matrices."
+        raise ValueError(msg)
+        return check_matrix
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append(self.pauli, [self.qubit])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit}
+    
+def _matmul2(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
+    return ((m1 @ m2) % 2).astype(np.int8)
+
+identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
+hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
+phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
+
+# For right-multiplication, sequence "HS" means multiply by H then S => I*H*S
+elems: dict[str, np.ndarray] = {
+    "": identity,
+    "H": hadamard,
+    "S": phase,
+    "HS": _matmul2(hadamard, phase),
+    "SH": _matmul2(phase, hadamard),
+    "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
+}        
 
 class CNOT(TableauOperation):
     """Class representing a CNOT operation on a stabilizer tableau."""
@@ -475,7 +637,7 @@ def eliminate(
         update_state(op, config)
 
     post_process_fn = config.post_process_fn
-    operations, tableau = post_process_fn((operations, tableau))
+    operations, tableau = post_process_fn(operations, tableau)
     return operations, tableau
 
 
@@ -637,7 +799,7 @@ def reduce_single_qubit_gates_and_swaps(
       ((swaps, one_qubit_ops), U_reduced)
     where U_reduced should be identity.
     """
-    tableau_copy = tableau.astype(np.int8).copy()
+    tableau_copy = tableau.copy()
     n = tableau.n
 
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
@@ -648,44 +810,16 @@ def reduce_single_qubit_gates_and_swaps(
     for swap in swaps:
         tableau_copy = swap.apply(tableau_copy, inplace=True)
 
-    # After applying inv, each input i should land on output i, and blocks move to diagonal.
-    # Re-extract diagonal blocks (now at (i,i)).
-    oneq_table = _one_qubit_group()
-    inv_words: list[SingleQOp] = []
-
+    # 3) Right-multiply by single-qubit Cliffords to bring each block to identity
+    single_qubit_ops = []
     for q in range(n):
-        F = np.array(
-            [
-                [int(tableau_copy[q, q]), int(tableau_copy[q, q + n])],
-                [int(tableau_copy[q + n, q]), int(tableau_copy[q + n, q + n])],
-            ],
-            dtype=np.int8,
-        )
+        f = tableau.symplectic_submatrix(q)
+        op = SingleQubitClifford.from_symplectic_block(f, q)
+        single_qubit_ops.append(op)
+        tableau_copy = op.apply(tableau_copy, inplace=True)
 
-        # Find which word produces F; then apply its inverse to cancel.
-        found = None
-        for w, M in oneq_table.items():
-            if np.array_equal(M, F):
-                found = w
-                break
-        if found is None:
-            msg = f"Diagonal block not a 1Q Clifford in {{H,S}} group:\n{F}"
-            raise ValueError(msg)
-
-        w_inv = _inv_word(found)
-        if w_inv:
-            inv_words.append((q, list(w_inv)))
-
-        # Apply the inverse word by right-multiplication
-        for g in w_inv:
-            if g == "H":
-                tableau_copy = _right_multiply_H(tableau_copy, q)
-            elif g == "S":
-                tableau_copy = _right_multiply_S(tableau_copy, q)
-            else:
-                raise ValueError(g)
-
-    return (swaps, inv_words), tableau_copy
+    single_qubit_ops.extend(fix_tableau_signs_in_place(tableau_copy))
+    return (swaps, single_qubit_ops), tableau_copy
 
 
 def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[EliminationSequence, StabilizerTableau]:
@@ -761,3 +895,43 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
     # This is not minimal, but deterministic and fine for testing.
     # You can replace with cycle decomposition later.
     return swaps
+
+
+def fix_tableau_signs_in_place(
+    tableau: StabilizerTableau
+) -> EliminationSequence:
+    """Determine Pauli corrections so that the tableau matches the desired sign bits.
+
+    This function ensures that the tableau matches the target signs
+    by appending the necessary Pauli corrections.
+    """
+    n = tableau.n
+    # Extract the current signs from the tableau
+    x_part = tableau.tableau.matrix[:, :n]
+    z_part = tableau.tableau.matrix[:, n:]
+
+    # Compute the corrections needed to match the target signs
+    phase = tableau.phase.copy()
+
+    if not np.any(phase):
+        return []  # No corrections needed
+
+    tableau_with_phase = np.hstack((x_part, z_part, np.array([phase]).T))
+    ker = mod2.nullspace(tableau_with_phase)
+    assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
+    correction_symplectic = ker[-1]
+    zc = correction_symplectic[:n]
+    xc = correction_symplectic[n:-1]
+    ops = []
+    for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
+        if xv == 1 and zv == 1:
+            op = PauliOperation(i, "Y")
+        elif xv == 1:
+            op = PauliOperation(i, "X")
+        elif zv == 1:
+            op = PauliOperation(i, "Z")
+        else:
+            continue # don't explicitly apply identity
+        op.apply(tableau, inplace=True)
+
+    return ops

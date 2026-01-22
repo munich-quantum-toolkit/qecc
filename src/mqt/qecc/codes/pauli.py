@@ -271,7 +271,7 @@ class StabilizerTableau:
         Args:
             qubit: The index of the qubit to apply the Hadamard gate to.
         """
-        self.phase += self.tableau[:, qubit] * self.tableau[:, qubit + self.n] % 2
+        self.phase = (self.phase +self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 2
         self.tableau[:, [qubit, qubit + self.n]] = self.tableau[:, [qubit + self.n, qubit]]
 
     def apply_cx(self, ctrl, tar) -> None:
@@ -321,17 +321,23 @@ class StabilizerTableau:
         self.phase += self.tableau[:, qubit] * self.tableau[:, qubit + self.n] % 2
         self.tableau[:, qubit + self.n] = (self.tableau[:, qubit + self.n] + self.tableau[:, qubit]) % 2
 
+    def apply_sdg(self, qubit) -> None:
+        """Apply the S† gate to the stabilizer tableau."""
+        self.apply_s(qubit)
+        self.apply_z(qubit)
+
     def apply_x(self, qubit) -> None:
         """Apply the X gate to the stabilizer tableau."""
-        self.phase = (self.phase + self.tableau[:, qubit]) % 2
+        self.phase = (self.phase + self.tableau[:, qubit + self.n]) % 2
 
     def apply_z(self, qubit) -> None:
         """Apply the Z gate to the stabilizer tableau."""
-        self.phase = (self.phase + self.tableau[:, qubit + self.n]) % 2
+        self.phase = (self.phase + self.tableau[:, qubit]) % 2
 
     def apply_y(self, qubit) -> None:
         """Apply the Y gate to the stabilizer tableau."""
-        self.phase = self.phase + self.tableau[:, qubit] + self.tableau[:, qubit + self.n]
+        self.apply_x(qubit)
+        self.apply_z(qubit)
 
     def copy(self) -> StabilizerTableau:
         """Return a copy of the stabilizer tableau."""
@@ -363,6 +369,38 @@ class StabilizerTableau:
     def get_z_part(self) -> npt.NDArray[np.int8]:
         """Get the Z part of the stabilizer tableau."""
         return self.tableau.matrix[:, self.n :]
+
+    def symplectic_submatrix(self, q: int) -> npt.NDArray[np.int8]:
+        """Get the 2x2 symplectic submatrix for a given qubit.
+
+        Args:
+            q: The index of the qubit.
+        
+        Returns:
+            A 2x2 NumPy array representing the symplectic submatrix for the given
+            qubit.
+        """
+        return np.array(
+            [
+                [int(self.tableau[q, q]), int(self.tableau[q, q + self.n])],
+                [int(self.tableau[q + self.n, q]), int(self.tableau[q + self.n, q + self.n])],
+            ],
+            dtype=np.int8,
+        )
+
+    def is_identity(self) -> bool:
+        """Check if the stabilizer tableau is the identity.
+
+        Returns:
+            True if the stabilizer tableau is the identity, False otherwise.
+        """
+        return bool(
+            np.array_equal(
+                self.tableau.matrix,
+                SymplecticMatrix.identity(self.n).matrix,
+            )
+            and np.all(self.phase == 0)
+        )
 
 
 def is_pauli_string(p: str) -> bool:

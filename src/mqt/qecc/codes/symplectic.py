@@ -111,10 +111,7 @@ class SymplecticMatrix:
     def identity(cls, n: int) -> SymplecticMatrix:
         """Create the identity matrix of size n."""
         return cls(
-            np.block([
-                [np.zeros((n, n), dtype=np.int8), np.eye(n, dtype=np.int8)],
-                [np.eye(n, dtype=np.int8), np.zeros((n, n), dtype=np.int8)],
-            ])
+            np.eye(2 * n, dtype=np.int8)
         )
 
     @classmethod
