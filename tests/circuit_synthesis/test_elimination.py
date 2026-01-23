@@ -11,12 +11,8 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.elimination import (
-    EliminationConfig,
-    ParallelFilter,
     eliminate_non_css,
-    get_candidate_transvections,
-    is_terminal_transvection,
-    reduce_single_qubit_gates_and_swaps,
+    eliminate_non_css_with_lookahead,
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -35,15 +31,20 @@ def cnot_tableau() -> StabilizerTableau:
     return StabilizerTableau(SymplecticMatrix(tableau_matrix))
 
 
-@pytest.fixture
-def non_css_config() -> EliminationConfig:
-    """Fixture to create a non-CSS elimination configuration."""
-    return EliminationConfig(
-        termination_criterion=is_terminal_transvection,
-        sorted_candidate_ops=get_candidate_transvections,
-        filters=[ParallelFilter()],
-        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+@pytest.mark.parametrize(
+    "tableau_matrix",
+    [
+        "identity_tableau",
+        "cnot_tableau",
+    ],
+)
+def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
+    """Test the eliminate function."""
+    target_tableau = request.getfixturevalue(tableau_matrix)
+    _operations, result_tableau = eliminate_non_css(
+        target_tableau,
     )
+    assert result_tableau.is_identity()
 
 
 @pytest.mark.parametrize(
@@ -53,10 +54,10 @@ def non_css_config() -> EliminationConfig:
         "cnot_tableau",
     ],
 )
-def test_eliminate_non_css(tableau_matrix: StabilizerTableau, identity_tableau: StabilizerTableau, request) -> None:
-    """Test the eliminate function."""
+def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, request) -> None:
+    """Test the eliminate function with lookahead."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    _operations, result_tableau = eliminate_non_css(
+    _operations, result_tableau = eliminate_non_css_with_lookahead(
         target_tableau,
     )
     assert result_tableau.is_identity()

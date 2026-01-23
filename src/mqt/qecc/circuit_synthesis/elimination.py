@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import operator
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,8 +22,6 @@ import stim
 from ..codes.pauli import StabilizerTableau
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     import numpy.typing as npt
 
 
@@ -47,16 +46,39 @@ def eliminate_non_css(
     return operations, final_tableau
 
 
-@dataclass
-class EliminationConfig:
-    """Configuration for elimination methods."""
+def eliminate_non_css_with_lookahead(
+    tableau: StabilizerTableau,
+    optimization_criterion: str = "gates",
+    lookahead: int = 1,
+    num_lookahead_candidates: int = 10,
+) -> tuple[list[TableauOperation], StabilizerTableau]:
+    filters = []
 
-    termination_criterion: Callable[[StabilizerTableau], bool]
-    sorted_candidate_ops: Callable[[StabilizerTableau], list[TableauOperation]]
-    filters: list[OperationFilter] = None
-    post_process_fn: Callable[
-        [tuple[EliminationSequence, StabilizerTableau]], tuple[EliminationSequence, StabilizerTableau]
-    ] = lambda x: x
+    if optimization_criterion == "depth":
+        filters.append(ParallelFilter())
+    elif optimization_criterion != "gates":
+        msg = f"Unsupported optimization criterion: {optimization_criterion}"
+        raise ValueError(msg)
+
+    base_config = EliminationConfig(
+        termination_criterion=is_terminal_transvection,
+        sorted_candidate_ops=get_candidate_transvections,
+        filters=filters,
+    )
+    lookahead_config = EliminationConfig(
+        termination_criterion=is_terminal_transvection,
+        sorted_candidate_ops=make_lookahead_fn(
+            base_config,
+            lookahead,
+            num_lookahead_candidates=num_lookahead_candidates,
+            score_fn=lambda ops: ops.num_transvections(),
+        ),
+        filters=filters,
+        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+    )
+    operations, final_tableau = eliminate(tableau, lookahead_config)
+
+    return operations, final_tableau
 
 
 CheckMatrix = np.ndarray[np.int8]
@@ -571,6 +593,37 @@ class EliminationSequence:
             op.append_to_circuit(circuit)
         return circuit
 
+    def num_two_qubit_gates(self) -> int:
+        """Count the number of two-qubit gates in the elimination sequence.
+
+        Returns:
+            int: The number of two-qubit gates.
+        """
+        count = 0
+        for op in self.operations:
+            if isinstance(op, (Transvection, CNOT, Swap)):
+                count += 1
+        return count
+
+    def num_transvections(self) -> int:
+        """Count the number of transvections in the elimination sequence.
+
+        Returns: int: The number of transvections.
+        """
+        count = 0
+        for op in self.operations:
+            if isinstance(op, Transvection):
+                count += 1
+        return count
+
+    def add_operation(self, op: TableauOperation) -> None:
+        """Add a tableau operation to the elimination sequence.
+
+        Args:
+            op: The tableau operation to add.
+        """
+        self.operations.append(op)
+
 
 class OperationFilter(ABC):
     """Abstract base class for filtering tableau operations."""
@@ -638,9 +691,25 @@ class ParallelFilter(OperationFilter):
         self.blocked_qubits.clear()
 
 
+elimination_candidate_fn = Callable[[StabilizerTableau], EliminationSequence]
+
+
+@dataclass
+class EliminationConfig:
+    """Configuration for elimination methods."""
+
+    termination_criterion: Callable[[StabilizerTableau], bool]
+    sorted_candidate_ops: elimination_candidate_fn
+    filters: list[OperationFilter] = None
+    post_process_fn: Callable[
+        [tuple[EliminationSequence, StabilizerTableau]], tuple[EliminationSequence, StabilizerTableau]
+    ] = lambda x, y: (x, y)
+    lookahead: int = 0
+
+
 def eliminate(
     target_tableau: StabilizerTableau, config: EliminationConfig
-) -> tuple[list[TableauOperation], StabilizerTableau]:
+) -> tuple[EliminationSequence, StabilizerTableau]:
     """Perform Gaussian elimination on the given stabilizer tableau.
 
     Args:
@@ -651,12 +720,12 @@ def eliminate(
         None: The function modifies the target_tableau in place.
     """
     tableau = target_tableau.copy()
-    operations: list[TableauOperation] = []
+    operations: EliminationSequence = EliminationSequence([])
     is_reduced = config.termination_criterion
     get_candidate_ops = config.sorted_candidate_ops
 
     while not is_reduced(tableau):
-        candidate_ops: EliminationSequence = get_candidate_ops(tableau)
+        candidate_ops: list[TableauOperation] = get_candidate_ops(tableau)
         filtered_ops = filter_candidates(candidate_ops, config)  # [:top_k]
 
         if not filtered_ops:
@@ -665,13 +734,55 @@ def eliminate(
 
         op = filtered_ops[0]
         tableau = op.apply(tableau)
-        operations.append(op)
+        operations.add_operation(op)
 
         update_state(op, config)
 
     post_process_fn = config.post_process_fn
     operations, tableau = post_process_fn(operations, tableau)
     return operations, tableau
+
+
+def make_lookahead_fn(
+    base_config: EliminationConfig,
+    lookahead: int,
+    num_lookahead_candidates: int,
+    score_fn: Callable[[EliminationSequence], int],
+) -> elimination_candidate_fn:
+
+    def lookahead_fn(tableau: StabilizerTableau) -> list[TableauOperation]:
+        """Generate candidate operations with lookahead.
+
+        Args:
+            tableau (StabilizerTableau): The stabilizer tableau to generate candidates for.
+            config (EliminationConfig): Configuration parameters for the elimination process.
+
+        Returns:
+            EliminationSequence: A sequence of candidate tableau operations.
+        """
+        base_candidates = base_config.sorted_candidate_ops(tableau)
+        scored_candidates: list[tuple[TableauOperation, int]] = []
+
+        lookahead_config = EliminationConfig(
+            termination_criterion=base_config.termination_criterion,
+            sorted_candidate_ops=make_lookahead_fn(base_config, lookahead - 1, num_lookahead_candidates, score_fn),
+            filters=base_config.filters,
+            post_process_fn=base_config.post_process_fn,
+        )
+        for op in base_candidates[:num_lookahead_candidates]:
+            new_tableau = op.apply(tableau)
+            sequence, _ = eliminate(new_tableau, lookahead_config)
+            sequence.add_operation(op)
+            score = score_fn(sequence)
+            scored_candidates.append((op, score))
+
+        scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
+        return [op for op, _ in scored_candidates]
+
+    if lookahead <= 0:
+        return base_config.sorted_candidate_ops
+
+    return lookahead_fn
 
 
 def update_state(op: TableauOperation, config: EliminationConfig) -> None:
