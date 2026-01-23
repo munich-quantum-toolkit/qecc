@@ -58,6 +58,6 @@ def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, req
     """Test the eliminate function with lookahead."""
     target_tableau = request.getfixturevalue(tableau_matrix)
     _operations, result_tableau = eliminate_non_css_with_lookahead(
-        target_tableau,
+        target_tableau, lookahead=3
     )
     assert result_tableau.is_identity()

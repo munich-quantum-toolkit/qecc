@@ -65,16 +65,20 @@ def eliminate_non_css_with_lookahead(
         sorted_candidate_ops=get_candidate_transvections,
         filters=filters,
     )
+    def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+        n_transvections = ops.num_transvections()
+        return n_transvections, n_transvections <= 1
+    
     lookahead_config = EliminationConfig(
         termination_criterion=is_terminal_transvection,
         sorted_candidate_ops=make_lookahead_fn(
             base_config,
             lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
-            score_fn=lambda ops: ops.num_transvections(),
+            score_fn=score_fn,
         ),
         filters=filters,
-        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+        post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
     )
     operations, final_tableau = eliminate(tableau, lookahead_config)
 
@@ -706,6 +710,20 @@ class EliminationConfig:
     ] = lambda x, y: (x, y)
     lookahead: int = 0
 
+    def copy(self) -> EliminationConfig:
+        """Create a copy of the elimination configuration.
+
+        Returns:
+            EliminationConfig: A copy of the elimination configuration.
+        """
+        return EliminationConfig(
+            termination_criterion=self.termination_criterion,
+            sorted_candidate_ops=self.sorted_candidate_ops,
+            filters=self.filters.copy() if self.filters else None,
+            post_process_fn=self.post_process_fn,
+            lookahead=self.lookahead,
+        )
+
 
 def eliminate(
     target_tableau: StabilizerTableau, config: EliminationConfig
@@ -747,7 +765,7 @@ def make_lookahead_fn(
     base_config: EliminationConfig,
     lookahead: int,
     num_lookahead_candidates: int,
-    score_fn: Callable[[EliminationSequence], int],
+    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
 ) -> elimination_candidate_fn:
 
     def lookahead_fn(tableau: StabilizerTableau) -> list[TableauOperation]:
@@ -763,18 +781,18 @@ def make_lookahead_fn(
         base_candidates = base_config.sorted_candidate_ops(tableau)
         scored_candidates: list[tuple[TableauOperation, int]] = []
 
-        lookahead_config = EliminationConfig(
-            termination_criterion=base_config.termination_criterion,
-            sorted_candidate_ops=make_lookahead_fn(base_config, lookahead - 1, num_lookahead_candidates, score_fn),
-            filters=base_config.filters,
-            post_process_fn=base_config.post_process_fn,
+        lookahead_config = base_config.copy()
+        lookahead_config.sorted_candidate_ops = make_lookahead_fn(
+            base_config, lookahead - 1, num_lookahead_candidates, score_fn
         )
+        
         for op in base_candidates[:num_lookahead_candidates]:
-            new_tableau = op.apply(tableau)
-            sequence, _ = eliminate(new_tableau, lookahead_config)
+            sequence, _ = eliminate(op.apply(tableau), lookahead_config)
             sequence.add_operation(op)
-            score = score_fn(sequence)
+            score, is_minimal = score_fn(sequence)
             scored_candidates.append((op, score))
+            if is_minimal:
+                break
 
         scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
         return [op for op, _ in scored_candidates]
