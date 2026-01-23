@@ -13,6 +13,8 @@ import pytest
 from mqt.qecc.circuit_synthesis.elimination import (
     eliminate_non_css,
     eliminate_non_css_with_lookahead,
+    eliminate_css,
+    CheckMatrix
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -61,3 +63,28 @@ def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, req
         target_tableau, lookahead=3
     )
     assert result_tableau.is_identity()
+
+
+@pytest.fixture
+def identity_matrix() -> np.ndarray:    
+    """Fixture to create an identity matrix."""    
+    return np.array([[1, 0], [0, 1]], dtype=np.int8)
+
+@pytest.fixture
+def cnot_matrix() -> CheckMatrix:    
+    """Fixture to create a CNOT check matrix."""    
+    matrix = np.array([[1,1], [0,1]], dtype=np.int8)    
+    return CheckMatrix(matrix, type="X")
+
+@pytest.mark.parametrize(
+    "check_matrix",
+    [
+        "identity_matrix",
+        "cnot_matrix",
+    ],
+)
+def test_eliminate_css(check_matrix: CheckMatrix, request) -> None:
+    """Test the eliminate_css function."""
+    target_matrix = request.getfixturevalue(check_matrix)
+    _operations, result_matrix = eliminate_css(target_matrix)
+    assert result_matrix.is_identity()

@@ -46,6 +46,31 @@ def eliminate_non_css(
     return operations, final_tableau
 
 
+def eliminate_css(
+    matrix: CheckMatrix, optimization_criterion: str = "gates"
+) -> tuple[list[TableauOperation], StabilizerTableau]:
+    filters = []
+
+    if optimization_criterion == "depth":
+        filters.append(ParallelFilter())
+    elif optimization_criterion != "gates":
+        msg = f"Unsupported optimization criterion: {optimization_criterion}"
+        raise ValueError(msg)
+    k = mod2.rank(matrix.matrix)
+    config = EliminationConfig(
+        termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
+        sorted_candidate_ops=greedy_matrix_elimination_candidates,
+        filters=filters,
+    )
+    operations, final_matrix = eliminate(matrix, config)
+    if matrix.is_z_type(): # flip cnots
+        for op in operations:
+            if isinstance(op, CNOT):
+                op.control, op.target = op.target, op.control
+
+    return operations, final_matrix
+
+        
 def eliminate_non_css_with_lookahead(
     tableau: StabilizerTableau,
     optimization_criterion: str = "gates",
@@ -91,6 +116,24 @@ class CheckMatrix:
     
     matrix: np.ndarray[np.int8]
     type: str  # 'X' or 'Z'
+
+    def is_x_type(self) -> bool:
+        """Check if the check matrix is of type 'X'."""
+        return self.type == "X"
+
+    def is_z_type(self) -> bool:
+        """Check if the check matrix is of type 'Z'."""
+        return self.type == "Z"
+
+    def copy(self) -> CheckMatrix:
+        """Create a copy of the check matrix."""
+        return CheckMatrix(self.matrix.copy(), self.type)
+
+    def is_identity(self) -> bool:
+        """Check if the check matrix is an identity matrix."""
+        n = self.matrix.shape[1]
+        identity = np.eye(n, dtype=np.int8)
+        return np.array_equal(self.matrix, identity)
 
 BinaryMatrix = CheckMatrix | StabilizerTableau
 
@@ -1101,6 +1144,7 @@ def get_n(tableau: BinaryMatrix) -> int:
 
     Args:
         tableau (BinaryMatrix): The stabilizer tableau.
+    
     Returns:
         int: The number of qubits.
     """
@@ -1134,4 +1178,17 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
 
     candidates.sort(key=operator.itemgetter(1))
     return [op for op, _ in candidates]
+
+def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
+    """Check if the given binary matrix has at least k non-zero columns.
+
+    Args:
+        matrix (BinaryMatrix): The binary matrix to check.
+        k (int): The number of non-zero columns to check for.
+
+    Returns:
+        bool: True if the matrix has at least k non-zero columns, False otherwise.
+    """
+    non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+    return non_zero_columns >= k
     
