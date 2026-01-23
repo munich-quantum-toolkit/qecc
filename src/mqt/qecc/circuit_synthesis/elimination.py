@@ -40,7 +40,7 @@ def eliminate_non_css(
         termination_criterion=is_terminal_transvection,
         sorted_candidate_ops=get_candidate_transvections,
         filters=filters,
-        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+        post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
     )
     operations, final_tableau = eliminate(tableau, config)
     return operations, final_tableau
@@ -68,7 +68,7 @@ def eliminate_non_css_with_lookahead(
     def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
         n_transvections = ops.num_transvections()
         return n_transvections, n_transvections <= 1
-    
+
     lookahead_config = EliminationConfig(
         termination_criterion=is_terminal_transvection,
         sorted_candidate_ops=make_lookahead_fn(
