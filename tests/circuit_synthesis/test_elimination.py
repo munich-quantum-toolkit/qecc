@@ -13,10 +13,10 @@ import pytest
 from mqt.qecc.circuit_synthesis.elimination import (
     EliminationConfig,
     ParallelFilter,
-    eliminate,
+    eliminate_non_css,
     get_candidate_transvections,
     is_terminal_transvection,
-    reduce_single_qubit_gates_and_swaps
+    reduce_single_qubit_gates_and_swaps,
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -43,21 +43,20 @@ def non_css_config() -> EliminationConfig:
         sorted_candidate_ops=get_candidate_transvections,
         filters=[ParallelFilter()],
         post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
-        
     )
 
 
 @pytest.mark.parametrize(
     "tableau_matrix",
     [
-        # "identity_tableau",
+        "identity_tableau",
         "cnot_tableau",
     ],
 )
-def test_eliminate_non_css(
-    tableau_matrix: StabilizerTableau, identity_tableau: StabilizerTableau, non_css_config: EliminationConfig, request
-) -> None:
+def test_eliminate_non_css(tableau_matrix: StabilizerTableau, identity_tableau: StabilizerTableau, request) -> None:
     """Test the eliminate function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    _operations, result_tableau = eliminate(target_tableau, non_css_config)
+    _operations, result_tableau = eliminate_non_css(
+        target_tableau,
+    )
     assert result_tableau.is_identity()

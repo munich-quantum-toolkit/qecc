@@ -26,6 +26,27 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
+def eliminate_non_css(
+    tableau: StabilizerTableau, optimization_criterion: str = "gates", lookahead: int = 1
+) -> tuple[list[TableauOperation], StabilizerTableau]:
+    filters = []
+
+    if optimization_criterion == "depth":
+        filters.append(ParallelFilter())
+    elif optimization_criterion != "gates":
+        msg = f"Unsupported optimization criterion: {optimization_criterion}"
+        raise ValueError(msg)
+
+    config = EliminationConfig(
+        termination_criterion=is_terminal_transvection,
+        sorted_candidate_ops=get_candidate_transvections,
+        filters=filters,
+        post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+    )
+    operations, final_tableau = eliminate(tableau, config)
+    return operations, final_tableau
+
+
 @dataclass
 class EliminationConfig:
     """Configuration for elimination methods."""
@@ -417,7 +438,7 @@ phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
 
 # For right-multiplication, sequence "HS" means multiply by H then S => I*H*S
 elems: dict[str, np.ndarray] = {
-    "": identity,
+    "I": identity,
     "H": hadamard,
     "S": phase,
     "HS": _matmul2(hadamard, phase),
