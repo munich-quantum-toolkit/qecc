@@ -85,30 +85,29 @@ def eliminate_non_css_with_lookahead(
     return operations, final_tableau
 
 
-CheckMatrix = np.ndarray[np.int8]
+@dataclass
+class CheckMatrix:
+    """Type alias for CSS check matrices."""
+    
+    matrix: np.ndarray[np.int8]
+    type: str  # 'X' or 'Z'
+
+BinaryMatrix = CheckMatrix | StabilizerTableau
 
 
 class TableauOperation(ABC):
     """Represents an operation performed during tableau elimination."""
 
     @abstractmethod
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the operation to the given stabilizer tableau.
 
         Args:
-            tableau (StabilizerTableau): The stabilizer tableau to apply the operation to.
+            tableau (BinaryMatrix): The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
 
         Args:
-            tableau (StabilizerTableau): The stabilizer tableau to apply the operation to.
-        """
-
-    @abstractmethod
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
-        """Apply the operation to a CSS check matrix.
-
-        Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            tableau (BinaryMatrix): The stabilizer tableau to apply the operation to.
         """
 
     @abstractmethod
@@ -156,7 +155,7 @@ class Transvection(TableauOperation):
         self.j = j
         self.v = v
 
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the transvection operation to the given stabilizer tableau.
 
         This uses the logic from the `apply_tv2` function to apply a transvection.
@@ -165,8 +164,12 @@ class Transvection(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "Transvection operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+        
         tab = tableau.tableau
-        n = tableau.n
+        n = get_n(tableau)
         i = self.i
         j = self.j
         cols_v = [i, j, i + n, j + n]
@@ -183,17 +186,6 @@ class Transvection(TableauOperation):
         for k in nz:
             out[:, cols_v[k]] ^= c
         return StabilizerTableau(out)  # TODO: handle phase?
-
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
-        """Apply the operation to a CSS check matrix.
-
-        Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
-            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
-        """
-        msg = "Transvection operations are not defined for CSS check matrices."
-        raise ValueError(msg)
-        return check_matrix
 
     def all_two_qubit_transvections() -> list[TV2]:
         """Get all 9 possible two-qubit transvections.
@@ -263,13 +255,17 @@ class SingleQubitClifford(TableauOperation):
         self.qubit = qubit
         self.clifford = clifford
 
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the single-qubit Clifford operation to the given stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+        
         q = self.qubit
 
         out = tableau if inplace else tableau.copy()
@@ -294,7 +290,7 @@ class SingleQubitClifford(TableauOperation):
             raise ValueError(msg)
         return out
 
-    def apply_inverse(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_inverse(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the inverse of the single-qubit Clifford operation to the given stabilizer tableau.
 
         Args:
@@ -302,8 +298,11 @@ class SingleQubitClifford(TableauOperation):
             inplace: Whether to modify the tableau in place.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the inverse operation.
+            BinaryMatrix: The resulting stabilizer tableau after applying the inverse operation.
         """
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
         q = self.qubit
 
         out = tableau if inplace else tableau.copy()
@@ -351,16 +350,7 @@ class SingleQubitClifford(TableauOperation):
         """Get the list of available single-qubit Clifford operations."""
         return ["H", "S", "HS", "SH", "HSH", "I"]
 
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
-        """Apply the operation to a CSS check matrix.
-
-        Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
-        """
-        msg = "Single-qubit Clifford operations are not defined for CSS check matrices."
-        raise ValueError(msg)
-        return check_matrix
-
+    
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
         """Append the operation to a Stim circuit.
 
@@ -408,13 +398,17 @@ class PauliOperation(TableauOperation):
         self.qubit = qubit
         self.pauli = pauli
 
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the Pauli operation to the given stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "Pauli operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+        
         out = tableau if inplace else tableau.copy()
         if self.pauli == "X":
             out.apply_x(self.qubit)
@@ -426,16 +420,6 @@ class PauliOperation(TableauOperation):
             msg = f"Unsupported Pauli operation: {self.pauli}"
             raise ValueError(msg)
         return out
-
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
-        """Apply the operation to a CSS check matrix.
-
-        Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
-        """
-        msg = "Pauli operations are not defined for CSS check matrices."
-        raise ValueError(msg)
-        return check_matrix
 
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
         """Append the operation to a Stim circuit.
@@ -486,22 +470,31 @@ class CNOT(TableauOperation):
         self.control = control
         self.target = target
 
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the CNOT operation to the given stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if isinstance(tableau, StabilizerTableau):
+            return self._apply_stabilizer_tableau(tableau, inplace)
+        return self._apply_check_matrix(tableau, inplace)
+
+    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         out = tableau if inplace else tableau.copy()
         out.apply_cx(self.control, self.target)
         return out
 
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
             check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
         """
         out = check_matrix if inplace else check_matrix.copy()
         out[:, self.target] ^= out[:, self.control]
@@ -537,24 +530,30 @@ class Swap(TableauOperation):
         self.qubit_a = qubit_a
         self.qubit_b = qubit_b
 
-    def apply(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the SWAP operation to the given stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if isinstance(tableau, StabilizerTableau):
+            return self._apply_stabilizer_tableau(tableau, inplace)
+        return self._apply_check_matrix(tableau, inplace)
+
+    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         out = tableau if inplace else tableau.copy()
         out.apply_swap(self.qubit_a, self.qubit_b)
         return out
 
-    def apply_css(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
             check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
         """
-        out = check_matrix.copy()
+        out = check_matrix.copy() if not inplace else check_matrix
         out[:, [self.qubit_a, self.qubit_b]] = out[:, [self.qubit_b, self.qubit_a]]
         return out
 
@@ -695,18 +694,18 @@ class ParallelFilter(OperationFilter):
         self.blocked_qubits.clear()
 
 
-elimination_candidate_fn = Callable[[StabilizerTableau], EliminationSequence]
+elimination_candidate_fn = Callable[[BinaryMatrix], EliminationSequence]
 
 
 @dataclass
 class EliminationConfig:
     """Configuration for elimination methods."""
 
-    termination_criterion: Callable[[StabilizerTableau], bool]
+    termination_criterion: Callable[[BinaryMatrix], bool]
     sorted_candidate_ops: elimination_candidate_fn
     filters: list[OperationFilter] = None
     post_process_fn: Callable[
-        [tuple[EliminationSequence, StabilizerTableau]], tuple[EliminationSequence, StabilizerTableau]
+        [tuple[EliminationSequence, BinaryMatrix]], tuple[EliminationSequence, BinaryMatrix]
     ] = lambda x, y: (x, y)
     lookahead: int = 0
 
@@ -726,25 +725,25 @@ class EliminationConfig:
 
 
 def eliminate(
-    target_tableau: StabilizerTableau, config: EliminationConfig
-) -> tuple[EliminationSequence, StabilizerTableau]:
+    target_tableau: BinaryMatrix, config: EliminationConfig
+) -> tuple[EliminationSequence, BinaryMatrix]:
     """Perform Gaussian elimination on the given stabilizer tableau.
 
     Args:
-        target_tableau (StabilizerTableau): The stabilizer tableau to be eliminated.
+        target_tableau (BinaryMatrix): The stabilizer tableau to be eliminated.
         config (EliminationConfig): Configuration parameters for the elimination process.
 
     Returns:
         None: The function modifies the target_tableau in place.
     """
     tableau = target_tableau.copy()
-    operations: EliminationSequence = EliminationSequence([])
+    operations = EliminationSequence([])
     is_reduced = config.termination_criterion
     get_candidate_ops = config.sorted_candidate_ops
 
     while not is_reduced(tableau):
         candidate_ops: list[TableauOperation] = get_candidate_ops(tableau)
-        filtered_ops = filter_candidates(candidate_ops, config)  # [:top_k]
+        filtered_ops = filter_candidates(candidate_ops, config)
 
         if not filtered_ops:
             msg = "No more candidate operations available, but termination criterion not met."
@@ -768,11 +767,11 @@ def make_lookahead_fn(
     score_fn: Callable[[EliminationSequence], tuple[int, bool]],
 ) -> elimination_candidate_fn:
 
-    def lookahead_fn(tableau: StabilizerTableau) -> list[TableauOperation]:
+    def lookahead_fn(tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate candidate operations with lookahead.
 
         Args:
-            tableau (StabilizerTableau): The stabilizer tableau to generate candidates for.
+            tableau (BinaryMatrix): The stabilizer tableau to generate candidates for.
             config (EliminationConfig): Configuration parameters for the elimination process.
 
         Returns:
@@ -840,7 +839,7 @@ def is_identity(tableau: StabilizerTableau) -> bool:
     Returns:
         bool: True if the tableau is the identity tableau, False otherwise.
     """
-    n = tableau.n
+    n = get_n(tableau)
     identity_matrix = np.eye(2 * n, dtype=np.int8)
     return np.array_equal(tableau.tableau.matrix, identity_matrix)
 
@@ -898,7 +897,7 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     """Score the given symplectic matrix using the default symplectic heuristic."""
-    n = tableau.n
+    n = get_n(tableau)
 
     symplectic = tableau.tableau.matrix
     r1, r2 = r1_r2(symplectic)
@@ -937,7 +936,7 @@ def get_candidate_transvections(
         A list of the top k scored operations, each represented as a tuple of
         (operation, heuristic vector and scalar, resulting matrix).
     """
-    n = tableau.n
+    n = get_n(tableau)
     pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
     transvections = Transvection.all_two_qubit_transvections()
     scores: list[tuple(Transvection, list[int, ...])] = []
@@ -962,7 +961,7 @@ def reduce_single_qubit_gates_and_swaps(
     where U_reduced should be identity.
     """
     tableau_copy = tableau.copy()
-    n = tableau.n
+    n = get_n(tableau)
 
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
 
@@ -999,7 +998,7 @@ def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[Elim
           of the 2×2 block F_ij is 1 (indicating a valid symplectic transformation).
         - blocks: A list of 2×2 symplectic blocks corresponding to the permutation.
     """
-    n = tableau.n
+    n = get_n(tableau)
     symplectic = tableau.tableau.matrix
     r2 = _compute_r2_matrix(symplectic)
 
@@ -1065,7 +1064,7 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
     This function ensures that the tableau matches the target signs
     by appending the necessary Pauli corrections.
     """
-    n = tableau.n
+    n = get_n(tableau)
     # Extract the current signs from the tableau
     x_part = tableau.tableau.matrix[:, :n]
     z_part = tableau.tableau.matrix[:, n:]
@@ -1095,3 +1094,44 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
         op.apply(tableau, inplace=True)
 
     return ops
+
+
+def get_n(tableau: BinaryMatrix) -> int:
+    """Get the number of qubits in the stabilizer tableau.
+
+    Args:
+        tableau (BinaryMatrix): The stabilizer tableau.
+    Returns:
+        int: The number of qubits.
+    """
+    if isinstance(tableau, StabilizerTableau):
+        return tableau.n
+
+    return tableau.shape[1]
+
+
+def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
+    """Get all possible CNOT candidates for a CSS check matrix.
+
+    Args:
+        matrix (BinaryMatrix): The CSS check matrix.
+
+    Returns:
+        list[CNOT]: A list of CNOT operations that can be applied.
+    """
+    matrix = matrix.copy()
+    n = get_n(matrix)
+    candidates: list[tuple[CNOT, int]] = []
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            op = CNOT(i, j)
+            matrix = op.apply(matrix, inplace=True)
+            weight_after = int(matrix.sum())
+            candidates.append((op, weight_after))
+            matrix = op.apply(matrix, inplace=True)  # undo
+
+    candidates.sort(key=operator.itemgetter(1))
+    return [op for op, _ in candidates]
+    
