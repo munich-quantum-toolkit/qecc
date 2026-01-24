@@ -25,7 +25,6 @@ __all__ = [
     "SnakeBuilderSTDW",
     "SnakeBuilderSteane",
     "TeleportationRouter",
-    "TeleportationRouter",
     "create_random_sequential_circuit_dag",
     "gen_layout_scalable",
     "generate_max_parallel_circuit",
