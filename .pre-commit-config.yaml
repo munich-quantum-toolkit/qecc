@@ -66,7 +66,7 @@ repos:
 
   #  Python linting and formatting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13
+    rev: v0.14.14
     hooks:
       - id: ruff-check
       - id: ruff-format
@@ -100,13 +100,13 @@ repos:
 
   # Check for spelling
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.42.0
+    rev: v1.42.1
     hooks:
       - id: typos
 
   # Format configuration files with prettier
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.0
+    rev: v3.8.1
     hooks:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json]
@@ -137,7 +137,7 @@ repos:
 
   # Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.01.10
+    rev: 2026.01.22
     hooks:
       - id: validate-pyproject
 
