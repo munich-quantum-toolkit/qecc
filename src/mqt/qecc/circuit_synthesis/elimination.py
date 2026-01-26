@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import operator
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from collections.abc import Callable
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -24,6 +26,48 @@ from ..codes.pauli import StabilizerTableau
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+
+class CandidateGenerator(ABC):
+    """Abstract base class for generating candidate operations."""
+    
+    @abstractmethod
+    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+        """Generate sorted candidate operations for the current tableau.
+        
+        Args:
+            tableau: The current binary matrix/tableau
+            
+        Returns:
+            A list of candidate operations, sorted by preference
+        """
+    
+    @abstractmethod
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+        """Update internal state after an operation is applied.
+        
+        Args:
+            op: The operation that was just applied
+            tableau: The resulting tableau after applying the operation
+        """
+    
+    @abstractmethod
+    def reset(self) -> None:
+        """Reset internal state (useful for lookahead simulations)."""
+        
+class GreedyTransvectionGenerator(CandidateGenerator):
+    """Generates transvection candidates using greedy heuristic."""
+    
+    def __init__(self):
+        self.operation_history: list[TableauOperation] = []
+    
+    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+        return get_candidate_transvections(tableau)
+    
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+        self.operation_history.append(op)
+    
+    def reset(self) -> None:
+        self.operation_history.clear()
 
 def eliminate_non_css(
     tableau: StabilizerTableau, optimization_criterion: str = "gates", lookahead: int = 1
@@ -38,7 +82,7 @@ def eliminate_non_css(
 
     config = EliminationConfig(
         termination_criterion=is_terminal_transvection,
-        sorted_candidate_ops=get_candidate_transvections,
+        candidate_generator=GreedyTransvectionGenerator(),
         filters=filters,
         post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
     )
@@ -59,7 +103,7 @@ def eliminate_css(
     k = mod2.rank(matrix.matrix)
     config = EliminationConfig(
         termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
-        sorted_candidate_ops=greedy_matrix_elimination_candidates,
+        candidate_generator=GreedyTransvectionGenerator(),
         filters=filters,
     )
     operations, final_matrix = eliminate(matrix, config)
@@ -87,20 +131,21 @@ def eliminate_non_css_with_lookahead(
 
     base_config = EliminationConfig(
         termination_criterion=is_terminal_transvection,
-        sorted_candidate_ops=get_candidate_transvections,
+        candidate_generator=GreedyTransvectionGenerator(),
         filters=filters,
     )
+    
     def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
         n_transvections = ops.num_transvections()
         return n_transvections, n_transvections <= 1
 
     lookahead_config = EliminationConfig(
         termination_criterion=is_terminal_transvection,
-        sorted_candidate_ops=make_lookahead_fn(
+        candidate_generator=LookaheadCandidateGenerator(
             base_config,
             lookahead,
-            num_lookahead_candidates=num_lookahead_candidates,
-            score_fn=score_fn,
+            num_lookahead_candidates,
+            score_fn,
         ),
         filters=filters,
         post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
@@ -745,26 +790,11 @@ class EliminationConfig:
     """Configuration for elimination methods."""
 
     termination_criterion: Callable[[BinaryMatrix], bool]
-    sorted_candidate_ops: elimination_candidate_fn
-    filters: list[OperationFilter] = None
+    candidate_generator: CandidateGenerator
+    filters: list[OperationFilter] | None = None
     post_process_fn: Callable[
-        [tuple[EliminationSequence, BinaryMatrix]], tuple[EliminationSequence, BinaryMatrix]
-    ] = lambda x, y: (x, y)
-    lookahead: int = 0
-
-    def copy(self) -> EliminationConfig:
-        """Create a copy of the elimination configuration.
-
-        Returns:
-            EliminationConfig: A copy of the elimination configuration.
-        """
-        return EliminationConfig(
-            termination_criterion=self.termination_criterion,
-            sorted_candidate_ops=self.sorted_candidate_ops,
-            filters=self.filters.copy() if self.filters else None,
-            post_process_fn=self.post_process_fn,
-            lookahead=self.lookahead,
-        )
+        [EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]
+    ] = lambda ops, tbl: (ops, tbl)
 
 
 def eliminate(
@@ -782,11 +812,13 @@ def eliminate(
     tableau = target_tableau.copy()
     operations = EliminationSequence([])
     is_reduced = config.termination_criterion
-    get_candidate_ops = config.sorted_candidate_ops
-
     while not is_reduced(tableau):
-        candidate_ops: list[TableauOperation] = get_candidate_ops(tableau)
-        filtered_ops = filter_candidates(candidate_ops, config)
+        candidate_ops = config.candidate_generator.get_candidates(tableau)
+        
+        if config.filters:
+            filtered_ops = filter_candidates(candidate_ops, config)
+        else:
+            filtered_ops = candidate_ops
 
         if not filtered_ops:
             msg = "No more candidate operations available, but termination criterion not met."
@@ -796,53 +828,16 @@ def eliminate(
         tableau = op.apply(tableau)
         operations.add_operation(op)
 
-        update_state(op, config)
+        # Update both generator and filters
+        config.candidate_generator.update(op, tableau)
+        if config.filters:
+            update_state(op, config)
 
     post_process_fn = config.post_process_fn
     operations, tableau = post_process_fn(operations, tableau)
     return operations, tableau
 
 
-def make_lookahead_fn(
-    base_config: EliminationConfig,
-    lookahead: int,
-    num_lookahead_candidates: int,
-    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
-) -> elimination_candidate_fn:
-
-    def lookahead_fn(tableau: BinaryMatrix) -> list[TableauOperation]:
-        """Generate candidate operations with lookahead.
-
-        Args:
-            tableau (BinaryMatrix): The stabilizer tableau to generate candidates for.
-            config (EliminationConfig): Configuration parameters for the elimination process.
-
-        Returns:
-            EliminationSequence: A sequence of candidate tableau operations.
-        """
-        base_candidates = base_config.sorted_candidate_ops(tableau)
-        scored_candidates: list[tuple[TableauOperation, int]] = []
-
-        lookahead_config = base_config.copy()
-        lookahead_config.sorted_candidate_ops = make_lookahead_fn(
-            base_config, lookahead - 1, num_lookahead_candidates, score_fn
-        )
-        
-        for op in base_candidates[:num_lookahead_candidates]:
-            sequence, _ = eliminate(op.apply(tableau), lookahead_config)
-            sequence.add_operation(op)
-            score, is_minimal = score_fn(sequence)
-            scored_candidates.append((op, score))
-            if is_minimal:
-                break
-
-        scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
-        return [op for op, _ in scored_candidates]
-
-    if lookahead <= 0:
-        return base_config.sorted_candidate_ops
-
-    return lookahead_fn
 
 
 def update_state(op: TableauOperation, config: EliminationConfig) -> None:
@@ -1192,3 +1187,58 @@ def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
     non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
     return non_zero_columns >= k
     
+class LookaheadCandidateGenerator(CandidateGenerator):
+    """Generates candidates using lookahead simulation."""
+    
+    def __init__(
+        self,
+        base_config: EliminationConfig,
+        lookahead: int,
+        num_lookahead_candidates: int,
+        score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+    ):
+        self.base_config = base_config
+        self.lookahead = lookahead
+        self.num_lookahead_candidates = num_lookahead_candidates
+        self.score_fn = score_fn
+    
+    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+        if self.lookahead <= 0:
+            return self.base_config.candidate_generator.get_candidates(tableau)
+            
+        base_candidates = self.base_config.candidate_generator.get_candidates(tableau)
+        scored_candidates: list[tuple[TableauOperation, int]] = []
+
+        # Create recursive lookahead config
+        lookahead_config = EliminationConfig(
+            termination_criterion=self.base_config.termination_criterion,
+            candidate_generator=LookaheadCandidateGenerator(
+                self.base_config,
+                self.lookahead - 1,
+                self.num_lookahead_candidates,
+                self.score_fn,
+            ),
+            filters=self.base_config.filters,
+        )
+        
+        for op in base_candidates[:self.num_lookahead_candidates]:
+            try:
+                new_tableau = op.apply(tableau)
+                sequence, _ = eliminate(new_tableau, lookahead_config)
+                sequence.operations.insert(0, op)
+                score, is_minimal = self.score_fn(sequence)
+                scored_candidates.append((op, score))
+                if is_minimal:
+                    break
+            except RuntimeError:
+                continue
+
+        scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
+        return [op for op, _ in scored_candidates]
+    
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+        # Delegate to base generator
+        self.base_config.candidate_generator.update(op, tableau)
+    
+    def reset(self) -> None:
+        self.base_config.candidate_generator.reset()
