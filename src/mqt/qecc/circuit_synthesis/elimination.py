@@ -28,6 +28,90 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
+def eliminate(
+    target_tableau: BinaryMatrix, config: EliminationConfig
+) -> tuple[EliminationSequence, BinaryMatrix]:
+    """Perform Gaussian elimination on the given stabilizer tableau.
+    
+    This is the main elimination engine that iteratively reduces a binary matrix or 
+    stabilizer tableau by applying a sequence of operations (e.g., CNOTs, transvections, 
+    single-qubit Cliffords) until a termination criterion is met. The function serves as 
+    the workhorse for synthesizing quantum circuits from stabilizer codes and check matrices.
+    
+    Args:
+        target_tableau: The input binary matrix or stabilizer tableau to reduce.
+            Can be either a CheckMatrix (for CSS codes) or StabilizerTableau 
+            (for general stabilizer codes).
+        config: Configuration object specifying:
+            - termination_criterion: Function that returns True when elimination is complete
+            - candidate_generator: Strategy for generating candidate operations from current tableau
+            - selection_strategy: Strategy for selecting from candidate operations (optional)
+            - filters: List of filters to constrain candidate operations (optional)
+            - callback: Function called after each operation for monitoring (optional)
+            - post_process_fn: Function to finalize the result (optional)
+    
+    Returns:
+        A tuple containing:
+        - EliminationSequence: The sequence of operations applied during elimination,
+          which can be converted to a quantum circuit.
+        - BinaryMatrix: The final reduced tableau after all operations are applied.
+    
+    Raises:
+        RuntimeError: If no candidate operations are available but the termination
+            criterion has not been met, indicating the elimination cannot proceed.
+    
+    Examples:
+        >>> # CSS code elimination with greedy selection
+        >>> config = EliminationConfig(
+        ...     termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
+        ...     candidate_generator=GreedyTransvectionGenerator(),
+        ... )
+        >>> operations, final_tableau = eliminate(check_matrix, config)
+        
+        >>> # Non-CSS code elimination with depth optimization
+        >>> config = EliminationConfig(
+        ...     termination_criterion=is_terminal_transvection,
+        ...     candidate_generator=GreedyTransvectionGenerator(),
+        ...     filters=[ParallelFilter()],
+        ... )
+        >>> operations, final_tableau = eliminate(stabilizer_tableau, config)
+        
+        >>> # Lookahead-based elimination
+        >>> config = EliminationConfig(
+        ...     termination_criterion=is_terminal_transvection,
+        ...     candidate_generator=LookaheadCandidateGenerator(...),
+        ...     post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
+        ... )
+        >>> operations, final_tableau = eliminate(tableau, config)
+    
+    See Also:
+        - eliminate_css: High-level function for CSS code elimination
+        - eliminate_non_css: High-level function for non-CSS code elimination
+        - eliminate_non_css_with_lookahead: Lookahead-based non-CSS elimination
+        - EliminationConfig: Configuration dataclass for elimination parameters
+        - CandidateGenerator: Abstract base class for candidate generation strategies
+        - SelectionStrategy: Abstract base class for operation selection strategies
+    """
+    tableau = target_tableau.copy()
+    operations = EliminationSequence([])
+    selection_strategy = config.selection_strategy or GreedySelection()
+    iteration = 0
+    
+    while not config.termination_criterion(tableau):
+        candidate_ops = _get_filtered_candidates(tableau, config)
+        _validate_candidates(candidate_ops)
+        
+        op = selection_strategy.select(candidate_ops)
+        tableau = op.apply(tableau, inplace=True)
+        operations.add_operation(op)
+        
+        _update_elimination_state(op, tableau, config)
+        _invoke_callback(iteration, op, tableau, config)
+        iteration += 1
+    
+    return config.post_process_fn(operations, tableau)
+
+
 class CandidateGenerator(ABC):
     """Abstract base class for generating candidate operations."""
     
@@ -140,6 +224,38 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         """Reset the operation history."""
         self.operation_history.clear()
 
+
+class GreedyCNOTGenerator(CandidateGenerator):
+    """Generates CNOT candidates using greedy heuristic for CSS codes."""
+    
+    def __init__(self):
+        """Initialize the greedy CNOT generator."""
+        self.operation_history: list[TableauOperation] = []
+    
+    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+        """Generate CNOT candidates sorted by heuristic score.
+        
+        Args:
+            tableau: The current check matrix.
+            
+        Returns:
+            List of CNOT operations sorted by preference.
+        """
+        return greedy_matrix_elimination_candidates(tableau)
+    
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+        """Update operation history after applying an operation.
+        
+        Args:
+            op: The operation that was applied.
+            tableau: The resulting tableau after applying the operation.
+        """
+        self.operation_history.append(op)
+    
+    def reset(self) -> None:
+        """Reset the operation history."""
+        self.operation_history.clear()
+
 def eliminate_non_css(
     tableau: StabilizerTableau, optimization_criterion: str = "gates", lookahead: int = 1
 ) -> tuple[list[TableauOperation], StabilizerTableau]:
@@ -157,27 +273,19 @@ def eliminate_non_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    filters = []
-
-    if optimization_criterion == "depth":
-        filters.append(ParallelFilter())
-    elif optimization_criterion != "gates":
-        msg = f"Unsupported optimization criterion: {optimization_criterion}"
-        raise ValueError(msg)
-
-    config = EliminationConfig(
-        termination_criterion=is_terminal_transvection,
-        candidate_generator=GreedyTransvectionGenerator(),
-        filters=filters,
-        post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
-    )
+    config = EliminationConfig.for_non_css(optimization_criterion=optimization_criterion)
     operations, final_tableau = eliminate(tableau, config)
-    return operations, final_tableau
+    if isinstance(operations, tuple):
+        (swaps, single_qubit_ops) = operations
+        all_operations = swaps + single_qubit_ops
+        return all_operations, final_tableau
+
+    return operations.operations, final_tableau
 
 
 def eliminate_css(
     matrix: CheckMatrix, optimization_criterion: str = "gates"
-) -> tuple[list[TableauOperation], StabilizerTableau]:
+) -> tuple[list[TableauOperation], CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
     
     Args:
@@ -191,26 +299,19 @@ def eliminate_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    filters = []
-
-    if optimization_criterion == "depth":
-        filters.append(ParallelFilter())
-    elif optimization_criterion != "gates":
-        msg = f"Unsupported optimization criterion: {optimization_criterion}"
-        raise ValueError(msg)
-    k = mod2.rank(matrix.matrix)
-    config = EliminationConfig(
-        termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
-        candidate_generator=GreedyTransvectionGenerator(),
-        filters=filters,
+    target_rank = mod2.rank(matrix.matrix)
+    config = EliminationConfig.for_css(
+        target_rank=target_rank,
+        optimization_criterion=optimization_criterion
     )
     operations, final_matrix = eliminate(matrix, config)
-    if matrix.is_z_type(): # flip cnots
-        for op in operations:
+    
+    if matrix.is_z_type():
+        for op in operations.operations:
             if isinstance(op, CNOT):
                 op.control, op.target = op.target, op.control
 
-    return operations, final_matrix
+    return operations.operations, final_matrix
 
         
 def eliminate_non_css_with_lookahead(
@@ -234,38 +335,13 @@ def eliminate_non_css_with_lookahead(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    filters = []
-
-    if optimization_criterion == "depth":
-        filters.append(ParallelFilter())
-    elif optimization_criterion != "gates":
-        msg = f"Unsupported optimization criterion: {optimization_criterion}"
-        raise ValueError(msg)
-
-    base_config = EliminationConfig(
-        termination_criterion=is_terminal_transvection,
-        candidate_generator=GreedyTransvectionGenerator(),
-        filters=filters,
+    config = EliminationConfig.for_non_css_with_lookahead(
+        optimization_criterion=optimization_criterion,
+        lookahead=lookahead,
+        num_lookahead_candidates=num_lookahead_candidates,
     )
-    
-    def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-        n_transvections = ops.num_transvections()
-        return n_transvections, n_transvections <= 1
-
-    lookahead_config = EliminationConfig(
-        termination_criterion=is_terminal_transvection,
-        candidate_generator=LookaheadCandidateGenerator(
-            base_config,
-            lookahead,
-            num_lookahead_candidates,
-            score_fn,
-        ),
-        filters=filters,
-        post_process_fn=lambda _, tbl: reduce_single_qubit_gates_and_swaps(tbl),
-    )
-    operations, final_tableau = eliminate(tableau, lookahead_config)
-
-    return operations, final_tableau
+    operations, final_tableau = eliminate(tableau, config)
+    return operations.operations, final_tableau
 
 
 @dataclass
@@ -273,7 +349,7 @@ class CheckMatrix:
     """Type alias for CSS check matrices."""
     
     matrix: np.ndarray[np.int8]
-    type: str  # 'X' or 'Z'
+    type: str
 
     def is_x_type(self) -> bool:
         """Check if the check matrix is of type 'X'."""
@@ -376,7 +452,7 @@ class Transvection(TableauOperation):
         cols_v = [i, j, i + n, j + n]
         cols_ov = [i + n, j + n, i, j]
         v_bits = np.array(self.v, dtype=np.int8)
-        nz = np.flatnonzero(v_bits)  # which of the 4 components are 1
+        nz = np.flatnonzero(v_bits)
 
         c = np.zeros((2 * n,), dtype=np.int8)
         for k in nz:
@@ -386,7 +462,7 @@ class Transvection(TableauOperation):
 
         for k in nz:
             out[:, cols_v[k]] ^= c
-        return StabilizerTableau(out)  # TODO: handle phase?
+        return StabilizerTableau(out)
 
     @staticmethod
     def all_two_qubit_transvections() -> list[TV2]:
@@ -398,7 +474,7 @@ class Transvection(TableauOperation):
         Returns:
             List of all 9 transvection vectors as tuples (xi, xj, zi, zj).
         """
-        nontrivial = [(1, 0), (0, 1), (1, 1)]  # X, Z, Y in (x,z)
+        nontrivial = [(1, 0), (0, 1), (1, 1)]
         out: list[TV2] = []
         for xi, zi in nontrivial:
             for xj, zj in nontrivial:
@@ -422,18 +498,15 @@ class Transvection(TableauOperation):
             raise ValueError(msg)
 
         basis_change = {"Z": [], "X": ["H"], "Y": ["S", "H"]}
-        # Basis change: map Pi,Pj to Z on each qubit
         for g in basis_change[p_i]:
             circuit.append(g, [i])
         for g in basis_change[p_j]:
             circuit.append(g, [j])
 
-        # Core: √(Z_i Z_j) == CZ(i,j) then S on i and j (up to global phase)
         circuit.append("CZ", [i, j])
         circuit.append("S", [i])
         circuit.append("S", [j])
 
-        # Undo basis change
         for g in basis_change[p_j]:
             circuit.append(g, [j])
         for g in basis_change[p_j]:
@@ -657,7 +730,6 @@ identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
 hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
 phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
 
-# For right-multiplication, sequence "HS" means multiply by H then S => I*H*S
 elems: dict[str, np.ndarray] = {
     "I": identity,
     "H": hadamard,
@@ -921,29 +993,122 @@ class EliminationConfig:
         [EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]
     ] = lambda ops, tbl: (ops, tbl)
 
+    @classmethod
+    def for_css(
+        cls,
+        target_rank: int,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        """Create configuration for CSS code elimination.
+        
+        Args:
+            target_rank: The target rank of the check matrix after elimination.
+            optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+            callback: Optional callback function invoked after each elimination step.
+            
+        Returns:
+            EliminationConfig configured for CSS code elimination.
+            
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+        if optimization_criterion not in ("gates", "depth"):
+            msg = f"Unsupported optimization criterion: {optimization_criterion}"
+            raise ValueError(msg)
+        
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        
+        return cls(
+            termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == target_rank,
+            candidate_generator=GreedyCNOTGenerator(),
+            filters=filters,
+            callback=callback,
+        )
+    
+    @classmethod
+    def for_non_css(
+        cls,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        """Create configuration for non-CSS stabilizer code elimination.
+        
+        Args:
+            optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+            callback: Optional callback function invoked after each elimination step.
+            
+        Returns:
+            EliminationConfig configured for non-CSS code elimination with post-processing.
+            
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+        if optimization_criterion not in ("gates", "depth"):
+            msg = f"Unsupported optimization criterion: {optimization_criterion}"
+            raise ValueError(msg)
+        
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        
+        return cls(
+            termination_criterion=is_terminal_transvection,
+            candidate_generator=GreedyTransvectionGenerator(),
+            filters=filters,
+            callback=callback,
+            post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(ops, tbl),
+        )
+    
+    @classmethod
+    def for_non_css_with_lookahead(
+        cls,
+        optimization_criterion: str = "gates",
+        lookahead: int = 1,
+        num_lookahead_candidates: int = 10,
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        """Create configuration for non-CSS elimination with lookahead.
+        
+        Args:
+            optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+            lookahead: Number of steps to look ahead when selecting operations.
+            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            callback: Optional callback function invoked after each elimination step.
+            
+        Returns:
+            EliminationConfig configured for non-CSS code elimination with lookahead and post-processing.
+            
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+        if optimization_criterion not in ("gates", "depth"):
+            msg = f"Unsupported optimization criterion: {optimization_criterion}"
+            raise ValueError(msg)
+        
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        
+        base_config = EliminationConfig(
+            termination_criterion=is_terminal_transvection,
+            candidate_generator=GreedyTransvectionGenerator(),
+            filters=filters,
+        )
+        
+        def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+            n_transvections = ops.num_transvections()
+            return n_transvections, n_transvections <= 1
+        
+        return cls(
+            termination_criterion=is_terminal_transvection,
+            candidate_generator=LookaheadCandidateGenerator(
+                base_config,
+                lookahead,
+                num_lookahead_candidates,
+                score_fn,
+            ),
+            filters=filters,
+            callback=callback,
+            post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(ops, tbl),
+        )
 
-def eliminate(
-    target_tableau: BinaryMatrix, config: EliminationConfig
-) -> tuple[EliminationSequence, BinaryMatrix]:
-    """Perform Gaussian elimination on the given stabilizer tableau."""
-    tableau = target_tableau.copy()
-    operations = EliminationSequence([])
-    selection_strategy = config.selection_strategy or GreedySelection()
-    iteration = 0
-    
-    while not config.termination_criterion(tableau):
-        candidate_ops = _get_filtered_candidates(tableau, config)
-        _validate_candidates(candidate_ops)
-        
-        op = selection_strategy.select(candidate_ops)
-        tableau = op.apply(tableau, inplace=True)
-        operations.add_operation(op)
-        
-        _update_elimination_state(op, tableau, config)
-        _invoke_callback(iteration, op, tableau, config)
-        iteration += 1
-    
-    return config.post_process_fn(operations, tableau)
 
 
 def _get_filtered_candidates(tableau: BinaryMatrix, config: EliminationConfig) -> list[TableauOperation]:
@@ -1035,7 +1200,6 @@ def is_identity(tableau: StabilizerTableau) -> bool:
 
 
 def _compute_r2_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    # det(F_ij) = A_xx[i,j]*A_zz[i,j] XOR A_xz[i,j]*A_zx[i,j]
     n = symplectic.shape[0] // 2
     a_xx = symplectic[:n, :n]
     a_xz = symplectic[:n, n:]
@@ -1089,7 +1253,6 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     r1, r2 = r1_r2(tableau.tableau.matrix)
     if np.any(r1):
         return False
-    # permutation matrix: each row/col has exactly one 1
     if not np.all(r2.sum(axis=0) == 1):
         return False
     return np.all(r2.sum(axis=1) == 1)
@@ -1112,14 +1275,9 @@ def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     c1 = r1.sum(axis=0).astype(int)
     c2 = r2.sum(axis=0).astype(int)
 
-    c1t = r1.sum(axis=1).astype(int)  # colSums(R1^T) = rowSums(R1)
+    c1t = r1.sum(axis=1).astype(int)
     c2t = r2.sum(axis=1).astype(int)
     vec = np.concatenate([n * c2 + c1, n * c2t + c1t])
-    # else:
-    #     # fallback: approximate real weighting
-    #     vec = np.concatenate([c2 + c1 / n, c2t + c1t / n])
-    # else:
-    #     vec = n * c2 + c1 if params.use_integer_weighting else (c2 + c1 / n)
 
     h_vec = tuple(sorted(int(x) for x in vec))
 
@@ -1158,36 +1316,103 @@ def get_candidate_transvections(
     return [tv for tv, _ in scores]
 
 
-def reduce_single_qubit_gates_and_swaps(
+def reduce_with_swaps(
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce a TERMINAL symplectic matrix U to identity using only SWAP/H/S by right-multiplication.
+    """Reduce a TERMINAL symplectic matrix by applying SWAPs to align blocks on diagonal.
+
+    Args:
+        tableau: A stabilizer tableau in terminal form (permutation matrix of 2x2 blocks).
 
     Returns:
-      ((swaps, one_qubit_ops), U_reduced)
-    where U_reduced should be identity.
+        A tuple of (swap_sequence, tableau_after_swaps) where the blocks are now diagonal.
     """
     tableau_copy = tableau.copy()
     n = get_n(tableau)
 
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
 
-    # 2) Right-multiply by permutation inverse to bring blocks onto the diagonal
     inv = _perm_inverse(perm)
-    swaps = _perm_to_swaps(inv)  # realize inv permutation
+    swaps = _perm_to_swaps(inv)
+    
+    swap_sequence = EliminationSequence([])
     for swap in swaps:
         tableau_copy = swap.apply(tableau_copy, inplace=True)
+        swap_sequence.add_operation(swap)
 
-    # 3) Right-multiply by single-qubit Cliffords to bring each block to identity
-    single_qubit_ops = []
+    return swap_sequence, tableau_copy
+
+
+def reduce_with_single_qubit_cliffords(
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce diagonal blocks to identity using single-qubit Cliffords and Paulis.
+
+    Args:
+        tableau: A stabilizer tableau where each qubit has a 2x2 block on its diagonal.
+
+    Returns:
+        A tuple of (clifford_sequence, final_tableau) where final_tableau should be identity.
+    """
+    tableau_copy = tableau.copy()
+    n = get_n(tableau)
+
+    clifford_sequence = EliminationSequence([])
+    
     for q in range(n):
-        f = tableau.symplectic_submatrix(q)
+        f = tableau_copy.symplectic_submatrix(q)
         op = SingleQubitClifford.from_symplectic_block(f, q)
-        single_qubit_ops.append(op)
+        clifford_sequence.add_operation(op)
         tableau_copy = op.apply(tableau_copy, inplace=True)
 
-    single_qubit_ops.extend(fix_tableau_signs_in_place(tableau_copy))
-    return (swaps, single_qubit_ops), tableau_copy
+    pauli_ops = fix_tableau_signs_in_place(tableau_copy)
+    for op in pauli_ops:
+        clifford_sequence.add_operation(op)
+
+    return clifford_sequence, tableau_copy
+
+
+def reduce_single_qubit_gates_and_swaps(
+    operations: EliminationSequence,
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce a TERMINAL symplectic matrix to identity using SWAP/H/S/Pauli gates.
+
+    This function combines swap-based permutation correction with single-qubit Clifford
+    reduction to bring a terminal-form tableau to the identity.
+
+    Args:
+        operations: The elimination sequence (unused but required by post_process_fn signature).
+        tableau: A stabilizer tableau in terminal form.
+
+    Returns:
+        A tuple of (operation_sequence, final_tableau) where final_tableau is identity.
+    """
+    swap_seq, tableau_after_swaps = reduce_with_swaps(tableau)
+    
+    clifford_seq, final_tableau = reduce_with_single_qubit_cliffords(tableau_after_swaps)
+    
+    combined_sequence = EliminationSequence(swap_seq.operations + clifford_seq.operations)
+    
+    return combined_sequence, final_tableau
+
+
+def reduce_without_swaps(
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce a TERMINAL symplectic matrix to a permuted identity using only single-qubit gates.
+
+    This variant does NOT apply SWAPs, so the final tableau will be a permutation of the
+    identity (i.e., blocks aligned but possibly permuted).
+
+    Args:
+        tableau: A stabilizer tableau in terminal form.
+
+    Returns:
+        A tuple of (operation_sequence, final_tableau) where final_tableau is a 
+        permuted identity.
+    """
+    return reduce_with_single_qubit_cliffords(tableau)
 
 
 def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[EliminationSequence, StabilizerTableau]:
@@ -1210,7 +1435,7 @@ def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[Elim
     r2 = _compute_r2_matrix(symplectic)
 
     perm = np.full(n, -1, dtype=int)
-    blocks: list[np.ndarray] = [None] * n  # type: ignore
+    blocks: list[np.ndarray] = [None] * n
 
     for i in range(n):
         js = np.flatnonzero(r2[i])
@@ -1246,7 +1471,7 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
     perm = perm_in_to_out.copy().tolist()
     n = len(perm)
     swaps: list[Swap] = []
-    pos = list(range(n))  # current label at position p
+    pos = list(range(n))
 
     for i in range(n):
         target_pos = perm[i]
@@ -1254,7 +1479,6 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
         while cur_pos != target_pos:
             step = cur_pos + 1 if cur_pos < target_pos else cur_pos - 1
             swaps.append(Swap(cur_pos, step))
-            # swap labels in pos
             pos[cur_pos], pos[step] = pos[step], pos[cur_pos]
             cur_pos = step
 
@@ -1268,15 +1492,13 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
     by appending the necessary Pauli corrections.
     """
     n = get_n(tableau)
-    # Extract the current signs from the tableau
     x_part = tableau.tableau.matrix[:, :n]
     z_part = tableau.tableau.matrix[:, n:]
 
-    # Compute the corrections needed to match the target signs
     phase = tableau.phase.copy()
 
     if not np.any(phase):
-        return []  # No corrections needed
+        return []
 
     tableau_with_phase = np.hstack((x_part, z_part, np.array([phase]).T))
     ker = mod2.nullspace(tableau_with_phase)
@@ -1293,7 +1515,7 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
         elif zv == 1:
             op = PauliOperation(i, "Z")
         else:
-            continue  # don't explicitly apply identity
+            continue
         op.apply(tableau, inplace=True)
 
     return ops
@@ -1334,7 +1556,7 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
             matrix = op.apply(matrix, inplace=True)
             weight_after = int(matrix.sum())
             candidates.append((op, weight_after))
-            matrix = op.apply(matrix, inplace=True)  # undo
+            matrix = op.apply(matrix, inplace=True)
 
     candidates.sort(key=operator.itemgetter(1))
     return [op for op, _ in candidates]
