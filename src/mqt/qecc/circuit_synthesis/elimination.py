@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import operator
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from collections.abc import Callable
@@ -53,7 +54,33 @@ class CandidateGenerator(ABC):
     @abstractmethod
     def reset(self) -> None:
         """Reset internal state (useful for lookahead simulations)."""
+
+
+class SelectionStrategy(ABC):
+    """Abstract base class for selecting the best operation from candidates."""
+    
+    @abstractmethod
+    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+        """Select the best operation from candidates."""
+
+
+class GreedySelection(SelectionStrategy):
+    """Always select the first candidate."""
+    
+    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+        return candidates[0]
+
+
+class RandomSelection(SelectionStrategy):
+    """Select a random candidate from top-k."""
+    
+    def __init__(self, k: int = 3):
+        self.k = k
+    
+    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+        return random.choice(candidates[:self.k])
         
+
 class GreedyTransvectionGenerator(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
     
@@ -585,7 +612,7 @@ class CNOT(TableauOperation):
             CheckMatrix: The resulting CSS check matrix after applying the operation.
         """
         out = check_matrix if inplace else check_matrix.copy()
-        out[:, self.target] ^= out[:, self.control]
+        out.matrix[:, self.target] ^= out.matrix[:, self.control]
         return out
 
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
@@ -641,8 +668,8 @@ class Swap(TableauOperation):
             check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
             inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
         """
-        out = check_matrix.copy() if not inplace else check_matrix
-        out[:, [self.qubit_a, self.qubit_b]] = out[:, [self.qubit_b, self.qubit_a]]
+        out = check_matrix if inplace else check_matrix.copy()
+        out.matrix[:, [self.qubit_a, self.qubit_b]] = out.matrix[:, [self.qubit_b, self.qubit_a]]
         return out
 
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
@@ -791,7 +818,9 @@ class EliminationConfig:
 
     termination_criterion: Callable[[BinaryMatrix], bool]
     candidate_generator: CandidateGenerator
+    selection_strategy: SelectionStrategy | None = None
     filters: list[OperationFilter] | None = None
+    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None
     post_process_fn: Callable[
         [EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]
     ] = lambda ops, tbl: (ops, tbl)
@@ -800,71 +829,70 @@ class EliminationConfig:
 def eliminate(
     target_tableau: BinaryMatrix, config: EliminationConfig
 ) -> tuple[EliminationSequence, BinaryMatrix]:
-    """Perform Gaussian elimination on the given stabilizer tableau.
-
-    Args:
-        target_tableau (BinaryMatrix): The stabilizer tableau to be eliminated.
-        config (EliminationConfig): Configuration parameters for the elimination process.
-
-    Returns:
-        None: The function modifies the target_tableau in place.
-    """
+    """Perform Gaussian elimination on the given stabilizer tableau."""
     tableau = target_tableau.copy()
     operations = EliminationSequence([])
-    is_reduced = config.termination_criterion
-    while not is_reduced(tableau):
-        candidate_ops = config.candidate_generator.get_candidates(tableau)
+    selection_strategy = config.selection_strategy or GreedySelection()
+    iteration = 0
+    
+    while not config.termination_criterion(tableau):
+        candidate_ops = _get_filtered_candidates(tableau, config)
+        _validate_candidates(candidate_ops)
         
-        if config.filters:
-            filtered_ops = filter_candidates(candidate_ops, config)
-        else:
-            filtered_ops = candidate_ops
-
-        if not filtered_ops:
-            msg = "No more candidate operations available, but termination criterion not met."
-            raise RuntimeError(msg)
-
-        op = filtered_ops[0]
-        tableau = op.apply(tableau)
+        op = selection_strategy.select(candidate_ops)
+        tableau = op.apply(tableau, inplace=True)
         operations.add_operation(op)
-
-        # Update both generator and filters
-        config.candidate_generator.update(op, tableau)
-        if config.filters:
-            update_state(op, config)
-
-    post_process_fn = config.post_process_fn
-    operations, tableau = post_process_fn(operations, tableau)
-    return operations, tableau
+        
+        _update_elimination_state(op, tableau, config)
+        _invoke_callback(iteration, op, tableau, config)
+        iteration += 1
+    
+    return config.post_process_fn(operations, tableau)
 
 
+def _get_filtered_candidates(tableau: BinaryMatrix, config: EliminationConfig) -> list[TableauOperation]:
+    """Generate and filter candidate operations."""
+    candidates = config.candidate_generator.get_candidates(tableau)
+    if config.filters:
+        candidates = filter_candidates(candidates, config)
+    return candidates
 
 
-def update_state(op: TableauOperation, config: EliminationConfig) -> None:
-    """Update the elimination state with the given operation.
+def _validate_candidates(candidates: list[TableauOperation]) -> None:
+    """Ensure at least one candidate is available."""
+    if not candidates:
+        msg = "No more candidate operations available, but termination criterion not met."
+        raise RuntimeError(msg)
 
-    Args:
-        op (TableauOperation): The tableau operation to update the state with.
-        config (EliminationConfig): Configuration parameters for the elimination process.
-    """
+
+def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
+    """Update generator and filter state after applying an operation."""
+    config.candidate_generator.update(op, tableau)
     if config.filters:
         for filter_ in config.filters:
             filter_.update(op)
 
 
-def filter_candidates(ops: EliminationSequence, config: EliminationConfig) -> EliminationSequence:
+def _invoke_callback(iteration: int, op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
+    """Invoke callback if configured."""
+    if config.callback:
+        config.callback(iteration, op, tableau)
+
+
+def filter_candidates(ops: list[TableauOperation], config: EliminationConfig) -> list[TableauOperation]:
     """Filter candidate operations using the filters defined in the elimination configuration.
 
     Args:
-        ops (EliminationSequence): The list of candidate tableau operations.
+        ops (list[TableauOperation]): The list of candidate tableau operations.
         config (EliminationConfig): Configuration parameters for the elimination process.
 
     Returns:
         A filtered list of candidate tableau operations.
     """
     filtered_ops = ops
-    for filter_ in config.filters:
-        filtered_ops = filter_.filter(filtered_ops)
+    if config.filters:
+        for filter_ in config.filters:
+            filtered_ops = filter_.filter(filtered_ops)
     return filtered_ops
 
 
@@ -1201,16 +1229,28 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.lookahead = lookahead
         self.num_lookahead_candidates = num_lookahead_candidates
         self.score_fn = score_fn
+        self._cache: dict[bytes, list[TableauOperation]] = {}
     
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         if self.lookahead <= 0:
             return self.base_config.candidate_generator.get_candidates(tableau)
-            
+        
+        cache_key = _create_tableau_cache_key(tableau)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         base_candidates = self.base_config.candidate_generator.get_candidates(tableau)
-        scored_candidates: list[tuple[TableauOperation, int]] = []
+        scored_candidates = _score_candidates_with_lookahead(
+            tableau, base_candidates, self.num_lookahead_candidates, self._create_lookahead_config(), self.score_fn
+        )
+        
+        result = [op for op, _ in scored_candidates]
+        self._cache[cache_key] = result
+        return result
 
-        # Create recursive lookahead config
-        lookahead_config = EliminationConfig(
+    def _create_lookahead_config(self) -> EliminationConfig:
+        """Create configuration for recursive lookahead."""
+        return EliminationConfig(
             termination_criterion=self.base_config.termination_criterion,
             candidate_generator=LookaheadCandidateGenerator(
                 self.base_config,
@@ -1220,21 +1260,6 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             ),
             filters=self.base_config.filters,
         )
-        
-        for op in base_candidates[:self.num_lookahead_candidates]:
-            try:
-                new_tableau = op.apply(tableau)
-                sequence, _ = eliminate(new_tableau, lookahead_config)
-                sequence.operations.insert(0, op)
-                score, is_minimal = self.score_fn(sequence)
-                scored_candidates.append((op, score))
-                if is_minimal:
-                    break
-            except RuntimeError:
-                continue
-
-        scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
-        return [op for op, _ in scored_candidates]
     
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         # Delegate to base generator
@@ -1242,3 +1267,48 @@ class LookaheadCandidateGenerator(CandidateGenerator):
     
     def reset(self) -> None:
         self.base_config.candidate_generator.reset()
+
+
+def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
+    """Create a hashable cache key from a tableau."""
+    if isinstance(tableau, StabilizerTableau):
+        return tableau.tableau.matrix.tobytes()
+    return tableau.matrix.tobytes()
+
+
+def _score_candidates_with_lookahead(
+    tableau: BinaryMatrix,
+    candidates: list[TableauOperation],
+    num_candidates: int,
+    lookahead_config: EliminationConfig,
+    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+) -> list[tuple[TableauOperation, int]]:
+    """Score candidates using lookahead simulation."""
+    scored_candidates: list[tuple[TableauOperation, int]] = []
+    
+    for op in candidates[:num_candidates]:
+        result = _simulate_and_score_operation(op, tableau, lookahead_config, score_fn)
+        if result is not None:
+            score, is_minimal = result
+            scored_candidates.append((op, score))
+            if is_minimal:
+                break
+    
+    scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
+    return scored_candidates
+
+
+def _simulate_and_score_operation(
+    op: TableauOperation,
+    tableau: BinaryMatrix,
+    lookahead_config: EliminationConfig,
+    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+) -> tuple[int, bool] | None:
+    """Simulate operation and return (score, is_minimal), or None if simulation fails."""
+    try:
+        new_tableau = op.apply(tableau)
+        sequence, _ = eliminate(new_tableau, lookahead_config)
+        sequence.operations.insert(0, op)
+        return score_fn(sequence)
+    except RuntimeError:
+        return None
