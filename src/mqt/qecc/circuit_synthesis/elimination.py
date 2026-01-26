@@ -47,6 +47,14 @@ class EliminationSequence:
             op.append_to_circuit(circuit)
         return circuit
 
+    def to_circuit_inverse(self) -> stim.Circuit:
+        """Convert the inverse of the elimination sequence to a Stim circuit.
+
+        Returns:
+            stim.Circuit: The Stim circuit representing the inverse elimination sequence.
+        """
+        self.to_circuit().inverse()
+
     def num_two_qubit_gates(self) -> int:
         """Count the number of two-qubit gates in the elimination sequence.
 
@@ -100,6 +108,7 @@ class EliminationSequence:
             other: The other elimination sequence to append.
         """
         self.operations.extend(other.operations)
+
         
 def eliminate(
     target_tableau: BinaryMatrix, config: EliminationConfig
@@ -330,7 +339,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
         self.operation_history.clear()
 
 def eliminate_non_css(
-    tableau: StabilizerTableau, optimization_criterion: str = "gates", lookahead: int = 1
+    tableau: StabilizerTableau, optimization_criterion: str = "gates"
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
     
@@ -347,11 +356,8 @@ def eliminate_non_css(
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     config = EliminationConfig.for_non_css(optimization_criterion=optimization_criterion)
+        
     operations, final_tableau = eliminate(tableau, config)
-    if isinstance(operations, tuple):
-        (swaps, single_qubit_ops) = operations
-        all_operations = swaps + single_qubit_ops
-        return all_operations, final_tableau
 
     return operations, final_tableau
 
