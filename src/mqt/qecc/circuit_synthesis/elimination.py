@@ -12,9 +12,7 @@ from __future__ import annotations
 import operator
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from collections.abc import Callable
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,7 +25,82 @@ from ..codes.pauli import StabilizerTableau
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+class EliminationSequence:
+    """Class representing a sequence of tableau operations."""
 
+    def __init__(self, operations: list[TableauOperation]) -> None:
+        """Initialize the elimination sequence.
+
+        Args:
+            operations: A list of tableau operations.
+        """
+        self.operations = operations
+
+    def to_circuit(self) -> stim.Circuit:
+        """Convert the elimination sequence to a Stim circuit.
+
+        Returns:
+            stim.Circuit: The Stim circuit representing the elimination sequence.
+        """
+        circuit = stim.Circuit()
+        for op in self.operations:
+            op.append_to_circuit(circuit)
+        return circuit
+
+    def num_two_qubit_gates(self) -> int:
+        """Count the number of two-qubit gates in the elimination sequence.
+
+        Returns:
+            int: The number of two-qubit gates.
+        """
+        count = 0
+        for op in self.operations:
+            if isinstance(op, (Transvection, CNOT, Swap)):
+                count += 1
+        return count
+
+    def num_transvections(self) -> int:
+        """Count the number of transvections in the elimination sequence.
+
+        Returns: int: The number of transvections.
+        """
+        count = 0
+        for op in self.operations:
+            if isinstance(op, Transvection):
+                count += 1
+        return count
+
+    def add_operation(self, op: TableauOperation) -> None:
+        """Add a tableau operation to the elimination sequence.
+
+        Args:
+            op: The tableau operation to add.
+        """
+        self.operations.append(op)
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the elimination sequence to a stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the sequence to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+
+        Returns:
+            BinaryMatrix: The resulting stabilizer tableau after applying the sequence.
+        """
+        out = tableau if inplace else tableau.copy()
+        for op in self.operations:
+            out = op.apply(out, inplace=True)
+        return out
+
+    def extend(self, other: EliminationSequence) -> None:
+        """Extend the elimination sequence with another sequence.
+
+        Args:
+            other: The other elimination sequence to append.
+        """
+        self.operations.extend(other.operations)
+        
 def eliminate(
     target_tableau: BinaryMatrix, config: EliminationConfig
 ) -> tuple[EliminationSequence, BinaryMatrix]:
@@ -173,7 +246,7 @@ class GreedySelection(SelectionStrategy):
 class RandomSelection(SelectionStrategy):
     """Select a random candidate from top-k."""
     
-    def __init__(self, k: int = 3):
+    def __init__(self, k: int = 3) -> None:
         """Initialize the random selection strategy.
         
         Args:
@@ -196,7 +269,7 @@ class RandomSelection(SelectionStrategy):
 class GreedyTransvectionGenerator(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the greedy transvection generator."""
         self.operation_history: list[TableauOperation] = []
     
@@ -228,7 +301,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the greedy CNOT generator."""
         self.operation_history: list[TableauOperation] = []
     
@@ -258,7 +331,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
 def eliminate_non_css(
     tableau: StabilizerTableau, optimization_criterion: str = "gates", lookahead: int = 1
-) -> tuple[list[TableauOperation], StabilizerTableau]:
+) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
     
     Args:
@@ -280,12 +353,12 @@ def eliminate_non_css(
         all_operations = swaps + single_qubit_ops
         return all_operations, final_tableau
 
-    return operations.operations, final_tableau
+    return operations, final_tableau
 
 
-def eliminate_css(
-    matrix: CheckMatrix, optimization_criterion: str = "gates"
-) -> tuple[list[TableauOperation], CheckMatrix]:
+def eliminate_cnot(
+        matrix: CheckMatrix, optimization_criterion: str = "gates", exact: bool = True
+) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
     
     Args:
@@ -300,10 +373,17 @@ def eliminate_css(
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     target_rank = mod2.rank(matrix.matrix)
-    config = EliminationConfig.for_css(
-        target_rank=target_rank,
-        optimization_criterion=optimization_criterion
-    )
+    if exact:
+        config = EliminationConfig.for_cnot_exact(
+            target_rank=target_rank,
+            optimization_criterion=optimization_criterion
+        )
+    else:
+        config = EliminationConfig.for_cnot_up_to_row_ops(
+            target_rank=target_rank,
+            optimization_criterion=optimization_criterion
+        )
+            
     operations, final_matrix = eliminate(matrix, config)
     
     if matrix.is_z_type():
@@ -311,7 +391,7 @@ def eliminate_css(
             if isinstance(op, CNOT):
                 op.control, op.target = op.target, op.control
 
-    return operations.operations, final_matrix
+    return operations, final_matrix
 
         
 def eliminate_non_css_with_lookahead(
@@ -319,7 +399,7 @@ def eliminate_non_css_with_lookahead(
     optimization_criterion: str = "gates",
     lookahead: int = 1,
     num_lookahead_candidates: int = 10,
-) -> tuple[list[TableauOperation], StabilizerTableau]:
+) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
     
     Args:
@@ -341,7 +421,7 @@ def eliminate_non_css_with_lookahead(
         num_lookahead_candidates=num_lookahead_candidates,
     )
     operations, final_tableau = eliminate(tableau, config)
-    return operations.operations, final_tableau
+    return operations, final_tableau
 
 
 @dataclass
@@ -368,6 +448,12 @@ class CheckMatrix:
         n = self.matrix.shape[1]
         identity = np.eye(n, dtype=np.int8)
         return np.array_equal(self.matrix, identity)
+
+    def __eq__(self, o: object) -> bool:
+        """Check equality with another CheckMatrix."""
+        if not isinstance(o, CheckMatrix):
+            return NotImplemented
+        return np.array_equal(self.matrix, o.matrix) and self.type == o.type
 
 BinaryMatrix = CheckMatrix | StabilizerTableau
 
@@ -857,60 +943,6 @@ class Swap(TableauOperation):
         return {self.qubit_a, self.qubit_b}
 
 
-class EliminationSequence:
-    """Class representing a sequence of tableau operations."""
-
-    def __init__(self, operations: list[TableauOperation]) -> None:
-        """Initialize the elimination sequence.
-
-        Args:
-            operations: A list of tableau operations.
-        """
-        self.operations = operations
-
-    def to_circuit(self) -> stim.Circuit:
-        """Convert the elimination sequence to a Stim circuit.
-
-        Returns:
-            stim.Circuit: The Stim circuit representing the elimination sequence.
-        """
-        circuit = stim.Circuit()
-        for op in self.operations:
-            op.append_to_circuit(circuit)
-        return circuit
-
-    def num_two_qubit_gates(self) -> int:
-        """Count the number of two-qubit gates in the elimination sequence.
-
-        Returns:
-            int: The number of two-qubit gates.
-        """
-        count = 0
-        for op in self.operations:
-            if isinstance(op, (Transvection, CNOT, Swap)):
-                count += 1
-        return count
-
-    def num_transvections(self) -> int:
-        """Count the number of transvections in the elimination sequence.
-
-        Returns: int: The number of transvections.
-        """
-        count = 0
-        for op in self.operations:
-            if isinstance(op, Transvection):
-                count += 1
-        return count
-
-    def add_operation(self, op: TableauOperation) -> None:
-        """Add a tableau operation to the elimination sequence.
-
-        Args:
-            op: The tableau operation to add.
-        """
-        self.operations.append(op)
-
-
 class OperationFilter(ABC):
     """Abstract base class for filtering tableau operations."""
 
@@ -993,39 +1025,94 @@ class EliminationConfig:
         [EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]
     ] = lambda ops, tbl: (ops, tbl)
 
+    
+
     @classmethod
-    def for_css(
-        cls,
-        target_rank: int,
-        optimization_criterion: str = "gates",
-        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    def for_cnot_up_to_row_ops(
+    cls,
+    target_rank: int,
+    optimization_criterion: str = "gates",
+    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+) -> EliminationConfig:
         """Create configuration for CSS code elimination.
-        
+    
         Args:
             target_rank: The target rank of the check matrix after elimination.
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
             callback: Optional callback function invoked after each elimination step.
-            
+
         Returns:
             EliminationConfig configured for CSS code elimination.
-            
+
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
         """
-        if optimization_criterion not in ("gates", "depth"):
+        if optimization_criterion not in {"gates", "depth"}:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
-        
+
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
-        
+
+        def termination_criterion(tbl: BinaryMatrix) -> bool:
+            if not isinstance(tbl, (CheckMatrix)):
+                msg = "CSS elimination can only be applied to CheckMatrix instances."
+                raise TypeError(msg)
+            
+            matrix = tbl.matrix
+            # exactly rank columns with exactly one non-zero entry
+            non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+            return non_zero_columns == target_rank
+
         return cls(
-            termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == target_rank,
+            termination_criterion=termination_criterion,
             candidate_generator=GreedyCNOTGenerator(),
             filters=filters,
             callback=callback,
         )
     
+    @classmethod
+    def for_cnot_exact(
+    cls,
+    target_rank: int,
+    optimization_criterion: str = "gates",
+    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+) -> EliminationConfig:
+        """Create configuration for CSS code elimination.
+    
+        Args:
+            target_rank: The target rank of the check matrix after elimination.
+            optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+            callback: Optional callback function invoked after each elimination step.
+
+        Returns:
+            EliminationConfig configured for CSS code elimination.
+
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+        if optimization_criterion not in {"gates", "depth"}:
+            msg = f"Unsupported optimization criterion: {optimization_criterion}"
+            raise ValueError(msg)
+
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+
+        def termination_criterion(tbl: BinaryMatrix) -> bool:
+            if not isinstance(tbl, (CheckMatrix)):
+                msg = "CSS elimination can only be applied to CheckMatrix instances."
+                raise TypeError(msg)
+            
+            matrix = tbl.matrix
+            # exactly rank columns with exactly one non-zero entry
+            one_columns = (np.sum(matrix, axis=0) == 1).sum()
+            return one_columns == target_rank
+
+        return cls(
+            termination_criterion=termination_criterion,
+            candidate_generator=GreedyCNOTGenerator(),
+            filters=filters,
+            callback=callback,
+        )
+
     @classmethod
     def for_non_css(
         cls,
@@ -1040,24 +1127,23 @@ class EliminationConfig:
             
         Returns:
             EliminationConfig configured for non-CSS code elimination with post-processing.
-            
-        Raises:
+        -        Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
         """
-        if optimization_criterion not in ("gates", "depth"):
+        if optimization_criterion not in {"gates", "depth"}:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
         
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
-        
+
         return cls(
             termination_criterion=is_terminal_transvection,
             candidate_generator=GreedyTransvectionGenerator(),
             filters=filters,
             callback=callback,
-            post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(ops, tbl),
-        )
-    
+            post_process_fn=reduce_single_qubit_gates_and_swaps,
+         )
+        
     @classmethod
     def for_non_css_with_lookahead(
         cls,
@@ -1080,7 +1166,7 @@ class EliminationConfig:
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
         """
-        if optimization_criterion not in ("gates", "depth"):
+        if optimization_criterion not in {"gates", "depth"}:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
         
@@ -1106,7 +1192,7 @@ class EliminationConfig:
             ),
             filters=filters,
             callback=callback,
-            post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(ops, tbl),
+            post_process_fn=reduce_single_qubit_gates_and_swaps,
         )
 
 
@@ -1328,7 +1414,7 @@ def reduce_with_swaps(
         A tuple of (swap_sequence, tableau_after_swaps) where the blocks are now diagonal.
     """
     tableau_copy = tableau.copy()
-    n = get_n(tableau)
+    get_n(tableau)
 
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
 
@@ -1365,10 +1451,10 @@ def reduce_with_single_qubit_cliffords(
         clifford_sequence.add_operation(op)
         tableau_copy = op.apply(tableau_copy, inplace=True)
 
+
     pauli_ops = fix_tableau_signs_in_place(tableau_copy)
     for op in pauli_ops:
         clifford_sequence.add_operation(op)
-
     return clifford_sequence, tableau_copy
 
 
@@ -1392,9 +1478,9 @@ def reduce_single_qubit_gates_and_swaps(
     
     clifford_seq, final_tableau = reduce_with_single_qubit_cliffords(tableau_after_swaps)
     
-    combined_sequence = EliminationSequence(swap_seq.operations + clifford_seq.operations)
+    operations.extend(EliminationSequence(swap_seq.operations + clifford_seq.operations))
     
-    return combined_sequence, final_tableau
+    return operations, final_tableau
 
 
 def reduce_without_swaps(
@@ -1516,6 +1602,7 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
             op = PauliOperation(i, "Z")
         else:
             continue
+        ops.append(op)
         op.apply(tableau, inplace=True)
 
     return ops
@@ -1533,7 +1620,7 @@ def get_n(tableau: BinaryMatrix) -> int:
     if isinstance(tableau, StabilizerTableau):
         return tableau.n
 
-    return tableau.shape[1]
+    return tableau.matrix.shape[1]
 
 
 def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
@@ -1554,7 +1641,7 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
                 continue
             op = CNOT(i, j)
             matrix = op.apply(matrix, inplace=True)
-            weight_after = int(matrix.sum())
+            weight_after = int(matrix.matrix.sum())
             candidates.append((op, weight_after))
             matrix = op.apply(matrix, inplace=True)
 
@@ -1583,7 +1670,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         lookahead: int,
         num_lookahead_candidates: int,
         score_fn: Callable[[EliminationSequence], tuple[int, bool]],
-    ):
+    ) -> None:
         self.base_config = base_config
         self.lookahead = lookahead
         self.num_lookahead_candidates = num_lookahead_candidates
