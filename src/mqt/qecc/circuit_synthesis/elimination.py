@@ -53,7 +53,7 @@ class EliminationSequence:
         Returns:
             stim.Circuit: The Stim circuit representing the inverse elimination sequence.
         """
-        self.to_circuit().inverse()
+        return self.to_circuit().inverse()
 
     def num_two_qubit_gates(self) -> int:
         """Count the number of two-qubit gates in the elimination sequence.
@@ -590,6 +590,7 @@ class Transvection(TableauOperation):
             raise ValueError(msg)
 
         basis_change = {"Z": [], "X": ["H"], "Y": ["S", "H"]}
+        undo_basis_change = {"Z": [], "X": ["H"], "Y": ["H", "S"]}
         for g in basis_change[p_i]:
             circuit.append(g, [i])
         for g in basis_change[p_j]:
@@ -599,9 +600,9 @@ class Transvection(TableauOperation):
         circuit.append("S", [i])
         circuit.append("S", [j])
 
-        for g in basis_change[p_j]:
+        for g in undo_basis_change[p_j]:
             circuit.append(g, [j])
-        for g in basis_change[p_j]:
+        for g in undo_basis_change[p_i]:
             circuit.append(g, [i])
 
     def qubits(self) -> set[int]:
@@ -733,7 +734,21 @@ class SingleQubitClifford(TableauOperation):
         Args:
             circuit (stim.Circuit): The Stim circuit to append the operation to.
         """
-        circuit.append(self.clifford, [self.qubit])
+        if self.clifford in {"H", "S", "I"}:
+            circuit.append(self.clifford, [self.qubit])
+        elif self.clifford == "HS":
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
+        elif self.clifford == "SH":
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
+        elif self.clifford == "HSH":
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
