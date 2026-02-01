@@ -255,6 +255,7 @@ nd = "nd"
 ignore = [
   "GH200", # We use Renovate instead of Dependabot
   "PC160", # We use a mirror of crate-ci/typos
+  "PC170", # We do not use rST files anymore
 ]
 
 
