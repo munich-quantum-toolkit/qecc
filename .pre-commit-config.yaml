@@ -124,6 +124,18 @@ repos:
 
   # Priority 2+: Final checks and fixers
 
+  ## Clean Jupyter notebooks
+  - repo: https://github.com/srstevenson/nb-clean
+    rev: 4.0.1
+    hooks:
+      - id: nb-clean
+        args:
+          - --remove-empty-cells
+          - --preserve-cell-metadata
+          - raw_mimetype
+          - --
+        priority: 2
+
   ## Also run Black on examples in the documentation (needs to run after ruff format)
   - repo: https://github.com/adamchainz/blacken-docs
     rev: 1.20.0
