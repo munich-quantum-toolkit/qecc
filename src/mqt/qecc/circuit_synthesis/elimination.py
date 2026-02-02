@@ -461,6 +461,11 @@ class CheckMatrix:
             return NotImplemented
         return np.array_equal(self.matrix, o.matrix) and self.type == o.type
 
+    def __hash__(self) -> int:
+        """Compute the hash of the check matrix."""
+        return hash((self.matrix.tobytes(), self.type))
+
+    
 BinaryMatrix = CheckMatrix | StabilizerTableau
 
 
