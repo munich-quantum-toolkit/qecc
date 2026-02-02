@@ -118,6 +118,25 @@ class EliminationSequence:
         """Return reversed iterator over the tableau operations in the sequence."""
         return reversed(self.operations)
 
+    def depth(self) -> int:
+        """Estimate the circuit depth of the elimination sequence.
+
+        Returns:
+            int: The estimated circuit depth.
+        """
+        depth = 0
+        qubit_last_used: dict[int, int] = {}
+        for op in self.operations:
+            involved_qubits = op.qubits()
+            earliest_start = 0
+            for q in involved_qubits:
+                if q in qubit_last_used:
+                    earliest_start = max(earliest_start, qubit_last_used[q] + 1)
+            depth = max(depth, earliest_start + 1)
+            for q in involved_qubits:
+                qubit_last_used[q] = earliest_start
+        return depth
+
 
 def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[EliminationSequence, BinaryMatrix]:
     """Perform Gaussian elimination on the given stabilizer tableau.
@@ -205,7 +224,7 @@ class CandidateGenerator(ABC):
     """Abstract base class for generating candidate operations."""
 
     @abstractmethod
-    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
         """Generate sorted candidate operations for the current tableau.
 
         Args:
@@ -247,7 +266,7 @@ class SelectionStrategy(ABC):
 class GreedySelection(SelectionStrategy):
     """Always select the first candidate."""
 
-    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:
         """Select the first (best-scored) candidate.
 
         Args:
@@ -256,7 +275,7 @@ class GreedySelection(SelectionStrategy):
         Returns:
             The first candidate in the list.
         """
-        return candidates[0]
+        return candidates[0][0]
 
 
 class RandomSelection(SelectionStrategy):
@@ -270,7 +289,7 @@ class RandomSelection(SelectionStrategy):
         """
         self.k = k
 
-    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:
         """Randomly select one of the top-k candidates.
 
         Args:
@@ -279,7 +298,7 @@ class RandomSelection(SelectionStrategy):
         Returns:
             A randomly chosen candidate from the first k candidates.
         """
-        return random.choice(candidates[: self.k])
+        return random.choice(candidates[: self.k])[0]
 
 
 class GreedyTransvectionGenerator(CandidateGenerator):
@@ -289,7 +308,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         """Initialize the greedy transvection generator."""
         self.operation_history: list[TableauOperation] = []
 
-    def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
+    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
         """Generate transvection candidates sorted by heuristic score.
 
         Args:
@@ -300,7 +319,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         """
         return get_candidate_transvections(tableau)
 
-    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
         """Update operation history after applying an operation.
 
         Args:
@@ -370,8 +389,42 @@ def eliminate_non_css(
     return operations, final_tableau
 
 
+def eliminate_cnot_lookahead(
+    matrix: CheckMatrix,
+    optimization_criterion: str = "gates",
+    lookahead: int = 1,
+    num_lookahead_candidates: int = 10,
+) -> tuple[EliminationSequence, CheckMatrix]:
+    """Eliminate a CSS check matrix using CNOT operations with lookahead.
+
+    Args:
+        matrix: The CSS check matrix to eliminate.
+        optimization_criterion: Either "gates" or "depth" for optimization objective.
+        lookahead: Number of steps to look ahead in the synthesis.
+        num_lookahead_candidates: Number of top candidates to explore in lookahead.
+
+    Returns:
+        A tuple of (operations, final_matrix) where operations is the sequence
+        of CNOT operations and final_matrix is the reduced check matrix.
+
+    Raises:
+        ValueError: If optimization_criterion is not "gates" or "depth".
+    """
+    config = EliminationConfig.for_cnot_with_lookahead(
+        optimization_criterion=optimization_criterion,
+        lookahead=lookahead,
+        num_lookahead_candidates=num_lookahead_candidates,
+    )
+    operations, final_matrix = eliminate(matrix, config)
+    return operations, final_matrix
+
+
 def eliminate_cnot(
-    matrix: CheckMatrix, optimization_criterion: str = "gates", exact: bool = True
+    matrix: CheckMatrix,
+    optimization_criterion: str = "gates",
+    exact: bool = True,
+    lookahead: int = 0,
+    num_lookahead_candidates: int = 10,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
@@ -391,8 +444,23 @@ def eliminate_cnot(
 
     target_rank = mod2.rank(matrix.matrix)
     if exact:
-        config = EliminationConfig.for_cnot_exact(
-            target_rank=target_rank, optimization_criterion=optimization_criterion
+        if lookahead > 0:
+            config = EliminationConfig.for_cnot_with_lookahead_exact(
+                target_rank=target_rank,
+                optimization_criterion=optimization_criterion,
+                lookahead=lookahead,
+                num_lookahead_candidates=num_lookahead_candidates,
+            )
+        else:
+            config = EliminationConfig.for_cnot_exact(
+                target_rank=target_rank, optimization_criterion=optimization_criterion
+            )
+    elif lookahead > 0:
+        config = EliminationConfig.for_cnot_with_lookahead_up_to_row_ops(
+            optimization_criterion=optimization_criterion,
+            lookahead=lookahead,
+            num_lookahead_candidates=num_lookahead_candidates,
+            target_rank=target_rank,
         )
     else:
         config = EliminationConfig.for_cnot_up_to_row_ops(
@@ -978,7 +1046,7 @@ class OperationFilter(ABC):
     """Abstract base class for filtering tableau operations."""
 
     @abstractmethod
-    def filter(self, operations: list[TableauOperation]) -> list[TableauOperation]:
+    def filter(self, operations: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
         """Filter the given list of tableau operations.
 
         Args:
@@ -1009,7 +1077,7 @@ class ParallelFilter(OperationFilter):
         """
         self.blocked_qubits: set[int] = set()
 
-    def filter(self, operations: list[TableauOperation]) -> list[TableauOperation]:
+    def filter(self, operations: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
         """Filter the given list of tableau operations.
 
         Args:
@@ -1019,7 +1087,9 @@ class ParallelFilter(OperationFilter):
             A filtered list of tableau operations.
         """
         filtered_ops: list[TableauOperation] = [
-            op for op in operations if not any(qubit in self.blocked_qubits for qubit in op.qubits())
+            (op, score)
+            for (op, score) in operations
+            if not any(qubit in self.blocked_qubits for qubit in op.qubits() if score > 0)
         ]
         if not filtered_ops:
             self._reset()
@@ -1222,6 +1292,130 @@ class EliminationConfig:
             filters=filters,
             callback=callback,
             post_process_fn=reduce_single_qubit_gates_and_swaps,
+        )
+
+    @classmethod
+    def for_cnot_with_lookahead_up_to_row_ops(
+        cls,
+        target_rank: int,
+        lookahead: int = 1,
+        num_lookahead_candidates: int = 10,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        r"""Create configuration for CSS elimination with lookahead.
+
+        Args:
+            target_rank: The target rank of the check matrix after elimination.
+            lookahead: Number of steps to look ahead when selecting operations.
+            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            callback: Optional callback function invoked after each elimination step.
+
+        Returns:
+            EliminationConfig configured for CSS code elimination with lookahead.
+
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+
+        def termination_criterion(tbl: BinaryMatrix) -> bool:
+            if not isinstance(tbl, (CheckMatrix)):
+                msg = "CSS elimination can only be applied to CheckMatrix instances."
+                raise TypeError(msg)
+
+            matrix = tbl.matrix
+            # exactly rank columns with exactly one non-zero entry
+            non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+            return non_zero_columns == target_rank
+
+        base_config = EliminationConfig.for_cnot_up_to_row_ops(
+            target_rank=target_rank,
+            optimization_criterion=optimization_criterion,
+            callback=None,
+        )
+
+        def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+            return (
+                (ops.num_cnots(), ops.num_cnots() <= 1)
+                if optimization_criterion == "gates"
+                else (
+                    ops.depth(),
+                    ops.depth() <= 1,
+                )
+            )
+
+        return EliminationConfig(
+            termination_criterion=base_config.termination_criterion,
+            candidate_generator=LookaheadCandidateGenerator(
+                base_config,
+                lookahead,
+                num_lookahead_candidates,
+                _score_fn,
+            ),
+            filters=base_config.filters,
+            callback=callback,
+        )
+
+    @classmethod
+    def for_cnot_with_lookahead_exact(
+        cls,
+        target_rank: int,
+        lookahead: int = 1,
+        num_lookahead_candidates: int = 10,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        r"""Create configuration for CSS elimination with lookahead.
+
+        Args:
+            target_rank: The target rank of the check matrix after elimination.
+            lookahead: Number of steps to look ahead when selecting operations.
+            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            callback: Optional callback function invoked after each elimination step.
+
+        Returns:
+            EliminationConfig configured for CSS code elimination with lookahead.
+
+        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+
+        def termination_criterion(tbl: BinaryMatrix) -> bool:
+            if not isinstance(tbl, (CheckMatrix)):
+                msg = "CSS elimination can only be applied to CheckMatrix instances."
+                raise TypeError(msg)
+
+            matrix = tbl.matrix
+            # exactly rank columns with exactly one non-zero entry
+            one_columns = (np.sum(matrix, axis=0) == 1).sum()
+            return one_columns == target_rank
+
+        base_config = EliminationConfig.for_cnot_exact(
+            target_rank=target_rank,
+            optimization_criterion=optimization_criterion,
+            callback=None,
+        )
+
+        def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+            return (
+                (ops.num_cnots(), ops.num_cnots() <= 1)
+                if optimization_criterion == "gates"
+                else (
+                    ops.depth(),
+                    ops.depth() <= 1,
+                )
+            )
+
+        return EliminationConfig(
+            termination_criterion=base_config.termination_criterion,
+            candidate_generator=LookaheadCandidateGenerator(
+                base_config,
+                lookahead,
+                num_lookahead_candidates,
+                _score_fn,
+            ),
+            filters=base_config.filters,
+            callback=callback,
         )
 
 
@@ -1427,7 +1621,7 @@ def get_candidate_transvections(
             scores.append((op, h_vec))
 
     scores.sort(key=operator.itemgetter(1))
-    return [tv for tv, _ in scores]
+    return [(tv, score) for tv, score in scores]
 
 
 def reduce_with_swaps(
@@ -1662,6 +1856,7 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
     matrix = matrix.copy()
     n = get_n(matrix)
     candidates: list[tuple[CNOT, int]] = []
+    weight_before = int(matrix.matrix.sum())
     for i in range(n):
         for j in range(n):
             if i == j:
@@ -1669,11 +1864,11 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
             op = CNOT(i, j)
             matrix = op.apply(matrix, inplace=True)
             weight_after = int(matrix.matrix.sum())
-            candidates.append((op, weight_after))
+            candidates.append((op, weight_after - weight_before))
             matrix = op.apply(matrix, inplace=True)
 
     candidates.sort(key=operator.itemgetter(1))
-    return [op for op, _ in candidates]
+    return [(op, score) for op, score in candidates]
 
 
 def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
@@ -1722,12 +1917,12 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        base_candidates = self.base_config.candidate_generator.get_candidates(tableau)
+        base_candidates = [cand for cand, _ in self.base_config.candidate_generator.get_candidates(tableau)]
         scored_candidates = _score_candidates_with_lookahead(
             tableau, base_candidates, self.num_lookahead_candidates, self._create_lookahead_config(), self.score_fn
         )
 
-        result = [op for op, _ in scored_candidates]
+        result = [(op, score) for op, score in scored_candidates]
         self._cache[cache_key] = result
         return result
 

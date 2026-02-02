@@ -225,6 +225,7 @@ class CNOTCircuit(CliffordIsometry):
 
     def __init__(self) -> None:
         """Initialize an empty CNOT circuit."""
+        super().__init__()
         self.cnots: list[tuple[int, int]] = []
         self._initializations: dict[int, str] = {}  # Dictionary mapping qubit index to initialization type ('Z' or 'X')
 

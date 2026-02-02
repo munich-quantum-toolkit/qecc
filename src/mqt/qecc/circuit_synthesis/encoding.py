@@ -20,46 +20,18 @@ import z3
 
 from ..codes import CSSCode
 from ..codes.pauli import StabilizerTableau
-from .circuits import CliffordIsometry, CNOTCircuit
-from .elimination import CheckMatrix, eliminate_cnot, eliminate_non_css_with_lookahead
-from .synthesis_utils import (
-    optimal_elimination,
-)
+from .circuits import CliffordIsometry
+from .elimination import CheckMatrix, eliminate_non_css_with_lookahead
+from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
     from ..codes import CSSCode, StabilizerCode
+    from .circuits import CNOTCircuit
 
 
 logger = logging.getLogger(__name__)
-
-
-def cnot_encoding_circuit(checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False) -> CNOTCircuit:
-    """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
-
-    Args:
-        code: The CSS code to synthesize the encoding circuit for.
-        balance_checks: Whether to balance the entries of the stabilizer matrix via row operations.
-
-    Returns:
-        The synthesized encoding circuit and the qubits that are used to encode the logical qubits.
-    """
-    logger.info("Starting encoding circuit synthesis.")
-
-    n_stab = checks.num_rows()
-
-    if balance_checks:
-        reduce_checks_by_row_ops(checks, logicals)
-
-    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
-    ops, reduced_checks = eliminate_cnot(mat, exact=False)
-    assert isinstance(reduced_checks, CheckMatrix)
-    encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
-    final_ops, logicals = eliminate_cnot(encoding_checks, exact=True)  # eliminate logical overlap
-    cnots = [(c.control, c.target) for c in reversed(ops)] + [(c.control, c.target) for c in reversed(final_ops)]
-
-    return _build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
 
 
 from ortools.sat.python import cp_model
@@ -582,7 +554,7 @@ def gate_optimal_encoding_circuit(
     if checks.type == "Z":
         cnots = [(j, i) for i, j in cnots]
 
-    return _build_css_encoder_from_cnot_list(
+    return build_css_encoder_from_cnot_list(
         CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
         CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
         cnots,
@@ -635,7 +607,7 @@ def depth_optimal_encoding_circuit(
     if checks.type == "Z":
         cnots = [(j, i) for i, j in cnots]
 
-    return _build_css_encoder_from_cnot_list(
+    return build_css_encoder_from_cnot_list(
         CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
         CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
         cnots,
@@ -681,92 +653,6 @@ def _final_matrix_constraint_partially_full_reduction(
     )
 
     return z3.And(fully_reduced, partially_reduced, z3.And(overlap_constraints))
-
-
-def _build_css_encoder_from_cnot_list(
-    checks: CheckMatrix, logicals: CheckMatrix, cnots: list[tuple[int, int]]
-) -> CNOTCircuit:
-    if checks.type != logicals.type:
-        msg = "Checks and logicals must be of the same type."
-        raise ValueError(msg)
-
-    check_matrix = checks.matrix
-    logical_matrix = logicals.matrix
-    n = checks.num_qubits()
-    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0]
-    if checks.type == "X":
-        hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
-    else:
-        hadamards = np.where(check_matrix.sum(axis=0) == 0)[0]
-
-    hadamards = np.setdiff1d(hadamards, encoding_qubits)
-    non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
-    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
-
-
-def reduce_checks_by_row_ops(
-    stabs: CheckMatrix,
-    logicals: CheckMatrix,
-) -> None:
-    """Try to reduce the total number of 1s in [checks; logicals] by row ops on *checks* only.
-
-    Allowed operation: for check rows i != j,
-        checks[j] <- checks[j] + checks[i] (mod 2)
-
-    Constraints:
-    - the new row must not have larger weight than *either* of the two rows we used
-      (same guard you had before),
-    - the *global* number of 1s across checks and logicals must strictly decrease.
-
-    The arrays are modified in place.
-    """
-    checks = stabs.matrix
-    logical_matrix = logicals.matrix
-    r, _n = checks.shape
-    # logicals can be empty (shape (0, n)), that's fine
-
-    def total_ones() -> int:
-        return int(checks.sum() + logical_matrix.sum())
-
-    improved = True
-    while improved:
-        improved = False
-        total_ones()
-
-        best_op: tuple[int, int] | None = None
-        best_delta = 0  # positive = global reduction
-
-        # try all check→check additions
-        for i in range(r):
-            row_i = checks[i]
-            w_i = int(row_i.sum())
-            for j in range(r):
-                if i == j:
-                    continue
-                row_j = checks[j]
-                w_j = int(row_j.sum())
-
-                s = (row_j + row_i) % 2
-                w_s = int(s.sum())
-
-                # enforce "don't increase row weight" constraint
-                if w_s > w_j or w_s > w_i:
-                    continue
-
-                # effect on global #ones:
-                # only row_j changes
-                delta = w_j - w_s  # positive = improvement
-                if delta <= 0:
-                    continue
-
-                if delta > best_delta:
-                    best_delta = delta
-                    best_op = (i, j)
-
-        if best_op is not None:
-            i, j = best_op
-            checks[j] = (checks[j] + checks[i]) % 2
-            improved = True
 
 
 def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
@@ -880,8 +766,8 @@ def synthesize_clifford(
     if tableau.is_css() and use_cnots_if_css:
         x_checks, z_checks = tableau.to_css()
         return cnot_encoding_circuit(
-            x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
             CheckMatrix(np.empty((0, tableau.n)), type="X"),
+            x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
         )
 
     ops, _ = eliminate_non_css_with_lookahead(

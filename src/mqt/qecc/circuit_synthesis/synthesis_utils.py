@@ -19,6 +19,9 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
+from .circuits import CNOTCircuit
+from .elimination import CheckMatrix, eliminate_cnot
+
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
@@ -92,15 +95,159 @@ def iterative_search_with_timeout(
 Objective = Literal["eliminations", "depth"]
 
 
+def cnot_encoding_circuit(
+    checks: CheckMatrix,
+    logicals: CheckMatrix,
+    balance_checks: bool = False,
+    optimize_depth: bool = True,
+    lookahead: int = 0,
+    lookahead_candidates: int = 5,
+) -> CNOTCircuit:
+    """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
+
+    Args:
+        checks: The stabilizer check matrix of the CSS code.
+        logicals: The logical operator matrix of the CSS code.
+        balance_checks: Whether to balance the entries of the stabilizer matrix via row operations.
+    optimize_depth: Whether to optimize for depth (True) or number of CNOTs (False).
+
+    Returns:
+        The synthesized encoding circuit and the qubits that are used to encode the logical qubits.
+    """
+    logger.info("Starting encoding circuit synthesis.")
+
+    n_stab = checks.num_rows()
+
+    optimization_criterion: Objective = "depth" if optimize_depth else "gates"
+    if balance_checks:
+        reduce_checks_by_row_ops(checks, logicals)
+
+    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
+    ops, reduced_checks = eliminate_cnot(
+        mat,
+        exact=False,
+        optimization_criterion=optimization_criterion,
+        lookahead=lookahead,
+        num_lookahead_candidates=lookahead_candidates,
+    )
+    assert isinstance(reduced_checks, CheckMatrix)
+    encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
+    final_ops, logicals = eliminate_cnot(
+        encoding_checks,
+        exact=True,
+        optimization_criterion=optimization_criterion,
+        lookahead=lookahead,
+        num_lookahead_candidates=lookahead_candidates,
+    )
+    cnots = [(c.control, c.target) for c in reversed(ops)] + [(c.control, c.target) for c in reversed(final_ops)]
+
+    return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
+
+
+def build_css_encoder_from_cnot_list(
+    checks: CheckMatrix, logicals: CheckMatrix, cnots: list[tuple[int, int]]
+) -> CNOTCircuit:
+    """Build a CSS encoding circuit from a list of CNOTs, given the stabilizers and logicals.
+
+    Args:
+        checks: The stabilizer check matrix of the CSS code.
+        logicals: The logical operator matrix of the CSS code.
+        cnots: The list of CNOT operations to apply.
+
+    Returns:
+        The synthesized encoding circuit.
+    """
+    if checks.type != logicals.type:
+        msg = "Checks and logicals must be of the same type."
+        raise ValueError(msg)
+
+    check_matrix = checks.matrix
+    logical_matrix = logicals.matrix
+    n = checks.num_qubits()
+    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0]
+    if checks.type == "X":
+        hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
+    else:
+        hadamards = np.where(check_matrix.sum(axis=0) == 0)[0]
+
+    hadamards = np.setdiff1d(hadamards, encoding_qubits)
+    non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
+
+
+def reduce_checks_by_row_ops(
+    stabs: CheckMatrix,
+    logicals: CheckMatrix,
+) -> None:
+    """Try to reduce the total number of 1s in [checks; logicals] by row ops on *checks* only.
+
+    Allowed operation: for check rows i != j,
+        checks[j] <- checks[j] + checks[i] (mod 2)
+
+    Constraints:
+    - the new row must not have larger weight than *either* of the two rows we used
+      (same guard you had before),
+    - the *global* number of 1s across checks and logicals must strictly decrease.
+
+    The arrays are modified in place.
+    """
+    checks = stabs.matrix
+    logical_matrix = logicals.matrix
+    r, _n = checks.shape
+    # logicals can be empty (shape (0, n)), that's fine
+
+    def total_ones() -> int:
+        return int(checks.sum() + logical_matrix.sum())
+
+    improved = True
+    while improved:
+        improved = False
+        total_ones()
+
+        best_op: tuple[int, int] | None = None
+        best_delta = 0  # positive = global reduction
+
+        # try all check→check additions
+        for i in range(r):
+            row_i = checks[i]
+            w_i = int(row_i.sum())
+            for j in range(r):
+                if i == j:
+                    continue
+                row_j = checks[j]
+                w_j = int(row_j.sum())
+
+                s = (row_j + row_i) % 2
+                w_s = int(s.sum())
+
+                # enforce "don't increase row weight" constraint
+                if w_s > w_j or w_s > w_i:
+                    continue
+
+                # effect on global #ones:
+                # only row_j changes
+                delta = w_j - w_s  # positive = improvement
+                if delta <= 0:
+                    continue
+
+                if delta > best_delta:
+                    best_delta = delta
+                    best_op = (i, j)
+
+        if best_op is not None:
+            i, j = best_op
+            checks[j] = (checks[j] + checks[i]) % 2
+            improved = True
+
+
 def heuristic_gaussian_elimination(
     matrix: npt.NDArray[np.int8],
     parallel_elimination: bool = True,
     objective: Objective = "eliminations",
-    lookahead_layers: int = 0,      # 0 = greedy, 1 = simulate-to-completion, n = n-layer lookahead
+    lookahead_layers: int = 0,  # 0 = greedy, 1 = simulate-to-completion, n = n-layer lookahead
     layer_topks: list[int] | None = None,  # e.g. [4096, 256, 32]
 ) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]]:
-    """
-    Gaussian elimination over GF(2) column space with arbitrary (layer-based) lookahead.
+    """Gaussian elimination over GF(2) column space with arbitrary (layer-based) lookahead.
 
     - objective="eliminations": minimize total column additions; ties by depth.
     - objective="depth": minimize number of parallel layers; ties by eliminations.
@@ -111,7 +258,7 @@ def heuristic_gaussian_elimination(
     layer_topks: list of candidate pool sizes per lookahead layer.
       - layer_topks[0] is used for the *current* layer (the real choice).
       - layer_topks[1] for the next layer in the lookahead, etc.
-      - if we run out of values, we fall back to “simulate to completion” from there.
+      - if we run out of values, we fall back to "simulate to completion" from there.
 
     Example:
       lookahead_layers=3, layer_topks=[2048, 256, 32]
@@ -178,11 +325,7 @@ def heuristic_gaussian_elimination(
 
     # ----- simulation primitives -----
     def greedy_pick(c: npt.NDArray[np.int64], used_mask: list[int]) -> tuple[int, int] | None:
-        cu = (
-            mask_used(c, used_mask)
-            if parallel_elimination
-            else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))
-        )  # type: ignore[no-untyped-call]
+        cu = mask_used(c, used_mask) if parallel_elimination else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))  # type: ignore[no-untyped-call]
         if (cu.count() == 0) or np.all(cu >= 0):
             return None
         return exact_argmin_pair(cu, c.shape)
@@ -254,11 +397,7 @@ def heuristic_gaussian_elimination(
         total_layers += lay_inc
 
         while not is_reduced(m):
-            cu = (
-                mask_used(c, used_mask)
-                if parallel_elimination
-                else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))
-            )  # type: ignore[no-untyped-call]
+            cu = mask_used(c, used_mask) if parallel_elimination else np.ma.array(c, mask=np.zeros_like(c, dtype=bool))  # type: ignore[no-untyped-call]
             if (cu.count() == 0) or np.all(cu >= 0):
                 # triangularize at boundary
                 m = mod2.row_echelon(m, full=True)[0]
@@ -277,8 +416,7 @@ def heuristic_gaussian_elimination(
         used_mask0: list[int],
         layer_idx: int,
     ) -> tuple[int, int]:
-        """
-        Recursively score the best future starting from the boundary (m0,c0,used_mask0)
+        """Recursively score the best future starting from the boundary (m0,c0,used_mask0)
         looking ahead from layer `layer_idx`.
         Returns (steps, layers) from this point on.
         """
@@ -287,11 +425,7 @@ def heuristic_gaussian_elimination(
             return simulate_to_completion(m0, c0, used_mask0, first_move=None)
 
         # build candidate set for this lookahead layer
-        cu = (
-            mask_used(c0, used_mask0)
-            if parallel_elimination
-            else np.ma.array(c0, mask=np.zeros_like(c0, dtype=bool))
-        )  # type: ignore[no-untyped-call]
+        cu = mask_used(c0, used_mask0) if parallel_elimination else np.ma.array(c0, mask=np.zeros_like(c0, dtype=bool))  # type: ignore[no-untyped-call]
 
         # if no candidates, just simulate to completion
         if (cu.count() == 0) or np.all(cu >= 0):
@@ -301,7 +435,7 @@ def heuristic_gaussian_elimination(
         cands = topk_candidates(c0, cu, k)
 
         best_score: tuple[int, int, int, int, int] | None = None
-        for (ci, cj) in cands:
+        for ci, cj in cands:
             # finish THIS layer starting with (ci,cj)
             m1, c1, used1, steps_inc1, lay_inc1 = rollout_current_layer(m0, c0, used_mask0, (ci, cj))
 
@@ -356,7 +490,7 @@ def heuristic_gaussian_elimination(
 
             best_key = None
             best_move = None
-            for (ci, cj) in cand0:
+            for ci, cj in cand0:
                 # finish current layer with this real move
                 m1, c1, used1, steps_inc1, lay_inc1 = rollout_current_layer(mat, costs, used_mask_main, (ci, cj))
 

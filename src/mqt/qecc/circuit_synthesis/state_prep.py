@@ -19,10 +19,11 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
+from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis_utils import (
-    heuristic_gaussian_elimination,
+    cnot_encoding_circuit,
     iterative_search_with_timeout,
     measure_flagged,
     odd_overlap,
@@ -195,20 +196,33 @@ def _build_state_prep_circuit_from_back(
     return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
-def heuristic_prep_circuit(code: CSSCode, zero_state: bool = True, **kwargs) -> FaultyStatePrepCircuit:
+def heuristic_prep_circuit(
+    code: CSSCode, zero_state: bool = True, optimize_depth=True, lookahead=1, lookahead_candidates=5
+) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
     Args:
         code: The CSS code to prepare the state for.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+        optimize_depth: If True, optimize the circuit for depth. If False, optimize for number of gates.
     """
     logger.info("Starting heuristic state preparation.")
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    checks, cnots = heuristic_gaussian_elimination(checks, **kwargs)
+    type_ = "X" if zero_state else "Z"
+    circ = cnot_encoding_circuit(
+        CheckMatrix(checks, type=type_),
+        CheckMatrix(np.empty((0, code.n), dtype=np.int8), type=type_),
+        optimize_depth=optimize_depth,
+        lookahead=lookahead,
+        lookahead_candidates=lookahead_candidates,
+    )
 
-    circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
+    # checks, cnots = heuristic_gaussian_elimination(checks)
+
+    # circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
+
     return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 
