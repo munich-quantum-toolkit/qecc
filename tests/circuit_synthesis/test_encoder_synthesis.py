@@ -29,7 +29,7 @@ from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
 from mqt.qecc.circuit_synthesis.encoding import (
     resynthesize_stim_circuit,
 )
-from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
+from mqt.qecc.codes.pauli import Pauli
 
 from .utils import eq_span, in_span
 
@@ -223,7 +223,7 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
     result = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
     assert result == "UNSAT"
 
-    
+
 @pytest.mark.parametrize(
     "circuit",
     [
@@ -233,17 +233,15 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
         stim.Circuit("H 0\nCX 0 1"),
         stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit with H and CX gates
         stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
-        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates 
+        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
     ],
 )
-@pytest.mark.parametrize("lookahead_depth", [0,1, 2])
+@pytest.mark.parametrize("lookahead_depth", [0, 1, 2])
 def test_resynthesize_stim_circuit(circuit: stim.Circuit, lookahead_depth: int) -> None:
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
     original_two_qubit_gates = num_two_qubit_gates(circuit)
-    resynthesized_circuit = resynthesize_stim_circuit(
-        circuit, lookahead_depth=lookahead_depth, top_k=5
-    )
+    resynthesized_circuit = resynthesize_stim_circuit(circuit, lookahead_depth=lookahead_depth, top_k=5)
     resynthesized_tableau = resynthesized_circuit.to_tableau()
     resynthesized_two_qubit_gates = num_two_qubit_gates(resynthesized_circuit)
 
@@ -252,6 +250,5 @@ def test_resynthesize_stim_circuit(circuit: stim.Circuit, lookahead_depth: int) 
         curr.append(gate)
 
     assert original_tableau == resynthesized_tableau
-    
-    assert resynthesized_two_qubit_gates <= original_two_qubit_gates
 
+    assert resynthesized_two_qubit_gates <= original_two_qubit_gates

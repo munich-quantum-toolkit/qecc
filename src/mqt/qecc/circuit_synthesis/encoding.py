@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import functools
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -21,15 +20,14 @@ import z3
 
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
+from .elimination import CheckMatrix, eliminate_cnot, eliminate_non_css_with_lookahead
 from .synthesis_utils import (
-    heuristic_gaussian_elimination,
     optimal_elimination,
 )
-from .elimination import (
-    eliminate_non_css_with_lookahead
-    )
 
 if TYPE_CHECKING:  # pragma: no cover
+    import numpy.typing as npt
+
     from ..codes import CSSCode
     from ..codes.css_code import CSSCode
 
@@ -49,43 +47,22 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
     """
     logger.info("Starting encoding circuit synthesis.")
 
-    checks, logicals, use_x_checks = _get_matrix_with_fewest_checks(code)
-    n_checks = checks.shape[0]
+    checks, logicals = _get_matrix_with_fewest_checks(code)
+    n_stab = checks.num_rows()
 
     if balance_checks:
         reduce_checks_by_row_ops(checks, logicals)
 
-    checks, cnots = heuristic_gaussian_elimination(np.vstack((checks, logicals)), **kwargs)
+    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
+    ops, reduced_checks = eliminate_cnot(mat, exact=False)
+    assert isinstance(reduced_checks, CheckMatrix)
+    encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
+    final_ops, logicals = eliminate_cnot(encoding_checks, exact=True)  # eliminate logical overlap
+    cnots = [(c.control, c.target) for c in reversed(ops)] + [(c.control, c.target) for c in reversed(final_ops)]
 
-    # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
-
-    encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]
-    initialization_qubits = np.where(checks[:n_checks, :].sum(axis=0) != 0)[0]
-    # remove encoding qubits from initialization qubits
-    initialization_qubits = np.setdiff1d(initialization_qubits, encoding_qubits)
-    # TODO: this can fail, need a more robust way
-    rows = []  # type: list[int]
-    qubit_to_row = {}
-    for qubit in initialization_qubits:
-        cand = np.where(checks[:n_checks, qubit] == 1)[0]
-        np.setdiff1d(cand, np.array(rows))
-        rows.append(cand[0])
-        qubit_to_row[qubit] = cand[0]
-
-    for init_qubit in initialization_qubits:
-        for encoding_qubit in encoding_qubits:
-            row = qubit_to_row[init_qubit]
-            if checks[row, encoding_qubit] == 1:
-                cnots.append((init_qubit, encoding_qubit))
-                checks[row, encoding_qubit] = 0
-
-    cnots = cnots[::-1]
-    return _build_css_encoder_from_cnot_list(n_checks, checks, cnots, use_x_checks)
+    return _build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
 
 
-from collections.abc import Callable
-
-import numpy.typing as npt
 from ortools.sat.python import cp_model
 
 
@@ -576,14 +553,15 @@ def gate_optimal_encoding_circuit(
         The synthesized encoding circuit and the qubits that are used to encode the logical qubits.
     """
     logger.info("Starting optimal encoding circuit synthesis.")
-    checks, logicals, use_x_checks = _get_matrix_with_fewest_checks(code)
+    checks, logicals = _get_matrix_with_fewest_checks(code)
     assert checks is not None
-    n_checks = checks.shape[0]
-    checks_and_logicals = np.vstack((checks, logicals))
+    n_checks = checks.num_rows()
+
+    checks_and_logicals = np.vstack((checks.matrix, logicals.matrix))
     rank = mod2.rank(checks_and_logicals)
     termination_criteria = functools.partial(
         _final_matrix_constraint_partially_full_reduction,
-        full_reduction_rows=list(range(checks.shape[0], checks.shape[0] + logicals.shape[0])),
+        full_reduction_rows=list(range(n_checks, n_checks + logicals.num_rows())),
         rank=rank,
     )
 
@@ -600,8 +578,14 @@ def gate_optimal_encoding_circuit(
         return None
     reduced_checks_and_logicals, cnots = res
     cnots = cnots[::-1]
+    if checks.type == "Z":
+        cnots = [(j, i) for i, j in cnots]
 
-    return _build_css_encoder_from_cnot_list(n_checks, reduced_checks_and_logicals, cnots, use_x_checks)
+    return _build_css_encoder_from_cnot_list(
+        CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
+        CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
+        cnots,
+    )
 
 
 def depth_optimal_encoding_circuit(
@@ -624,14 +608,14 @@ def depth_optimal_encoding_circuit(
         The synthesized encoding circuit and the qubits that are used to encode the logical qubits.
     """
     logger.info("Starting optimal encoding circuit synthesis.")
-    checks, logicals, use_x_checks = _get_matrix_with_fewest_checks(code)
+    checks, logicals = _get_matrix_with_fewest_checks(code)
     assert checks is not None
-    n_checks = checks.shape[0]
-    checks_and_logicals = np.vstack((checks, logicals))
+    n_checks = checks.num_rows()
+    checks_and_logicals = np.vstack((checks.matrix, logicals.matrix))
     rank = mod2.rank(checks_and_logicals)
     termination_criteria = functools.partial(
         _final_matrix_constraint_partially_full_reduction,
-        full_reduction_rows=list(range(checks.shape[0], checks.shape[0] + logicals.shape[0])),
+        full_reduction_rows=list(range(n_checks, n_checks + logicals.num_rows())),
         rank=rank,
     )
     res = optimal_elimination(
@@ -647,16 +631,23 @@ def depth_optimal_encoding_circuit(
         return None
     reduced_checks_and_logicals, cnots = res
     cnots = cnots[::-1]
+    if checks.type == "Z":
+        cnots = [(j, i) for i, j in cnots]
 
-    return _build_css_encoder_from_cnot_list(n_checks, reduced_checks_and_logicals, cnots, use_x_checks)
+    return _build_css_encoder_from_cnot_list(
+        CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
+        CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
+        cnots,
+    )
 
 
-def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], bool]:
+def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[CheckMatrix, CheckMatrix]:
     """Return the stabilizer matrix with the fewest checks, the corresponding logicals and a bool indicating whether X- or Z-checks have been returned."""
     use_x_checks = code.Hx.shape[0] < code.Hz.shape[0]
     checks = code.Hx if use_x_checks else code.Hz
     logicals = code.Lx if use_x_checks else code.Lz
-    return checks, logicals, use_x_checks
+    type_ = "X" if use_x_checks else "Z"
+    return CheckMatrix(checks, type_), CheckMatrix(logicals, type_)
 
 
 def _final_matrix_constraint_partially_full_reduction(
@@ -692,23 +683,29 @@ def _final_matrix_constraint_partially_full_reduction(
 
 
 def _build_css_encoder_from_cnot_list(
-    n_checks: int, checks_and_logicals: npt.NDArray[np.int8], cnots: list[tuple[int, int]], use_x_checks: bool
+    checks: CheckMatrix, logicals: CheckMatrix, cnots: list[tuple[int, int]]
 ) -> CNOTCircuit:
-    encoding_qubits = np.where(checks_and_logicals[n_checks:, :].sum(axis=0) != 0)[0]
-    if use_x_checks:
-        hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) != 0)[0]
+    if checks.type != logicals.type:
+        msg = "Checks and logicals must be of the same type."
+        raise ValueError(msg)
+
+    check_matrix = checks.matrix
+    logical_matrix = logicals.matrix
+    n = checks.num_qubits()
+    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0]
+    if checks.type == "X":
+        hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
     else:
-        hadamards = np.where(checks_and_logicals[:n_checks, :].sum(axis=0) == 0)[0]
-        cnots = [(j, i) for i, j in cnots]
+        hadamards = np.where(check_matrix.sum(axis=0) == 0)[0]
 
     hadamards = np.setdiff1d(hadamards, encoding_qubits)
-    non_hadamards = [i for i in range(checks_and_logicals.shape[1]) if i not in hadamards and i not in encoding_qubits]
+    non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
     return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
 
 
 def reduce_checks_by_row_ops(
-    checks: npt.NDArray[np.int8],
-    logicals: npt.NDArray[np.int8],
+    stabs: CheckMatrix,
+    logicals: CheckMatrix,
 ) -> None:
     """Try to reduce the total number of 1s in [checks; logicals] by row ops on *checks* only.
 
@@ -722,11 +719,13 @@ def reduce_checks_by_row_ops(
 
     The arrays are modified in place.
     """
+    checks = stabs.matrix
+    logical_matrix = logicals.matrix
     r, _n = checks.shape
     # logicals can be empty (shape (0, n)), that's fine
 
     def total_ones() -> int:
-        return int(checks.sum() + logicals.sum())
+        return int(checks.sum() + logical_matrix.sum())
 
     improved = True
     while improved:
@@ -874,9 +873,11 @@ def synthesize_clifford(
         lookahead_top_k: The number of candidates to consider during lookahead.
 
     Returns:
-        A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two    
+        A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two
     """
-    ops, _ = eliminate_non_css_with_lookahead(tableau, lookahead=lookahead_depth, num_lookahead_candidates=lookahead_top_k)
+    ops, _ = eliminate_non_css_with_lookahead(
+        tableau, lookahead=lookahead_depth, num_lookahead_candidates=lookahead_top_k
+    )
     return ops.to_circuit_inverse()
 
 
@@ -892,7 +893,7 @@ def resynthesize_stim_circuit(
         circ: The stim.Circuit to resynthesize.
         top_k: The number of candidates to consider during lookahead.
         lookahead_depth: The depth of lookahead to use in the synthesis.
-    
+
     Returns:
         A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
     """
@@ -902,4 +903,3 @@ def resynthesize_stim_circuit(
         lookahead_depth=lookahead_depth,
         lookahead_top_k=top_k,
     )
-    
