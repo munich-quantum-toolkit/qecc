@@ -35,6 +35,7 @@ class Pauli:
         self.n = symplectic.n
         self.symplectic = symplectic
         self.phase = phase
+        return None
 
     @classmethod
     def from_pauli_string(cls, p: str) -> Pauli:
@@ -47,6 +48,11 @@ class Pauli:
         z_part = np.array([c in "ZY" for c in p[pauli_start_index:]]).astype(np.int8)
         phase = int(p[0] == "-")
         return cls(SymplecticVector(np.concatenate((x_part, z_part))), phase)
+
+    @classmethod
+    def from_stim(cls, p: stim.PauliString) -> Pauli:
+        """Create a new Pauli operator from Stim representation."""
+        return cls.from_pauli_string(str(p))
 
     def commute(self, other: Pauli) -> bool:
         """Check if this Pauli operator commutes with another Pauli operator."""
@@ -271,7 +277,7 @@ class StabilizerTableau:
         Args:
             qubit: The index of the qubit to apply the Hadamard gate to.
         """
-        self.phase = (self.phase +self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 2
+        self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
         self.tableau[:, [qubit, qubit + self.n]] = self.tableau[:, [qubit + self.n, qubit]]
 
     def apply_cx(self, ctrl, tar) -> None:
@@ -290,7 +296,7 @@ class StabilizerTableau:
         self.tableau[:, tar] = (self.tableau[:, tar] + self.tableau[:, ctrl]) % 2
         self.tableau[:, ctrl + self.n] = (self.tableau[:, tar + self.n] + self.tableau[:, ctrl + self.n]) % 2
 
-    def apply_cz(self, ctrl, tar) -> None:
+    def apply_cz(self, ctrl: int, tar: int) -> None:
         """Apply the CZ gate to the stabilizer tableau.
 
         Args:
@@ -301,7 +307,7 @@ class StabilizerTableau:
         self.apply_cx(ctrl, tar)
         self.apply_h(tar)
 
-    def apply_swap(self, q1, q2) -> None:
+    def apply_swap(self, q1:int , q2:int ) -> None:
         """Apply the SWAP gate to the stabilizer tableau.
 
         Args:
@@ -318,23 +324,23 @@ class StabilizerTableau:
         Args:
             qubit: The index of the qubit to apply the S gate to.
         """
-        self.phase = (self.phase + self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 2
+        self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
         self.tableau[:, qubit + self.n] = (self.tableau[:, qubit + self.n] + self.tableau[:, qubit]) % 2
 
-    def apply_sdg(self, qubit) -> None:
+    def apply_sdg(self, qubit: int) -> None:
         """Apply the S† gate to the stabilizer tableau."""
         self.apply_s(qubit)
         self.apply_z(qubit)
 
-    def apply_x(self, qubit) -> None:
+    def apply_x(self, qubit:int ) -> None:
         """Apply the X gate to the stabilizer tableau."""
-        self.phase = (self.phase + self.tableau[:, qubit + self.n]) % 2
+        self.phase ^= self.tableau[:, qubit + self.n]
 
-    def apply_z(self, qubit) -> None:
+    def apply_z(self, qubit: int) -> None:
         """Apply the Z gate to the stabilizer tableau."""
         self.phase = (self.phase + self.tableau[:, qubit]) % 2
 
-    def apply_y(self, qubit) -> None:
+    def apply_y(self, qubit: int) -> None:
         """Apply the Y gate to the stabilizer tableau."""
         self.apply_x(qubit)
         self.apply_z(qubit)
