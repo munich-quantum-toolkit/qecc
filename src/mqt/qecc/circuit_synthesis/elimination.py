@@ -109,6 +109,17 @@ class EliminationSequence:
         """
         self.operations.extend(other.operations)
 
+    def __iter__(self) -> iter[TableauOperation]:
+        """Return iterator over the tableau operations in the sequence."""
+        return iter(self.operations)
+
+    def __reversed__(self) -> iter[TableauOperation]:
+        """Return reversed iterator over the tableau operations in the sequence."""
+        return reversed(self.operations)
+
+    
+
+    
         
 def eliminate(
     target_tableau: BinaryMatrix, config: EliminationConfig
