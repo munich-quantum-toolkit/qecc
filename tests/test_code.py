@@ -83,7 +83,7 @@ def test_symplectic() -> None:
     u = SymplecticVector(np.array([0, 0, 1, 0, 0, 0]))
     assert v @ u == 1
 
-    eye = SymplecticMatrix.identity(3)
+    eye = SymplecticMatrix.symplectic_identity(3)
     zero_mat = SymplecticMatrix.zeros(6, 3)
     assert eye + eye == zero_mat
     assert eye - eye == zero_mat
@@ -101,9 +101,9 @@ def test_symplectic() -> None:
     assert m.shape == (6, 6)
     assert m.n == 3
 
-    
+
 @pytest.mark.parametrize(
-    "tableau_matrix, expected",
+    ("tableau_matrix", "expected"),
     [
         (np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.int8), True),
         (np.array([[1, 0, 0, 1], [0, 1, 1, 0]], dtype=np.int8), False),
@@ -116,13 +116,15 @@ def test_is_css(tableau_matrix, expected) -> None:
 
 
 @pytest.mark.parametrize(
-    "tableau_fixture, expected_x_part, expected_z_part",
+    ("tableau_fixture", "expected_x_part", "expected_z_part"),
     [
-        ("identity_tableau", np.array([[1], [0]], dtype=np.int8), np.array([[0],[1]], dtype=np.int8)),
+        ("identity_tableau", np.array([[1], [0]], dtype=np.int8), np.array([[0], [1]], dtype=np.int8)),
         ("hadamard_tableau", np.array([[0], [1]], dtype=np.int8), np.array([[1], [0]], dtype=np.int8)),
     ],
 )
-def test_get_x_and_z_parts(tableau_fixture: str, expected_x_part: np.ndarray, expected_z_part: np.ndarray, request) -> None:
+def test_get_x_and_z_parts(
+    tableau_fixture: str, expected_x_part: np.ndarray, expected_z_part: np.ndarray, request
+) -> None:
     """Test the get_x_part and get_z_part methods with various tableaus."""
     tableau = request.getfixturevalue(tableau_fixture)
     x_part = tableau.get_x_part()
@@ -138,7 +140,7 @@ def test_stabilizer_tableau() -> None:
 
     with pytest.raises(InvalidPauliError):
         StabilizerTableau.from_paulis([])
-        
+
     m = SymplecticMatrix(np.array([[1, 0], [0, 1]]))
     with pytest.raises(InvalidPauliError):
         StabilizerTableau(m, np.array([1]))
@@ -155,7 +157,6 @@ def test_stabilizer_tableau() -> None:
 
     t4 = StabilizerTableau.from_pauli_strings(["ZII"])
     assert t1 != t4
-
 
     assert len(t1) == 3
 
@@ -189,7 +190,7 @@ def cnot_tableau() -> StabilizerTableau:
 
 
 @pytest.mark.parametrize(
-    "stim_tableau, expected_tableau_fixture",
+    ("stim_tableau", "expected_tableau_fixture"),
     [
         (stim.Tableau.from_named_gate("I"), "identity_tableau"),
         (stim.Tableau.from_named_gate("H"), "hadamard_tableau"),
@@ -206,7 +207,7 @@ def test_stabilizer_tableau_from_stim_tableau(
 
 
 @pytest.mark.parametrize(
-    "stim_circuit, expected_tableau_fixture",
+    ("stim_circuit", "expected_tableau_fixture"),
     [
         (stim.Circuit("I 0"), "identity_tableau"),
         (stim.Circuit("H 0"), "hadamard_tableau"),
@@ -446,8 +447,16 @@ def test_trivial_code() -> None:
     code = StabilizerCode.get_trivial_code(3)
     assert code.n == 3
     assert code.k == 3
-    assert code.x_logicals.to_pauli_list() == [Pauli.from_pauli_string("XII"), Pauli.from_pauli_string("IXI"), Pauli.from_pauli_string("IIX")]
-    assert code.z_logicals.to_pauli_list() == [Pauli.from_pauli_string("ZII"), Pauli.from_pauli_string("IZI"), Pauli.from_pauli_string("IIZ")]
+    assert code.x_logicals.to_pauli_list() == [
+        Pauli.from_pauli_string("XII"),
+        Pauli.from_pauli_string("IXI"),
+        Pauli.from_pauli_string("IIX"),
+    ]
+    assert code.z_logicals.to_pauli_list() == [
+        Pauli.from_pauli_string("ZII"),
+        Pauli.from_pauli_string("IZI"),
+        Pauli.from_pauli_string("IIZ"),
+    ]
     assert code.generators.n_rows == 0
 
 
@@ -557,7 +566,6 @@ def test_many_hypercube_code_level_2() -> None:
     assert code.n == 36
     assert code.k == 16
     assert code.distance == 4
-
 
 
 def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
