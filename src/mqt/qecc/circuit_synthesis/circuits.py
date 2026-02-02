@@ -176,6 +176,12 @@ class CliffordIsometry:
         if basis.capitalize() not in {"Z", "X"}:
             msg = "Initialization basis must be 'Z' or 'X'."
             raise ValueError(msg)
+
+        # remove from inputs
+        for idx, q in self._inputs.items():
+            if q == qubit:
+                del self._inputs[idx]
+                break
         self._initializations[qubit] = basis
 
     def get_plus_initialized(self) -> list[int]:

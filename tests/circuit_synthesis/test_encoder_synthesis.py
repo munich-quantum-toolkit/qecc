@@ -181,10 +181,10 @@ def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ign
     """Check that `gottesman_encoding_circuit` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
     tab = code.generators
-    encoder, message_qs = gottesman_encoding_circuit(tab)
+    encoder = gottesman_encoding_circuit(tab)
     assert encoder is not None
 
-    _assert_correct_encoding_circuit_non_css(encoder, message_qs, code)
+    _assert_correct_encoding_circuit_non_css(encoder.to_stim_circuit(), encoder.inputs(), code)
 
 
 def test_gottesman_encoding_invalid() -> None:

@@ -655,7 +655,7 @@ def _final_matrix_constraint_partially_full_reduction(
     return z3.And(fully_reduced, partially_reduced, z3.And(overlap_constraints))
 
 
-def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[stim.Circuit, list[int]]:
+def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> CliffordIsometry:
     """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
     Assumes all signs of the stabilizers are +1.
@@ -742,8 +742,10 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
     for row, sign in enumerate(signs):
         if sign == -1:
             circ.insert(0, stim.CircuitInstruction("X", [row]))
-    uninitialized = list(set(range(nq)) - set(initialized))
-    return circ, uninitialized
+    iso = CliffordIsometry.from_stim_circuit(circ)
+    for q in initialized:
+        iso.initialize_qubit(q, basis="Z")
+    return iso
 
 
 def synthesize_clifford(
