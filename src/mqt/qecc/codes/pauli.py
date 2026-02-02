@@ -210,7 +210,7 @@ class StabilizerTableau:
     @classmethod
     def identity(cls, n: int) -> StabilizerTableau:
         """Create a new identity stabilizer tableau."""
-        return cls(SymplecticMatrix.identity(n), np.zeros(0, dtype=np.int8))
+        return cls(SymplecticMatrix.identity(n), np.zeros(2*n, dtype=np.int8))
 
     @classmethod
     def from_matrix(cls, matrix: npt.NDArray[np.int8]) -> StabilizerTableau:
@@ -312,13 +312,13 @@ class StabilizerTableau:
         self.apply_cx(q2, q1)
         self.apply_cx(q1, q2)
 
-    def apply_s(self, qubit) -> None:
+    def apply_s(self, qubit: int) -> None:
         """Apply the S gate to the stabilizer tableau.
 
         Args:
             qubit: The index of the qubit to apply the S gate to.
         """
-        self.phase += self.tableau[:, qubit] * self.tableau[:, qubit + self.n] % 2
+        self.phase = (self.phase + self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 2
         self.tableau[:, qubit + self.n] = (self.tableau[:, qubit + self.n] + self.tableau[:, qubit]) % 2
 
     def apply_sdg(self, qubit) -> None:

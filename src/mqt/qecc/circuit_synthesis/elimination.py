@@ -532,7 +532,7 @@ class Transvection(TableauOperation):
     def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the transvection operation to the given stabilizer tableau.
 
-        This uses the logic from the `apply_tv2` function to apply a transvection.
+        This applies the transvection by simulating the circuit: basis change, CZ, S on both qubits, undo basis change.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
@@ -541,25 +541,59 @@ class Transvection(TableauOperation):
         if not isinstance(tableau, StabilizerTableau):
             msg = "Transvection operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
-        
-        tab = tableau.tableau
-        n = get_n(tableau)
+
+        out = tableau if inplace else tableau.copy()
+
         i = self.i
         j = self.j
-        cols_v = [i, j, i + n, j + n]
-        cols_ov = [i + n, j + n, i, j]
-        v_bits = np.array(self.v, dtype=np.int8)
-        nz = np.flatnonzero(v_bits)
+        xi, xj, zi, zj = self.v
 
-        c = np.zeros((2 * n,), dtype=np.int8)
-        for k in nz:
-            c ^= tab[:, cols_ov[k]]
+        paulis = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
+        p_i = paulis[xi, zi]
+        p_j = paulis[xj, zj]
 
-        out = tab if inplace else tab.copy()
+        if p_i == "I" or p_j == "I":
+            msg = f"Expected non-trivial Pauli on both qubits, got {p_i},{p_j}"
+            raise ValueError(msg)
 
-        for k in nz:
-            out[:, cols_v[k]] ^= c
-        return StabilizerTableau(out)
+        basis_change_map = {"Z": None, "X": "H", "Y": "SH"}
+        undo_basis_change_map = {"Z": None, "X": "H", "Y": "HS"}
+
+        basis_i = basis_change_map[p_i]
+        basis_j = basis_change_map[p_j]
+        undo_i = undo_basis_change_map[p_i]
+        undo_j = undo_basis_change_map[p_j]
+
+        if basis_i == "H":
+            out.apply_h(i)
+        elif basis_i == "SH":
+            out.apply_sdg(i)            
+            out.apply_h(i)
+            
+        if basis_j == "H":
+            out.apply_h(j)
+        elif basis_j == "SH":
+            out.apply_sdg(j)            
+            out.apply_h(j)
+
+
+        out.apply_cz(i, j)
+        out.apply_s(i)
+        out.apply_s(j)
+
+        if undo_j == "H":
+            out.apply_h(j)
+        elif undo_j == "HS":
+            out.apply_h(j)
+            out.apply_s(j)
+
+        if undo_i == "H":
+            out.apply_h(i)
+        elif undo_i == "HS":
+            out.apply_h(i)
+            out.apply_s(i)
+
+        return out
 
     @staticmethod
     def all_two_qubit_transvections() -> list[TV2]:
@@ -594,7 +628,7 @@ class Transvection(TableauOperation):
             msg = f"Expected non-trivial Pauli on both qubits, got {p_i},{p_j}"
             raise ValueError(msg)
 
-        basis_change = {"Z": [], "X": ["H"], "Y": ["S", "H"]}
+        basis_change = {"Z": [], "X": ["H"], "Y": ["S_DAG", "H"]}
         undo_basis_change = {"Z": [], "X": ["H"], "Y": ["H", "S"]}
         for g in basis_change[p_i]:
             circuit.append(g, [i])
@@ -846,8 +880,8 @@ elems: dict[str, np.ndarray] = {
     "I": identity,
     "H": hadamard,
     "S": phase,
-    "HS": _matmul2(hadamard, phase),
-    "SH": _matmul2(phase, hadamard),
+    "SH": _matmul2(hadamard, phase),
+    "HS": _matmul2(phase, hadamard),
     "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
 }
 
@@ -1616,16 +1650,16 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
     ker = mod2.nullspace(tableau_with_phase)
     assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
     correction_symplectic = ker[-1]
-    zc = correction_symplectic[:n]
-    xc = correction_symplectic[n:-1]
+    xc = correction_symplectic[:n]
+    zc = correction_symplectic[n:-1]
     ops = []
     for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
         if xv == 1 and zv == 1:
             op = PauliOperation(i, "Y")
         elif xv == 1:
-            op = PauliOperation(i, "X")
-        elif zv == 1:
             op = PauliOperation(i, "Z")
+        elif zv == 1:
+            op = PauliOperation(i, "X")
         else:
             continue
         ops.append(op)

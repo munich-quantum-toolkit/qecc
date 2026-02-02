@@ -12,6 +12,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.elimination import (
     CheckMatrix,
+    Transvection,
     eliminate_cnot,
     eliminate_non_css,
     eliminate_non_css_with_lookahead,
@@ -47,8 +48,6 @@ def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
         target_tableau,
     )
     assert result_tableau.is_identity()
-    print(result_tableau.to_pauli_list())
-    print(operations.apply(target_tableau).to_pauli_list())
     assert operations.apply(target_tableau) == result_tableau
     
 
@@ -108,5 +107,25 @@ def test_eliminate_cnot_up_to_row_ops(check_matrix: CheckMatrix, num_cnots: int,
     operations, result_matrix = eliminate_cnot(target_matrix, exact=True)
     assert operations.num_two_qubit_gates() == num_cnots
     assert operations.apply(target_matrix) == result_matrix
+
+
+def test_transvection_circuit_consistency() -> None:
+    """Test that all transvections produce circuits consistent with their tableau action."""
+    all_transvections = Transvection.all_two_qubit_transvections()
     
-    
+    for v in all_transvections:
+        i, j = 0, 1
+        transvection = Transvection(v, i, j)
+        
+        circuit = transvection.to_stim_circuit()
+        identity = StabilizerTableau.identity(2)
+        circuit_tableau = StabilizerTableau.from_stim_circuit(circuit)
+        result_tableau = transvection.apply(identity)
+        print(circuit_tableau.tableau)
+        print(result_tableau.tableau)
+        assert result_tableau == circuit_tableau
+        # inverse_circuit = circuit.inverse()
+        # tableau = StabilizerTableau.from_stim_circuit(inverse_circuit)
+        # print(inverse_circuit.to_tableau())
+        # result_tableau = transvection.apply(tableau)
+        # assert result_tableau.is_identity()
