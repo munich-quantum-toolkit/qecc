@@ -18,8 +18,9 @@ import numpy as np
 import stim
 import z3
 
+from ..codes import CSSCode
 from ..codes.pauli import StabilizerTableau
-from .circuits import CNOTCircuit
+from .circuits import CliffordIsometry, CNOTCircuit
 from .elimination import CheckMatrix, eliminate_cnot, eliminate_non_css_with_lookahead
 from .synthesis_utils import (
     optimal_elimination,
@@ -28,14 +29,13 @@ from .synthesis_utils import (
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
-    from ..codes import CSSCode
-    from ..codes.css_code import CSSCode
+    from ..codes import CSSCode, StabilizerCode
 
 
 logger = logging.getLogger(__name__)
 
 
-def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kwargs) -> CNOTCircuit:
+def cnot_encoding_circuit(checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
     Args:
@@ -47,7 +47,6 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
     """
     logger.info("Starting encoding circuit synthesis.")
 
-    checks, logicals = _get_matrix_with_fewest_checks(code)
     n_stab = checks.num_rows()
 
     if balance_checks:
@@ -64,6 +63,8 @@ def heuristic_encoding_circuit(code: CSSCode, balance_checks: bool = False, **kw
 
 
 from ortools.sat.python import cp_model
+
+from ..codes.css_code import CSSCode
 
 
 def depth_optimal_encoding_circuit_non_css(
@@ -861,24 +862,55 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
 
 def synthesize_clifford(
     tableau: StabilizerTableau,
-    *,
     lookahead_depth: int = 1,
     lookahead_top_k: int = 10,
-) -> stim.Circuit:
+    use_cnots_if_css: bool = True,
+) -> CliffordIsometry:
     """Synthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
     Args:
         tableau: The stabilizer tableau representing the Clifford operation to synthesize.
         lookahead_depth: The depth of lookahead to use in the synthesis.
         lookahead_top_k: The number of candidates to consider during lookahead.
+        use_cnots_if_css: Whether to use CNOT-only synthesis if the tableau is CSS.
 
     Returns:
         A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two
     """
+    if tableau.is_css() and use_cnots_if_css:
+        x_checks, z_checks = tableau.to_css()
+        return cnot_encoding_circuit(
+            x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
+            CheckMatrix(np.empty((0, tableau.n)), type="X"),
+        )
+
     ops, _ = eliminate_non_css_with_lookahead(
         tableau, lookahead=lookahead_depth, num_lookahead_candidates=lookahead_top_k
     )
-    return ops.to_circuit_inverse()
+    return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse())
+
+
+def synthesize_encoding_circuit(code: StabilizerCode) -> CliffordIsometry:
+    """Synthesize an encoding circuit for the given stabilizer code.
+
+    Args:
+        code: The stabilizer code to synthesize the encoding circuit for.
+
+    Returns:
+        A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
+    """
+    if isinstance(code, CSSCode):
+        x_checks = CheckMatrix(code.Hx, type="X")
+        z_checks = CheckMatrix(code.Hz, type="Z")
+        x_logicals = CheckMatrix(code.Lx, type="X")
+        z_logicals = CheckMatrix(code.Lz, type="Z")
+        checks, logicals = (
+            (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
+        )
+        return cnot_encoding_circuit(checks, logicals)
+
+    tableau = StabilizerTableau.from_stabilizer_code(code)
+    return synthesize_clifford(tableau, lookahead_depth=1, lookahead_top_k=10, use_cnots_if_css=True)
 
 
 def resynthesize_stim_circuit(
@@ -886,6 +918,7 @@ def resynthesize_stim_circuit(
     *,
     top_k: int = 10,
     lookahead_depth: int = 1,
+    use_cnots_if_css: bool = True,
 ) -> stim.Circuit:
     """Resynthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
@@ -893,6 +926,7 @@ def resynthesize_stim_circuit(
         circ: The stim.Circuit to resynthesize.
         top_k: The number of candidates to consider during lookahead.
         lookahead_depth: The depth of lookahead to use in the synthesis.
+        use_cnots_if_css: Whether to use CNOT-only synthesis if the circuit is CSS.
 
     Returns:
         A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
@@ -902,4 +936,5 @@ def resynthesize_stim_circuit(
         tableau,
         lookahead_depth=lookahead_depth,
         lookahead_top_k=top_k,
-    )
+        use_cnots_if_css=use_cnots_if_css,
+    ).to_stim_circuit()

@@ -35,7 +35,6 @@ class Pauli:
         self.n = symplectic.n
         self.symplectic = symplectic
         self.phase = phase
-        return None
 
     @classmethod
     def from_pauli_string(cls, p: str) -> Pauli:
@@ -216,7 +215,7 @@ class StabilizerTableau:
     @classmethod
     def identity(cls, n: int) -> StabilizerTableau:
         """Create a new identity stabilizer tableau."""
-        return cls(SymplecticMatrix.identity(n), np.zeros(2*n, dtype=np.int8))
+        return cls(SymplecticMatrix.identity(n), np.zeros(2 * n, dtype=np.int8))
 
     @classmethod
     def from_matrix(cls, matrix: npt.NDArray[np.int8]) -> StabilizerTableau:
@@ -307,7 +306,7 @@ class StabilizerTableau:
         self.apply_cx(ctrl, tar)
         self.apply_h(tar)
 
-    def apply_swap(self, q1:int , q2:int ) -> None:
+    def apply_swap(self, q1: int, q2: int) -> None:
         """Apply the SWAP gate to the stabilizer tableau.
 
         Args:
@@ -332,7 +331,7 @@ class StabilizerTableau:
         self.apply_s(qubit)
         self.apply_z(qubit)
 
-    def apply_x(self, qubit:int ) -> None:
+    def apply_x(self, qubit: int) -> None:
         """Apply the X gate to the stabilizer tableau."""
         self.phase ^= self.tableau[:, qubit + self.n]
 
@@ -366,7 +365,22 @@ class StabilizerTableau:
         """Check if the stabilizer tableau is in CSS form."""
         x_part = self.tableau.matrix[:, : self.n]
         z_part = self.tableau.matrix[:, self.n :]
-        return np.all(x_part[:, z_part.any(axis=0)] == 0) and np.all(z_part[:, x_part.any(axis=0)] == 0)
+        return np.all(x_part[z_part.any(axis=1)] == 0) and np.all(z_part[x_part.any(axis=1)] == 0)
+
+    def to_css(self) -> tuple[CheckMatrix, CheckMatrix]:
+        """Convert the stabilizer tableau to CSS check matrices.
+
+        Returns:
+            A tuple containing the X and Z check matrices.
+        """
+        if not self.is_css():
+            msg = "Stabilizer tableau is not in CSS form."
+            raise InvalidPauliError(msg)
+        x_part = self.get_x_part()
+        z_part = self.get_z_part()
+        x_checks = x_part[np.any(x_part, axis=1)]
+        z_checks = z_part[np.any(z_part, axis=1)]
+        return CheckMatrix(x_checks, "X"), CheckMatrix(z_checks, "Z")
 
     def get_x_part(self) -> npt.NDArray[np.int8]:
         """Get the X part of the stabilizer tableau."""
@@ -381,7 +395,7 @@ class StabilizerTableau:
 
         Args:
             q: The index of the qubit.
-        
+
         Returns:
             A 2x2 NumPy array representing the symplectic submatrix for the given
             qubit.
@@ -424,3 +438,57 @@ class InvalidPauliError(ValueError):
     def __init__(self, message: str) -> None:
         """Create a new InvalidPauliError."""
         super().__init__(message)
+
+
+class CheckMatrix:
+    """Type alias for CSS check matrices."""
+
+    matrix: np.ndarray[np.int8]
+    type: str
+
+    def __init__(self, matrix: np.ndarray[np.int8], type: str) -> None:
+        """Initialize the check matrix.
+
+        Args:
+            matrix: The binary check matrix.
+            type: The type of the check matrix, either 'X' or 'Z'.
+        """
+        assert type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
+        self.matrix = matrix
+        self.type = type
+
+    def is_x_type(self) -> bool:
+        """Check if the check matrix is of type 'X'."""
+        return self.type == "X"
+
+    def is_z_type(self) -> bool:
+        """Check if the check matrix is of type 'Z'."""
+        return self.type == "Z"
+
+    def copy(self) -> CheckMatrix:
+        """Create a copy of the check matrix."""
+        return CheckMatrix(self.matrix.copy(), self.type)
+
+    def is_identity(self) -> bool:
+        """Check if the check matrix is an identity matrix."""
+        n = self.matrix.shape[1]
+        identity = np.eye(n, dtype=np.int8)
+        return np.array_equal(self.matrix, identity)
+
+    def __eq__(self, o: object) -> bool:
+        """Check equality with another CheckMatrix."""
+        if not isinstance(o, CheckMatrix):
+            return NotImplemented
+        return np.array_equal(self.matrix, o.matrix) and self.type == o.type
+
+    def __hash__(self) -> int:
+        """Compute the hash of the check matrix."""
+        return hash((self.matrix.tobytes(), self.type))
+
+    def num_qubits(self) -> int:
+        """Get the number of qubits represented by the check matrix."""
+        return self.matrix.shape[1]
+
+    def num_rows(self) -> int:
+        """Get the number of rows in the check matrix."""
+        return self.matrix.shape[0]

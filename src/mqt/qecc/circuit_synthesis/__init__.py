@@ -13,11 +13,11 @@ from .cat_states import CatStatePreparationExperiment, cat_state_balanced_tree, 
 from .circuit_utils import qiskit_to_stim_circuit
 from .circuits import CNOTCircuit
 from .encoding import (
+    cnot_encoding_circuit,
     depth_optimal_encoding_circuit,
+    depth_optimal_encoding_circuit_non_css,
     gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
-    heuristic_encoding_circuit,
-    depth_optimal_encoding_circuit_non_css,
 )
 from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
@@ -47,7 +47,9 @@ __all__ = [
     "VerificationNDFTStatePrepSimulator",
     "cat_state_balanced_tree",
     "cat_state_line",
+    "cnot_encoding_circuit",
     "depth_optimal_encoding_circuit",
+    "depth_optimal_encoding_circuit_non_css",
     "depth_optimal_prep_circuit",
     "gate_optimal_encoding_circuit",
     "gate_optimal_prep_circuit",
@@ -60,5 +62,4 @@ __all__ = [
     "heuristic_verification_stabilizers",
     "naive_verification_circuit",
     "qiskit_to_stim_circuit",
-    "depth_optimal_encoding_circuit_non_css"
 ]

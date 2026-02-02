@@ -23,11 +23,11 @@ from mqt.qecc.circuit_synthesis import (
     depth_optimal_encoding_circuit_non_css,
     gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
-    heuristic_encoding_circuit,
 )
 from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
 from mqt.qecc.circuit_synthesis.encoding import (
     resynthesize_stim_circuit,
+    synthesize_encoding_circuit,
 )
 from mqt.qecc.codes.pauli import Pauli
 
@@ -135,7 +135,7 @@ def test_heuristic_encoding_consistent(code: CSSCode, request) -> None:  # type:
     """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code)
 
-    encoder = heuristic_encoding_circuit(code)
+    encoder = synthesize_encoding_circuit(code)
     encoder.get_uninitialized()
     assert encoder.num_qubits() == code.n
 
@@ -241,7 +241,9 @@ def test_resynthesize_stim_circuit(circuit: stim.Circuit, lookahead_depth: int) 
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
     original_two_qubit_gates = num_two_qubit_gates(circuit)
-    resynthesized_circuit = resynthesize_stim_circuit(circuit, lookahead_depth=lookahead_depth, top_k=5)
+    resynthesized_circuit = resynthesize_stim_circuit(
+        circuit, lookahead_depth=lookahead_depth, top_k=5, use_cnots_if_css=False
+    )
     resynthesized_tableau = resynthesized_circuit.to_tableau()
     resynthesized_two_qubit_gates = num_two_qubit_gates(resynthesized_circuit)
 

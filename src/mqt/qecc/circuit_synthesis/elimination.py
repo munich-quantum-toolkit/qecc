@@ -20,10 +20,11 @@ import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 
-from ..codes.pauli import StabilizerTableau
+from ..codes.pauli import CheckMatrix, StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
+
 
 class EliminationSequence:
     """Class representing a sequence of tableau operations."""
@@ -117,23 +118,18 @@ class EliminationSequence:
         """Return reversed iterator over the tableau operations in the sequence."""
         return reversed(self.operations)
 
-    
 
-    
-        
-def eliminate(
-    target_tableau: BinaryMatrix, config: EliminationConfig
-) -> tuple[EliminationSequence, BinaryMatrix]:
+def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[EliminationSequence, BinaryMatrix]:
     """Perform Gaussian elimination on the given stabilizer tableau.
-    
-    This is the main elimination engine that iteratively reduces a binary matrix or 
-    stabilizer tableau by applying a sequence of operations (e.g., CNOTs, transvections, 
-    single-qubit Cliffords) until a termination criterion is met. The function serves as 
+
+    This is the main elimination engine that iteratively reduces a binary matrix or
+    stabilizer tableau by applying a sequence of operations (e.g., CNOTs, transvections,
+    single-qubit Cliffords) until a termination criterion is met. The function serves as
     the workhorse for synthesizing quantum circuits from stabilizer codes and check matrices.
-    
+
     Args:
         target_tableau: The input binary matrix or stabilizer tableau to reduce.
-            Can be either a CheckMatrix (for CSS codes) or StabilizerTableau 
+            Can be either a CheckMatrix (for CSS codes) or StabilizerTableau
             (for general stabilizer codes).
         config: Configuration object specifying:
             - termination_criterion: Function that returns True when elimination is complete
@@ -142,17 +138,17 @@ def eliminate(
             - filters: List of filters to constrain candidate operations (optional)
             - callback: Function called after each operation for monitoring (optional)
             - post_process_fn: Function to finalize the result (optional)
-    
+
     Returns:
         A tuple containing:
         - EliminationSequence: The sequence of operations applied during elimination,
           which can be converted to a quantum circuit.
         - BinaryMatrix: The final reduced tableau after all operations are applied.
-    
+
     Raises:
         RuntimeError: If no candidate operations are available but the termination
             criterion has not been met, indicating the elimination cannot proceed.
-    
+
     Examples:
         >>> # CSS code elimination with greedy selection
         >>> config = EliminationConfig(
@@ -160,7 +156,7 @@ def eliminate(
         ...     candidate_generator=GreedyTransvectionGenerator(),
         ... )
         >>> operations, final_tableau = eliminate(check_matrix, config)
-        
+
         >>> # Non-CSS code elimination with depth optimization
         >>> config = EliminationConfig(
         ...     termination_criterion=is_terminal_transvection,
@@ -168,7 +164,7 @@ def eliminate(
         ...     filters=[ParallelFilter()],
         ... )
         >>> operations, final_tableau = eliminate(stabilizer_tableau, config)
-        
+
         >>> # Lookahead-based elimination
         >>> config = EliminationConfig(
         ...     termination_criterion=is_terminal_transvection,
@@ -176,7 +172,7 @@ def eliminate(
         ...     post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
         ... )
         >>> operations, final_tableau = eliminate(tableau, config)
-    
+
     See Also:
         - eliminate_css: High-level function for CSS code elimination
         - eliminate_non_css: High-level function for non-CSS code elimination
@@ -189,45 +185,45 @@ def eliminate(
     operations = EliminationSequence([])
     selection_strategy = config.selection_strategy or GreedySelection()
     iteration = 0
-    
+
     while not config.termination_criterion(tableau):
         candidate_ops = _get_filtered_candidates(tableau, config)
         _validate_candidates(candidate_ops)
-        
+
         op = selection_strategy.select(candidate_ops)
         tableau = op.apply(tableau, inplace=True)
         operations.add_operation(op)
-        
+
         _update_elimination_state(op, tableau, config)
         _invoke_callback(iteration, op, tableau, config)
         iteration += 1
-    
+
     return config.post_process_fn(operations, tableau)
 
 
 class CandidateGenerator(ABC):
     """Abstract base class for generating candidate operations."""
-    
+
     @abstractmethod
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate sorted candidate operations for the current tableau.
-        
+
         Args:
             tableau: The current binary matrix/tableau
-            
+
         Returns:
             A list of candidate operations, sorted by preference
         """
-    
+
     @abstractmethod
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         """Update internal state after an operation is applied.
-        
+
         Args:
             op: The operation that was just applied
             tableau: The resulting tableau after applying the operation
         """
-    
+
     @abstractmethod
     def reset(self) -> None:
         """Reset internal state (useful for lookahead simulations)."""
@@ -235,14 +231,14 @@ class CandidateGenerator(ABC):
 
 class SelectionStrategy(ABC):
     """Abstract base class for selecting the best operation from candidates."""
-    
+
     @abstractmethod
     def select(self, candidates: list[TableauOperation]) -> TableauOperation:
         """Select the best operation from candidates.
-        
+
         Args:
             candidates: List of candidate operations, typically sorted by preference.
-            
+
         Returns:
             The selected operation to apply.
         """
@@ -250,13 +246,13 @@ class SelectionStrategy(ABC):
 
 class GreedySelection(SelectionStrategy):
     """Always select the first candidate."""
-    
+
     def select(self, candidates: list[TableauOperation]) -> TableauOperation:
         """Select the first (best-scored) candidate.
-        
+
         Args:
             candidates: List of candidate operations.
-            
+
         Returns:
             The first candidate in the list.
         """
@@ -265,54 +261,54 @@ class GreedySelection(SelectionStrategy):
 
 class RandomSelection(SelectionStrategy):
     """Select a random candidate from top-k."""
-    
+
     def __init__(self, k: int = 3) -> None:
         """Initialize the random selection strategy.
-        
+
         Args:
             k: Number of top candidates to randomly choose from.
         """
         self.k = k
-    
+
     def select(self, candidates: list[TableauOperation]) -> TableauOperation:
         """Randomly select one of the top-k candidates.
-        
+
         Args:
             candidates: List of candidate operations.
-            
+
         Returns:
             A randomly chosen candidate from the first k candidates.
         """
-        return random.choice(candidates[:self.k])
-        
+        return random.choice(candidates[: self.k])
+
 
 class GreedyTransvectionGenerator(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
-    
+
     def __init__(self) -> None:
         """Initialize the greedy transvection generator."""
         self.operation_history: list[TableauOperation] = []
-    
+
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate transvection candidates sorted by heuristic score.
-        
+
         Args:
             tableau: The current stabilizer tableau.
-            
+
         Returns:
             List of transvection operations sorted by preference.
         """
         return get_candidate_transvections(tableau)
-    
+
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         """Update operation history after applying an operation.
-        
+
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.operation_history.append(op)
-    
+
     def reset(self) -> None:
         """Reset the operation history."""
         self.operation_history.clear()
@@ -320,89 +316,91 @@ class GreedyTransvectionGenerator(CandidateGenerator):
 
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
-    
+
     def __init__(self) -> None:
         """Initialize the greedy CNOT generator."""
         self.operation_history: list[TableauOperation] = []
-    
+
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate CNOT candidates sorted by heuristic score.
-        
+
         Args:
             tableau: The current check matrix.
-            
+
         Returns:
             List of CNOT operations sorted by preference.
         """
         return greedy_matrix_elimination_candidates(tableau)
-    
+
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         """Update operation history after applying an operation.
-        
+
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.operation_history.append(op)
-    
+
     def reset(self) -> None:
         """Reset the operation history."""
         self.operation_history.clear()
+
 
 def eliminate_non_css(
     tableau: StabilizerTableau, optimization_criterion: str = "gates"
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
-    
+
     Args:
         tableau: The stabilizer tableau to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         lookahead: Currently unused parameter for future lookahead support.
-        
+
     Returns:
         A tuple of (operations, final_tableau) where operations is the sequence
         of tableau operations and final_tableau is the reduced tableau.
-        
+
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     config = EliminationConfig.for_non_css(optimization_criterion=optimization_criterion)
-        
+
     operations, final_tableau = eliminate(tableau, config)
 
     return operations, final_tableau
 
 
 def eliminate_cnot(
-        matrix: CheckMatrix, optimization_criterion: str = "gates", exact: bool = True
+    matrix: CheckMatrix, optimization_criterion: str = "gates", exact: bool = True
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
-    
+
     Args:
         matrix: The CSS check matrix to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
-        
+
     Returns:
         A tuple of (operations, final_matrix) where operations is the sequence
         of CNOT operations and final_matrix is the reduced check matrix.
-        
+
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    if matrix.num_rows() == 0:
+        return EliminationSequence([]), matrix.copy()
+
     target_rank = mod2.rank(matrix.matrix)
     if exact:
         config = EliminationConfig.for_cnot_exact(
-            target_rank=target_rank,
-            optimization_criterion=optimization_criterion
+            target_rank=target_rank, optimization_criterion=optimization_criterion
         )
     else:
         config = EliminationConfig.for_cnot_up_to_row_ops(
-            target_rank=target_rank,
-            optimization_criterion=optimization_criterion
+            target_rank=target_rank, optimization_criterion=optimization_criterion
         )
-            
+
     operations, final_matrix = eliminate(matrix, config)
-    
+
     if matrix.is_z_type():
         for op in operations.operations:
             if isinstance(op, CNOT):
@@ -410,7 +408,7 @@ def eliminate_cnot(
 
     return operations, final_matrix
 
-        
+
 def eliminate_non_css_with_lookahead(
     tableau: StabilizerTableau,
     optimization_criterion: str = "gates",
@@ -418,17 +416,17 @@ def eliminate_non_css_with_lookahead(
     num_lookahead_candidates: int = 10,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
-    
+
     Args:
         tableau: The stabilizer tableau to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         lookahead: Number of steps to look ahead in the synthesis.
         num_lookahead_candidates: Number of top candidates to explore in lookahead.
-        
+
     Returns:
         A tuple of (operations, final_tableau) where operations is the sequence
         of tableau operations and final_tableau is the reduced tableau.
-        
+
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
@@ -441,60 +439,6 @@ def eliminate_non_css_with_lookahead(
     return operations, final_tableau
 
 
-class CheckMatrix:
-    """Type alias for CSS check matrices."""
-    
-    matrix: np.ndarray[np.int8]
-    type: str
-
-    def __init__(self, matrix: np.ndarray[np.int8], type: str) -> None:
-        """Initialize the check matrix.
-
-        Args:
-            matrix: The binary check matrix.
-            type: The type of the check matrix, either 'X' or 'Z'.
-        """
-        assert type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
-        self.matrix = matrix
-        self.type = type
-    
-
-    def is_x_type(self) -> bool:
-        """Check if the check matrix is of type 'X'."""
-        return self.type == "X"
-
-    def is_z_type(self) -> bool:
-        """Check if the check matrix is of type 'Z'."""
-        return self.type == "Z"
-
-    def copy(self) -> CheckMatrix:
-        """Create a copy of the check matrix."""
-        return CheckMatrix(self.matrix.copy(), self.type)
-
-    def is_identity(self) -> bool:
-        """Check if the check matrix is an identity matrix."""
-        n = self.matrix.shape[1]
-        identity = np.eye(n, dtype=np.int8)
-        return np.array_equal(self.matrix, identity)
-
-    def __eq__(self, o: object) -> bool:
-        """Check equality with another CheckMatrix."""
-        if not isinstance(o, CheckMatrix):
-            return NotImplemented
-        return np.array_equal(self.matrix, o.matrix) and self.type == o.type
-
-    def __hash__(self) -> int:
-        """Compute the hash of the check matrix."""
-        return hash((self.matrix.tobytes(), self.type))
-
-    def num_qubits(self) -> int:
-        """Get the number of qubits represented by the check matrix."""
-        return self.matrix.shape[1]
-
-    def num_rows(self) -> int:
-        """Get the number of rows in the check matrix."""
-        return self.matrix.shape[0]
-    
 BinaryMatrix = CheckMatrix | StabilizerTableau
 
 
@@ -596,15 +540,14 @@ class Transvection(TableauOperation):
         if basis_i == "H":
             out.apply_h(i)
         elif basis_i == "SH":
-            out.apply_sdg(i)            
+            out.apply_sdg(i)
             out.apply_h(i)
-            
+
         if basis_j == "H":
             out.apply_h(j)
         elif basis_j == "SH":
-            out.apply_sdg(j)            
+            out.apply_sdg(j)
             out.apply_h(j)
-
 
         out.apply_cz(i, j)
         out.apply_s(i)
@@ -628,9 +571,9 @@ class Transvection(TableauOperation):
     def all_two_qubit_transvections() -> list[TV2]:
         """Get all 9 possible two-qubit transvections.
 
-        The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial) 
+        The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial)
         correspond to choosing (x,z) in {(1,0),(0,1),(1,1)} for each of the two qubits.
-        
+
         Returns:
             List of all 9 transvection vectors as tuples (xi, xj, zi, zj).
         """
@@ -705,7 +648,7 @@ class SingleQubitClifford(TableauOperation):
         if not isinstance(tableau, StabilizerTableau):
             msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
-        
+
         q = self.qubit
 
         out = tableau if inplace else tableau.copy()
@@ -789,13 +732,12 @@ class SingleQubitClifford(TableauOperation):
     @staticmethod
     def available_cliffords() -> list[str]:
         """Get the list of available single-qubit Clifford operations.
-        
+
         Returns:
             List of Clifford operation names: H, S, HS, SH, HSH, I.
         """
         return ["H", "S", "HS", "SH", "HSH", "I"]
 
-    
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
         """Append the operation to a Stim circuit.
 
@@ -867,7 +809,7 @@ class PauliOperation(TableauOperation):
         if not isinstance(tableau, StabilizerTableau):
             msg = "Pauli operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
-        
+
         out = tableau if inplace else tableau.copy()
         if self.pauli == "X":
             out.apply_x(self.qubit)
@@ -1110,21 +1052,19 @@ class EliminationConfig:
     selection_strategy: SelectionStrategy | None = None
     filters: list[OperationFilter] | None = None
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None
-    post_process_fn: Callable[
-        [EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]
-    ] = lambda ops, tbl: (ops, tbl)
-
-    
+    post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]] = (
+        lambda ops, tbl: (ops, tbl)
+    )
 
     @classmethod
     def for_cnot_up_to_row_ops(
-    cls,
-    target_rank: int,
-    optimization_criterion: str = "gates",
-    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-) -> EliminationConfig:
+        cls,
+        target_rank: int,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
         """Create configuration for CSS code elimination.
-    
+
         Args:
             target_rank: The target rank of the check matrix after elimination.
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
@@ -1146,7 +1086,7 @@ class EliminationConfig:
             if not isinstance(tbl, (CheckMatrix)):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
-            
+
             matrix = tbl.matrix
             # exactly rank columns with exactly one non-zero entry
             non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
@@ -1158,16 +1098,16 @@ class EliminationConfig:
             filters=filters,
             callback=callback,
         )
-    
+
     @classmethod
     def for_cnot_exact(
-    cls,
-    target_rank: int,
-    optimization_criterion: str = "gates",
-    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-) -> EliminationConfig:
+        cls,
+        target_rank: int,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
         """Create configuration for CSS code elimination.
-    
+
         Args:
             target_rank: The target rank of the check matrix after elimination.
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
@@ -1189,7 +1129,7 @@ class EliminationConfig:
             if not isinstance(tbl, (CheckMatrix)):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
-            
+
             matrix = tbl.matrix
             # exactly rank columns with exactly one non-zero entry
             one_columns = (np.sum(matrix, axis=0) == 1).sum()
@@ -1209,11 +1149,11 @@ class EliminationConfig:
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         """Create configuration for non-CSS stabilizer code elimination.
-        
+
         Args:
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
             callback: Optional callback function invoked after each elimination step.
-            
+
         Returns:
             EliminationConfig configured for non-CSS code elimination with post-processing.
         -        Raises:
@@ -1222,7 +1162,7 @@ class EliminationConfig:
         if optimization_criterion not in {"gates", "depth"}:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
-        
+
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
         return cls(
@@ -1231,8 +1171,8 @@ class EliminationConfig:
             filters=filters,
             callback=callback,
             post_process_fn=reduce_single_qubit_gates_and_swaps,
-         )
-        
+        )
+
     @classmethod
     def for_non_css_with_lookahead(
         cls,
@@ -1242,35 +1182,35 @@ class EliminationConfig:
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         """Create configuration for non-CSS elimination with lookahead.
-        
+
         Args:
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
             lookahead: Number of steps to look ahead when selecting operations.
             num_lookahead_candidates: Number of top candidates to explore during lookahead.
             callback: Optional callback function invoked after each elimination step.
-            
+
         Returns:
             EliminationConfig configured for non-CSS code elimination with lookahead and post-processing.
-            
+
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
         """
         if optimization_criterion not in {"gates", "depth"}:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
-        
+
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
-        
+
         base_config = EliminationConfig(
             termination_criterion=is_terminal_transvection,
             candidate_generator=GreedyTransvectionGenerator(),
             filters=filters,
         )
-        
+
         def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
             n_transvections = ops.num_transvections()
             return n_transvections, n_transvections <= 1
-        
+
         return cls(
             termination_criterion=is_terminal_transvection,
             candidate_generator=LookaheadCandidateGenerator(
@@ -1285,14 +1225,13 @@ class EliminationConfig:
         )
 
 
-
 def _get_filtered_candidates(tableau: BinaryMatrix, config: EliminationConfig) -> list[TableauOperation]:
     """Generate and filter candidate operations.
-    
+
     Args:
         tableau: The current binary matrix or tableau.
         config: Elimination configuration containing generator and filters.
-        
+
     Returns:
         Filtered list of candidate operations.
     """
@@ -1304,10 +1243,10 @@ def _get_filtered_candidates(tableau: BinaryMatrix, config: EliminationConfig) -
 
 def _validate_candidates(candidates: list[TableauOperation]) -> None:
     """Ensure at least one candidate is available.
-    
+
     Args:
         candidates: List of candidate operations.
-        
+
     Raises:
         RuntimeError: If no candidates are available.
     """
@@ -1318,7 +1257,7 @@ def _validate_candidates(candidates: list[TableauOperation]) -> None:
 
 def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
     """Update generator and filter state after applying an operation.
-    
+
     Args:
         op: The operation that was applied.
         tableau: The resulting tableau after applying the operation.
@@ -1332,7 +1271,7 @@ def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, confi
 
 def _invoke_callback(iteration: int, op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
     """Invoke callback if configured.
-    
+
     Args:
         iteration: Current iteration number.
         op: The operation that was just applied.
@@ -1400,13 +1339,13 @@ def _compute_r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.i
 
 def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
     """Compute R1 and R2 matrices from a symplectic matrix.
-    
+
     R2[i,j] = 1 if the 2x2 block F_ij has determinant 1.
     R1[i,j] = 1 if the block is non-zero but has determinant 0.
-    
+
     Args:
         symplectic: A 2n×2n symplectic matrix.
-        
+
     Returns:
         A tuple (R1, R2) of n×n binary matrices.
     """
@@ -1435,10 +1374,10 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     """Score the given symplectic matrix using the default symplectic heuristic.
-    
+
     Args:
         tableau: The stabilizer tableau to score.
-        
+
     Returns:
         A tuple of (heuristic_vector, scalar_score) used for comparing tableaus.
     """
@@ -1509,7 +1448,7 @@ def reduce_with_swaps(
 
     inv = _perm_inverse(perm)
     swaps = _perm_to_swaps(inv)
-    
+
     swap_sequence = EliminationSequence([])
     for swap in swaps:
         tableau_copy = swap.apply(tableau_copy, inplace=True)
@@ -1533,13 +1472,12 @@ def reduce_with_single_qubit_cliffords(
     n = get_n(tableau)
 
     clifford_sequence = EliminationSequence([])
-    
+
     for q in range(n):
         f = tableau_copy.symplectic_submatrix(q)
         op = SingleQubitClifford.from_symplectic_block(f, q)
         clifford_sequence.add_operation(op)
         tableau_copy = op.apply(tableau_copy, inplace=True)
-
 
     pauli_ops = fix_tableau_signs_in_place(tableau_copy)
     for op in pauli_ops:
@@ -1564,11 +1502,11 @@ def reduce_single_qubit_gates_and_swaps(
         A tuple of (operation_sequence, final_tableau) where final_tableau is identity.
     """
     swap_seq, tableau_after_swaps = reduce_with_swaps(tableau)
-    
+
     clifford_seq, final_tableau = reduce_with_single_qubit_cliffords(tableau_after_swaps)
-    
+
     operations.extend(EliminationSequence(swap_seq.operations + clifford_seq.operations))
-    
+
     return operations, final_tableau
 
 
@@ -1584,7 +1522,7 @@ def reduce_without_swaps(
         tableau: A stabilizer tableau in terminal form.
 
     Returns:
-        A tuple of (operation_sequence, final_tableau) where final_tableau is a 
+        A tuple of (operation_sequence, final_tableau) where final_tableau is a
         permuted identity.
     """
     return reduce_with_single_qubit_cliffords(tableau)
@@ -1702,7 +1640,7 @@ def get_n(tableau: BinaryMatrix) -> int:
 
     Args:
         tableau (BinaryMatrix): The stabilizer tableau.
-    
+
     Returns:
         int: The number of qubits.
     """
@@ -1737,6 +1675,7 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
     candidates.sort(key=operator.itemgetter(1))
     return [op for op, _ in candidates]
 
+
 def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
     """Check if the given binary matrix has at least k non-zero columns.
 
@@ -1749,10 +1688,11 @@ def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
     """
     non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
     return non_zero_columns >= k
-    
+
+
 class LookaheadCandidateGenerator(CandidateGenerator):
     """Generates candidates using lookahead simulation."""
-    
+
     def __init__(
         self,
         base_config: EliminationConfig,
@@ -1765,28 +1705,28 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.num_lookahead_candidates = num_lookahead_candidates
         self.score_fn = score_fn
         self._cache: dict[bytes, list[TableauOperation]] = {}
-    
+
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate candidates using lookahead simulation.
-        
+
         Args:
             tableau: The current binary matrix or tableau.
-            
+
         Returns:
             List of operations sorted by lookahead score.
         """
         if self.lookahead <= 0:
             return self.base_config.candidate_generator.get_candidates(tableau)
-        
+
         cache_key = _create_tableau_cache_key(tableau)
         if cache_key in self._cache:
             return self._cache[cache_key]
-        
+
         base_candidates = self.base_config.candidate_generator.get_candidates(tableau)
         scored_candidates = _score_candidates_with_lookahead(
             tableau, base_candidates, self.num_lookahead_candidates, self._create_lookahead_config(), self.score_fn
         )
-        
+
         result = [op for op, _ in scored_candidates]
         self._cache[cache_key] = result
         return result
@@ -1803,16 +1743,16 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             ),
             filters=self.base_config.filters,
         )
-    
+
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         """Update internal state by delegating to the base generator.
-        
+
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.base_config.candidate_generator.update(op, tableau)
-    
+
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
         self.base_config.candidate_generator.reset()
@@ -1820,10 +1760,10 @@ class LookaheadCandidateGenerator(CandidateGenerator):
 
 def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
     """Create a hashable cache key from a tableau.
-    
+
     Args:
         tableau: The binary matrix or stabilizer tableau.
-        
+
     Returns:
         A bytes representation suitable for dictionary keys.
     """
@@ -1840,19 +1780,19 @@ def _score_candidates_with_lookahead(
     score_fn: Callable[[EliminationSequence], tuple[int, bool]],
 ) -> list[tuple[TableauOperation, int]]:
     """Score candidates using lookahead simulation.
-    
+
     Args:
         tableau: The current tableau state.
         candidates: List of candidate operations to score.
         num_candidates: Maximum number of candidates to evaluate.
         lookahead_config: Configuration for lookahead elimination.
         score_fn: Function to compute score and minimality flag from a sequence.
-        
+
     Returns:
         List of (operation, score) tuples sorted by score.
     """
     scored_candidates: list[tuple[TableauOperation, int]] = []
-    
+
     for op in candidates[:num_candidates]:
         result = _simulate_and_score_operation(op, tableau, lookahead_config, score_fn)
         if result is not None:
@@ -1860,7 +1800,7 @@ def _score_candidates_with_lookahead(
             scored_candidates.append((op, score))
             if is_minimal:
                 break
-    
+
     scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
     return scored_candidates
 
@@ -1872,13 +1812,13 @@ def _simulate_and_score_operation(
     score_fn: Callable[[EliminationSequence], tuple[int, bool]],
 ) -> tuple[int, bool] | None:
     """Simulate operation and return (score, is_minimal), or None if simulation fails.
-    
+
     Args:
         op: The operation to simulate.
         tableau: The current tableau state.
         lookahead_config: Configuration for lookahead elimination.
         score_fn: Function to compute score and minimality flag from a sequence.
-        
+
     Returns:
         A tuple of (score, is_minimal) if simulation succeeds, None otherwise.
     """
