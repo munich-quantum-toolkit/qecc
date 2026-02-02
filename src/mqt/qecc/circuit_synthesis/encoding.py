@@ -859,27 +859,22 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> tuple[
     uninitialized = list(set(range(nq)) - set(initialized))
     return circ, uninitialized
 
+
 def synthesize_clifford(
     tableau: StabilizerTableau,
     *,
     lookahead_depth: int = 1,
     lookahead_top_k: int = 10,
 ) -> stim.Circuit:
-    """Synthesize a stim circuit implementing a StabilizerTableau using a version of the greedy adapted Volanto synthesis from [arXiv:2503.14660].
-
-    The synthesis method uses a lookahead strategy to minimize the number of two-qubit gates.
-    The `top_k` parameter determines how many candidates are considered during the lookahead.
-
-    The synthesis uses a lookahead strategy to minimize the number of two-qubit gates.
+    """Synthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
     Args:
-        tableau: The StabilizerTableau to synthesize.
+        tableau: The stabilizer tableau representing the Clifford operation to synthesize.
         lookahead_depth: The depth of lookahead to use in the synthesis.
-        greedy_params: Parameters for the greedy synthesis.
-        use_all_pairs: Whether to consider all pairs of qubits during synthesis.
+        lookahead_top_k: The number of candidates to consider during lookahead.
 
     Returns:
-        A stim.Circuit that implements the given StabilizerTableau.
+        A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two    
     """
     ops, _ = eliminate_non_css_with_lookahead(tableau, lookahead=lookahead_depth, num_lookahead_candidates=lookahead_top_k)
     return ops.to_circuit_inverse()
@@ -891,12 +886,16 @@ def resynthesize_stim_circuit(
     top_k: int = 10,
     lookahead_depth: int = 1,
 ) -> stim.Circuit:
-    """Optimize two-qubit gate count of a stim circuit using Volanto synthesis.
+    """Resynthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
-    If fix_signs=True, the returned circuit matches circ.to_tableau() exactly.
-    Otherwise it matches only the symplectic (phase-free) action.
-    """
+    Args:
+        circ: The stim.Circuit to resynthesize.
+        top_k: The number of candidates to consider during lookahead.
+        lookahead_depth: The depth of lookahead to use in the synthesis.
     
+    Returns:
+        A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
+    """
     tableau = StabilizerTableau.from_stim_circuit(circ)
     return synthesize_clifford(
         tableau,
