@@ -14,7 +14,8 @@ import pytest
 import stim
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.codes.pauli import Pauli
 
 
 def test_add_cnot():
@@ -617,3 +618,32 @@ def test_compose_invalid_wiring():
         ValueError, match=r"Cannot compose circuits with wiring that connects to initialized qubits in circ2."
     ):
         compose_cnot_circuits(circ1, circ2, wiring)
+
+
+def test_trivial_isometry():
+    """Test construction of trivial encoding isometry."""
+    iso = CliffordIsometry()
+    assert iso.num_inputs() == 0
+    assert iso.num_outputs() == 0
+    assert iso.get_all_logicals() == []
+
+    with pytest.raises(ValueError):
+        iso.get_logical(0)
+
+@pytest.fixture        
+def rep_code_encoder() -> stim.Circuit:
+    """Encoding isometry of the repetition code."""
+    circ = stim.Circuit()
+    circ.append("R", [1, 2])
+    circ.append("CX", [0, 1, 1, 2])
+    return circ
+    
+def test_basic_isometry(rep_code_encoder: stim.Circuit):
+    """Test simple encoding isometry."""
+    iso = CliffordIsometry.from_stim_circuit(rep_code_encoder)
+    assert iso.num_inputs() == 1
+    assert iso.num_outputs() == 3
+    x, z = iso.get_logical(0)
+    assert x == Pauli.from_pauli_string("XXX")
+    assert z == Pauli.from_pauli_string("ZII")
+    
