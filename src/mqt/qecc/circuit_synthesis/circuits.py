@@ -33,7 +33,8 @@ class CliffordIsometry:
         """Initialize trivial isometry."""
         self._inputs: dict[int, int] = {}
         self._outputs = []
-        self._ancillas = set()
+        self._ancillas: set[int] = set()
+        self._initializations: dict[int, str] = {}
         self._circ = stim.Circuit()
 
     def get_logical_x(self, idx: int) -> Pauli:
@@ -45,7 +46,7 @@ class CliffordIsometry:
         Returns:
             Logical X operator.
         """
-        if idx > self.num_inputs():
+        if idx >= self.num_inputs():
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
         tab = self._circ.to_tableau(ignore_reset=True)
@@ -61,7 +62,7 @@ class CliffordIsometry:
         Returns:
             Logical Z operator.
         """
-        if idx > self.num_inputs():
+        if idx >= self.num_inputs():
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
 
@@ -118,6 +119,14 @@ class CliffordIsometry:
 
     @classmethod
     def from_stim_circuit(cls, circ: stim.Circuit) -> CliffordIsometry:
+        """Construct Clifford isometry from stim Circuit.
+
+        Args:
+            circ: Stim Circuit representing the isometry.
+
+        Returns:
+            Clifford isometry.
+        """
         iso = CliffordIsometry()
         n = circ.num_qubits
         iso._outputs = list(range(n))
@@ -154,35 +163,70 @@ class CliffordIsometry:
         """Get number of physical outputs."""
         return len(self._outputs)
 
+    def initialize_qubit(self, qubit: int, basis: str) -> None:
+        """Initialize a qubit in the specified basis.
 
-def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, int] | None = None) -> CliffordIsometry:
-    """Compose two isometries to construct new isometry.
+        Args:
+            qubit: The qubit index to initialize.
+            basis: The basis for initialization ('Z' or 'X').
+        """
+        if qubit < 0:
+            msg = "Qubit index must be non-negative."
+            raise ValueError(msg)
+        if basis.capitalize() not in {"Z", "X"}:
+            msg = "Initialization basis must be 'Z' or 'X'."
+            raise ValueError(msg)
+        self._initializations[qubit] = basis
 
-    Args:
-        enc1: Left isometry (outputs serve as inputs to enc2)
-        enc2: Right isometry
+    def get_plus_initialized(self) -> list[int]:
+        """Get the list of qubits initialized in the |+> state.
 
-    Returns:
-        Composed isometry.
-    """
-    if enc1.num_outputs() != enc2.num_inputs():
-        msg = "Cannot compose isometries with incompatible numbers of inputs and outputs."
-        raise ValueError(msg)
+        Returns:
+            A list of qubit indices initialized in the |+> state.
+        """
+        return [qubit for qubit, basis in self._initializations.items() if basis.upper() == "X"]
 
-    if wiring is None:
-        wiring = {out_: in_ for in_ in enc2.inputs() for out_ in enc1.outputs()}
+    def get_zero_initialized(self) -> list[int]:
+        """Get the list of qubits initialized in the |0> state.
 
-    composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
-    return CliffordIsometry.from_stim_circuit(composed)
+        Returns:
+            A list of qubit indices initialized in the |0> state.
+        """
+        return [qubit for qubit, basis in self._initializations.items() if basis.upper() == "Z"]
+
+    def get_uninitialized(self) -> list[int]:
+        """Get the list of uninitialized qubits.
+
+        Returns:
+            A list of uninitialized qubits.
+        """
+        return [qubit for qubit in range(self.num_qubits()) if qubit not in self._initializations]
+
+    def num_qubits(self) -> int:
+        """Get the total number of qubits in the isometry.
+
+        Returns:
+            The total number of qubits.
+        """
+        return self._circ.num_qubits
+
+    def is_state(self) -> bool:
+        """Check if all qubits used in the circuit are initialized.
+
+        Returns:
+            True if all qubits involved in CNOT operations are initialized, False otherwise.
+        """
+        used_qubits = {qubit for control, target in self.cnots for qubit in (control, target)}
+        return used_qubits.issubset(self._initializations.keys())
 
 
-class CNOTCircuit:
+class CNOTCircuit(CliffordIsometry):
     """Represents a restricted quantum circuit composed of CNOT gates with optional qubit initialization."""
 
     def __init__(self) -> None:
         """Initialize an empty CNOT circuit."""
         self.cnots: list[tuple[int, int]] = []
-        self.initializations: dict[int, str] = {}  # Dictionary mapping qubit index to initialization type ('Z' or 'X')
+        self._initializations: dict[int, str] = {}  # Dictionary mapping qubit index to initialization type ('Z' or 'X')
 
     def add_cnot(self, control: int, target: int) -> None:
         """Add a single CNOT gate to the circuit.
@@ -208,21 +252,6 @@ class CNOTCircuit:
         for control, target in cnot_pairs:
             self.add_cnot(control, target)
 
-    def initialize_qubit(self, qubit: int, basis: str) -> None:
-        """Initialize a qubit in the specified basis.
-
-        Args:
-            qubit: The qubit index to initialize.
-            basis: The basis for initialization ('Z' or 'X').
-        """
-        if qubit < 0:
-            msg = "Qubit index must be non-negative."
-            raise ValueError(msg)
-        if basis.capitalize() not in {"Z", "X"}:
-            msg = "Initialization basis must be 'Z' or 'X'."
-            raise ValueError(msg)
-        self.initializations[qubit] = basis
-
     def is_initialized(self, qubit: int) -> bool:
         """Check if a qubit is initialized.
 
@@ -232,7 +261,7 @@ class CNOTCircuit:
         Returns:
             True if the qubit is initialized, False otherwise.
         """
-        return qubit in self.initializations
+        return qubit in self._initializations
 
     def to_stim_circuit(self) -> stim.Circuit:
         """Convert the CNOT circuit to a stim.Circuit.
@@ -243,7 +272,7 @@ class CNOTCircuit:
         stim_circuit = stim.Circuit()
 
         # Add initializations
-        for qubit, basis in self.initializations.items():
+        for qubit, basis in self._initializations.items():
             stim_circuit.append("R" + basis, [qubit])
 
         # Add CNOT gates
@@ -389,22 +418,13 @@ class CNOTCircuit:
         cnot_circuit._check_valid()
         return cnot_circuit
 
-    def is_state(self) -> bool:
-        """Check if all qubits used in the circuit are initialized.
-
-        Returns:
-            True if all qubits involved in CNOT operations are initialized, False otherwise.
-        """
-        used_qubits = {qubit for control, target in self.cnots for qubit in (control, target)}
-        return used_qubits.issubset(self.initializations.keys())
-
     def num_qubits(self) -> int:
         """Return the number of qubits used in the circuit.
 
         The number of qubits is determined by the highest index of any CNOT control or target qubit,
         """
         cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
-        init_indices = list(self.initializations.keys())
+        init_indices = list(self._initializations.keys())
         return max(cnot_indices + init_indices, default=0) + 1
 
     def num_inputs(self) -> int:
@@ -413,31 +433,7 @@ class CNOTCircuit:
         Returns:
             The number of uninitialized_qubits.
         """
-        return self.num_qubits() - len(self.initializations)
-
-    def get_plus_initialized(self) -> list[int]:
-        """Get the list of qubits initialized in the |+> state.
-
-        Returns:
-            A list of qubit indices initialized in the |+> state.
-        """
-        return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "X"]
-
-    def get_zero_initialized(self) -> list[int]:
-        """Get the list of qubits initialized in the |0> state.
-
-        Returns:
-            A list of qubit indices initialized in the |0> state.
-        """
-        return [qubit for qubit, basis in self.initializations.items() if basis.upper() == "Z"]
-
-    def get_uninitialized(self) -> list[int]:
-        """Get the list of uninitialized qubits.
-
-        Returns:
-            A list of uninitialized qubits.
-        """
-        return [qubit for qubit in range(self.num_qubits()) if qubit not in self.initializations]
+        return self.num_qubits() - len(self._initializations)
 
     def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
         """Draw the circuit using Qiskit visualization tools.
@@ -536,7 +532,7 @@ class CNOTCircuit:
         """
         new_circuit = CNOTCircuit()
         new_circuit.cnots = self.cnots.copy()
-        new_circuit.initializations = self.initializations.copy()
+        new_circuit._initializations = self._initializations.copy()
         return new_circuit
 
     def relabel_qubits(self, mapping: dict[int, int]) -> None:
@@ -546,7 +542,7 @@ class CNOTCircuit:
             mapping: A dictionary mapping old qubit indices to new qubit indices.
         """
         self.cnots = [(mapping[control], mapping[target]) for control, target in self.cnots]
-        self.initializations = {mapping[q]: basis for q, basis in self.initializations.items()}
+        self._initializations = {mapping[q]: basis for q, basis in self._initializations.items()}
         self._check_valid()
 
     def _check_valid(self) -> None:
@@ -563,7 +559,7 @@ class CNOTCircuit:
                 msg = f"CNOT gate with control and target being the same qubit: ({control}, {target})"
                 raise ValueError(msg)
 
-        for qubit, basis in self.initializations.items():
+        for qubit, basis in self._initializations.items():
             if qubit < 0:
                 msg = f"Invalid initialization on negative qubit index: {qubit}"
                 raise ValueError(msg)
@@ -595,9 +591,30 @@ def compose_cnot_circuits(
         wiring = {}
 
     # make sure that wires are not connected to initialized qubits in circ2
-    if any(q in circ2.initializations for q in wiring.values()):
+    if any(q in circ2._initializations for q in wiring.values()):
         msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
         raise ValueError(msg)
 
     composed, mapping1, mapping2 = compose_circuits(circ1.to_stim_circuit(), circ2.to_stim_circuit(), wiring)
     return CNOTCircuit.from_stim_circuit(composed), mapping1, mapping2
+
+
+def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, int] | None = None) -> CliffordIsometry:
+    """Compose two isometries to construct new isometry.
+
+    Args:
+        enc1: Left isometry (outputs serve as inputs to enc2)
+        enc2: Right isometry
+
+    Returns:
+        Composed isometry.
+    """
+    if enc1.num_outputs() != enc2.num_inputs():
+        msg = "Cannot compose isometries with incompatible numbers of inputs and outputs."
+        raise ValueError(msg)
+
+    if wiring is None:
+        wiring = {out_: in_ for in_ in enc2.inputs() for out_ in enc1.outputs()}
+
+    composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
+    return CliffordIsometry.from_stim_circuit(composed)
