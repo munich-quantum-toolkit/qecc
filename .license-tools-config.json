@@ -32,6 +32,7 @@
     "uv\\.lock",
     ".*\\.rst",
     "py\\.typed",
-    ".*build.*"
+    ".*build.*",
+    ".*\\.pkl"
   ]
 }
