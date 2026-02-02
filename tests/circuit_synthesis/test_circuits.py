@@ -16,6 +16,7 @@ from qiskit import QuantumCircuit
 
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
 from mqt.qecc.codes.pauli import Pauli
+from mqt.qecc.codes.stabilizer_code import StabilizerCode
 
 
 def test_add_cnot():
@@ -630,14 +631,40 @@ def test_trivial_isometry():
     with pytest.raises(ValueError):
         iso.get_logical(0)
 
-@pytest.fixture        
+
+@pytest.fixture
 def rep_code_encoder() -> stim.Circuit:
     """Encoding isometry of the repetition code."""
     circ = stim.Circuit()
     circ.append("R", [1, 2])
     circ.append("CX", [0, 1, 1, 2])
     return circ
-    
+
+
+@pytest.fixture
+def five_qubit_code_encoder() -> stim.Circuit:
+    """Encoding isometry of the five-qubit code."""
+    circ = stim.Circuit()
+    circ.append("RX", [1, 2, 3, 4])
+    circ.append("H", [0])
+    circ.append("CZ", [0, 1, 0, 2, 0, 3, 0, 4])
+    circ.append("H", [0])
+    circ.append("CZ", [0, 1, 2, 3, 1, 2, 3, 4, 0, 4])
+    return circ
+
+
+@pytest.fixture
+def five_qubit_code() -> StabilizerCode:
+    """Five-qubit code stabilizer code."""
+    stabilizers = [
+        "XZZXI",
+        "IXZZX",
+        "XIXZZ",
+        "ZXIXZ",
+    ]
+    return StabilizerCode(stabilizers)
+
+
 def test_basic_isometry(rep_code_encoder: stim.Circuit):
     """Test simple encoding isometry."""
     iso = CliffordIsometry.from_stim_circuit(rep_code_encoder)
@@ -646,4 +673,20 @@ def test_basic_isometry(rep_code_encoder: stim.Circuit):
     x, z = iso.get_logical(0)
     assert x == Pauli.from_pauli_string("XXX")
     assert z == Pauli.from_pauli_string("ZII")
-    
+
+
+def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_code: StabilizerCode):
+    """Test five-qubit code encoding isometry."""
+    iso = CliffordIsometry.from_stim_circuit(five_qubit_code_encoder)
+    assert iso.num_inputs() == 1
+    assert iso.num_outputs() == 5
+
+    code = iso.get_code()
+    assert code.n == 5
+    assert code == five_qubit_code
+    x, z = iso.get_logical(0)
+
+    expected_x = Pauli.from_pauli_string("XXXXX")
+    expected_z = Pauli.from_pauli_string("ZZZZZ")
+    assert five_qubit_code.stabilizer_equivalent(x, expected_x), "Logical X operator does not match expected."
+    assert five_qubit_code.stabilizer_equivalent(z, expected_z), "Logical Z operator does not match expected."

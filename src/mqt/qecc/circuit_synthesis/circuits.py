@@ -16,7 +16,7 @@ import stim
 from qiskit import QuantumCircuit
 from qiskit.transpiler.passes import RemoveResetInZeroState
 
-from ..codes import CSSCode
+from ..codes import CSSCode, StabilizerCode
 from ..codes.pauli import Pauli
 from .circuit_utils import compose_circuits
 
@@ -31,7 +31,7 @@ class CliffordIsometry:
 
     def __init__(self) -> None:
         """Initialize trivial isometry."""
-        self._inputs: dict[int,int] = {}
+        self._inputs: dict[int, int] = {}
         self._outputs = []
         self._ancillas = set()
         self._circ = stim.Circuit()
@@ -49,7 +49,7 @@ class CliffordIsometry:
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
         tab = self._circ.to_tableau(ignore_reset=True)
-        pauli_stim = tab.x_output(self._inputs[idx] )
+        pauli_stim = tab.x_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
 
     def get_logical_z(self, idx: int) -> Pauli:
@@ -64,7 +64,7 @@ class CliffordIsometry:
         if idx > self.num_inputs():
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
-            
+
         tab = self._circ.to_tableau(ignore_reset=True)
         pauli_stim = tab.z_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
@@ -84,7 +84,38 @@ class CliffordIsometry:
         """Get logical X- and Z-operators of all logical qubits."""
         return [self.get_logical(idx) for idx in self._inputs]
 
-    
+    def get_code(self) -> StabilizerCode:
+        """Get the stabilizer code defined by the isometry.
+
+        Returns:
+            Stabilizer code.
+        """
+        self._circ.to_tableau(ignore_reset=True)
+        # remove resets and remember basis
+        circ_no_reset = stim.Circuit()
+        basis = {}
+        for gate in self._circ:
+            if gate.name not in {"R", "RX", "RZ"}:
+                circ_no_reset.append(gate)
+            else:
+                for grp in gate.target_groups():
+                    q = grp[0].qubit_value
+                    if gate.name in {"R", "RZ"}:
+                        basis[q] = "Z"
+                    elif gate.name == "RX":
+                        basis[q] = "X"
+
+        tab_no_reset = circ_no_reset.to_tableau()
+        stabilizers = []
+        for q in range(self.num_outputs()):
+            if q not in self._inputs.values():
+                pauli_stim = tab_no_reset.z_output(q) if basis.get(q, "Z") == "Z" else tab_no_reset.x_output(q)
+                stabilizers.append(Pauli.from_stim(pauli_stim))
+        logicals = self.get_all_logicals()
+        return StabilizerCode(
+            stabilizers, z_logicals=[log[1] for log in logicals], x_logicals=[log[0] for log in logicals]
+        )
+
     @classmethod
     def from_stim_circuit(cls, circ: stim.Circuit) -> CliffordIsometry:
         iso = CliffordIsometry()
@@ -96,14 +127,13 @@ class CliffordIsometry:
             name = gate.name
             if name in {"R", "RX", "RZ"}:
                 for grp in gate.target_groups():
-                    
                     iso._ancillas.add(grp[0].qubit_value)
 
-        for i, q in enumerate(set(iso._outputs)-iso._ancillas):
+        for i, q in enumerate(set(iso._outputs) - iso._ancillas):
             iso._inputs[i] = q
 
         return iso
-        
+
     def to_stim_circuit(self) -> stim.Circuit:
         """Get the stim Circuit implementing the isometry."""
         return self._circ.copy()
@@ -123,9 +153,9 @@ class CliffordIsometry:
     def num_outputs(self) -> int:
         """Get number of physical outputs."""
         return len(self._outputs)
-        
-        
-def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring:dict[int,int] | None=None) -> CliffordIsometry:
+
+
+def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, int] | None = None) -> CliffordIsometry:
     """Compose two isometries to construct new isometry.
 
     Args:
@@ -138,16 +168,14 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring:dict[int,int]
     if enc1.num_outputs() != enc2.num_inputs():
         msg = "Cannot compose isometries with incompatible numbers of inputs and outputs."
         raise ValueError(msg)
-        
+
     if wiring is None:
         wiring = {out_: in_ for in_ in enc2.inputs() for out_ in enc1.outputs()}
 
-    
     composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
     return CliffordIsometry.from_stim_circuit(composed)
-    
-    
-    
+
+
 class CNOTCircuit:
     """Represents a restricted quantum circuit composed of CNOT gates with optional qubit initialization."""
 
