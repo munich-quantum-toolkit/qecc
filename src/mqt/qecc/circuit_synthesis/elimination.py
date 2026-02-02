@@ -441,12 +441,23 @@ def eliminate_non_css_with_lookahead(
     return operations, final_tableau
 
 
-@dataclass
 class CheckMatrix:
     """Type alias for CSS check matrices."""
     
     matrix: np.ndarray[np.int8]
     type: str
+
+    def __init__(self, matrix: np.ndarray[np.int8], type: str) -> None:
+        """Initialize the check matrix.
+
+        Args:
+            matrix: The binary check matrix.
+            type: The type of the check matrix, either 'X' or 'Z'.
+        """
+        assert type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
+        self.matrix = matrix
+        self.type = type
+    
 
     def is_x_type(self) -> bool:
         """Check if the check matrix is of type 'X'."""
@@ -476,6 +487,13 @@ class CheckMatrix:
         """Compute the hash of the check matrix."""
         return hash((self.matrix.tobytes(), self.type))
 
+    def num_qubits(self) -> int:
+        """Get the number of qubits represented by the check matrix."""
+        return self.matrix.shape[1]
+
+    def num_rows(self) -> int:
+        """Get the number of rows in the check matrix."""
+        return self.matrix.shape[0]
     
 BinaryMatrix = CheckMatrix | StabilizerTableau
 
