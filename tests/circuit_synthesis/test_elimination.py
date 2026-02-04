@@ -16,6 +16,7 @@ from mqt.qecc.circuit_synthesis.elimination import (
     eliminate_cnot,
     eliminate_non_css,
     eliminate_non_css_with_lookahead,
+    score_stateprep,
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -49,7 +50,7 @@ def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
     )
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
-    
+
 
 @pytest.mark.parametrize(
     "tableau_matrix",
@@ -61,23 +62,23 @@ def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
 def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, request) -> None:
     """Test the eliminate function with lookahead."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    operations, result_tableau = eliminate_non_css_with_lookahead(
-        target_tableau, lookahead=3
-    )
+    operations, result_tableau = eliminate_non_css_with_lookahead(target_tableau, lookahead=3)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
 
 
 @pytest.fixture
-def identity_matrix() -> np.ndarray:    
-    """Fixture to create an identity matrix."""    
+def identity_matrix() -> np.ndarray:
+    """Fixture to create an identity matrix."""
     return CheckMatrix(np.array([[1, 0], [0, 1]], dtype=np.int8), type="X")
 
+
 @pytest.fixture
-def cnot_matrix() -> CheckMatrix:    
-    """Fixture to create a CNOT check matrix."""    
-    matrix = np.array([[1,1], [0,1]], dtype=np.int8)    
+def cnot_matrix() -> CheckMatrix:
+    """Fixture to create a CNOT check matrix."""
+    matrix = np.array([[1, 1], [0, 1]], dtype=np.int8)
     return CheckMatrix(matrix, type="X")
+
 
 @pytest.mark.parametrize(
     "check_matrix",
@@ -96,10 +97,7 @@ def test_eliminate_cnot_exact(check_matrix: CheckMatrix, request) -> None:
 
 @pytest.mark.parametrize(
     ("check_matrix", "num_cnots"),
-    [
-        ("identity_matrix", 0),
-        ("cnot_matrix", 1)
-    ],
+    [("identity_matrix", 0), ("cnot_matrix", 1)],
 )
 def test_eliminate_cnot_up_to_row_ops(check_matrix: CheckMatrix, num_cnots: int, request) -> None:
     """Test the eliminate_css function."""
@@ -112,11 +110,11 @@ def test_eliminate_cnot_up_to_row_ops(check_matrix: CheckMatrix, num_cnots: int,
 def test_transvection_circuit_consistency() -> None:
     """Test that all transvections produce circuits consistent with their tableau action."""
     all_transvections = Transvection.all_two_qubit_transvections()
-    
+
     for v in all_transvections:
         i, j = 0, 1
         transvection = Transvection(v, i, j)
-        
+
         circuit = transvection.to_stim_circuit()
         identity = StabilizerTableau.identity(2)
         circuit_tableau = StabilizerTableau.from_stim_circuit(circuit)
@@ -129,3 +127,17 @@ def test_transvection_circuit_consistency() -> None:
         # print(inverse_circuit.to_tableau())
         # result_tableau = transvection.apply(tableau)
         # assert result_tableau.is_identity()
+
+
+def test_score_stateprep():
+    tab = StabilizerTableau.from_pauli_strings(["XI", "IZ"])
+    score = score_stateprep(tab)
+    assert score == 0  # already in terminal form
+
+    tab = StabilizerTableau.from_pauli_strings(["XX", "IZ"])
+    score = score_stateprep(tab)
+    assert score == 1  # one elimination needed
+
+    tab = StabilizerTableau.from_pauli_strings(["IXZXI", "IIXZX", "-ZXZIZ", "ZXIXZ", "-IXZIZ"])
+    score = score_stateprep(tab)
+    assert score == 21

@@ -333,6 +333,38 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         self.operation_history.clear()
 
 
+class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
+    """Generates transvection candidates using greedy heuristic."""
+
+    def __init__(self) -> None:
+        """Initialize the greedy transvection generator."""
+        self.operation_history: list[TableauOperation] = []
+
+    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
+        """Generate transvection candidates sorted by heuristic score.
+
+        Args:
+            tableau: The current stabilizer tableau.
+
+        Returns:
+            List of transvection operations sorted by preference.
+        """
+        return get_candidate_transvections_stateprep(tableau)
+
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
+        """Update operation history after applying an operation.
+
+        Args:
+            op: The operation that was applied.
+            tableau: The resulting tableau after applying the operation.
+        """
+        self.operation_history.append(op)
+
+    def reset(self) -> None:
+        """Reset the operation history."""
+        self.operation_history.clear()
+
+
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
 
@@ -363,6 +395,25 @@ class GreedyCNOTGenerator(CandidateGenerator):
     def reset(self) -> None:
         """Reset the operation history."""
         self.operation_history.clear()
+
+
+def eliminate_non_css_state(
+    tableau: StabilizerTableau, optimization_criterion: str = "gates"
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Eliminate a non-CSS stabilizer tableau to state preparation form using transvections.
+
+    Args:
+        tableau: The stabilizer tableau to eliminate.
+
+    Returns:
+        A tuple of (operations, final_tableau) where operations is the sequence
+        of tableau operations and final_tableau is the reduced tableau.
+    """
+    config = EliminationConfig.for_non_css_stateprep(optimization_criterion=optimization_criterion)
+
+    operations, final_tableau = eliminate(tableau, config)
+
+    return operations, final_tableau
 
 
 def eliminate_non_css(
@@ -1244,6 +1295,37 @@ class EliminationConfig:
         )
 
     @classmethod
+    def for_non_css_stateprep(
+        cls,
+        optimization_criterion: str = "gates",
+        callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    ) -> EliminationConfig:
+        """Create configuration for non-CSS stabilizer code elimination.
+
+        Args:
+            optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+            callback: Optional callback function invoked after each elimination step.
+
+        Returns:
+            EliminationConfig configured for non-CSS code elimination with post-processing.
+        -        Raises:
+            ValueError: If optimization_criterion is not "gates" or "depth".
+        """
+        if optimization_criterion not in {"gates", "depth"}:
+            msg = f"Unsupported optimization criterion: {optimization_criterion}"
+            raise ValueError(msg)
+
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+
+        return cls(
+            termination_criterion=is_terminal_stateprep,
+            candidate_generator=GreedyTransvectionGeneratorStateprep(),
+            filters=filters,
+            callback=callback,
+            post_process_fn=reduce_singe_qubit_gates_stateprep,
+        )
+
+    @classmethod
     def for_non_css_with_lookahead(
         cls,
         optimization_criterion: str = "gates",
@@ -1532,21 +1614,35 @@ def _compute_r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.i
 
 
 def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
-    """Compute R1 and R2 matrices from a symplectic matrix.
+    """Compute R1 and R2 matrices from a symplectic matrix."""
+    n = symplectic.shape[0] // 2
 
-    R2[i,j] = 1 if the 2x2 block F_ij has determinant 1.
-    R1[i,j] = 1 if the block is non-zero but has determinant 0.
+    # Extract blocks once
+    a_xx = symplectic[:n, :n]
+    a_xz = symplectic[:n, n:]
+    a_zx = symplectic[n:, :n]
+    a_zz = symplectic[n:, n:]
+
+    # Compute all three matrices in one pass
+    r2 = (a_xx & a_zz) ^ (a_xz & a_zx)
+    r0 = ~(a_xx | a_xz | a_zx | a_zz)  # Faster than checking all zeros
+    r1 = ~(r2 | r0)
+
+    return r1.astype(np.int8), r2.astype(np.int8)
+
+
+def is_terminal_stateprep(tableau: StabilizerTableau) -> bool:
+    """Check if the given stabilizer tableau is in terminal form for state preparation.
+
+    This is the case when there are no overlaps between any pair of qubits.
 
     Args:
-        symplectic: A 2n×2n symplectic matrix.
+        tableau (StabilizerTableau): The stabilizer tableau to check.
 
     Returns:
-        A tuple (R1, R2) of n×n binary matrices.
+        bool: True if the tableau is in terminal form, False otherwise.
     """
-    r2 = _compute_r2_matrix(symplectic)
-    r0 = _compute_r0_matrix(symplectic)
-    r1 = _compute_r1_matrix_from_r2_r0(r2, r0)
-    return r1, r2
+    return score_stateprep(tableau) == 0
 
 
 def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
@@ -1564,6 +1660,40 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     if not np.all(r2.sum(axis=0) == 1):
         return False
     return np.all(r2.sum(axis=1) == 1)
+
+
+def score_stateprep(tableau: StabilizerTableau) -> int:
+    r"""Score the given symplectic matrix representing a state.
+
+    The score is the total number of "overlap" between qubit pairs, i.e., where there is a
+    "1" for both qubits.
+
+    Args:
+        tableau: The stabilizer tableau to score.
+
+    Returns:
+        An integer score used for comparing tableaus.
+    """
+    n = get_n(tableau)
+    symplectic = tableau.tableau.matrix
+    symplectic.shape[0]
+    score = 0
+    for q1 in range(n):
+        for q2 in range(q1 + 1, n):
+            x1 = symplectic[:, q1]
+            z1 = symplectic[:, q1 + n]
+            x2 = symplectic[:, q2]
+            z2 = symplectic[:, q2 + n]
+
+            # print(f"Qubit pair ({q1}, {q2}):")
+            # print(f"x1: {x1}")
+            # print(f"z1: {z1}")
+            # print(f"x2: {x2}")
+            # print(f"z2: {z2}")
+            # print(f"overlap: {((x1 & x2) | (x1 & z2) | (z1 & x2) | (z1 & z2))}")
+            score += ((x1 & x2) | (x1 & z2) | (z1 & x2) | (z1 & z2)).sum()
+
+    return score
 
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
@@ -1593,7 +1723,7 @@ def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
     return h_vec, h_scalar
 
 
-def get_candidate_transvections(
+def get_candidate_transvections_stateprep(
     tableau: StabilizerTableau,
 ) -> list[Transvection]:
     """Score all possible operations and return the top k scored operations.
@@ -1617,8 +1747,44 @@ def get_candidate_transvections(
         for v in transvections:
             op = Transvection(v, i, j)
             tablea_op_applied = op.apply(tableau)
+            s = score_stateprep(tablea_op_applied)
+            if s == 0:
+                pass
+
+            scores.append((op, s))
+
+    scores.sort(key=operator.itemgetter(1))
+    return [(tv, score) for tv, score in scores]
+
+
+def get_candidate_transvections(
+    tableau: StabilizerTableau,
+) -> list[Transvection]:
+    """Score all possible operations and return the top k scored operations.
+
+    Args:
+        tableau: The current symplectic matrix.
+        transvections: List of all two-qubit transvections.
+        pairs: List of qubit pairs to consider.
+        params: Parameters for the greedy synthesis.
+        k: Number of top scored operations to return.
+
+    Returns:
+        A list of the top k scored operations, each represented as a tuple of
+        (operation, heuristic vector and scalar, resulting matrix).
+    """
+    n = get_n(tableau)
+    pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
+    transvections = Transvection.all_two_qubit_transvections()
+    scores: list[tuple(Transvection, list[int, ...])] = []
+    base_score, _ = score_symplectic(tableau)
+    for i, j in pairs:
+        for v in transvections:
+            op = Transvection(v, i, j)
+            tablea_op_applied = op.apply(tableau)
             h_vec, _ = score_symplectic(tablea_op_applied)
-            scores.append((op, h_vec))
+            if h_vec < base_score:
+                scores.append((op, h_vec))
 
     scores.sort(key=operator.itemgetter(1))
     return [(tv, score) for tv, score in scores]
@@ -1651,6 +1817,42 @@ def reduce_with_swaps(
     return swap_sequence, tableau_copy
 
 
+def reduce_with_single_qubit_cliffords_stateprep(
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce diagonal blocks to identity using single-qubit Cliffords and Paulis for state prep.
+
+    Args:
+        tableau: A stabilizer tableau where each qubit has a 2x2 block on its diagonal.
+
+    Returns:
+        A tuple of (clifford_sequence, final_tableau) where final_tableau should
+        be identity.
+    """
+    tableau_copy = tableau.copy()
+    n = get_n(tableau)
+
+    clifford_sequence = EliminationSequence([])
+
+    for row in range(tableau_copy.n_rows):
+        for q in range(n):
+            f = tableau_copy.tableau[row, q] + tableau_copy.tableau[row, q + n]
+            if f < 2:
+                continue
+            op = SingleQubitClifford(q, "S")
+            clifford_sequence.add_operation(op)
+            tableau_copy = op.apply(tableau_copy, inplace=True)
+        # f =
+        # op = SingleQubitClifford.from_symplectic_block(f, q)
+        # clifford_sequence.add_operation(op)
+        # tableau_copy = op.apply(tableau_copy, inplace=True)
+
+    pauli_ops = fix_tableau_signs_in_place(tableau_copy)
+    for op in pauli_ops:
+        clifford_sequence.add_operation(op)
+    return clifford_sequence, tableau_copy
+
+
 def reduce_with_single_qubit_cliffords(
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
@@ -1677,6 +1879,29 @@ def reduce_with_single_qubit_cliffords(
     for op in pauli_ops:
         clifford_sequence.add_operation(op)
     return clifford_sequence, tableau_copy
+
+
+def reduce_singe_qubit_gates_stateprep(
+    operations: EliminationSequence,
+    tableau: StabilizerTableau,
+) -> tuple[EliminationSequence, StabilizerTableau]:
+    """Reduce a TERMINAL symplectic matrix to identity using single-qubit gates for state prep.
+
+    This function applies single-qubit Clifford reduction to bring a terminal-form tableau
+    to the identity, suitable for state preparation.
+
+    Args:
+        operations: The elimination sequence (unused but required by post_process_fn signature).
+        tableau: A stabilizer tableau in terminal form.
+
+    Returns:
+        A tuple of (operation_sequence, final_tableau) where final_tableau is identity.
+    """
+    clifford_seq, final_tableau = reduce_with_single_qubit_cliffords_stateprep(tableau)
+
+    operations.extend(EliminationSequence(clifford_seq.operations))
+
+    return operations, final_tableau
 
 
 def reduce_single_qubit_gates_and_swaps(
@@ -1899,7 +2124,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.lookahead = lookahead
         self.num_lookahead_candidates = num_lookahead_candidates
         self.score_fn = score_fn
-        self._cache: dict[bytes, list[TableauOperation]] = {}
+        self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate candidates using lookahead simulation.
