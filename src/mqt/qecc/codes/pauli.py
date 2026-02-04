@@ -286,12 +286,11 @@ class StabilizerTableau:
             ctrl: The index of the control qubit.
             tar: The index of the target qubit.
         """
-        self.phase = (
-            self.phase
-            + self.tableau[:, ctrl]
+        self.phase ^= (
+            self.tableau[:, ctrl]
             * self.tableau[:, tar + self.n]
-            * (self.tableau[:, tar] + self.tableau[:, ctrl + self.n] * 1)
-        ) % 2
+            * (self.tableau[:, tar] ^ self.tableau[:, ctrl + self.n] * 1)
+        )
         self.tableau[:, tar] = (self.tableau[:, tar] + self.tableau[:, ctrl]) % 2
         self.tableau[:, ctrl + self.n] = (self.tableau[:, tar + self.n] + self.tableau[:, ctrl + self.n]) % 2
 
@@ -337,7 +336,7 @@ class StabilizerTableau:
 
     def apply_z(self, qubit: int) -> None:
         """Apply the Z gate to the stabilizer tableau."""
-        self.phase = (self.phase + self.tableau[:, qubit]) % 2
+        self.phase ^= self.tableau[:, qubit]
 
     def apply_y(self, qubit: int) -> None:
         """Apply the Y gate to the stabilizer tableau."""
@@ -420,6 +419,17 @@ class StabilizerTableau:
                 SymplecticMatrix.identity(self.n).matrix,
             )
             and np.all(self.phase == 0)
+        )
+
+    def __str__(self) -> str:
+        """Return a string representation of the stabilizer tableau."""
+        paulis = [str(self[i]) for i in range(self.n_rows)]
+        return "\n".join(paulis)
+
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the stabilizer tableau."""
+        return (
+            f"StabilizerTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.matrix},\nphase={self.phase})"
         )
 
 
