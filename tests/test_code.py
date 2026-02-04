@@ -27,7 +27,12 @@ from mqt.qecc.codes import (
     construct_many_hypercube_code,
     construct_quantum_hamming_code,
 )
-from mqt.qecc.codes.pauli import InvalidPauliError, Pauli, StabilizerTableau
+from mqt.qecc.codes.pauli import (
+    InvalidPauliError,
+    Pauli,
+    StabilizerTableau,
+    complete_stabilizer_tableau_with_destabilizers,
+)
 from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
 from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
 
@@ -632,3 +637,64 @@ def test_rotated_surface_code_invalid_distance() -> None:
         RotatedSurfaceCode(x_distance=5, z_distance=4)
     with pytest.raises(InvalidDistanceError):
         RotatedSurfaceCode(x_distance=5, z_distance=None)
+
+
+def test_complete_stabilizer_tableau_with_destabilizers():
+    """Test completing a stabilizer tableau with destabilizers."""
+    # Test case 1: Single stabilizer
+    stabs = StabilizerTableau.from_pauli_strings(["ZZ"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 2  # 1 destabilizer + 1 stabilizer
+
+    # Verify destabilizer anticommutes with its stabilizer
+    destab = completed[0]
+    stab = completed[1]
+    assert destab.anticommute(stab)
+
+    # Test case 2: Two stabilizers (Steane code fragment)
+    stabs = StabilizerTableau.from_pauli_strings(["XXXXIII", "ZZZZIII"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 4  # 2 destabilizers + 2 stabilizers
+
+    # Verify each destabilizer anticommutes with its corresponding stabilizer
+    # and commutes with all others
+    for i in range(2):
+        destab_i = completed[i]
+        for j in range(2):
+            stab_j = completed[2 + j]
+            if i == j:
+                assert destab_i.anticommute(stab_j)
+            else:
+                assert destab_i.commute(stab_j)
+
+    # Verify destabilizers commute with each other
+    for i in range(2):
+        for j in range(i + 1, 2):
+            assert completed[i].commute(completed[j])
+
+    # Test case 3: Three stabilizers
+    stabs = StabilizerTableau.from_pauli_strings(["XII", "IZI", "IIX"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 6  # 3 destabilizers + 3 stabilizers
+
+    # Verify structure
+    for i in range(3):
+        destab_i = completed[i]
+        for j in range(3):
+            stab_j = completed[3 + j]
+            if i == j:
+                assert destab_i.anticommute(stab_j)
+            else:
+                assert destab_i.commute(stab_j)
+
+
+def test_complete_stabilizer_tableau_invalid_cases():
+    """Test error handling for invalid inputs."""
+    # Test case: More stabilizers than qubits
+    stabs = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "YY"])
+
+    with pytest.raises(ValueError, match="Cannot have more stabilizers than qubits"):
+        complete_stabilizer_tableau_with_destabilizers(stabs)

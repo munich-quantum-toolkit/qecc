@@ -270,7 +270,7 @@ class StabilizerTableau:
         """Convert the stabilizer tableau to a binary matrix."""
         return np.hstack((self.tableau.matrix, self.phase[..., np.newaxis]))
 
-    def apply_h(self, qubit) -> None:
+    def apply_h(self, qubit: int) -> None:
         """Apply the Hadamard gate to the stabilizer tableau.
 
         Args:
@@ -279,7 +279,7 @@ class StabilizerTableau:
         self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
         self.tableau[:, [qubit, qubit + self.n]] = self.tableau[:, [qubit + self.n, qubit]]
 
-    def apply_cx(self, ctrl, tar) -> None:
+    def apply_cx(self, ctrl: int, tar: int) -> None:
         """Apply the CNOT gate to the stabilizer tableau.
 
         Args:
@@ -289,7 +289,7 @@ class StabilizerTableau:
         self.phase ^= (
             self.tableau[:, ctrl]
             * self.tableau[:, tar + self.n]
-            * (self.tableau[:, tar] ^ self.tableau[:, ctrl + self.n] * 1)
+            * (self.tableau[:, tar] ^ self.tableau[:, ctrl + self.n] ^ 1)
         )
         self.tableau[:, tar] = (self.tableau[:, tar] + self.tableau[:, ctrl]) % 2
         self.tableau[:, ctrl + self.n] = (self.tableau[:, tar + self.n] + self.tableau[:, ctrl + self.n]) % 2
@@ -323,7 +323,7 @@ class StabilizerTableau:
             qubit: The index of the qubit to apply the S gate to.
         """
         self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
-        self.tableau[:, qubit + self.n] = (self.tableau[:, qubit + self.n] + self.tableau[:, qubit]) % 2
+        self.tableau[:, qubit + self.n] ^= self.tableau[:, qubit]
 
     def apply_sdg(self, qubit: int) -> None:
         """Apply the S† gate to the stabilizer tableau."""
@@ -431,6 +431,198 @@ class StabilizerTableau:
         return (
             f"StabilizerTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.matrix},\nphase={self.phase})"
         )
+
+    def num_rows(self) -> int:
+        """Return the number of rows in the stabilizer tableau."""
+        return self.n_rows
+
+    def is_row(self, pauli: Pauli) -> bool:
+        """Check if a given Pauli operator is a stabilizer of the tableau.
+
+        Args:
+            pauli: A Pauli operator to check.
+
+        Returns:
+            True if the Pauli operator is a stabilizer, False otherwise.
+        """
+        symplectic_vector = pauli.symplectic
+        for i in range(self.n_rows):
+            stab_vector = SymplecticVector(self.tableau[i])
+            if symplectic_vector == stab_vector and pauli.phase == self.phase[i]:
+                return True
+        return False
+
+
+def complete_stabilizer_tableau_with_destabilizers(
+    stabilizers: StabilizerTableau, stab_rows: list[int] | None = None
+) -> StabilizerTableau:
+    """Given a tableau of stabilizers, complete it to a full tableau by adding destabilizers.
+
+    Destabilizer d_i anticommutes with stabilizer s_i but commutes with all other stabilizers,
+    destabilizers, and logical operators.
+
+    Args:
+        stabilizers: A tableau representing the stabilizers (and possibly some destabilizers) of the code.
+        stab_rows: List of row indices that are stabilizers. If None, assumes all rows are stabilizers.
+            Destabilizers will be added for each row specified in stab_rows.
+
+    Returns:
+        A tableau ordered as: destabilizers, logical X, stabilizers, logical Z.
+
+    Raises:
+        ValueError: If any row index in stab_rows is out of bounds or if valid destabilizers cannot be found.
+    """
+    n = stabilizers.n
+    m_total = stabilizers.num_rows()
+
+    if stab_rows is None:
+        stab_rows = list(range(m_total))
+
+    if not stab_rows:
+        return stabilizers.copy()
+
+    if max(stab_rows) >= m_total or min(stab_rows) < 0:
+        msg = f"Row indices in stab_rows must be between 0 and {m_total - 1}."
+        raise ValueError(msg)
+
+    m = len(stab_rows)
+
+    if m > n:
+        msg = "Cannot have more stabilizers than qubits."
+        raise ValueError(msg)
+
+    stab_row_set = set(stab_rows)
+
+    other_rows = [
+        (i, stabilizers.tableau[i].copy(), stabilizers.phase[i]) for i in range(m_total) if i not in stab_row_set
+    ]
+
+    k = len(other_rows) // 2
+    logical_x_rows = other_rows[:k]
+    logical_z_rows = other_rows[k:]
+
+    destabilizers = []
+    for stab_row_idx in stab_rows:
+        stab_i = SymplecticVector(stabilizers.tableau[stab_row_idx])
+
+        destab = _find_destabilizer_greedy(stab_i, stab_row_idx, stab_rows, stabilizers, destabilizers, other_rows, n)
+
+        if destab is None:
+            msg = f"Could not find valid destabilizer for stabilizer at row {stab_row_idx}."
+            raise ValueError(msg)
+
+        destabilizers.append(destab)
+
+    if len(destabilizers) != m:
+        msg = f"Could not find {m} valid destabilizers, only found {len(destabilizers)}."
+        raise ValueError(msg)
+
+    new_rows = []
+    new_phases = []
+
+    for destab in destabilizers:
+        new_rows.append(destab)
+        new_phases.append(0)
+
+    for _, row, phase in logical_x_rows:
+        new_rows.append(row)
+        new_phases.append(phase)
+
+    for stab_row_idx in stab_rows:
+        new_rows.append(stabilizers.tableau[stab_row_idx].copy())
+        new_phases.append(stabilizers.phase[stab_row_idx])
+
+    for _, row, phase in logical_z_rows:
+        new_rows.append(row)
+        new_phases.append(phase)
+
+    combined_matrix = np.vstack(new_rows)
+    combined_phase = np.array(new_phases, dtype=np.int8)
+
+    return StabilizerTableau(SymplecticMatrix(combined_matrix), combined_phase)
+
+
+def _find_destabilizer_greedy(
+    stab_i: SymplecticVector,
+    stab_row_idx: int,
+    stab_rows: list[int],
+    stabilizers: StabilizerTableau,
+    destabilizers: list[npt.NDArray[np.int8]],
+    other_rows: list[tuple[int, npt.NDArray[np.int8], int]],
+    n: int,
+) -> npt.NDArray[np.int8] | None:
+    """Find a valid destabilizer using greedy construction algorithm.
+
+    Algorithm:
+    1. Find first non-identity qubit j in s_i
+    2. Initialize d_i as the complementary Pauli on qubit j (X->Z, Z->X, Y->Y)
+    3. For each other stabilizer s_j: if d_i anticommutes with s_j, set d_i := d_i * d_j
+    4. For each other destabilizer d_j: if d_i anticommutes with d_j, set d_i := d_i * s_j
+    5. For each logical operator l: if d_i anticommutes with l, multiply by corresponding logical
+
+    This guarantees d_i commutes with everything and still anticommutes with s_i.
+    """
+    stab_row_set = set(stab_rows)
+
+    first_nonidentity_qubit = None
+    for q in range(n):
+        x_val = stab_i[q]
+        z_val = stab_i[q + n]
+        if x_val == 1 or z_val == 1:
+            first_nonidentity_qubit = q
+            break
+
+    if first_nonidentity_qubit is None:
+        msg = "Stabilizer is the identity operator."
+        raise ValueError(msg)
+
+    j = first_nonidentity_qubit
+    x_stab = stab_i[j]
+    z_stab = stab_i[j + n]
+
+    d_i = SymplecticVector.zeros(n)
+    if x_stab == 1 and z_stab == 0:
+        d_i[j + n] = 1
+    elif x_stab == 0 and z_stab == 1:
+        d_i[j] = 1
+    elif x_stab == 1 and z_stab == 1:
+        d_i[j] = 1
+        d_i[j + n] = 1
+
+    for other_idx in stab_row_set:
+        if other_idx == stab_row_idx:
+            continue
+        s_j = SymplecticVector(stabilizers.tableau[other_idx])
+        if d_i @ s_j == 1:
+            corresponding_destab_idx = stab_rows.index(other_idx)
+            if corresponding_destab_idx < len(destabilizers):
+                d_j = SymplecticVector(destabilizers[corresponding_destab_idx])
+                d_i += d_j
+
+    for destab_idx, destab_vec in enumerate(destabilizers):
+        d_j = SymplecticVector(destab_vec)
+        if d_i @ d_j == 1:
+            s_j_idx = stab_rows[destab_idx]
+            s_j = SymplecticVector(stabilizers.tableau[s_j_idx])
+            d_i += s_j
+
+    k = len(other_rows) // 2
+    for logical_idx, (_, logical_row, _) in enumerate(other_rows):
+        l = SymplecticVector(logical_row)
+        if d_i @ l == 1:
+            if logical_idx < k:
+                corresponding_logical_z_idx = logical_idx + k
+                l_z = SymplecticVector(other_rows[corresponding_logical_z_idx][1])
+                d_i += l_z
+            else:
+                corresponding_logical_x_idx = logical_idx - k
+                l_x = SymplecticVector(other_rows[corresponding_logical_x_idx][1])
+                d_i += l_x
+
+    if d_i @ stab_i != 1:
+        return None
+
+    return d_i.vector.copy()
 
 
 def is_pauli_string(p: str) -> bool:

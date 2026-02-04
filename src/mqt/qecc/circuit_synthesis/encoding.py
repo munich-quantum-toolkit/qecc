@@ -19,9 +19,9 @@ import stim
 import z3
 
 from ..codes import CSSCode
-from ..codes.pauli import StabilizerTableau
+from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry
-from .elimination import CheckMatrix, eliminate_non_css_with_lookahead
+from .elimination import eliminate_non_css_with_lookahead
 from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -826,3 +826,56 @@ def resynthesize_stim_circuit(
         lookahead_top_k=top_k,
         use_cnots_if_css=use_cnots_if_css,
     ).to_stim_circuit()
+
+
+def encoder_from_stabilizers_and_logicals(
+    stabilizers: StabilizerTableau, logicals: StabilizerTableau
+) -> CliffordIsometry:
+    """Synthesize an encoding circuit for a stabilizer code given its stabilizers and logicals as tableaux.
+
+    Args:
+        stabilizers: A tableau representing the stabilizers of the code.
+        logicals: A tableau representing the logical operators of the code.
+
+    Returns:
+        A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
+    """
+    if stabilizers.n != logicals.n:
+        msg = "Stabilizers and logicals must have the same number of qubits."
+        raise ValueError(msg)
+    if stabilizers.num_rows() + logicals.num_rows() > stabilizers.n * 2:
+        msg = "The total number of stabilizers and logicals must be less than or equal to 2n."
+        raise ValueError(msg)
+
+    full_tableau = combine_stabilizer_and_logical_tableau(stabilizers, logicals)
+    return synthesize_clifford(full_tableau, use_cnots_if_css=False)
+
+
+def combine_stabilizer_and_logical_tableau(
+    stabilizers: StabilizerTableau, logicals: StabilizerTableau
+) -> StabilizerTableau:
+    """Combine a stabilizer tableau and a logical tableau, then complete with destabilizers.
+
+    Args:
+        stabilizers: A tableau representing the stabilizers of the code (without destabilizers).
+        logicals: A tableau containing logical operators.
+
+    Returns:
+        A combined tableau with destabilizers added, suitable for circuit synthesis.
+    """
+    if stabilizers.n != logicals.n:
+        msg = "Stabilizers and logicals must act on the same number of qubits."
+        raise ValueError(msg)
+
+    m = stabilizers.num_rows()
+    logicals.num_rows() // 2  # Assuming logicals has X and Z logicals
+
+    # Combine stabilizers and logicals into a single tableau
+    combined_matrix = np.vstack([stabilizers.tableau.matrix, logicals.tableau.matrix])
+    combined_phase = np.hstack([stabilizers.phase, logicals.phase])
+    combined_tableau = StabilizerTableau(combined_matrix, combined_phase)
+
+    # Complete with destabilizers for the stabilizers only
+    # The stabilizer rows are at indices 0 to m-1
+    stab_rows = list(range(m))
+    return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows=stab_rows)

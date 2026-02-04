@@ -26,10 +26,11 @@ from mqt.qecc.circuit_synthesis import (
 )
 from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
 from mqt.qecc.circuit_synthesis.encoding import (
+    encoder_from_stabilizers_and_logicals,
     resynthesize_stim_circuit,
     synthesize_encoding_circuit,
 )
-from mqt.qecc.codes.pauli import Pauli
+from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
 from .utils import eq_span, in_span
 
@@ -254,3 +255,16 @@ def test_resynthesize_stim_circuit(circuit: stim.Circuit, lookahead_depth: int) 
     assert original_tableau == resynthesized_tableau
 
     assert resynthesized_two_qubit_gates <= original_two_qubit_gates
+
+
+def test_encoder_from_stabilizers_and_logicals() -> None:
+    """Test encoder_from_stabilizers_and_logicals function."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["ZZZZ", "XXXX"])
+    logicals = StabilizerTableau.from_pauli_strings(["XXII", "IXXI", "IZZI", "ZZII"])
+
+    iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals)
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+    for stab in stabilizers:
+        tab.is_row(Pauli.from_pauli_string(str(stab)))
+    for logical in logicals:
+        assert tab.is_row(Pauli.from_pauli_string(str(logical)))

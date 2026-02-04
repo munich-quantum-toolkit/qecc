@@ -17,7 +17,6 @@ from mqt.qecc.circuit_synthesis.elimination import (
     Transvection,
     eliminate_cnot,
     eliminate_non_css,
-    eliminate_non_css_state,
     eliminate_non_css_with_lookahead,
     score_stateprep,
 )
@@ -144,58 +143,57 @@ def test_score_stateprep():
 
 def test_eliminate_non_css_performance():
     """Performance test for non-CSS elimination on a 12-qubit encoding isometry."""
-    iso = gottesman_encoding_circuit(["ZZXYIXZXYZIX",
-                            "IZYXYYZYIIIX",
-                            "IIIYZYYXYZIX",
-                            "IZYXZXIYXZZX",
-                            "IIIZIIIYYYZY",
-                            "IIIXIIIZZZXZ",
-                            "XZZZIIIXIIIZ",
-                            "ZYYYIIIZIIIY"])
+    iso = gottesman_encoding_circuit([
+        "ZZXYIXZXYZIX",
+        "IZYXYYZYIIIX",
+        "IIIYZYYXYZIX",
+        "IZYXZXIYXZZX",
+        "IIIZIIIYYYZY",
+        "IIIXIIIZZZXZ",
+        "XZZZIIIXIIIZ",
+        "ZYYYIIIZIIIY",
+    ])
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
 
-    
     start_time = time.perf_counter()
     operations, result_tableau = eliminate_non_css(tab, optimization_criterion="gates")
     elapsed_time = time.perf_counter() - start_time
-    
+
     print(f"\nNon-CSS elimination completed in {elapsed_time:.4f} seconds")
     print(f"Number of operations: {len(operations.operations)}")
     print(f"Number of two-qubit gates: {operations.num_transvections()}")
-    
+
     assert result_tableau.is_identity()
     assert elapsed_time < 10.0
-    assert False
+    raise AssertionError
 
 
 def test_eliminate_non_css_with_lookahead_performance():
     """Performance test for non-CSS elimination with lookahead on a 10-qubit encoding isometry."""
-    iso = gottesman_encoding_circuit(["ZZXYIXZXYZIX",
-                            "IZYXYYZYIIIX",
-                            "IIIYZYYXYZIX",
-                            "IZYXZXIYXZZX",
-                            "IIIZIIIYYYZY",
-                            "IIIXIIIZZZXZ",
-                            "XZZZIIIXIIIZ",
-                            "ZYYYIIIZIIIY"])
+    iso = gottesman_encoding_circuit([
+        "ZZXYIXZXYZIX",
+        "IZYXYYZYIIIX",
+        "IIIYZYYXYZIX",
+        "IZYXZXIYXZZX",
+        "IIIZIIIYYYZY",
+        "IIIXIIIZZZXZ",
+        "XZZZIIIXIIIZ",
+        "ZYYYIIIZIIIY",
+    ])
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
-    
+    raise AssertionError
     start_time = time.perf_counter()
     operations, result_tableau = eliminate_non_css_with_lookahead(
-        tab, 
-        optimization_criterion="gates",
-        lookahead=1,
-        num_lookahead_candidates=5
+        tab, optimization_criterion="gates", lookahead=1, num_lookahead_candidates=5
     )
     elapsed_time = time.perf_counter() - start_time
-    
+
     print(f"\nNon-CSS elimination with lookahead completed in {elapsed_time:.4f} seconds")
     print(f"Number of operations: {len(operations.operations)}")
     print(f"Number of two-qubit gates: {operations.num_transvections()}")
-    
+
     assert result_tableau.is_identity()
     assert elapsed_time < 30.0
-    assert False
 
 
 def test_eliminate_cnot_performance():
@@ -205,13 +203,32 @@ def test_eliminate_cnot_performance():
     density = 0.3
     matrix_data = (np.random.random((n, n)) < density).astype(np.int8)
     check_matrix = CheckMatrix(matrix_data, type="X")
-    
+
     start_time = time.perf_counter()
-    operations, result_matrix = eliminate_cnot(check_matrix, exact=False, lookahead=0)
+    operations, _result_matrix = eliminate_cnot(check_matrix, exact=False, lookahead=0)
     elapsed_time = time.perf_counter() - start_time
-    
+
     print(f"\nCNOT elimination completed in {elapsed_time:.4f} seconds")
     print(f"Number of CNOTs: {operations.num_two_qubit_gates()}")
     print(f"Circuit depth: {operations.depth()}")
-    
+
     assert elapsed_time < 5.0
+
+
+def test_four_qubit() -> None:
+    """Test elimination on the 4-qubit error detection code."""
+    # stabs
+    # XXXI
+    # IIIZ
+    # XXII
+    # IXXI
+    # ZZZZ
+    # XXXX
+    # IZZI
+    # ZZII
+    stabs = StabilizerTableau.from_pauli_strings(["XXXI", "IIIZ", "XXII", "IXXI", "ZZZZ", "XXXX", "IZZI", "ZZII"])
+    operations, result_tableau = eliminate_non_css(stabs, optimization_criterion="gates")
+    assert result_tableau.is_identity()
+    assert operations.apply(stabs) == result_tableau
+    StabilizerTableau.from_stim_circuit(operations.to_circuit_inverse())
+    assert StabilizerTableau.from_stim_circuit(operations.to_circuit().inverse()) == stabs
