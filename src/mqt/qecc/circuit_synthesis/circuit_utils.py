@@ -309,10 +309,12 @@ def compose_circuits(
     return composed, mapping1, mapping2
 
 
-def num_two_qubit_gates(circ: Circuit) -> int:
+def num_two_qubit_gates(circ: Circuit, count_swaps: bool = False) -> int:
     """Return the number of two-qubit gates in the circuit."""
     num_tqg = 0
     for op in circ:
+        if op.name == "SWAP" and not count_swaps:
+            continue
         for grp in op.target_groups():
             if len(grp) == 2:
                 num_tqg += 1
