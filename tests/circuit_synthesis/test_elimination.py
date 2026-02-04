@@ -7,6 +7,8 @@
 
 """Unit tests for the elimination module in circuit synthesis."""
 
+import time
+
 import numpy as np
 import pytest
 
@@ -15,9 +17,11 @@ from mqt.qecc.circuit_synthesis.elimination import (
     Transvection,
     eliminate_cnot,
     eliminate_non_css,
+    eliminate_non_css_state,
     eliminate_non_css_with_lookahead,
     score_stateprep,
 )
+from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
 
@@ -122,22 +126,91 @@ def test_transvection_circuit_consistency() -> None:
         print(circuit_tableau.tableau)
         print(result_tableau.tableau)
         assert result_tableau == circuit_tableau
-        # inverse_circuit = circuit.inverse()
-        # tableau = StabilizerTableau.from_stim_circuit(inverse_circuit)
-        # print(inverse_circuit.to_tableau())
-        # result_tableau = transvection.apply(tableau)
-        # assert result_tableau.is_identity()
 
 
 def test_score_stateprep():
     tab = StabilizerTableau.from_pauli_strings(["XI", "IZ"])
     score = score_stateprep(tab)
-    assert score == 0  # already in terminal form
+    assert score == 0
 
     tab = StabilizerTableau.from_pauli_strings(["XX", "IZ"])
     score = score_stateprep(tab)
-    assert score == 1  # one elimination needed
+    assert score == 1
 
     tab = StabilizerTableau.from_pauli_strings(["IXZXI", "IIXZX", "-ZXZIZ", "ZXIXZ", "-IXZIZ"])
     score = score_stateprep(tab)
     assert score == 21
+
+
+def test_eliminate_non_css_performance():
+    """Performance test for non-CSS elimination on a 12-qubit encoding isometry."""
+    iso = gottesman_encoding_circuit(["ZZXYIXZXYZIX",
+                            "IZYXYYZYIIIX",
+                            "IIIYZYYXYZIX",
+                            "IZYXZXIYXZZX",
+                            "IIIZIIIYYYZY",
+                            "IIIXIIIZZZXZ",
+                            "XZZZIIIXIIIZ",
+                            "ZYYYIIIZIIIY"])
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+
+    
+    start_time = time.perf_counter()
+    operations, result_tableau = eliminate_non_css(tab, optimization_criterion="gates")
+    elapsed_time = time.perf_counter() - start_time
+    
+    print(f"\nNon-CSS elimination completed in {elapsed_time:.4f} seconds")
+    print(f"Number of operations: {len(operations.operations)}")
+    print(f"Number of two-qubit gates: {operations.num_two_qubit_gates()}")
+    
+    assert result_tableau.is_identity()
+    assert elapsed_time < 10.0
+
+
+def test_eliminate_non_css_with_lookahead_performance():
+    """Performance test for non-CSS elimination with lookahead on a 10-qubit encoding isometry."""
+    iso = gottesman_encoding_circuit(["ZZXYIXZXYZIX",
+                            "IZYXYYZYIIIX",
+                            "IIIYZYYXYZIX",
+                            "IZYXZXIYXZZX",
+                            "IIIZIIIYYYZY",
+                            "IIIXIIIZZZXZ",
+                            "XZZZIIIXIIIZ",
+                            "ZYYYIIIZIIIY"])
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+    
+    start_time = time.perf_counter()
+    operations, result_tableau = eliminate_non_css_with_lookahead(
+        tab, 
+        optimization_criterion="gates",
+        lookahead=1,
+        num_lookahead_candidates=5
+    )
+    elapsed_time = time.perf_counter() - start_time
+    
+    print(f"\nNon-CSS elimination with lookahead completed in {elapsed_time:.4f} seconds")
+    print(f"Number of operations: {len(operations.operations)}")
+    print(f"Number of two-qubit gates: {operations.num_transvections()}")
+    
+    assert result_tableau.is_identity()
+    assert elapsed_time < 30.0
+    assert False
+
+
+def test_eliminate_cnot_performance():
+    """Performance test for CNOT elimination on a 20x20 check matrix."""
+    np.random.seed(42)
+    n = 20
+    density = 0.3
+    matrix_data = (np.random.random((n, n)) < density).astype(np.int8)
+    check_matrix = CheckMatrix(matrix_data, type="X")
+    
+    start_time = time.perf_counter()
+    operations, result_matrix = eliminate_cnot(check_matrix, exact=False, lookahead=0)
+    elapsed_time = time.perf_counter() - start_time
+    
+    print(f"\nCNOT elimination completed in {elapsed_time:.4f} seconds")
+    print(f"Number of CNOTs: {operations.num_two_qubit_gates()}")
+    print(f"Circuit depth: {operations.depth()}")
+    
+    assert elapsed_time < 5.0

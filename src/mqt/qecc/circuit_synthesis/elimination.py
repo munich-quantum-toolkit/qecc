@@ -79,6 +79,18 @@ class EliminationSequence:
                 count += 1
         return count
 
+    def num_cnots(self) -> int:
+        """Count the number of CNOT gates in the elimination sequence.
+
+        Returns:
+            int: The number of CNOT gates.
+        """
+        count = 0
+        for op in self.operations:
+            if isinstance(op, CNOT):
+                count += 1
+        return count
+
     def add_operation(self, op: TableauOperation) -> None:
         """Add a tableau operation to the elimination sequence.
 
@@ -1625,7 +1637,7 @@ def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.N
 
     # Compute all three matrices in one pass
     r2 = (a_xx & a_zz) ^ (a_xz & a_zx)
-    r0 = ~(a_xx | a_xz | a_zx | a_zz)  # Faster than checking all zeros
+    r0 = ~(a_xx | a_xz | a_zx | a_zz)
     r1 = ~(r2 | r0)
 
     return r1.astype(np.int8), r2.astype(np.int8)
@@ -1685,12 +1697,6 @@ def score_stateprep(tableau: StabilizerTableau) -> int:
             x2 = symplectic[:, q2]
             z2 = symplectic[:, q2 + n]
 
-            # print(f"Qubit pair ({q1}, {q2}):")
-            # print(f"x1: {x1}")
-            # print(f"z1: {z1}")
-            # print(f"x2: {x2}")
-            # print(f"z2: {z2}")
-            # print(f"overlap: {((x1 & x2) | (x1 & z2) | (z1 & x2) | (z1 & z2))}")
             score += ((x1 & x2) | (x1 & z2) | (z1 & x2) | (z1 & z2)).sum()
 
     return score
@@ -1721,6 +1727,43 @@ def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
 
     h_scalar = int(r1.sum() + r2.sum())
     return h_vec, h_scalar
+
+
+def _bin2set(row: npt.NDArray[np.int8]) -> list[int]:
+    """Convert a binary row to a list of column indices where the value is 1."""
+    return [int(i) for i in np.flatnonzero(row)]
+
+
+def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
+    """Return a reduced set of candidate pairs (i,j) to consider, based on R2/R1 structure.
+
+    Args:
+        symplectic: The symplectic matrix (2n x 2n).
+
+    Returns:
+        A sorted list of (i, j) pairs where i < j, representing candidate qubit pairs.
+    """
+    n = symplectic.shape[0] // 2
+    R1, R2 = r1_r2(symplectic)
+    pairs: set[tuple[int, int]] = set()
+
+    for row in range(n):
+        r2_cols = _bin2set(R2[row])
+        r1_cols = _bin2set(R1[row])
+
+        for a in range(len(r2_cols) - 1):
+            for b in range(a + 1, len(r2_cols)):
+                i, j = int(r2_cols[a]), int(r2_cols[b])
+                if i != j:
+                    pairs.add((min(i, j), max(i, j)))
+
+        for i0 in r2_cols:
+            for j0 in r1_cols:
+                i, j = int(i0), int(j0)
+                if i != j:
+                    pairs.add((min(i, j), max(i, j)))
+
+    return sorted(pairs)
 
 
 def get_candidate_transvections_stateprep(
@@ -1774,7 +1817,13 @@ def get_candidate_transvections(
         (operation, heuristic vector and scalar, resulting matrix).
     """
     n = get_n(tableau)
-    pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
+    symplectic = tableau.tableau.matrix
+    
+    pairs = _sp_gate_options(symplectic)
+    
+    if not pairs:
+        pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
+    
     transvections = Transvection.all_two_qubit_transvections()
     scores: list[tuple(Transvection, list[int, ...])] = []
     base_score, _ = score_symplectic(tableau)
@@ -1842,10 +1891,6 @@ def reduce_with_single_qubit_cliffords_stateprep(
             op = SingleQubitClifford(q, "S")
             clifford_sequence.add_operation(op)
             tableau_copy = op.apply(tableau_copy, inplace=True)
-        # f =
-        # op = SingleQubitClifford.from_symplectic_block(f, q)
-        # clifford_sequence.add_operation(op)
-        # tableau_copy = op.apply(tableau_copy, inplace=True)
 
     pauli_ops = fix_tableau_signs_in_place(tableau_copy)
     for op in pauli_ops:
@@ -2180,7 +2225,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
 
 def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
     """Create a hashable cache key from a tableau.
-
+ 
     Args:
         tableau: The binary matrix or stabilizer tableau.
 
