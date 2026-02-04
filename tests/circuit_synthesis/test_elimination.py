@@ -161,10 +161,11 @@ def test_eliminate_non_css_performance():
     
     print(f"\nNon-CSS elimination completed in {elapsed_time:.4f} seconds")
     print(f"Number of operations: {len(operations.operations)}")
-    print(f"Number of two-qubit gates: {operations.num_two_qubit_gates()}")
+    print(f"Number of two-qubit gates: {operations.num_transvections()}")
     
     assert result_tableau.is_identity()
     assert elapsed_time < 10.0
+    assert False
 
 
 def test_eliminate_non_css_with_lookahead_performance():
