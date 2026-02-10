@@ -249,6 +249,7 @@ aer = "aer"
 anc = "anc"
 arange = "arange"
 nd = "nd"
+iz = "iz"
 
 
 [tool.repo-review]
