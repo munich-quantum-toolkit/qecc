@@ -55,7 +55,7 @@ def test_pauli() -> None:
 
     assert p4.anticommute(p5)
     p7 = Pauli.from_pauli_string("XI")
-    p8 = Pauli.from_pauli_string("IS")
+    p8 = Pauli.from_pauli_string("IZ")
     assert p8.commute(p7)
 
     with pytest.raises(IndexError):
