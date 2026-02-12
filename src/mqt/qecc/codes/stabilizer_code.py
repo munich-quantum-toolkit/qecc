@@ -355,6 +355,13 @@ class StabilizerCode:
         generators = [line.strip() for line in lines]
         return cls(generators)
 
+    def is_stabilizer(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a stabilizer of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+        return self.stabilizer_equivalent(p, Pauli("I" * self.n))
+
+
 
 class InvalidStabilizerCodeError(ValueError):
     """Raised when the stabilizer code is invalid."""

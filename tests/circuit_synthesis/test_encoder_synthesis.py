@@ -281,3 +281,31 @@ def test_encoder_from_stabilizers_and_logicals_five_qubit() -> None:
         tab.is_row(Pauli.from_pauli_string(str(stab)))
     for logical in logicals:
         assert tab.is_row(Pauli.from_pauli_string(str(logical)))
+
+
+def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
+    """Test encoder_from_stabilizers_and_logicals function."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XXXXXXXX", "ZZZZZZZZ", "IXIXYZYZ", "IXZYIXZY", "IYXZXZIY"])
+    logicals = StabilizerTableau.from_pauli_strings(["XXIIIZIZ", "XIXZIIZI", "XIIZXZII", "IZIZIZIZ", "IIZZIIZZ", "IIIIZZZZ"])
+
+    iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals)
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+    code = iso.get_code()
+    for stab in stabilizers:
+        code.is_stabilizer(stab)
+    
+    for expected_log in logicals[:3]:
+        is_expected_logical = False
+        for circuit_log in code.x_logicals:
+            if code.stabilizer_equivalent(expected_log, circuit_log):
+                is_expected_logical = True
+                break
+        assert is_expected_logical, f"Expected logical {expected_log} not found in code logicals."
+
+    for expected_log in logicals[3:]:
+        is_expected_logical = False
+        for circuit_log in code.z_logicals:
+            if code.stabilizer_equivalent(expected_log, circuit_log):
+                is_expected_logical = True
+                break
+        assert is_expected_logical, f"Expected logical {expected_log} not found in code logicals."    
