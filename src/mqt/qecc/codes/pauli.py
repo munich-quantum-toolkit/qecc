@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
 from .symplectic import SymplecticMatrix, SymplecticVector
@@ -502,16 +503,44 @@ def complete_stabilizer_tableau_with_destabilizers(
     logical_z_rows = other_rows[k:]
 
     destabilizers = []
-    for stab_row_idx in stab_rows:
+    for idx, stab_row_idx in enumerate(stab_rows):
         stab_i = SymplecticVector(stabilizers.tableau[stab_row_idx])
 
-        destab = _find_destabilizer_greedy(stab_i, stab_row_idx, stab_rows, stabilizers, destabilizers, other_rows, n)
+        remaining_stab_indices = [stab_rows[j] for j in range(idx + 1, m)]
 
-        if destab is None:
-            msg = f"Could not find valid destabilizer for stabilizer at row {stab_row_idx}."
+        d_i = _initialize_destabilizer_from_nullspace(stab_i, remaining_stab_indices, stabilizers)
+
+        if d_i is None:
+            msg = f"Could not find valid initial destabilizer for stabilizer at row {stab_row_idx}."
             raise ValueError(msg)
 
-        destabilizers.append(destab)
+        for other_idx_pos in range(idx):
+            s_j = SymplecticVector(stabilizers.tableau[stab_rows[other_idx_pos]])
+            if d_i @ s_j == 1:
+                d_j = SymplecticVector(destabilizers[other_idx_pos])
+                d_i += d_j
+
+        for other_idx_pos in range(idx):
+            d_j = SymplecticVector(destabilizers[other_idx_pos])
+            if d_i @ d_j == 1:
+                s_j = SymplecticVector(stabilizers.tableau[stab_rows[other_idx_pos]])
+                d_i += s_j
+
+        for logical_idx, (_, logical_row, _) in enumerate(other_rows):
+            l = SymplecticVector(logical_row)
+            if d_i @ l == 1:
+                if logical_idx < k:
+                    l_z = SymplecticVector(other_rows[logical_idx + k][1])
+                    d_i += l_z
+                else:
+                    l_x = SymplecticVector(other_rows[logical_idx - k][1])
+                    d_i += l_x
+
+        if d_i @ stab_i != 1:
+            msg = f"Destabilizer construction failed for stabilizer at row {stab_row_idx}."
+            raise ValueError(msg)
+
+        destabilizers.append(d_i.vector.copy())
 
     if len(destabilizers) != m:
         msg = f"Could not find {m} valid destabilizers, only found {len(destabilizers)}."
@@ -542,87 +571,55 @@ def complete_stabilizer_tableau_with_destabilizers(
     return StabilizerTableau(SymplecticMatrix(combined_matrix), combined_phase)
 
 
-def _find_destabilizer_greedy(
+def _initialize_destabilizer_from_nullspace(
     stab_i: SymplecticVector,
-    stab_row_idx: int,
-    stab_rows: list[int],
+    remaining_stab_indices: list[int],
     stabilizers: StabilizerTableau,
-    destabilizers: list[npt.NDArray[np.int8]],
-    other_rows: list[tuple[int, npt.NDArray[np.int8], int]],
-    n: int,
-) -> npt.NDArray[np.int8] | None:
-    """Find a valid destabilizer using greedy construction algorithm.
+) -> SymplecticVector | None:
+    """Initialize destabilizer from nullspace of remaining stabilizers."""
+    n = stabilizers.n
 
-    Algorithm:
-    1. Find first non-identity qubit j in s_i
-    2. Initialize d_i as the complementary Pauli on qubit j (X->Z, Z->X, Y->Y)
-    3. For each other stabilizer s_j: if d_i anticommutes with s_j, set d_i := d_i * d_j
-    4. For each other destabilizer d_j: if d_i anticommutes with d_j, set d_i := d_i * s_j
-    5. For each logical operator l: if d_i anticommutes with l, multiply by corresponding logical
-
-    This guarantees d_i commutes with everything and still anticommutes with s_i.
-    """
-    stab_row_set = set(stab_rows)
-
-    first_nonidentity_qubit = None
-    for q in range(n):
-        x_val = stab_i[q]
-        z_val = stab_i[q + n]
-        if x_val == 1 or z_val == 1:
-            first_nonidentity_qubit = q
-            break
-
-    if first_nonidentity_qubit is None:
-        msg = "Stabilizer is the identity operator."
-        raise ValueError(msg)
-
-    j = first_nonidentity_qubit
-    x_stab = stab_i[j]
-    z_stab = stab_i[j + n]
-
-    d_i = SymplecticVector.zeros(n)
-    if x_stab == 1 and z_stab == 0:
-        d_i[j + n] = 1
-    elif x_stab == 0 and z_stab == 1:
-        d_i[j] = 1
-    elif x_stab == 1 and z_stab == 1:
-        d_i[j] = 1
-        d_i[j + n] = 1
-
-    for other_idx in stab_row_set:
-        if other_idx == stab_row_idx:
-            continue
-        s_j = SymplecticVector(stabilizers.tableau[other_idx])
-        if d_i @ s_j == 1:
-            corresponding_destab_idx = stab_rows.index(other_idx)
-            if corresponding_destab_idx < len(destabilizers):
-                d_j = SymplecticVector(destabilizers[corresponding_destab_idx])
-                d_i += d_j
-
-    for destab_idx, destab_vec in enumerate(destabilizers):
-        d_j = SymplecticVector(destab_vec)
-        if d_i @ d_j == 1:
-            s_j_idx = stab_rows[destab_idx]
-            s_j = SymplecticVector(stabilizers.tableau[s_j_idx])
-            d_i += s_j
-
-    k = len(other_rows) // 2
-    for logical_idx, (_, logical_row, _) in enumerate(other_rows):
-        l = SymplecticVector(logical_row)
-        if d_i @ l == 1:
-            if logical_idx < k:
-                corresponding_logical_z_idx = logical_idx + k
-                l_z = SymplecticVector(other_rows[corresponding_logical_z_idx][1])
-                d_i += l_z
-            else:
-                corresponding_logical_x_idx = logical_idx - k
-                l_x = SymplecticVector(other_rows[corresponding_logical_x_idx][1])
-                d_i += l_x
-
-    if d_i @ stab_i != 1:
+    if not remaining_stab_indices:
+        for q in range(n):
+            for x, z in [(1, 0), (0, 1), (1, 1)]:
+                candidate = SymplecticVector.zeros(n)
+                candidate[q] = x
+                candidate[q + n] = z
+                if candidate @ stab_i == 1:
+                    return candidate
         return None
 
-    return d_i.vector.copy()
+    constraint_rows = []
+    for stab_idx in remaining_stab_indices:
+        s = stabilizers.tableau[stab_idx]
+        s_x = s[:n]
+        s_z = s[n:]
+        constraint_row = np.concatenate([s_z, s_x])
+        constraint_rows.append(constraint_row)
+
+    constraint_matrix = np.vstack(constraint_rows)
+
+    null = mod2.nullspace(constraint_matrix)
+
+    if null.shape[0] == 0:
+        return None
+
+    for basis_vec in null:
+        candidate = SymplecticVector(basis_vec)
+        if candidate @ stab_i == 1:
+            return candidate
+
+    if null.shape[0] <= 12:
+        for mask in range(1, 2 ** null.shape[0]):
+            candidate_vec = np.zeros(2 * n, dtype=np.int8)
+            for i in range(null.shape[0]):
+                if mask & (1 << i):
+                    candidate_vec = (candidate_vec + null[i]) % 2
+            candidate = SymplecticVector(candidate_vec)
+            if candidate @ stab_i == 1:
+                return candidate
+
+    return None
 
 
 def is_pauli_string(p: str) -> bool:

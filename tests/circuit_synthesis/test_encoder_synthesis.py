@@ -268,3 +268,16 @@ def test_encoder_from_stabilizers_and_logicals() -> None:
         tab.is_row(Pauli.from_pauli_string(str(stab)))
     for logical in logicals:
         assert tab.is_row(Pauli.from_pauli_string(str(logical)))
+
+
+def test_encoder_from_stabilizers_and_logicals_five_qubit() -> None:
+    """Test encoder_from_stabilizers_and_logicals function."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"])
+    logicals = StabilizerTableau.from_pauli_strings(["XXXXX", "ZZZZZ"])
+
+    iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals)
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+    for stab in stabilizers:
+        tab.is_row(Pauli.from_pauli_string(str(stab)))
+    for logical in logicals:
+        assert tab.is_row(Pauli.from_pauli_string(str(logical)))

@@ -868,14 +868,18 @@ def combine_stabilizer_and_logical_tableau(
         raise ValueError(msg)
 
     m = stabilizers.num_rows()
-    logicals.num_rows() // 2  # Assuming logicals has X and Z logicals
 
     # Combine stabilizers and logicals into a single tableau
-    combined_matrix = np.vstack([stabilizers.tableau.matrix, logicals.tableau.matrix])
-    combined_phase = np.hstack([stabilizers.phase, logicals.phase])
+    x_logicals = logicals.tableau.matrix[: logicals.num_rows() // 2]
+    z_logicals = logicals.tableau.matrix[logicals.num_rows() // 2 :]
+    x_logicals_phase = logicals.phase[: logicals.num_rows() // 2]
+    z_logicals_phase = logicals.phase[logicals.num_rows() // 2 :]
+    combined_matrix = np.vstack([x_logicals, z_logicals, stabilizers.tableau.matrix])
+
+    combined_phase = np.hstack([x_logicals_phase, z_logicals_phase, stabilizers.phase])
     combined_tableau = StabilizerTableau(combined_matrix, combined_phase)
 
     # Complete with destabilizers for the stabilizers only
     # The stabilizer rows are at indices 0 to m-1
-    stab_rows = list(range(m))
+    stab_rows = list(range(logicals.num_rows(), logicals.num_rows() + m))
     return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows=stab_rows)

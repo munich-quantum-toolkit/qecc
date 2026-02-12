@@ -83,6 +83,14 @@ class SymplecticVector:
         """Return the hash of the vector."""
         return hash(self.vector.tobytes())
 
+    def __repr__(self) -> str:
+        """Return the string representation of the vector."""
+        return str(self.vector.__repr__())
+
+    def __len__(self) -> int:
+        """Return the length of the vector."""
+        return len(self.vector)
+
 
 class SymplecticMatrix:
     """Symplectic Matrix Class."""
