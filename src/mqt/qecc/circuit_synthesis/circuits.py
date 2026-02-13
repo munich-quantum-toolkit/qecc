@@ -184,6 +184,16 @@ class CliffordIsometry:
                 break
         self._initializations[qubit] = basis
 
+    def initialize_qubits(self, qubits: Iterable[int], basis: str) -> None:
+        """Initialize multiple qubits in the specified basis.
+
+        Args:
+            qubits: An iterable of qubit indices to initialize.
+            basis: The basis for initialization ('Z' or 'X').
+        """
+        for qubit in qubits:
+            self.initialize_qubit(qubit, basis)
+
     def get_plus_initialized(self) -> list[int]:
         """Get the list of qubits initialized in the |+> state.
 

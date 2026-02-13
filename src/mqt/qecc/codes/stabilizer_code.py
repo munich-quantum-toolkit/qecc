@@ -359,8 +359,7 @@ class StabilizerCode:
         """Check if a given Pauli string is a stabilizer of the code."""
         if isinstance(p, str):
             p = Pauli.from_pauli_string(p)
-        return self.stabilizer_equivalent(p, Pauli("I" * self.n))
-
+        return self.stabilizer_equivalent(p, Pauli.from_pauli_string("I" * self.n))
 
 
 class InvalidStabilizerCodeError(ValueError):

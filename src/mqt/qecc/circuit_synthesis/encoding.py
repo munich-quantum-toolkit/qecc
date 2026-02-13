@@ -848,14 +848,17 @@ def encoder_from_stabilizers_and_logicals(
         raise ValueError(msg)
 
     full_tableau = combine_stabilizer_and_logical_tableau(stabilizers, logicals)
-    optimized_tableau = optimize_tableau(full_tableau, stab_rows=list(range(logicals.num_rows()//2, logicals.num_rows()//2 + stabilizers.num_rows())))
-    return synthesize_clifford(optimized_tableau, use_cnots_if_css=False, lookahead_depth=0)
+    stab_indices = list(range(logicals.num_rows() // 2, logicals.num_rows() // 2 + stabilizers.num_rows()))
+    optimized_tableau = optimize_tableau(full_tableau, stab_rows=stab_indices)
+    iso = synthesize_clifford(optimized_tableau, use_cnots_if_css=False, lookahead_depth=0)
+    iso.initialize_qubits(stab_indices, basis="Z")
+    return iso
+
 
 def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> StabilizerTableau:
     """Optimize a stabilizer tableau by performing row operations to reduce the cost of the initial tableau for synthesis."""
     # ignore phase for now
     tab = tableau.copy()
-    mat_prev = tab.tableau.matrix
 
     best = (tab, score_symplectic(tab))
 
@@ -863,18 +866,18 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
         for j in range(i + 1, len(stab_rows)):
             tab = tableau.copy()
             mat = tab.tableau.matrix
-            destabs = mat[:tableau.num_rows()//2][stab_rows]
-            stabs = mat[tableau.num_rows()//2:][stab_rows]
+            destabs = mat[: tableau.num_rows() // 2][stab_rows]
+            stabs = mat[tableau.num_rows() // 2 :][stab_rows]
             stabs[i] ^= stabs[j]
             destabs[j] ^= destabs[i]
-            mat[:tableau.num_rows()//2][stab_rows] = destabs
-            mat[tableau.num_rows()//2:][stab_rows] = stabs
+            mat[: tableau.num_rows() // 2][stab_rows] = destabs
+            mat[tableau.num_rows() // 2 :][stab_rows] = stabs
             new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
             if new_score < best[1]:
                 best = (tab, new_score)
 
     return best[0]
-    
+
 
 def combine_stabilizer_and_logical_tableau(
     stabilizers: StabilizerTableau, logicals: StabilizerTableau
@@ -907,4 +910,4 @@ def combine_stabilizer_and_logical_tableau(
     # Complete with destabilizers for the stabilizers only
     # The stabilizer rows are at indices 0 to m-1
     stab_rows = list(range(logicals.num_rows(), logicals.num_rows() + m))
-    return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows=stab_rows)
+    return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows)

@@ -549,21 +549,21 @@ def complete_stabilizer_tableau_with_destabilizers(
     new_rows = []
     new_phases = []
 
+    for _, row, phase in logical_x_rows:
+        new_rows.append(row)
+        new_phases.append(phase)
+
     for destab in destabilizers:
         new_rows.append(destab)
-        new_phases.append(0)
+        new_phases.append(0)  # TODO: probably wrong, need to compute the correct phase for the destabilizer
 
-    for _, row, phase in logical_x_rows:
+    for _, row, phase in logical_z_rows:
         new_rows.append(row)
         new_phases.append(phase)
 
     for stab_row_idx in stab_rows:
         new_rows.append(stabilizers.tableau[stab_row_idx].copy())
         new_phases.append(stabilizers.phase[stab_row_idx])
-
-    for _, row, phase in logical_z_rows:
-        new_rows.append(row)
-        new_phases.append(phase)
 
     combined_matrix = np.vstack(new_rows)
     combined_phase = np.array(new_phases, dtype=np.int8)
