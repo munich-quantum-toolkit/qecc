@@ -151,62 +151,80 @@ For detailed guidelines and workflows, see {doc}`contributing`.
 
     Now you can make your changes locally.
 
-4.  Install development tools:
+4.  Install the project and its development dependencies:
 
     We highly recommend using modern, fast tooling for the development workflow.
     We recommend using [{code}`uv`][uv].
     If you don't have {code}`uv`, follow the installation instructions in the recommendation above (see {ref}`tip above <uv-recommendation>`).
     See the [uv documentation][uv] for more information.
 
-    We also recommend installing [{code}`pre-commit`][pre-commit] to automatically run checks before each commit and [{code}`nox`][nox] to automate common development tasks.
-
     ::::{tab-set}
     :sync-group: installer
 
     :::{tab-item} {code}`uv` _(recommended)_
     :sync: uv
-    The easiest way to install {code}`pre-commit` and {code}`nox` is via [{code}`uv`][uv]:
+    Install the project (including development dependencies) with [{code}`uv`][uv]:
 
     ```console
-    $ uv tool install pre-commit
-    $ uv tool install nox
-    ```
-
-    :::
-    :::{tab-item} {code}`brew`
-    :sync: brew
-    On macOS with Homebrew, you can install {code}`pre-commit` and {code}`nox` with:
-
-    ```console
-    $ brew install pre-commit nox
-    ```
-
-    :::
-    :::{tab-item} {code}`pipx`
-    :sync: pipx
-    If you prefer to use [{code}`pipx`][pipx], you can install {code}`pre-commit` and {code}`nox` with:
-
-    ```console
-    $ pipx install pre-commit
-    $ pipx install nox
+    $ uv sync
     ```
 
     :::
     :::{tab-item} {code}`pip`
     :sync: pip
-    If you prefer to use regular {code}`pip` (preferably in a virtual environment), you can install {code}`pre-commit` and {code}`nox` with:
+    If you really don't want to use [{code}`uv`][uv], you can install the project and the development dependencies into a virtual environment using {code}`pip`.
 
     ```console
-    $ pip install pre-commit nox
+    $ python -m venv .venv
+    $ source ./.venv/bin/activate
+    (.venv) $ python -m pip install -U pip
+    (.venv) $ python -m pip install -e . --group dev
     ```
 
     :::
     ::::
 
-    Then enable the {code}`pre-commit` hooks with:
+5.  Install pre-commit hooks to ensure code quality:
+
+    The project uses [pre-commit] hooks for running linters and formatting tools on each commit.
+    These checks can be run manually via [{code}`nox`][nox], by running:
 
     ```console
-    $ pre-commit install
+    $ nox -s lint
+    ```
+
+    They can also be run automatically on every commit via [{code}`prek`][prek] (recommended).
+    To set this up, install {code}`prek`, e.g., via:
+
+    ::::{tab-set}
+    :::{tab-item} macOS and Linux
+
+    ```console
+    $ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
+    ```
+
+    :::
+    :::{tab-item} Windows
+
+    ```console
+    $ powershell -ExecutionPolicy ByPass -c "irm https://github.com/j178/prek/releases/latest/download/prek-installer.ps1 | iex"
+    ```
+
+    :::
+
+    :::{tab-item} {code}`uv`
+
+    ```console
+    $ uv tool install prek
+    ```
+
+    :::
+    ::::
+
+    Then run:
+
+    ```console
+    $ prek install
     ```
 
 <!-- Links -->
@@ -216,5 +234,6 @@ For detailed guidelines and workflows, see {doc}`contributing`.
 [nox]: https://nox.thea.codes/en/stable/
 [pipx]: https://pypa.github.io/pipx/
 [pre-commit]: https://pre-commit.com/
+[prek]: https://prek.j178.dev
 [ruff]: https://docs.astral.sh/ruff/
 [uv]: https://docs.astral.sh/uv/

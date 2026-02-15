@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ### Added
 
+- New `MinimalCodeSwitchingCompiler` class that implements a compiler for minimal-overhead code switching on the logical level. ([#524], [arXiv:2512.04170](https://arxiv.org/abs/2512.04170)) ([**@inctechs**])
 - Added `gottesman_encoding_circuit` methods that constructs a stim encoding circuit for a given stabilizer code using the method described in Gottesman's "Surviving as a Quantum Computer in a Classical World" Chapter 6.4.1. ([#486]) ([**@pehamtom**])
 - Added class `SteaneNDFTStatePrepSimulator` for simulating non-deterministic state preparation protocols for CSS codes using verification with multiple ancilla states. ([#462]) ([**@pehamtom**])
 - Extended estimation of error rates in `NoisyNDFTStatePrepSimulator` via `secondary_logical_error_rate`. Now Z (X) error rates can also be estimated for the preparation of logical zero (plus). ([#462]) ([**@pehamtom**])
@@ -19,14 +20,18 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Added `NoiseModel` class for applying noise to a given stim circuit. ([#453]) ([**@pehamtom**])
 - New `PureFaultSet` class for representing collections of X or Z faults. ([#443]) ([**@pehamtom**])
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
+- Combinatorial search methods for constructing fault-tolerant cat state preparation circuits. ([#543]) ([**@pehamtom**])
+- Lattice surgery compilation for the color code with and without movable logical qubits and layout optimization. ([#559]) ([**@LSHerzog**])
 
 ### Changed
 
+- Stop testing on x86 macOS systems ([#592]) ([**@denialhaag**])
 - Move Python tests from `test/python` to `tests`. ([#482]) ([**@denialhaag**])
 - `NoisyNDFTStatePrepSimulator` simulates generalized post-selection based state preparation protocols. Old functionality for simulating state preparation protocols post-selected on stabilizer measurements can be found in the class `VerificationNDFTStatePrepSimulator`. ([#462]) ([**@pehamtom**])
 - Refactored state preparation circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
+- Changed the construction in `CatStatePreparationExperiment` to allow for ancillas with less qubits than the data cat state.
 
 ### Removed
 
@@ -43,6 +48,9 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- PR links -->
 
+[#524]: https://github.com/munich-quantum-toolkit/qecc/pull/524
+[#592]: https://github.com/munich-quantum-toolkit/qecc/pull/592
+[#543]: https://github.com/munich-quantum-toolkit/qecc/pull/543
 [#503]: https://github.com/munich-quantum-toolkit/qecc/pull/503
 [#499]: https://github.com/munich-quantum-toolkit/qecc/pull/499
 [#486]: https://github.com/munich-quantum-toolkit/qecc/pull/486
@@ -51,11 +59,14 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 [#461]: https://github.com/munich-quantum-toolkit/qecc/pull/461
 [#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
 [#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
+[#559]: https://github.com/munich-quantum-toolkit/qecc/pull/559
 
 <!-- Contributor -->
 
 [**@pehamtom**]: https://github.com/pehamtom
 [**@denialhaag**]: https://github.com/denialhaag
+[**@LSHerzog**]: https://github.com/LSHerzog/
+[**@inctechs**]: https://github.com/inctechs
 
 <!-- General links -->
 

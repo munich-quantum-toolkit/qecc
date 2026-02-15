@@ -1,5 +1,5 @@
 #!/usr/bin/env -S uv run --script --quiet
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -52,10 +52,10 @@ def preserve_lockfile() -> Generator[None]:
 @nox.session(reuse_venv=True, default=True)
 def lint(session: nox.Session) -> None:
     """Run the linter."""
-    if shutil.which("pre-commit") is None:
-        session.install("pre-commit")
+    if shutil.which("prek") is None:
+        session.install("prek")
 
-    session.run("pre-commit", "run", "--all-files", *session.posargs, external=True)
+    session.run("prek", "run", "--all-files", *session.posargs, external=True)
 
 
 def _run_tests(

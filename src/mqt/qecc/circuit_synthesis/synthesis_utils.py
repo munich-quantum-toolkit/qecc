@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -399,7 +399,7 @@ class EliminationCNOTSynthesizer:
         m = np.zeros((self.matrix.shape[1], self.matrix.shape[1]), dtype=bool)  # type: npt.NDArray[np.bool_]
         m[self.used_columns, :] = True
         m[:, self.used_columns] = True
-        return np.ma.array(self.costs, mask=m)  # type: ignore[no-any-return, no-untyped-call]
+        return np.ma.array(self.costs, mask=m)
 
     def _get_candidate_pairs(self, costs_unused: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
         # Get all valid (i, j) pairs sorted by cost
@@ -495,15 +495,15 @@ def check_mutually_disjointness_spcs(
         px_fs, pz_fs = get_fs_based_on_d(pspc)
 
         # Check against *all* existing and newly added elements in c_spcs
-        for _spc in c_spcs:
+        for spc in c_spcs:
             # NOTE: for distance 5 and 7 we only compare against the 1 error fault set.
             # This might need adjustments for different distances.
-            x_fs = _spc.compute_fault_set()
-            z_fs = _spc.compute_fault_set(x_errors=False)
+            x_fs = spc.compute_fault_set()
+            z_fs = spc.compute_fault_set(x_errors=False)
             if x_error:
-                if _spc.code.check_fs_overlap(x_fs.faults, px_fs):
+                if spc.code.check_fs_overlap(x_fs.faults, px_fs):
                     break
-            elif _spc.code.check_fs_overlap(z_fs.faults, pz_fs, x_error=False):
+            elif spc.code.check_fs_overlap(z_fs.faults, pz_fs, x_error=False):
                 break  # Stop checking if there's an overlap
         else:  # No overlap found, so add pspc
             c_spcs.append(pspc)

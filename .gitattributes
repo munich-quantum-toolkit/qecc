@@ -1,1 +1,2 @@
 .git_archival.txt  export-subst
+*.pkl filter=lfs diff=lfs merge=lfs -text
