@@ -1,4 +1,4 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
 # All rights reserved.
 #
 # SPDX-License-Identifier: MIT
@@ -85,8 +85,8 @@ def main() -> None:
 
     circuits = []
     # load circuit from file
-    for _id in [0, 1, 2, 3]:
-        circ_file = circ_file_core + str(_id)
+    for id_ in [0, 1, 2, 3]:
+        circ_file = circ_file_core + str(id_)
         path = prefix / code_name / (circ_file + ".qasm")
         circuits.append(QuantumCircuit.from_qasm_file(path))
 
