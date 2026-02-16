@@ -1818,12 +1818,12 @@ def get_candidate_transvections(
     """
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
-    
+
     pairs = _sp_gate_options(symplectic)
-    
+
     if not pairs:
         pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
-    
+
     transvections = Transvection.all_two_qubit_transvections()
     scores: list[tuple(Transvection, list[int, ...])] = []
     base_score, _ = score_symplectic(tableau)
@@ -1852,17 +1852,20 @@ def reduce_with_swaps(
     """
     tableau_copy = tableau.copy()
     get_n(tableau)
-
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
 
-    inv = _perm_inverse(perm)
-    swaps = _perm_to_swaps(inv)
+    _perm_inverse(perm)
+    swaps = _perm_to_swaps(perm)
+    p = list(range(tableau.n))
+    for swap in reversed(swaps):
+        a, b = (swap.qubit_a, swap.qubit_b)
+        p[a], p[b] = p[b], p[a]
 
     swap_sequence = EliminationSequence([])
+
     for swap in swaps:
         tableau_copy = swap.apply(tableau_copy, inplace=True)
         swap_sequence.add_operation(swap)
-
     return swap_sequence, tableau_copy
 
 
@@ -2044,20 +2047,20 @@ def _perm_inverse(perm_in_to_out: np.ndarray) -> np.ndarray:
 
 
 def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
-    """Return a SWAP list that realizes perm_in_to_out when right-multiplying the symplectic matrix, i.e. permuting columns (wires). (Any decomposition is fine for the test.)."""
-    perm = perm_in_to_out.copy().tolist()
-    n = len(perm)
+    """Return a SWAP list that realizes perm_in_to_out when right-multiplying
+    the symplectic matrix, i.e. permuting columns (wires).
+    """
+    n = len(perm_in_to_out)
     swaps: list[Swap] = []
-    pos = list(range(n))
+    current = list(range(n))  # Track where each wire currently is
 
-    for i in range(n):
-        target_pos = perm[i]
-        cur_pos = pos.index(i)
-        while cur_pos != target_pos:
-            step = cur_pos + 1 if cur_pos < target_pos else cur_pos - 1
-            swaps.append(Swap(cur_pos, step))
-            pos[cur_pos], pos[step] = pos[step], pos[cur_pos]
-            cur_pos = step
+    for target_idx in range(n):
+        desired_wire = perm_in_to_out[target_idx]
+        current_idx = current.index(desired_wire)
+
+        if current_idx != target_idx:
+            swaps.append(Swap(current_idx, target_idx))
+            current[current_idx], current[target_idx] = current[target_idx], current[current_idx]
 
     return swaps
 
@@ -2225,7 +2228,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
 
 def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
     """Create a hashable cache key from a tableau.
- 
+
     Args:
         tableau: The binary matrix or stabilizer tableau.
 

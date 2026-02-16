@@ -361,6 +361,22 @@ class StabilizerCode:
             p = Pauli.from_pauli_string(p)
         return self.stabilizer_equivalent(p, Pauli.from_pauli_string("I" * self.n))
 
+    def __repr__(self) -> str:
+        """Return a string representation of the code."""
+        return f"StabilizerCode(n={self.n}, k={self.k}, distance={self.distance})"
+
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the code."""
+        lines = [f"Stabilizer Code: n={self.n}, k={self.k}, distance={self.distance}"]
+        lines.append("Stabilizer Generators:")
+        lines.extend(f"  {gen}" for gen in self.generators)
+        if self.z_logicals is not None and self.x_logicals is not None:
+            lines.append("Logical Z operators:")
+            lines.extend(f"  {z}" for z in self.z_logicals)
+            lines.append("Logical X operators:")
+            lines.extend(f"  {x}" for x in self.x_logicals)
+        return "\n".join(lines)
+
 
 class InvalidStabilizerCodeError(ValueError):
     """Raised when the stabilizer code is invalid."""

@@ -753,6 +753,7 @@ def synthesize_clifford(
     lookahead_depth: int = 1,
     lookahead_top_k: int = 10,
     use_cnots_if_css: bool = True,
+    optimization_criterion: str = "gates",
 ) -> CliffordIsometry:
     """Synthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
@@ -773,7 +774,10 @@ def synthesize_clifford(
         )
 
     ops, _ = eliminate_non_css_with_lookahead(
-        tableau, lookahead=lookahead_depth, num_lookahead_candidates=lookahead_top_k
+        tableau,
+        lookahead=lookahead_depth,
+        num_lookahead_candidates=lookahead_top_k,
+        optimization_criterion=optimization_criterion,
     )
     return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse())
 
@@ -829,7 +833,12 @@ def resynthesize_stim_circuit(
 
 
 def encoder_from_stabilizers_and_logicals(
-    stabilizers: StabilizerTableau, logicals: StabilizerTableau
+    stabilizers: StabilizerTableau,
+    logicals: StabilizerTableau,
+    lookahead_depth: int = 1,
+    lookahead_top_k: int = 10,
+    optimize_tableau_before_synthesis: bool = True,
+    optimization_criterion: str = "gates",
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for a stabilizer code given its stabilizers and logicals as tableaux.
 
@@ -849,8 +858,18 @@ def encoder_from_stabilizers_and_logicals(
 
     full_tableau = combine_stabilizer_and_logical_tableau(stabilizers, logicals)
     stab_indices = list(range(logicals.num_rows() // 2, logicals.num_rows() // 2 + stabilizers.num_rows()))
-    optimized_tableau = optimize_tableau(full_tableau, stab_rows=stab_indices)
-    iso = synthesize_clifford(optimized_tableau, use_cnots_if_css=False, lookahead_depth=0)
+    if optimize_tableau_before_synthesis:
+        optimized_tableau = optimize_tableau(full_tableau, stab_rows=stab_indices)
+    else:
+        optimized_tableau = full_tableau
+
+    iso = synthesize_clifford(
+        optimized_tableau,
+        use_cnots_if_css=False,
+        lookahead_depth=lookahead_depth,
+        lookahead_top_k=lookahead_top_k,
+        optimization_criterion=optimization_criterion,
+    )
     iso.initialize_qubits(stab_indices, basis="Z")
     return iso
 
@@ -861,20 +880,27 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
     tab = tableau.copy()
 
     best = (tab, score_symplectic(tab))
+    improved = True
 
-    for i in range(len(stab_rows)):
-        for j in range(i + 1, len(stab_rows)):
-            tab = tableau.copy()
-            mat = tab.tableau.matrix
-            destabs = mat[: tableau.num_rows() // 2][stab_rows]
-            stabs = mat[tableau.num_rows() // 2 :][stab_rows]
-            stabs[i] ^= stabs[j]
-            destabs[j] ^= destabs[i]
-            mat[: tableau.num_rows() // 2][stab_rows] = destabs
-            mat[tableau.num_rows() // 2 :][stab_rows] = stabs
-            new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
-            if new_score < best[1]:
-                best = (tab, new_score)
+    while improved:
+        improved = False
+        for i in range(len(stab_rows)):
+            for j in range(len(stab_rows)):
+                if i == j:
+                    continue
+                tab = tableau.copy()
+                mat = tab.tableau.matrix
+                destabs = mat[: tableau.num_rows() // 2][stab_rows]
+                stabs = mat[tableau.num_rows() // 2 :][stab_rows]
+                stabs[i] ^= stabs[j]
+                destabs[j] ^= destabs[i]
+                mat[: tableau.num_rows() // 2][stab_rows] = destabs
+                mat[tableau.num_rows() // 2 :][stab_rows] = stabs
+                new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                if new_score < best[1]:
+                    best = (tab, new_score)
+                    improved = True
+        tableau = best[0]
 
     return best[0]
 

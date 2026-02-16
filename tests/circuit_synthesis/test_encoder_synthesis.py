@@ -293,15 +293,12 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
     iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals_tab)
     StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
     code = iso.get_code()
-    # print(code.stabs_as_pauli_strings())
-    # print(code.x_logicals)
     for stab in stabilizers:
         code.is_stabilizer(stab)
 
     for expected_log in x_logicals:
         is_expected_logical = False
         for circuit_log in code.x_logicals:
-            print(circuit_log)
             if code.stabilizer_equivalent(expected_log, circuit_log):
                 is_expected_logical = True
                 break

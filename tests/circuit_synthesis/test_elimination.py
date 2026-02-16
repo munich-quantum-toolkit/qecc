@@ -18,6 +18,7 @@ from mqt.qecc.circuit_synthesis.elimination import (
     eliminate_cnot,
     eliminate_non_css,
     eliminate_non_css_with_lookahead,
+    reduce_with_swaps,
     score_stateprep,
 )
 from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
@@ -232,3 +233,43 @@ def test_four_qubit() -> None:
     assert operations.apply(stabs) == result_tableau
     StabilizerTableau.from_stim_circuit(operations.to_circuit_inverse())
     assert StabilizerTableau.from_stim_circuit(operations.to_circuit().inverse()) == stabs
+
+
+def test_reduce_with_swaps() -> None:
+    # stabs = ["IYIIIIII", "IIYIIIII", "IIIIZIII", "IIIIIIIZ", "XIIIIIII", "IIIIIIXI", "IIIZIIII", "IIIIIXII", "IZIIIIII", "IIXIIIII", "IIIIXIII", "IIIIIIIY", "ZIIIIIII", "IIIIIIYI", "IIIYIIII", "IIIIIYII"]
+    stabs = [
+        "IYIIIIII",
+        "IIYIIIII",
+        "IIIIZIII",
+        "-IIIIIIIZ",
+        "-XIIIIIII",
+        "IIIIIIXI",
+        "-IIIZIIII",
+        "IIIIIXII",
+        "-IZIIIIII",
+        "IIXIIIII",
+        "IIIIXIII",
+        "-IIIIIIIY",
+        "ZIIIIIII",
+        "-IIIIIIYI",
+        "IIIYIIII",
+        "-IIIIIYII",
+    ]
+    tab = StabilizerTableau.from_pauli_strings(stabs)
+    _swaps, reduced_tab = reduce_with_swaps(tab)
+    # assert that tableau is diagonal
+    for i in range(reduced_tab.tableau.shape[0] // 2):
+        has_diagonal = False
+        destab = reduced_tab.tableau[i]
+        stab = reduced_tab.tableau[i + reduced_tab.n]
+        for j, val in enumerate(stab):
+            if (i == j or j == i + reduced_tab.n) and val == 1:
+                has_diagonal = True
+            else:
+                assert val == 0
+        for j, val in enumerate(destab):
+            if i == j or j == i + reduced_tab.n:
+                has_diagonal = True
+            else:
+                assert val == 0
+        assert has_diagonal
