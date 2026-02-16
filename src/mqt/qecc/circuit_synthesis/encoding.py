@@ -881,7 +881,11 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
 
     best = (tab, score_symplectic(tab))
     improved = True
-
+    half = tableau.num_rows() // 2
+    x_logical_rows = [i for i in range(half) if i not in stab_rows]
+    z_logical_rows = [i + half for i in range(half) if i not in stab_rows]
+    logical_rows = x_logical_rows + z_logical_rows
+    k = len(logical_rows) // 2
     while improved:
         improved = False
         for i in range(len(stab_rows)):
@@ -890,12 +894,30 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
                     continue
                 tab = tableau.copy()
                 mat = tab.tableau.matrix
-                destabs = mat[: tableau.num_rows() // 2][stab_rows]
-                stabs = mat[tableau.num_rows() // 2 :][stab_rows]
+                destabs = mat[:half][stab_rows]
+                stabs = mat[half:][stab_rows]
                 stabs[i] ^= stabs[j]
                 destabs[j] ^= destabs[i]
-                mat[: tableau.num_rows() // 2][stab_rows] = destabs
-                mat[tableau.num_rows() // 2 :][stab_rows] = stabs
+                mat[:half][stab_rows] = destabs
+                mat[half:][stab_rows] = stabs
+                new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                if new_score < best[1]:
+                    best = (tab, new_score)
+                    improved = True
+            for j in range(len(logical_rows)):
+                tab = tableau.copy()
+                mat = tab.tableau.matrix
+                destabs = mat[:half][stab_rows]
+                stabs = mat[half:][stab_rows]
+
+                other_log = mat[logical_rows[(j + k) % (2 * k)]]
+
+                destabs[i] ^= other_log
+                logj = mat[logical_rows[j]]
+
+                logj ^= stabs[i]
+                mat[:half][stab_rows] = destabs
+                mat[logical_rows[j]] = logj
                 new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
                 if new_score < best[1]:
                     best = (tab, new_score)
