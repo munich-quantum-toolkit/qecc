@@ -45,10 +45,10 @@ def test_idle_bonus_logic(simple_graph):
     N = 100  # noqa: N806
 
     bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=2, total_edges=N)
-    assert bonus == 0.0
+    assert bonus == pytest.approx(0.0, abs=1e-8)
 
     bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=3, total_edges=N)
-    assert bonus == 0.0
+    assert bonus == pytest.approx(0.0, abs=1e-8)
 
     # --- Bonus Active (Calculation Check) ---
     # prev=0, curr=10 -> idle = 9.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import locale
+import math
 from pathlib import Path
 from timeit import default_timer as timer
 from typing import TYPE_CHECKING, Any
@@ -243,7 +244,7 @@ class SingleShotSimulator:
         x_syndrome_w_err: NDArray[Any]
         z_syndrome_w_err: NDArray[Any]
 
-        if self.syndr_err_rate != 0.0:
+        if not math.isclose(self.syndr_err_rate, 0.0):
             if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
                 x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x)
                 z_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=z_syndrome, sigma=self.sigma_z)

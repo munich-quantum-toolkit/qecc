@@ -79,5 +79,5 @@ def test_single_sample(qss_simulator: QssSimulator) -> None:
     with mock.patch("pathlib.Path.open"), mock.patch("json.dump"):
         res = qss_simulator.run(1)
     assert res is not None
-    assert res["pers"] == 0.1
+    assert res["pers"] == pytest.approx(0.1)
     assert res["code_N"] == 7

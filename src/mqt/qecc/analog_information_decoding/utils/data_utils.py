@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import os
 from dataclasses import dataclass, fields
 from json.decoder import JSONDecodeError
@@ -104,7 +105,7 @@ def _check_convergence(
     success_cnt: int, runs: int, code_params: dict[str, int], precision_cutoff: float
 ) -> bool | None:
     _, _, ler, ler_eb = calculate_error_rates(success_cnt, runs, code_params)
-    if ler_eb != 0.0:
+    if not math.isclose(ler_eb, 0.0):
         if ler_eb / ler < precision_cutoff:
             return True
         return None

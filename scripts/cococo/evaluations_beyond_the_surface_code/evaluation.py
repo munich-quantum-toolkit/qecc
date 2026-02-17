@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import math
 import pickle  # noqa: S403
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,20 +37,22 @@ def collect_data_space_time(
 ) -> list[dict[str, Any]]:
     """Collects the data for a run which will compare space and time cost.
 
-    Note that the prefix and suffix of the filestrings are hardcoded. Consider changing them if you work with this.
+    Note that the prefix and suffix of the filestrings are hardcoded.
+    Consider changing them if you work with this.
 
     Args:
-        instances (list[dict]): A list of dicts which collects parameters of instances to be run.
-            Each dict must contain these keys: q, t, ratio, min_depth,... also "layout_name" must be added to track the shape, since "layout_type" will be "custom".
-            for generating random circuits.
-        hc_params (dict): contains a value for metric, max_restarts, max_iterations, routing, optimize_factories, free_rows, parallel
-        reps (int): Number of random circuits per instance (each optimized with hc and routed)
-        path (str): where to store the res_lst (also intermediate save points)
-        both_metric (bool): if False, just what metric is defined in hc_params. if True, both the crossing and the routing metric are used
-            this is necessary as running collect_data_space_time two separate times would use different sampled circuits for both runs.#
+        instances: A list of dicts which collects parameters of instances to be run.
+            Each dict must contain these keys: q, t, ratio, min_depth, ...
+            Also "layout_name" must be added to track the shape, since "layout_type" will be "custom".
+            For generating random circuits.
+        hc_params: contains a value for metric, max_restarts, max_iterations, routing, optimize_factories, free_rows, parallel
+        reps: Number of random circuits per instance (each optimized with hc and routed)
+        path: where to store the res_lst (also intermediate save points)
+        both_metric: If False, just what metric is defined in hc_params.
+            If True, both the crossing and the routing metric are used this is necessary as running collect_data_space_time two separate times would use different sampled circuits for both runs.
 
     Returns:
-        list[dict]: results dictionary for each instance (same order as instances.)
+        Results dictionary for each instance (same order as instances.)
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     instances_set = {
@@ -108,7 +111,7 @@ def collect_data_space_time(
             )
         elif instances[0]["circuit_type"] == "parallelmax":
             assert instances[0]["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
-            assert instances[0]["ratio"] == 1.0, (
+            assert math.isclose(instances[0]["ratio"], 1.0), (
                 "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
             )
             circuit = circuit_construction.generate_max_parallel_circuit(
@@ -116,7 +119,9 @@ def collect_data_space_time(
             )
         elif instances[0]["circuit_type"] == "sequential":
             assert instances[0]["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
-            assert instances[0]["ratio"] == 1.0, "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            assert math.isclose(instances[0]["ratio"], 1.0), (
+                "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            )
             layer_size = 2
             circuit = circuit_construction.generate_min_parallel_circuit(
                 q=instances[0]["q"],
@@ -153,7 +158,7 @@ def collect_data_space_time(
                         )
                     elif instance["circuit_type"] == "parallelmax":
                         assert instance["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
-                        assert instance["ratio"] == 1.0, (
+                        assert math.isclose(instance["ratio"], 1.0), (
                             "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
                         )
                         circuit = circuit_construction.generate_max_parallel_circuit(
@@ -161,7 +166,7 @@ def collect_data_space_time(
                         )
                     elif instance["circuit_type"] == "sequential":
                         assert instance["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
-                        assert instance["ratio"] == 1.0, (
+                        assert math.isclose(instance["ratio"], 1.0), (
                             "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
                         )
                         layer_size = 2
