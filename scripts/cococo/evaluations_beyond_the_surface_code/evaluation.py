@@ -133,7 +133,7 @@ def collect_data_space_time(
             raise NotImplementedError(msg)
         circuits.append(circuit)
 
-    for l, instance in enumerate(instances):  # noqa: E741
+    for l, instance in enumerate(instances):
         logger = logging.getLogger(__name__)
 
         # check whether new values for q, min_depth, tgate, ratio and circuit_type. If yes sample new circuits, otherwise keep them

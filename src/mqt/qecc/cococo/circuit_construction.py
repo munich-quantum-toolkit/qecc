@@ -164,7 +164,7 @@ def generate_min_parallel_circuit(
         k = rng.choice(flattened_labels)  # this qubit will be used in current layer too to destroy parallelism
         labels_copy = labels.copy()
         labels_copy.remove(k)
-        l = rng.choice(labels_copy)  # form pair with l and k  # noqa: E741
+        l = rng.choice(labels_copy)  # form pair with l and k
         temp.append((l, k))
         labels_copy.remove(l)
 
