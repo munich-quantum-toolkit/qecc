@@ -7,11 +7,11 @@
 
 """Benchmark runs for variation of j."""
 
+import datetime
 import json
 import pathlib
 import pickle  # noqa: S403
 import time
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,7 +44,7 @@ use_dag = True
 
 reps = 20
 
-date_str = datetime.now().strftime("%Y-%m-%d")
+date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 # date_str = "2025-11-08"
 path = f"varyj_layouttype{layout_type}_q{q}_m{m}_n{n}_j{j_str}_numgates{num_gates}_dvaries_ncirc{n_circ}_{date_str}_usedag{use_dag}.pkl"
 

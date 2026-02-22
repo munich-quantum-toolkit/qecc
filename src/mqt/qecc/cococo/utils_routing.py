@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import collections
+import datetime
 import itertools
 import logging
 import pathlib
@@ -17,7 +18,6 @@ import pickle  # noqa: S403
 import random
 import sys
 import warnings
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 import networkx as nx
@@ -1431,7 +1431,7 @@ class TeleportationRouter(BasicRouter):
             raise ValueError(msg)
 
         schedule: Any = []
-        filename = f"schedule_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl"  # logging filename
+        filename = f"schedule_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}.pkl"  # logging filename
 
         available_gaps: list[pos] = []  # a list of gap positions which are free due to moves
         danger_qubits: dict[
