@@ -148,7 +148,7 @@ class EliminationSequence:
                 qubit_last_used[q] = earliest_start
 
         if qubit_last_used:
-            depth = max(qubit_last_used.values())
+            depth = max(qubit_last_used.values()) + 1
         return depth
 
 
@@ -337,6 +337,14 @@ class OperationFilter(ABC):
             op: The tableau operation to update the filter with.
         """
 
+    @abstractmethod
+    def copy(self) -> OperationFilter:
+        """Create a copy of the filter with the same state.
+
+        Returns:
+            A new filter instance with copied state.
+        """
+
 
 class ParallelFilter(OperationFilter):
     """Filter that blocks operations on qubits already used in current layer."""
@@ -374,6 +382,16 @@ class ParallelFilter(OperationFilter):
     def _reset(self) -> None:
         """Unblock all qubits."""
         self.blocked_qubits.clear()
+
+    def copy(self) -> ParallelFilter:
+        """Create a copy of the filter with the same state.
+
+        Returns:
+            A new ParallelFilter with copied blocked_qubits state.
+        """
+        new_filter = ParallelFilter()
+        new_filter.blocked_qubits = self.blocked_qubits.copy()
+        return new_filter
 
 
 class GreedyTransvectionGenerator(CandidateGenerator):
@@ -419,7 +437,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
 
         if not filtered:
             for f in self.filters:
-                if hasattr(f, '_reset'):
+                if hasattr(f, "_reset"):
                     f._reset()
             return candidates
 
@@ -484,7 +502,7 @@ class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
 
         if not filtered:
             for f in self.filters:
-                if hasattr(f, '_reset'):
+                if hasattr(f, "_reset"):
                     f._reset()
             return candidates
 
@@ -549,7 +567,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
         if not filtered:
             for f in self.filters:
-                if hasattr(f, '_reset'):
+                if hasattr(f, "_reset"):
                     f._reset()
             return candidates
 
@@ -687,6 +705,7 @@ def eliminate_cnot(
             lookahead=lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
             target_rank=target_rank,
+            callback=EliminationCallback(),
         )
     else:
         config = EliminationConfig.for_cnot_up_to_row_ops(
@@ -2257,6 +2276,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.num_lookahead_candidates_per_layer = _normalize_lookahead_candidates(num_lookahead_candidates, lookahead)
         self.score_fn = score_fn
         self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
+        self._current_sequence = EliminationSequence([])
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate candidates using lookahead simulation.
@@ -2270,31 +2290,49 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         if self.lookahead <= 0:
             return self.base_config.candidate_generator.get_candidates(tableau)
 
-        cache_key = _create_tableau_cache_key(tableau)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
         base_candidates = [cand for cand, _ in self.base_config.candidate_generator.get_candidates(tableau)]
         num_candidates_this_layer = self.num_lookahead_candidates_per_layer[0]
+
+        # Copy current filter state to pass to lookahead
+        current_filter_state = None
+        if self.base_config.filters:
+            current_filter_state = [f.copy() for f in self.base_config.filters]
+
         scored_candidates = _score_candidates_with_lookahead(
-            tableau, base_candidates, num_candidates_this_layer, self._create_lookahead_config(), self.score_fn
+            tableau,
+            base_candidates,
+            num_candidates_this_layer,
+            self._create_lookahead_config(current_filter_state),
+            self.score_fn,
+            self._current_sequence,
         )
 
-        result = [(op, score) for op, score in scored_candidates]
-        self._cache[cache_key] = result
-        return result
+        return [(op, score) for op, score in scored_candidates]
 
-    def _create_lookahead_config(self) -> EliminationConfig:
-        """Create configuration for recursive lookahead."""
+    def _create_lookahead_config(self, initial_filter_state: list[OperationFilter] | None) -> EliminationConfig:
+        # Create fresh base config for lookahead with copied filters
+        fresh_base_filters = (
+            [f.copy() for f in self.base_config.candidate_generator.filters]
+            if self.base_config.candidate_generator.filters
+            else []
+        )
+        fresh_base_generator = type(self.base_config.candidate_generator)(fresh_base_filters)
+
+        fresh_base_config = EliminationConfig(
+            termination_criterion=self.base_config.termination_criterion,
+            candidate_generator=fresh_base_generator,
+            filters=self.base_config.filters,
+        )
+
         return EliminationConfig(
             termination_criterion=self.base_config.termination_criterion,
             candidate_generator=LookaheadCandidateGenerator(
-                self.base_config,
+                fresh_base_config,
                 self.lookahead - 1,
                 self.num_lookahead_candidates_per_layer[1:] if len(self.num_lookahead_candidates_per_layer) > 1 else [],
                 self.score_fn,
             ),
-            filters=self.base_config.filters,
+            filters=initial_filter_state,
         )
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
@@ -2304,10 +2342,13 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
+        self._current_sequence.add_operation(op)
+        self._cache.clear()
         self.base_config.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
+        self._current_sequence = EliminationSequence([])
         self.base_config.candidate_generator.reset()
 
 
@@ -2331,6 +2372,7 @@ def _score_candidates_with_lookahead(
     num_candidates: int,
     lookahead_config: EliminationConfig,
     score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+    prefix_sequence: EliminationSequence,
 ) -> list[tuple[TableauOperation, int]]:
     """Score candidates using lookahead simulation.
 
@@ -2340,6 +2382,7 @@ def _score_candidates_with_lookahead(
         num_candidates: Maximum number of candidates to evaluate.
         lookahead_config: Configuration for lookahead elimination.
         score_fn: Function to compute score and minimality flag from a sequence.
+        prefix_sequence: The elimination sequence built so far (for depth calculation).
 
     Returns:
         List of (operation, score) tuples sorted by score.
@@ -2347,7 +2390,9 @@ def _score_candidates_with_lookahead(
     scored_candidates: list[tuple[TableauOperation, int]] = []
 
     for op in candidates[:num_candidates]:
-        result = _simulate_and_score_operation(op, tableau, lookahead_config, score_fn)
+        # Create fresh copy of config with fresh filter state for each candidate
+        fresh_config = _create_fresh_lookahead_config(lookahead_config)
+        result = _simulate_and_score_operation(op, tableau, fresh_config, score_fn, prefix_sequence)
         if result is not None:
             score, is_minimal = result
             scored_candidates.append((op, score))
@@ -2358,11 +2403,35 @@ def _score_candidates_with_lookahead(
     return scored_candidates
 
 
+def _create_fresh_lookahead_config(config: EliminationConfig) -> EliminationConfig:
+    """Create a fresh copy of the lookahead config with copied filter state.
+
+    Args:
+        config: The original lookahead configuration.
+
+    Returns:
+        A new config with fresh filter copies.
+    """
+    fresh_filters = None
+    if config.filters:
+        fresh_filters = [f.copy() for f in config.filters]
+
+    return EliminationConfig(
+        termination_criterion=config.termination_criterion,
+        candidate_generator=config.candidate_generator,
+        selection_strategy=config.selection_strategy,
+        filters=fresh_filters,
+        callback=config.callback,
+        post_process_fn=config.post_process_fn,
+    )
+
+
 def _simulate_and_score_operation(
     op: TableauOperation,
     tableau: BinaryMatrix,
     lookahead_config: EliminationConfig,
     score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+    prefix_sequence: EliminationSequence,
 ) -> tuple[int, bool] | None:
     """Simulate operation and return (score, is_minimal), or None if simulation fails.
 
@@ -2371,14 +2440,21 @@ def _simulate_and_score_operation(
         tableau: The current tableau state.
         lookahead_config: Configuration for lookahead elimination.
         score_fn: Function to compute score and minimality flag from a sequence.
+        prefix_sequence: The elimination sequence built so far (for depth calculation).
 
     Returns:
         A tuple of (score, is_minimal) if simulation succeeds, None otherwise.
     """
     try:
         new_tableau = op.apply(tableau)
+
+        # Update filters with the candidate operation before lookahead
+        if lookahead_config.filters:
+            for f in lookahead_config.filters:
+                f.update(op)
+
         sequence, _ = eliminate(new_tableau, lookahead_config)
-        sequence.operations.insert(0, op)
-        return score_fn(sequence)
+        full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
+        return score_fn(full_sequence)
     except RuntimeError:
         return None

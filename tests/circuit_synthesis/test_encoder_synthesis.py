@@ -17,8 +17,6 @@ import numpy as np
 import pytest
 import stim
 
-from mqt.qecc.codes import CSSCode, StabilizerCode, SquareOctagonColorCode
-
 from mqt.qecc.circuit_synthesis import (
     depth_optimal_encoding_circuit,
     depth_optimal_encoding_circuit_non_css,
@@ -31,6 +29,7 @@ from mqt.qecc.circuit_synthesis.encoding import (
     resynthesize_stim_circuit,
     synthesize_encoding_circuit,
 )
+from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
 from .utils import eq_span, in_span
@@ -335,8 +334,8 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 
 def test_cc_4_8_8():
     code = SquareOctagonColorCode(5)
-    enc = synthesize_encoding_circuit(code, lookahead_depth=0, lookahead_top_k=5, optimize_depth=True)
+    enc = synthesize_encoding_circuit(code, lookahead_depth=1, lookahead_top_k=15, optimize_depth=False)
     _assert_correct_encoding_circuit(enc, code)
     print(enc.depth())
     print(enc.num_cnots())
-    assert False
+    raise AssertionError
