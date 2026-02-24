@@ -17,7 +17,8 @@ import numpy as np
 import pytest
 import stim
 
-from mqt.qecc import CSSCode, StabilizerCode
+from mqt.qecc.codes import CSSCode, StabilizerCode, SquareOctagonColorCode
+
 from mqt.qecc.circuit_synthesis import (
     depth_optimal_encoding_circuit,
     depth_optimal_encoding_circuit_non_css,
@@ -330,3 +331,10 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
                 is_expected_logical = True
                 break
         assert is_expected_logical, f"Expected logical {expected_log} not found in code logicals."
+
+
+def test_cc_4_8_8():
+    code = SquareOctagonColorCode(5)
+    enc = synthesize_encoding_circuit(code, lookahead_depth=1, lookahead_top_k=5, optimize_depth=True)
+    _assert_correct_encoding_circuit(enc, code)
+    assert False

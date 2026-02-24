@@ -459,7 +459,7 @@ def eliminate_cnot_lookahead(
     matrix: CheckMatrix,
     optimization_criterion: str = "gates",
     lookahead: int = 1,
-    num_lookahead_candidates: int = 10,
+    num_lookahead_candidates: int | list[int] = 10,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations with lookahead.
 
@@ -467,7 +467,8 @@ def eliminate_cnot_lookahead(
         matrix: The CSS check matrix to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         lookahead: Number of steps to look ahead in the synthesis.
-        num_lookahead_candidates: Number of top candidates to explore in lookahead.
+        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+            Can be a single int (same limit for all layers) or a list of ints (one per layer).
 
     Returns:
         A tuple of (operations, final_matrix) where operations is the sequence
@@ -490,7 +491,7 @@ def eliminate_cnot(
     optimization_criterion: str = "gates",
     exact: bool = True,
     lookahead: int = 0,
-    num_lookahead_candidates: int = 10,
+    num_lookahead_candidates: int | list[int] = 10,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
@@ -547,7 +548,7 @@ def eliminate_non_css_with_lookahead(
     tableau: StabilizerTableau,
     optimization_criterion: str = "gates",
     lookahead: int = 1,
-    num_lookahead_candidates: int = 10,
+    num_lookahead_candidates: int | list[int] = 10,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
 
@@ -555,7 +556,8 @@ def eliminate_non_css_with_lookahead(
         tableau: The stabilizer tableau to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         lookahead: Number of steps to look ahead in the synthesis.
-        num_lookahead_candidates: Number of top candidates to explore in lookahead.
+        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+            Can be a single int (same limit for all layers) or a list of ints (one per layer).
 
     Returns:
         A tuple of (operations, final_tableau) where operations is the sequence
@@ -616,6 +618,10 @@ class TableauOperation(ABC):
         Returns:
             set[int]: The set of qubit indices involved in the operation.
         """
+
+    def __repr__(self) -> str:
+        """Return a string representation of the operation."""
+        return f"{self.__class__.__name__}(qubits={self.qubits()})"
 
 
 TV2 = tuple[int, int, int, int]
@@ -1152,11 +1158,11 @@ class ParallelFilter(OperationFilter):
         Returns:
             A filtered list of tableau operations.
         """
-        filtered_ops: list[TableauOperation] = [
-            (op, score)
-            for (op, score) in operations
-            if not any(qubit in self.blocked_qubits for qubit in op.qubits() if score > 0)
+        filtered_ops: list[tuple[TableauOperation, int]] = [
+            (op, score) for (op, score) in operations if not any(qubit in self.blocked_qubits for qubit in op.qubits())
         ]
+        # score must also be positive
+        filtered_ops = [(op, score) for (op, score) in filtered_ops if score > 0]
         if not filtered_ops:
             self._reset()
             filtered_ops = operations
@@ -1216,7 +1222,8 @@ class EliminationConfig:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
 
-        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        filters = [ParallelFilter()]
+        # if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
             if not isinstance(tbl, (CheckMatrix)):
@@ -1259,7 +1266,8 @@ class EliminationConfig:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
 
-        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        filters = [ParallelFilter()]
+        # if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
             if not isinstance(tbl, (CheckMatrix)):
@@ -1345,7 +1353,7 @@ class EliminationConfig:
         cls,
         optimization_criterion: str = "gates",
         lookahead: int = 1,
-        num_lookahead_candidates: int = 10,
+        num_lookahead_candidates: int | list[int] = 10,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         """Create configuration for non-CSS elimination with lookahead.
@@ -1353,7 +1361,8 @@ class EliminationConfig:
         Args:
             optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
             lookahead: Number of steps to look ahead when selecting operations.
-            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+                Can be a single int (same limit for all layers) or a list of ints (one per layer).
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1396,7 +1405,7 @@ class EliminationConfig:
         cls,
         target_rank: int,
         lookahead: int = 1,
-        num_lookahead_candidates: int = 10,
+        num_lookahead_candidates: int | list[int] = 10,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
@@ -1405,7 +1414,8 @@ class EliminationConfig:
         Args:
             target_rank: The target rank of the check matrix after elimination.
             lookahead: Number of steps to look ahead when selecting operations.
-            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+                Can be a single int (same limit for all layers) or a list of ints (one per layer).
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1452,7 +1462,7 @@ class EliminationConfig:
                 num_lookahead_candidates,
                 _score_fn,
             ),
-            filters=base_config.filters if optimization_criterion == "gates" else None,
+            filters=None,
             callback=callback,
         )
 
@@ -1461,7 +1471,7 @@ class EliminationConfig:
         cls,
         target_rank: int,
         lookahead: int = 1,
-        num_lookahead_candidates: int = 10,
+        num_lookahead_candidates: int | list[int] = 10,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
@@ -1470,7 +1480,8 @@ class EliminationConfig:
         Args:
             target_rank: The target rank of the check matrix after elimination.
             lookahead: Number of steps to look ahead when selecting operations.
-            num_lookahead_candidates: Number of top candidates to explore during lookahead.
+            num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+                Can be a single int (same limit for all layers) or a list of ints (one per layer).
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1517,7 +1528,7 @@ class EliminationConfig:
                 num_lookahead_candidates,
                 _score_fn,
             ),
-            filters=base_config.filters if optimization_criterion == "gates" else None,
+            filters=None,
             callback=callback,
         )
 
@@ -2146,10 +2157,12 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
             op = CNOT(i, j)
             matrix = op.apply(matrix, inplace=True)
             weight_after = int(matrix.matrix.sum())
-            candidates.append((op, weight_after - weight_before))
+            candidates.append((op, weight_before - weight_after))
             matrix = op.apply(matrix, inplace=True)
 
-    candidates.sort(key=operator.itemgetter(1))
+    # candidates.sort(key=operator.itemgetter(1))
+    # sort by score descending
+    candidates.sort(key=operator.itemgetter(1), reverse=True)
     return [(op, score) for op, score in candidates]
 
 
@@ -2167,6 +2180,23 @@ def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
     return non_zero_columns >= k
 
 
+def _normalize_lookahead_candidates(num_candidates: int | list[int], lookahead: int) -> list[int]:
+    """Normalize num_lookahead_candidates to a list of proper length.
+
+    Args:
+        num_candidates: Either a single int or a list of ints.
+        lookahead: The lookahead depth.
+
+    Returns:
+        A list of length lookahead where each element is the number of candidates to consider at that layer.
+    """
+    if isinstance(num_candidates, int):
+        return [num_candidates] * lookahead
+    if len(num_candidates) < lookahead:
+        return list(num_candidates) + [num_candidates[-1]] * (lookahead - len(num_candidates))
+    return list(num_candidates[:lookahead])
+
+
 class LookaheadCandidateGenerator(CandidateGenerator):
     """Generates candidates using lookahead simulation."""
 
@@ -2174,12 +2204,12 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self,
         base_config: EliminationConfig,
         lookahead: int,
-        num_lookahead_candidates: int,
+        num_lookahead_candidates: int | list[int],
         score_fn: Callable[[EliminationSequence], tuple[int, bool]],
     ) -> None:
         self.base_config = base_config
         self.lookahead = lookahead
-        self.num_lookahead_candidates = num_lookahead_candidates
+        self.num_lookahead_candidates_per_layer = _normalize_lookahead_candidates(num_lookahead_candidates, lookahead)
         self.score_fn = score_fn
         self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
 
@@ -2200,8 +2230,9 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             return self._cache[cache_key]
 
         base_candidates = [cand for cand, _ in self.base_config.candidate_generator.get_candidates(tableau)]
+        num_candidates_this_layer = self.num_lookahead_candidates_per_layer[0]
         scored_candidates = _score_candidates_with_lookahead(
-            tableau, base_candidates, self.num_lookahead_candidates, self._create_lookahead_config(), self.score_fn
+            tableau, base_candidates, num_candidates_this_layer, self._create_lookahead_config(), self.score_fn
         )
 
         result = [(op, score) for op, score in scored_candidates]
@@ -2215,7 +2246,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             candidate_generator=LookaheadCandidateGenerator(
                 self.base_config,
                 self.lookahead - 1,
-                self.num_lookahead_candidates,
+                self.num_lookahead_candidates_per_layer[1:] if len(self.num_lookahead_candidates_per_layer) > 1 else [],
                 self.score_fn,
             ),
             filters=self.base_config.filters,
