@@ -166,7 +166,6 @@ def test_eliminate_non_css_performance():
 
     assert result_tableau.is_identity()
     assert elapsed_time < 10.0
-    raise AssertionError
 
 
 def test_eliminate_non_css_with_lookahead_performance():
@@ -182,7 +181,6 @@ def test_eliminate_non_css_with_lookahead_performance():
         "ZYYYIIIZIIIY",
     ])
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
-    raise AssertionError
     start_time = time.perf_counter()
     operations, result_tableau = eliminate_non_css_with_lookahead(
         tab, optimization_criterion="gates", lookahead=1, num_lookahead_candidates=5

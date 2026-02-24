@@ -335,6 +335,8 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 
 def test_cc_4_8_8():
     code = SquareOctagonColorCode(5)
-    enc = synthesize_encoding_circuit(code, lookahead_depth=1, lookahead_top_k=5, optimize_depth=True)
+    enc = synthesize_encoding_circuit(code, lookahead_depth=0, lookahead_top_k=5, optimize_depth=True)
     _assert_correct_encoding_circuit(enc, code)
+    print(enc.depth())
+    print(enc.num_cnots())
     assert False

@@ -140,7 +140,6 @@ class EliminationSequence:
         qubit_last_used: dict[int, int] = {}
         for op in self.operations:
             involved_qubits = op.qubits()
-            # get maximum depth of all involved qubits
             earliest_start = 0
             for q in involved_qubits:
                 if q in qubit_last_used:
@@ -221,7 +220,7 @@ def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[
     iteration = 0
 
     while not config.termination_criterion(tableau):
-        candidate_ops = _get_filtered_candidates(tableau, config)
+        candidate_ops = config.candidate_generator.get_candidates(tableau)
         _validate_candidates(candidate_ops)
 
         op = selection_strategy.select(candidate_ops)
@@ -316,12 +315,78 @@ class RandomSelection(SelectionStrategy):
         return random.choice(candidates[: self.k])[0]
 
 
+class OperationFilter(ABC):
+    """Abstract base class for filtering tableau operations."""
+
+    @abstractmethod
+    def should_include(self, op: TableauOperation) -> bool:
+        """Check if an operation should be included in candidates.
+
+        Args:
+            op: The tableau operation to check.
+
+        Returns:
+            True if the operation should be included, False otherwise.
+        """
+
+    @abstractmethod
+    def update(self, op: TableauOperation) -> None:
+        """Update the filter state with the given operation.
+
+        Args:
+            op: The tableau operation to update the filter with.
+        """
+
+
+class ParallelFilter(OperationFilter):
+    """Filter that blocks operations on qubits already used in current layer."""
+
+    def __init__(self) -> None:
+        """Initialize the parallel filter."""
+        self.blocked_qubits: set[int] = set()
+
+    def should_include(self, op: TableauOperation) -> bool:
+        """Check if operation uses any blocked qubits.
+
+        Args:
+            op: The operation to check.
+
+        Returns:
+            True if no qubits are blocked, False otherwise.
+        """
+        return not any(qubit in self.blocked_qubits for qubit in op.qubits())
+
+    def update(self, op: TableauOperation) -> None:
+        """Block qubits involved in the operation.
+
+        Args:
+            op: The tableau operation to update the filter with.
+        """
+        qubits_involved = op.qubits()
+        self.blocked_qubits.update(qubits_involved)
+        if not self.has_available_qubits():
+            self._reset()
+
+    def has_available_qubits(self) -> bool:
+        """Check if there are qubits available for operations."""
+        return len(self.blocked_qubits) > 0
+
+    def _reset(self) -> None:
+        """Unblock all qubits."""
+        self.blocked_qubits.clear()
+
+
 class GreedyTransvectionGenerator(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
 
-    def __init__(self) -> None:
-        """Initialize the greedy transvection generator."""
+    def __init__(self, filters: list[OperationFilter] | None = None) -> None:
+        """Initialize the greedy transvection generator.
+
+        Args:
+            filters: Optional list of filters to apply during candidate generation.
+        """
         self.operation_history: list[TableauOperation] = []
+        self.filters = filters or []
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
         """Generate transvection candidates sorted by heuristic score.
@@ -332,16 +397,44 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         Returns:
             List of transvection operations sorted by preference.
         """
-        return get_candidate_transvections(tableau)
+        all_candidates = get_candidate_transvections(tableau)
+        return self._apply_filters(all_candidates)
+
+    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
+        """Apply all filters to candidate list.
+
+        Args:
+            candidates: List of candidate operations with scores.
+
+        Returns:
+            Filtered list of candidates.
+        """
+        if not self.filters:
+            return candidates
+
+        filtered = []
+        for op, score in candidates:
+            if score > 0 and all(f.should_include(op) for f in self.filters):
+                filtered.append((op, score))
+
+        if not filtered:
+            for f in self.filters:
+                if hasattr(f, '_reset'):
+                    f._reset()
+            return candidates
+
+        return filtered
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
-        """Update operation history after applying an operation.
+        """Update operation history and filters after applying an operation.
 
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.operation_history.append(op)
+        for f in self.filters:
+            f.update(op)
 
     def reset(self) -> None:
         """Reset the operation history."""
@@ -351,9 +444,14 @@ class GreedyTransvectionGenerator(CandidateGenerator):
 class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
 
-    def __init__(self) -> None:
-        """Initialize the greedy transvection generator."""
+    def __init__(self, filters: list[OperationFilter] | None = None) -> None:
+        """Initialize the greedy transvection generator.
+
+        Args:
+            filters: Optional list of filters to apply during candidate generation.
+        """
         self.operation_history: list[TableauOperation] = []
+        self.filters = filters or []
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
         """Generate transvection candidates sorted by heuristic score.
@@ -364,16 +462,44 @@ class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
         Returns:
             List of transvection operations sorted by preference.
         """
-        return get_candidate_transvections_stateprep(tableau)
+        all_candidates = get_candidate_transvections_stateprep(tableau)
+        return self._apply_filters(all_candidates)
+
+    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
+        """Apply all filters to candidate list.
+
+        Args:
+            candidates: List of candidate operations with scores.
+
+        Returns:
+            Filtered list of candidates.
+        """
+        if not self.filters:
+            return candidates
+
+        filtered = []
+        for op, score in candidates:
+            if score > 0 and all(f.should_include(op) for f in self.filters):
+                filtered.append((op, score))
+
+        if not filtered:
+            for f in self.filters:
+                if hasattr(f, '_reset'):
+                    f._reset()
+            return candidates
+
+        return filtered
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
-        """Update operation history after applying an operation.
+        """Update operation history and filters after applying an operation.
 
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.operation_history.append(op)
+        for f in self.filters:
+            f.update(op)
 
     def reset(self) -> None:
         """Reset the operation history."""
@@ -383,9 +509,14 @@ class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
 
-    def __init__(self) -> None:
-        """Initialize the greedy CNOT generator."""
+    def __init__(self, filters: list[OperationFilter] | None = None) -> None:
+        """Initialize the greedy CNOT generator.
+
+        Args:
+            filters: Optional list of filters to apply during candidate generation.
+        """
         self.operation_history: list[TableauOperation] = []
+        self.filters = filters or []
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[TableauOperation]:
         """Generate CNOT candidates sorted by heuristic score.
@@ -396,16 +527,44 @@ class GreedyCNOTGenerator(CandidateGenerator):
         Returns:
             List of CNOT operations sorted by preference.
         """
-        return greedy_matrix_elimination_candidates(tableau)
+        all_candidates = greedy_matrix_elimination_candidates(tableau)
+        return self._apply_filters(all_candidates)
+
+    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
+        """Apply all filters to candidate list.
+
+        Args:
+            candidates: List of candidate operations with scores.
+
+        Returns:
+            Filtered list of candidates.
+        """
+        if not self.filters:
+            return candidates
+
+        filtered = []
+        for op, score in candidates:
+            if score > 0 and all(f.should_include(op) for f in self.filters):
+                filtered.append((op, score))
+
+        if not filtered:
+            for f in self.filters:
+                if hasattr(f, '_reset'):
+                    f._reset()
+            return candidates
+
+        return filtered
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
-        """Update operation history after applying an operation.
+        """Update operation history and filters after applying an operation.
 
         Args:
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
         self.operation_history.append(op)
+        for f in self.filters:
+            f.update(op)
 
     def reset(self) -> None:
         """Reset the operation history."""
@@ -1114,74 +1273,6 @@ class Swap(TableauOperation):
         return {self.qubit_a, self.qubit_b}
 
 
-class OperationFilter(ABC):
-    """Abstract base class for filtering tableau operations."""
-
-    @abstractmethod
-    def filter(self, operations: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
-        """Filter the given list of tableau operations.
-
-        Args:
-            operations: A list of tableau operations to filter.
-            config: Configuration parameters for the elimination process.
-
-        Returns:
-            A filtered list of tableau operations.
-        """
-
-    @abstractmethod
-    def update(self, op: TableauOperation) -> None:
-        """Update the filter state with the given operation.
-
-        Args:
-            op: The tableau operation to update the filter with.
-        """
-
-
-class ParallelFilter(OperationFilter):
-    """Context for elimination process."""
-
-    def __init__(self) -> None:
-        """Initialize the elimination context.
-
-        Args:
-            config: Configuration parameters for the elimination process.
-        """
-        self.blocked_qubits: set[int] = set()
-
-    def filter(self, operations: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
-        """Filter the given list of tableau operations.
-
-        Args:
-            operations: A list of tableau operations to filter.
-
-        Returns:
-            A filtered list of tableau operations.
-        """
-        filtered_ops: list[tuple[TableauOperation, int]] = [
-            (op, score) for (op, score) in operations if not any(qubit in self.blocked_qubits for qubit in op.qubits())
-        ]
-        # score must also be positive
-        filtered_ops = [(op, score) for (op, score) in filtered_ops if score > 0]
-        if not filtered_ops:
-            self._reset()
-            filtered_ops = operations
-        return filtered_ops
-
-    def update(self, op: TableauOperation) -> None:
-        """Update the filter with the given operation.
-
-        Args:
-            op: The tableau operation to update the context with.
-        """
-        qubits_involved = op.qubits()
-        self.blocked_qubits.update(qubits_involved)
-
-    def _reset(self) -> None:
-        """Unblock all qubits."""
-        self.blocked_qubits.clear()
-
-
 elimination_candidate_fn = Callable[[BinaryMatrix], EliminationSequence]
 
 
@@ -1222,8 +1313,7 @@ class EliminationConfig:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
 
-        filters = [ParallelFilter()]
-        # if optimization_criterion == "depth" else []
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
             if not isinstance(tbl, (CheckMatrix)):
@@ -1231,13 +1321,12 @@ class EliminationConfig:
                 raise TypeError(msg)
 
             matrix = tbl.matrix
-            # exactly rank columns with exactly one non-zero entry
             non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
             return non_zero_columns == target_rank
 
         return cls(
             termination_criterion=termination_criterion,
-            candidate_generator=GreedyCNOTGenerator(),
+            candidate_generator=GreedyCNOTGenerator(filters),
             filters=filters,
             callback=callback,
         )
@@ -1266,8 +1355,7 @@ class EliminationConfig:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
 
-        filters = [ParallelFilter()]
-        # if optimization_criterion == "depth" else []
+        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
             if not isinstance(tbl, (CheckMatrix)):
@@ -1275,13 +1363,12 @@ class EliminationConfig:
                 raise TypeError(msg)
 
             matrix = tbl.matrix
-            # exactly rank columns with exactly one non-zero entry
             one_columns = (np.sum(matrix, axis=0) == 1).sum()
             return one_columns == target_rank
 
         return cls(
             termination_criterion=termination_criterion,
-            candidate_generator=GreedyCNOTGenerator(),
+            candidate_generator=GreedyCNOTGenerator(filters),
             filters=filters,
             callback=callback,
         )
@@ -1311,7 +1398,7 @@ class EliminationConfig:
 
         return cls(
             termination_criterion=is_terminal_transvection,
-            candidate_generator=GreedyTransvectionGenerator(),
+            candidate_generator=GreedyTransvectionGenerator(filters),
             filters=filters,
             callback=callback,
             post_process_fn=reduce_single_qubit_gates_and_swaps,
@@ -1342,7 +1429,7 @@ class EliminationConfig:
 
         return cls(
             termination_criterion=is_terminal_stateprep,
-            candidate_generator=GreedyTransvectionGeneratorStateprep(),
+            candidate_generator=GreedyTransvectionGeneratorStateprep(filters),
             filters=filters,
             callback=callback,
             post_process_fn=reduce_singe_qubit_gates_stateprep,
@@ -1379,7 +1466,7 @@ class EliminationConfig:
 
         base_config = EliminationConfig(
             termination_criterion=is_terminal_transvection,
-            candidate_generator=GreedyTransvectionGenerator(),
+            candidate_generator=GreedyTransvectionGenerator(filters),
             filters=filters,
         )
 
@@ -1431,7 +1518,6 @@ class EliminationConfig:
                 raise TypeError(msg)
 
             matrix = tbl.matrix
-            # exactly rank columns with exactly one non-zero entry
             non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
             return non_zero_columns == target_rank
 
@@ -1497,7 +1583,6 @@ class EliminationConfig:
                 raise TypeError(msg)
 
             matrix = tbl.matrix
-            # exactly rank columns with exactly one non-zero entry
             one_columns = (np.sum(matrix, axis=0) == 1).sum()
             return one_columns == target_rank
 
@@ -1533,22 +1618,6 @@ class EliminationConfig:
         )
 
 
-def _get_filtered_candidates(tableau: BinaryMatrix, config: EliminationConfig) -> list[TableauOperation]:
-    """Generate and filter candidate operations.
-
-    Args:
-        tableau: The current binary matrix or tableau.
-        config: Elimination configuration containing generator and filters.
-
-    Returns:
-        Filtered list of candidate operations.
-    """
-    candidates = config.candidate_generator.get_candidates(tableau)
-    if config.filters:
-        candidates = filter_candidates(candidates, config)
-    return candidates
-
-
 def _validate_candidates(candidates: list[TableauOperation]) -> None:
     """Ensure at least one candidate is available.
 
@@ -1572,9 +1641,6 @@ def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, confi
         config: Elimination configuration containing generator and filters.
     """
     config.candidate_generator.update(op, tableau)
-    if config.filters:
-        for filter_ in config.filters:
-            filter_.update(op)
 
 
 def _invoke_callback(iteration: int, op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
@@ -1588,23 +1654,6 @@ def _invoke_callback(iteration: int, op: TableauOperation, tableau: BinaryMatrix
     """
     if config.callback:
         config.callback(iteration, op, tableau)
-
-
-def filter_candidates(ops: list[TableauOperation], config: EliminationConfig) -> list[TableauOperation]:
-    """Filter candidate operations using the filters defined in the elimination configuration.
-
-    Args:
-        ops (list[TableauOperation]): The list of candidate tableau operations.
-        config (EliminationConfig): Configuration parameters for the elimination process.
-
-    Returns:
-        A filtered list of candidate tableau operations.
-    """
-    filtered_ops = ops
-    if config.filters:
-        for filter_ in config.filters:
-            filtered_ops = filter_.filter(filtered_ops)
-    return filtered_ops
 
 
 def is_identity(tableau: StabilizerTableau) -> bool:
@@ -1649,13 +1698,11 @@ def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.N
     """Compute R1 and R2 matrices from a symplectic matrix."""
     n = symplectic.shape[0] // 2
 
-    # Extract blocks once
     a_xx = symplectic[:n, :n]
     a_xz = symplectic[:n, n:]
     a_zx = symplectic[n:, :n]
     a_zz = symplectic[n:, n:]
 
-    # Compute all three matrices in one pass
     r2 = (a_xx & a_zz) ^ (a_xz & a_zx)
     r0 = ~(a_xx | a_xz | a_zx | a_zz)
     r1 = ~(r2 | r0)
@@ -2072,7 +2119,7 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
     """
     n = len(perm_in_to_out)
     swaps: list[Swap] = []
-    current = list(range(n))  # Track where each wire currently is
+    current = list(range(n))
 
     for target_idx in range(n):
         desired_wire = perm_in_to_out[target_idx]
@@ -2160,8 +2207,6 @@ def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
             candidates.append((op, weight_before - weight_after))
             matrix = op.apply(matrix, inplace=True)
 
-    # candidates.sort(key=operator.itemgetter(1))
-    # sort by score descending
     candidates.sort(key=operator.itemgetter(1), reverse=True)
     return [(op, score) for op, score in candidates]
 
