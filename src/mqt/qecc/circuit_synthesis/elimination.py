@@ -140,13 +140,16 @@ class EliminationSequence:
         qubit_last_used: dict[int, int] = {}
         for op in self.operations:
             involved_qubits = op.qubits()
+            # get maximum depth of all involved qubits
             earliest_start = 0
             for q in involved_qubits:
                 if q in qubit_last_used:
                     earliest_start = max(earliest_start, qubit_last_used[q] + 1)
-            depth = max(depth, earliest_start + 1)
             for q in involved_qubits:
                 qubit_last_used[q] = earliest_start
+
+        if qubit_last_used:
+            depth = max(qubit_last_used.values())
         return depth
 
 
@@ -1428,15 +1431,18 @@ class EliminationConfig:
             callback=None,
         )
 
-        def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-            return (
-                (ops.num_cnots(), ops.num_cnots() <= 1)
-                if optimization_criterion == "gates"
-                else (
+        if optimization_criterion == "gates":
+
+            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+                return (ops.num_cnots(), ops.num_cnots() <= 1)
+
+        else:
+
+            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+                return (
                     ops.depth(),
                     ops.depth() <= 1,
                 )
-            )
 
         return EliminationConfig(
             termination_criterion=base_config.termination_criterion,
@@ -1446,7 +1452,7 @@ class EliminationConfig:
                 num_lookahead_candidates,
                 _score_fn,
             ),
-            filters=base_config.filters,
+            filters=base_config.filters if optimization_criterion == "gates" else None,
             callback=callback,
         )
 
@@ -1490,15 +1496,18 @@ class EliminationConfig:
             callback=None,
         )
 
-        def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-            return (
-                (ops.num_cnots(), ops.num_cnots() <= 1)
-                if optimization_criterion == "gates"
-                else (
+        if optimization_criterion == "gates":
+
+            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+                return (ops.num_cnots(), ops.num_cnots() <= 1)
+
+        else:
+
+            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
+                return (
                     ops.depth(),
                     ops.depth() <= 1,
                 )
-            )
 
         return EliminationConfig(
             termination_criterion=base_config.termination_criterion,
@@ -1508,7 +1517,7 @@ class EliminationConfig:
                 num_lookahead_candidates,
                 _score_fn,
             ),
-            filters=base_config.filters,
+            filters=base_config.filters if optimization_criterion == "gates" else None,
             callback=callback,
         )
 

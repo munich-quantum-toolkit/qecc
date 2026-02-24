@@ -42,7 +42,7 @@ def cnot_tableau() -> StabilizerTableau:
 @pytest.mark.parametrize(
     "tableau_matrix",
     [
-        # "identity_tableau",
+        "identity_tableau",
         "cnot_tableau",
     ],
 )

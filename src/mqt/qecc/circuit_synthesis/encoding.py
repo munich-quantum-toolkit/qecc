@@ -782,7 +782,9 @@ def synthesize_clifford(
     return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse())
 
 
-def synthesize_encoding_circuit(code: StabilizerCode) -> CliffordIsometry:
+def synthesize_encoding_circuit(
+    code: StabilizerCode, lookahead_depth=0, lookahead_top_k=10, optimize_depth: bool = False
+) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
     Args:
@@ -799,7 +801,13 @@ def synthesize_encoding_circuit(code: StabilizerCode) -> CliffordIsometry:
         checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
-        return cnot_encoding_circuit(checks, logicals)
+        return cnot_encoding_circuit(
+            checks,
+            logicals,
+            lookahead=lookahead_depth,
+            lookahead_candidates=lookahead_top_k,
+            optimize_depth=optimize_depth,
+        )
 
     tableau = StabilizerTableau.from_stabilizer_code(code)
     return synthesize_clifford(tableau, lookahead_depth=1, lookahead_top_k=10, use_cnots_if_css=True)
