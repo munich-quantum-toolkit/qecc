@@ -796,6 +796,7 @@ def eliminate_non_css_with_lookahead(
     optimization_criterion: str = "gates",
     lookahead: int = 1,
     num_lookahead_candidates: int | list[int] = 10,
+    enable_early_termination: bool = True,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
 
@@ -805,6 +806,7 @@ def eliminate_non_css_with_lookahead(
         lookahead: Number of steps to look ahead in the synthesis.
         num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
+        enable_early_termination: If True, allows early termination when no improving candidates found.
 
     Returns:
         A tuple of (operations, final_tableau) where operations is the sequence
@@ -817,6 +819,7 @@ def eliminate_non_css_with_lookahead(
         optimization_criterion=optimization_criterion,
         lookahead=lookahead,
         num_lookahead_candidates=num_lookahead_candidates,
+        enable_early_termination=enable_early_termination,
     )
     operations, final_tableau = eliminate(tableau, config)
     return operations, final_tableau
@@ -1529,6 +1532,7 @@ class EliminationConfig:
         optimization_criterion: str = "gates",
         lookahead: int = 1,
         num_lookahead_candidates: int | list[int] = 10,
+        enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         """Create configuration for non-CSS elimination with lookahead.
@@ -1538,6 +1542,7 @@ class EliminationConfig:
             lookahead: Number of steps to look ahead when selecting operations.
             num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
                 Can be a single int (same limit for all layers) or a list of ints (one per layer).
+            enable_early_termination: If True, allows early termination when no improving candidates found.
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1569,6 +1574,7 @@ class EliminationConfig:
                 lookahead,
                 num_lookahead_candidates,
                 score_fn,
+                enable_early_termination=enable_early_termination,
             ),
             filters=filters,
             callback=callback,
@@ -2342,6 +2348,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         num_lookahead_candidates: int | list[int],
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
         track_best_solution: bool = True,
+        enable_early_termination: bool = True,
     ) -> None:
         """Initialize the lookahead candidate generator.
 
@@ -2351,12 +2358,14 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             num_lookahead_candidates: Number of candidates to explore per layer
             score_fn: Function to score complete elimination sequences
             track_best_solution: If True, tracks best complete solution found during exploration
+            enable_early_termination: If True, allows early termination when no improving candidates found
         """
         self.base_config = base_config
         self.lookahead = lookahead
         self.num_lookahead_candidates_per_layer = _normalize_lookahead_candidates(num_lookahead_candidates, lookahead)
         self.score_fn = score_fn
         self.track_best_solution = track_best_solution
+        self.enable_early_termination = enable_early_termination
         self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
         self._current_sequence = EliminationSequence([])
         self._best_known_score: tuple[int, ...] | None = None
@@ -2394,9 +2403,10 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             self if self.track_best_solution else None,
         )
 
-        if not scored_candidates and self.track_best_solution and self._best_known_sequence is not None:
-            self._should_terminate = True
-            return []
+        if not scored_candidates and self.track_best_solution and self.enable_early_termination:
+            if self._best_known_sequence is not None:
+                self._should_terminate = True
+                return []
 
         if not scored_candidates:
             scored_candidates = _score_candidates_with_lookahead(
@@ -2472,6 +2482,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
                 self.num_lookahead_candidates_per_layer[1:] if len(self.num_lookahead_candidates_per_layer) > 1 else [],
                 self.score_fn,
                 track_best_solution=self.track_best_solution,
+                enable_early_termination=self.enable_early_termination,
             ),
             filters=initial_filter_state,
         )
