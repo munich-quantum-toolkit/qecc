@@ -349,9 +349,14 @@ class OperationFilter(ABC):
 class ParallelFilter(OperationFilter):
     """Filter that blocks operations on qubits already used in current layer."""
 
-    def __init__(self) -> None:
-        """Initialize the parallel filter."""
+    def __init__(self, n_qubits: int | None = None) -> None:
+        """Initialize the parallel filter.
+
+        Args:
+            n_qubits: Total number of qubits in the circuit. If None, will be inferred from operations.
+        """
         self.blocked_qubits: set[int] = set()
+        self.n_qubits = n_qubits
 
     def should_include(self, op: TableauOperation) -> bool:
         """Check if operation uses any blocked qubits.
@@ -372,12 +377,19 @@ class ParallelFilter(OperationFilter):
         """
         qubits_involved = op.qubits()
         self.blocked_qubits.update(qubits_involved)
+
+        if self.n_qubits is None:
+            max_qubit = max(qubits_involved) if qubits_involved else 0
+            self.n_qubits = max_qubit + 1
+
         if not self.has_available_qubits():
             self._reset()
 
     def has_available_qubits(self) -> bool:
         """Check if there are qubits available for operations."""
-        return len(self.blocked_qubits) > 0
+        if self.n_qubits is None:
+            return True
+        return len(self.blocked_qubits) < self.n_qubits
 
     def _reset(self) -> None:
         """Unblock all qubits."""
@@ -389,7 +401,7 @@ class ParallelFilter(OperationFilter):
         Returns:
             A new ParallelFilter with copied blocked_qubits state.
         """
-        new_filter = ParallelFilter()
+        new_filter = ParallelFilter(n_qubits=self.n_qubits)
         new_filter.blocked_qubits = self.blocked_qubits.copy()
         return new_filter
 
@@ -1548,16 +1560,15 @@ class EliminationConfig:
 
         if optimization_criterion == "gates":
 
-            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-                return (ops.num_cnots(), ops.num_cnots() <= 1)
+            def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
+                n_cnots = ops.num_cnots()
+                return (n_cnots, ops.depth(), n_cnots <= 1)
 
         else:
 
-            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-                return (
-                    ops.depth(),
-                    ops.depth() <= 1,
-                )
+            def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
+                depth = ops.depth()
+                return (depth, ops.num_cnots(), depth <= 1)
 
         return EliminationConfig(
             termination_criterion=base_config.termination_criterion,
@@ -1613,16 +1624,15 @@ class EliminationConfig:
 
         if optimization_criterion == "gates":
 
-            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-                return (ops.num_cnots(), ops.num_cnots() <= 1)
+            def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
+                n_cnots = ops.num_cnots()
+                return (n_cnots, ops.depth(), n_cnots <= 1)
 
         else:
 
-            def _score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-                return (
-                    ops.depth(),
-                    ops.depth() <= 1,
-                )
+            def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
+                depth = ops.depth()
+                return (depth, ops.num_cnots(), depth <= 1)
 
         return EliminationConfig(
             termination_criterion=base_config.termination_criterion,
@@ -2269,7 +2279,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         base_config: EliminationConfig,
         lookahead: int,
         num_lookahead_candidates: int | list[int],
-        score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+        score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     ) -> None:
         self.base_config = base_config
         self.lookahead = lookahead
@@ -2371,7 +2381,7 @@ def _score_candidates_with_lookahead(
     candidates: list[TableauOperation],
     num_candidates: int,
     lookahead_config: EliminationConfig,
-    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+    score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     prefix_sequence: EliminationSequence,
 ) -> list[tuple[TableauOperation, int]]:
     """Score candidates using lookahead simulation.
@@ -2394,8 +2404,9 @@ def _score_candidates_with_lookahead(
         fresh_config = _create_fresh_lookahead_config(lookahead_config)
         result = _simulate_and_score_operation(op, tableau, fresh_config, score_fn, prefix_sequence)
         if result is not None:
-            score, is_minimal = result
-            scored_candidates.append((op, score))
+            score_tuple = result
+            is_minimal = score_tuple[-1] if isinstance(score_tuple[-1], bool) else False
+            scored_candidates.append((op, score_tuple))
             if is_minimal:
                 break
 
@@ -2430,20 +2441,20 @@ def _simulate_and_score_operation(
     op: TableauOperation,
     tableau: BinaryMatrix,
     lookahead_config: EliminationConfig,
-    score_fn: Callable[[EliminationSequence], tuple[int, bool]],
+    score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     prefix_sequence: EliminationSequence,
-) -> tuple[int, bool] | None:
-    """Simulate operation and return (score, is_minimal), or None if simulation fails.
+) -> tuple[int, ...] | None:
+    """Simulate operation and return score tuple, or None if simulation fails.
 
     Args:
         op: The operation to simulate.
         tableau: The current tableau state.
         lookahead_config: Configuration for lookahead elimination.
-        score_fn: Function to compute score and minimality flag from a sequence.
+        score_fn: Function to compute score tuple from a sequence.
         prefix_sequence: The elimination sequence built so far (for depth calculation).
 
     Returns:
-        A tuple of (score, is_minimal) if simulation succeeds, None otherwise.
+        A tuple containing scores if simulation succeeds, None otherwise.
     """
     try:
         new_tableau = op.apply(tableau)
