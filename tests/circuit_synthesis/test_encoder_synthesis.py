@@ -232,9 +232,9 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
         stim.Circuit("H 0"),
         stim.Circuit("CX 0 1"),
         stim.Circuit("H 0\nCX 0 1"),
-        stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),  # Simple circuit with H and CX gates
-        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),  # Circuit with more gates
-        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),  # Circuit with interleaved H and CX gates
+        stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),
+        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),
+        stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),
     ],
 )
 @pytest.mark.parametrize("lookahead_depth", [0, 1, 2])
@@ -333,9 +333,7 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 
 
 def test_cc_4_8_8():
+    """Test encoding circuit synthesis for the 4.8.8 color code."""
     code = SquareOctagonColorCode(5)
     enc = synthesize_encoding_circuit(code, lookahead_depth=1, lookahead_top_k=15, optimize_depth=False)
     _assert_correct_encoding_circuit(enc, code)
-    print(enc.depth())
-    print(enc.num_cnots())
-    raise AssertionError
