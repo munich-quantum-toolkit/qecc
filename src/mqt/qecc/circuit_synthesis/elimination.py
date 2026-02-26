@@ -705,7 +705,6 @@ def eliminate_cnot(
             lookahead=lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
             target_rank=target_rank,
-            callback=EliminationCallback(),
         )
     else:
         config = EliminationConfig.for_cnot_up_to_row_ops(
@@ -1332,7 +1331,8 @@ class EliminationConfig:
             msg = f"Unsupported optimization criterion: {optimization_criterion}"
             raise ValueError(msg)
 
-        filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+        filters = [ParallelFilter()]
+        # if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
             if not isinstance(tbl, (CheckMatrix)):
