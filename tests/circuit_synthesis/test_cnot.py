@@ -13,11 +13,11 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.cnot import eliminate_cnot
-from mqt.qecc.circuit_synthesis.elimination import CheckMatrix
+from mqt.qecc.codes.pauli import CheckMatrix
 
 
 @pytest.fixture
-def identity_matrix() -> np.ndarray:
+def identity_matrix() -> CheckMatrix:
     """Fixture to create an identity matrix."""
     return CheckMatrix(np.array([[1, 0], [0, 1]], dtype=np.int8), type="X")
 

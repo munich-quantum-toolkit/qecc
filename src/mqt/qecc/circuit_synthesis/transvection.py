@@ -28,11 +28,9 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
     from ..codes.pauli import StabilizerTableau
-    from .elimination import (
-        BinaryMatrix,
-        OperationFilter,
-        TableauOperation,
-    )
+    from .elimination import OperationFilter
+    from .operations import TableauOperation
+    from .types import BinaryMatrix
 
 
 class GreedyTransvectionGenerator(CandidateGenerator):

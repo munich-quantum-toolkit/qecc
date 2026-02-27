@@ -19,9 +19,9 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
+from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .cnot import eliminate_cnot
-from .elimination import CheckMatrix
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable

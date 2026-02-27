@@ -25,11 +25,9 @@ from .operations import CNOT
 
 if TYPE_CHECKING:
     from ..codes.pauli import CheckMatrix
-    from .elimination import (
-        BinaryMatrix,
-        OperationFilter,
-        TableauOperation,
-    )
+    from .elimination import OperationFilter
+    from .operations import TableauOperation
+    from .types import BinaryMatrix
 
 
 class GreedyCNOTGenerator(CandidateGenerator):

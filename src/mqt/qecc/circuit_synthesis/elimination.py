@@ -19,10 +19,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
 from .operations import CNOT, Swap, Transvection
+from .types import BinaryMatrix
 
 if TYPE_CHECKING:
+    from ..codes.pauli import StabilizerTableau
     from .operations import TableauOperation
 
 
@@ -503,9 +504,6 @@ class ParallelFilter(OperationFilter):
         return new_filter
 
 
-BinaryMatrix = CheckMatrix | StabilizerTableau
-
-
 elimination_candidate_fn = Callable[[BinaryMatrix], EliminationSequence]
 
 
@@ -551,7 +549,9 @@ class EliminationConfig:
         filters = [ParallelFilter()]
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
-            if not isinstance(tbl, (CheckMatrix)):
+            from ..codes.pauli import CheckMatrix
+
+            if not isinstance(tbl, CheckMatrix):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
 
@@ -595,7 +595,9 @@ class EliminationConfig:
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
-            if not isinstance(tbl, (CheckMatrix)):
+            from ..codes.pauli import CheckMatrix
+
+            if not isinstance(tbl, CheckMatrix):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
 
@@ -774,7 +776,9 @@ class EliminationConfig:
         """
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
-            if not isinstance(tbl, (CheckMatrix)):
+            from ..codes.pauli import CheckMatrix
+
+            if not isinstance(tbl, CheckMatrix):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
 
@@ -842,7 +846,9 @@ class EliminationConfig:
         """
 
         def termination_criterion(tbl: BinaryMatrix) -> bool:
-            if not isinstance(tbl, (CheckMatrix)):
+            from ..codes.pauli import CheckMatrix
+
+            if not isinstance(tbl, CheckMatrix):
                 msg = "CSS elimination can only be applied to CheckMatrix instances."
                 raise TypeError(msg)
 
@@ -966,6 +972,8 @@ def get_n(tableau: BinaryMatrix) -> int:
     Returns:
         int: The number of qubits.
     """
+    from ..codes.pauli import StabilizerTableau
+
     if isinstance(tableau, StabilizerTableau):
         return tableau.n
 
@@ -1187,6 +1195,8 @@ def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
     Returns:
         A bytes representation suitable for dictionary keys.
     """
+    from ..codes.pauli import StabilizerTableau
+
     if isinstance(tableau, StabilizerTableau):
         return tableau.tableau.matrix.tobytes()
     return tableau.matrix.tobytes()

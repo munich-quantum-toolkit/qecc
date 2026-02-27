@@ -19,8 +19,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
     from ..codes.pauli import CheckMatrix, StabilizerTableau
-
-BinaryMatrix = "CheckMatrix | StabilizerTableau"
+    from .types import BinaryMatrix
 
 
 class TableauOperation(ABC):
@@ -31,8 +30,8 @@ class TableauOperation(ABC):
         """Apply the operation to the given stabilizer tableau.
 
         Args:
-            tableau (BinaryMatrix): The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
 
     @abstractmethod
@@ -40,7 +39,7 @@ class TableauOperation(ABC):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
 
     def to_stim_circuit(self) -> stim.Circuit:
@@ -91,7 +90,7 @@ class Transvection(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         from ..codes.pauli import StabilizerTableau
 
@@ -172,7 +171,7 @@ class Transvection(TableauOperation):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
         paulis = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
         i = self.i
@@ -245,7 +244,7 @@ class SingleQubitClifford(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         from ..codes.pauli import StabilizerTableau
 
@@ -348,7 +347,7 @@ class SingleQubitClifford(TableauOperation):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
         if self.clifford in {"H", "S", "I"}:
             circuit.append(self.clifford, [self.qubit])
@@ -410,7 +409,7 @@ class PauliOperation(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         from ..codes.pauli import StabilizerTableau
 
@@ -434,7 +433,7 @@ class PauliOperation(TableauOperation):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
         circuit.append(self.pauli, [self.qubit])
 
@@ -465,7 +464,7 @@ class CNOT(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         from ..codes.pauli import CheckMatrix, StabilizerTableau
 
@@ -477,6 +476,7 @@ class CNOT(TableauOperation):
         raise TypeError(msg)
 
     def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+
         out = tableau if inplace else tableau.copy()
         out.apply_cx(self.control, self.target)
         return out
@@ -485,8 +485,8 @@ class CNOT(TableauOperation):
         """Apply the operation to a CSS check matrix.
 
         Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
-            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
 
         Returns:
             CheckMatrix: The resulting CSS check matrix after applying the operation.
@@ -499,7 +499,7 @@ class CNOT(TableauOperation):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
         circuit.append("CNOT", [self.control, self.target])
 
@@ -530,7 +530,7 @@ class Swap(TableauOperation):
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         from ..codes.pauli import CheckMatrix, StabilizerTableau
 
@@ -542,6 +542,7 @@ class Swap(TableauOperation):
         raise TypeError(msg)
 
     def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+
         out = tableau if inplace else tableau.copy()
         out.apply_swap(self.qubit_a, self.qubit_b)
         return out
@@ -550,8 +551,8 @@ class Swap(TableauOperation):
         """Apply the operation to a CSS check matrix.
 
         Args:
-            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
-            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
         """
         out = check_matrix if inplace else check_matrix.copy()
         out.matrix[:, [self.qubit_a, self.qubit_b]] = out.matrix[:, [self.qubit_b, self.qubit_a]]
@@ -561,7 +562,7 @@ class Swap(TableauOperation):
         """Append the operation to a Stim circuit.
 
         Args:
-            circuit (stim.Circuit): The Stim circuit to append the operation to.
+            circuit: The Stim circuit to append the operation to.
         """
         circuit.append("SWAP", [self.qubit_a, self.qubit_b])
 
