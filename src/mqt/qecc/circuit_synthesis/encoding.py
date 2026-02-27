@@ -21,7 +21,7 @@ import z3
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry
-from .synthesis import synthesize_non_css_with_lookahead, CnotSynthesisConfig
+from .synthesis import synthesize_non_css
 from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
 from .transvection import (
     score_symplectic,
@@ -32,6 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..codes import CSSCode, StabilizerCode
     from .circuits import CNOTCircuit
+    from .synthesis import SynthesisConfig
 
 
 logger = logging.getLogger(__name__)
@@ -753,18 +754,15 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
 
 def synthesize_clifford(
     tableau: StabilizerTableau,
-    lookahead_depth: int = 1,
-    lookahead_top_k: int = 10,
     use_cnots_if_css: bool = True,
-    optimization_criterion: str = "gates",
+    config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
     """Synthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
     Args:
         tableau: The stabilizer tableau representing the Clifford operation to synthesize.
-        lookahead_depth: The depth of lookahead to use in the synthesis.
-        lookahead_top_k: The number of candidates to consider during lookahead.
         use_cnots_if_css: Whether to use CNOT-only synthesis if the tableau is CSS.
+        config: Configuration options for the synthesis process.
 
     Returns:
         A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two
@@ -774,19 +772,19 @@ def synthesize_clifford(
         return cnot_encoding_circuit(
             CheckMatrix(np.empty((0, tableau.n)), type="X"),
             x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
+            config,
         )
 
-    ops, _ = synthesize_non_css_with_lookahead(
+    ops, _ = synthesize_non_css(
         tableau,
-        lookahead=lookahead_depth,
-        num_lookahead_candidates=lookahead_top_k,
-        optimization_criterion=optimization_criterion,
+        config=config,
     )
     return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse())
 
 
 def synthesize_encoding_circuit(
-    code: StabilizerCode, config: CnotSynthesisConfig | None = None,
+    code: StabilizerCode,
+    config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
@@ -802,27 +800,19 @@ def synthesize_encoding_circuit(
         z_checks = CheckMatrix(code.Hz, type="Z")
         x_logicals = CheckMatrix(code.Lx, type="X")
         z_logicals = CheckMatrix(code.Lz, type="Z")
-        checks, logicals = (
+        checks, _logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
-        return cnot_encoding_circuit(
-            checks,
-            logicals,
-            lookahead=lookahead_depth,
-            lookahead_candidates=lookahead_top_k,
-            optimize_depth=optimize_depth,
-        )
+        return cnot_encoding_circuit(checks, config)
 
     tableau = StabilizerTableau.from_stabilizer_code(code)
-    return synthesize_clifford(tableau, lookahead_depth=1, lookahead_top_k=10, use_cnots_if_css=True)
+    return synthesize_clifford(tableau, config)
 
 
 def resynthesize_stim_circuit(
     circ: stim.Circuit,
-    *,
-    top_k: int = 10,
-    lookahead_depth: int = 1,
     use_cnots_if_css: bool = True,
+    config: SynthesisConfig | None = None,
 ) -> stim.Circuit:
     """Resynthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
@@ -836,27 +826,22 @@ def resynthesize_stim_circuit(
         A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
     """
     tableau = StabilizerTableau.from_stim_circuit(circ)
-    return synthesize_clifford(
-        tableau,
-        lookahead_depth=lookahead_depth,
-        lookahead_top_k=top_k,
-        use_cnots_if_css=use_cnots_if_css,
-    ).to_stim_circuit()
+    return synthesize_clifford(tableau, use_cnots_if_css=use_cnots_if_css, config=config).to_stim_circuit()
 
 
 def encoder_from_stabilizers_and_logicals(
     stabilizers: StabilizerTableau,
     logicals: StabilizerTableau,
-    lookahead_depth: int = 1,
-    lookahead_top_k: int = 10,
     optimize_tableau_before_synthesis: bool = True,
-    optimization_criterion: str = "gates",
+    config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for a stabilizer code given its stabilizers and logicals as tableaux.
 
     Args:
         stabilizers: A tableau representing the stabilizers of the code.
         logicals: A tableau representing the logical operators of the code.
+        optimize_tableau_before_synthesis: Whether to perform row operations on the combined tableau to optimize it for synthesis before synthesizing the circuit.
+        config: Configuration options for the synthesis process.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
@@ -878,9 +863,7 @@ def encoder_from_stabilizers_and_logicals(
     iso = synthesize_clifford(
         optimized_tableau,
         use_cnots_if_css=False,
-        lookahead_depth=lookahead_depth,
-        lookahead_top_k=lookahead_top_k,
-        optimization_criterion=optimization_criterion,
+        config=config,
     )
     iso.initialize_qubits(stab_indices, basis="Z")
     return iso

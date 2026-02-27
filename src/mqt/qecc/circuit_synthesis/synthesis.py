@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -17,35 +18,36 @@ import ldpc.mod2.mod2_numpy as mod2
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
-from abc import ABC
 
 if TYPE_CHECKING:
     from ..codes.pauli import CheckMatrix, StabilizerTableau
 
 
-class SynthesisConfig(ABC):
+class SynthesisConfig(ABC):  # noqa:B024
     """Base class for synthesis configuration."""
 
 
 @dataclass
 class CnotSynthesisConfig(SynthesisConfig):
     """Configuration for CNOT-based synthesis."""
-    
+
     optimization_criterion: str = "gates"
     exact: bool = True
     lookahead: int = 0
     num_lookahead_candidates: int | list[int] = 10
     enable_early_termination: bool = False
 
+
 @dataclass
 class CliffordSynthesisConfig(SynthesisConfig):
     """Configuration for non-CSS synthesis."""
+
     optimization_criterion: str = "gates"
     lookahead: int = 0
     num_lookahead_candidates: int | list[int] = 10
     enable_early_termination: bool = False
-    
-    
+
+
 def synthesize_cnot(
     matrix: CheckMatrix,
     config: CnotSynthesisConfig | None = None,
@@ -65,13 +67,13 @@ def synthesize_cnot(
     """
     if config is None:
         config = CnotSynthesisConfig()
-        
+
     exact = config.exact
     optimization_criterion = config.optimization_criterion
     lookahead = config.lookahead
     num_lookahead_candidates = config.num_lookahead_candidates
     enable_early_termination = config.enable_early_termination
-    
+
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
@@ -109,13 +111,14 @@ def synthesize_cnot(
 
 
 def synthesize_non_css(
-    tableau: StabilizerTableau, optimization_criterion: str = "gates"
+    tableau: StabilizerTableau,
+    config: CliffordSynthesisConfig,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
 
     Args:
         tableau: The stabilizer tableau to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
+        config: Configuration for the synthesis process.
 
     Returns:
         A tuple of (operations, final_tableau) where operations is the sequence
@@ -124,40 +127,15 @@ def synthesize_non_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    strat = strategy.for_non_css(optimization_criterion=optimization_criterion)
-    operations, final_tableau = eliminate(tableau, strat)
-    return operations, final_tableau
+    if config.lookahead > 0:
+        strat = strategy.for_non_css_with_lookahead(
+            optimization_criterion=config.optimization_criterion,
+            lookahead=config.lookahead,
+            num_lookahead_candidates=config.num_lookahead_candidates,
+            enable_early_termination=config.enable_early_termination,
+        )
+    else:
+        strat = strategy.for_non_css(optimization_criterion=config.optimization_criterion)
 
-
-def synthesize_non_css_with_lookahead(
-    tableau: StabilizerTableau,
-    optimization_criterion: str = "gates",
-    lookahead: int = 1,
-    num_lookahead_candidates: int | list[int] = 10,
-    enable_early_termination: bool = True,
-) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
-
-    Args:
-        tableau: The stabilizer tableau to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-        lookahead: Number of steps to look ahead in the synthesis.
-        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
-            Can be a single int (same limit for all layers) or a list of ints (one per layer).
-        enable_early_termination: If True, allows early termination when no improving candidates found.
-
-    Returns:
-        A tuple of (operations, final_tableau) where operations is the sequence
-        of tableau operations and final_tableau is the reduced tableau.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    strat = strategy.for_non_css_with_lookahead(
-        optimization_criterion=optimization_criterion,
-        lookahead=lookahead,
-        num_lookahead_candidates=num_lookahead_candidates,
-        enable_early_termination=enable_early_termination,
-    )
     operations, final_tableau = eliminate(tableau, strat)
     return operations, final_tableau

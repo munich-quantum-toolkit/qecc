@@ -29,6 +29,8 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
 
+    from .synthesis import CnotSynthesisConfig
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,12 +99,7 @@ Objective = Literal["eliminations", "depth"]
 
 
 def cnot_encoding_circuit(
-    checks: CheckMatrix,
-    logicals: CheckMatrix,
-    balance_checks: bool = False,
-    optimize_depth: bool = True,
-    lookahead: int = 0,
-    lookahead_candidates: int = 5,
+    checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: CnotSynthesisConfig | None = None
 ) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
@@ -119,27 +116,17 @@ def cnot_encoding_circuit(
 
     n_stab = checks.num_rows()
 
-    optimization_criterion: Objective = "depth" if optimize_depth else "gates"
     if balance_checks:
         reduce_checks_by_row_ops(checks, logicals)
 
     mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
-    ops, reduced_checks = synthesize_cnot(
-        mat,
-        exact=False,
-        optimization_criterion=optimization_criterion,
-        lookahead=lookahead,
-        num_lookahead_candidates=lookahead_candidates,
-    )
+
+    config.exact = False
+    ops, reduced_checks = synthesize_cnot(mat, config=config)
     assert isinstance(reduced_checks, CheckMatrix)
     encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
-    final_ops, logicals = synthesize_cnot(
-        encoding_checks,
-        exact=True,
-        optimization_criterion=optimization_criterion,
-        lookahead=lookahead,
-        num_lookahead_candidates=lookahead_candidates,
-    )
+    config.exact = True
+    final_ops, logicals = synthesize_cnot(encoding_checks, config=config)
     cnots = [(c.control, c.target) for c in reversed(ops)] + [(c.control, c.target) for c in reversed(final_ops)]
 
     return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)

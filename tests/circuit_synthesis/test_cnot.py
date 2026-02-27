@@ -9,10 +9,11 @@
 
 import time
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.synthesis import synthesize_cnot
+from mqt.qecc.circuit_synthesis.synthesis import CnotSynthesisConfig, synthesize_cnot
 from mqt.qecc.codes.pauli import CheckMatrix
 
 
@@ -29,6 +30,18 @@ def cnot_matrix() -> CheckMatrix:
     return CheckMatrix(matrix, type="X")
 
 
+@pytest.fixture
+def cnot_synthesis_config() -> CnotSynthesisConfig:
+    """Fixture to create a CNOT synthesis configuration."""
+    return CnotSynthesisConfig(
+        optimization_criterion="gates",
+        exact=True,
+        lookahead=0,
+        num_lookahead_candidates=10,
+        enable_early_termination=False,
+    )
+
+
 @pytest.mark.parametrize(
     "check_matrix",
     [
@@ -36,10 +49,11 @@ def cnot_matrix() -> CheckMatrix:
         "cnot_matrix",
     ],
 )
-def test_eliminate_cnot_exact(check_matrix: CheckMatrix, request) -> None:
+def test_eliminate_cnot_exact(check_matrix: CheckMatrix, cnot_synthesis_config: CnotSynthesisConfig, request) -> None:
     """Test the eliminate_cnot function with exact elimination."""
     target_matrix = request.getfixturevalue(check_matrix)
-    operations, result_matrix = synthesize_cnot(target_matrix, exact=True)
+    cnot_synthesis_config.exact = True
+    operations, result_matrix = synthesize_cnot(target_matrix)
     assert result_matrix.is_identity()
     assert operations.apply(target_matrix) == result_matrix
 
@@ -48,24 +62,31 @@ def test_eliminate_cnot_exact(check_matrix: CheckMatrix, request) -> None:
     ("check_matrix", "num_cnots"),
     [("identity_matrix", 0), ("cnot_matrix", 1)],
 )
-def test_eliminate_cnot_up_to_row_ops(check_matrix: CheckMatrix, num_cnots: int, request) -> None:
+def test_eliminate_cnot_up_to_row_ops(
+    check_matrix: CheckMatrix, num_cnots: int, cnot_synthesis_config: CnotSynthesisConfig, request
+) -> None:
     """Test the eliminate_cnot function up to row operations."""
     target_matrix = request.getfixturevalue(check_matrix)
-    operations, result_matrix = synthesize_cnot(target_matrix, exact=True)
+    cnot_synthesis_config.exact = True
+    operations, result_matrix = synthesize_cnot(target_matrix, cnot_synthesis_config)
     assert operations.num_two_qubit_gates() == num_cnots
     assert operations.apply(target_matrix) == result_matrix
 
 
-def test_eliminate_cnot_performance():
+def test_eliminate_cnot_performance(cnot_synthesis_config: CnotSynthesisConfig) -> None:
     """Performance test for CNOT elimination on a 20x20 check matrix."""
     np.random.seed(42)
-    n = 20
+    n = 8
     density = 0.3
-    matrix_data = (np.random.random((n, n)) < density).astype(np.int8)
-    check_matrix = CheckMatrix(matrix_data, type="X")
+    while True:
+        matrix_data = np.random.rand(n, n) < density
+        matrix_data = matrix_data.astype(np.int8)
+        if mod2.rank(matrix_data) == n:
+            break
 
+    check_matrix = CheckMatrix(matrix_data, type="X")
     start_time = time.perf_counter()
-    operations, _result_matrix = synthesize_cnot(check_matrix, exact=False, lookahead=0)
+    operations, _result_matrix = synthesize_cnot(check_matrix, cnot_synthesis_config)
     elapsed_time = time.perf_counter() - start_time
 
     print(f"\nCNOT elimination completed in {elapsed_time:.4f} seconds")

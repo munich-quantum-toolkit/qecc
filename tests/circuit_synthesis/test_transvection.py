@@ -14,10 +14,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
 from mqt.qecc.circuit_synthesis.operations import Transvection
-from mqt.qecc.circuit_synthesis.synthesis import (
-    eliminate_non_css,
-    synthesize_non_css_with_lookahead,
-)
+from mqt.qecc.circuit_synthesis.synthesis import CliffordSynthesisConfig, synthesize_non_css
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
     score_stateprep,
@@ -39,6 +36,17 @@ def cnot_tableau() -> StabilizerTableau:
     return StabilizerTableau(SymplecticMatrix(tableau_matrix))
 
 
+@pytest.fixture
+def clifford_synthesis_config() -> CliffordSynthesisConfig:
+    """Fixture to create a Clifford synthesis configuration."""
+    return CliffordSynthesisConfig(
+        optimization_criterion="gates",
+        lookahead=0,
+        num_lookahead_candidates=10,
+        enable_early_termination=False,
+    )
+
+
 @pytest.mark.parametrize(
     "tableau_matrix",
     [
@@ -46,10 +54,10 @@ def cnot_tableau() -> StabilizerTableau:
         "cnot_tableau",
     ],
 )
-def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
-    """Test the eliminate_non_css function."""
+def test_synthesize_non_css(tableau_matrix: StabilizerTableau, request) -> None:
+    """Test the synthesize_non_css function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    operations, result_tableau = eliminate_non_css(
+    operations, result_tableau = synthesize_non_css(
         target_tableau,
     )
     assert result_tableau.is_identity()
@@ -63,10 +71,13 @@ def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
         "cnot_tableau",
     ],
 )
-def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, request) -> None:
-    """Test the eliminate_non_css_with_lookahead function."""
+def test_synthesize_non_css_with_lookahead(
+    tableau_matrix: StabilizerTableau, clifford_synthesis_config: CliffordSynthesisConfig, request
+) -> None:
+    """Test the synthesize_non_css_with_lookahead function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    operations, result_tableau = synthesize_non_css_with_lookahead(target_tableau, lookahead=3)
+    clifford_synthesis_config.lookahead = 3
+    operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
 
@@ -101,7 +112,7 @@ def test_score_stateprep():
     assert score == 21
 
 
-def test_eliminate_non_css_performance():
+def test_synthesize_non_css_performance(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
     """Performance test for non-CSS elimination on a 12-qubit encoding isometry."""
     iso = gottesman_encoding_circuit([
         "ZZXYIXZXYZIX",
@@ -116,7 +127,7 @@ def test_eliminate_non_css_performance():
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
 
     start_time = time.perf_counter()
-    operations, result_tableau = eliminate_non_css(tab, optimization_criterion="gates")
+    operations, result_tableau = synthesize_non_css(tab, config=clifford_synthesis_config)
     elapsed_time = time.perf_counter() - start_time
 
     print(f"\nNon-CSS elimination completed in {elapsed_time:.4f} seconds")
@@ -127,10 +138,11 @@ def test_eliminate_non_css_performance():
     assert elapsed_time < 10.0
 
 
-def test_four_qubit() -> None:
+def test_four_qubit(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
     """Test elimination on the 4-qubit error detection code."""
     stabs = StabilizerTableau.from_pauli_strings(["XXXI", "IIIZ", "XXII", "IXXI", "ZZZZ", "XXXX", "IZZI", "ZZII"])
-    operations, result_tableau = eliminate_non_css(stabs, optimization_criterion="gates")
+
+    operations, result_tableau = synthesize_non_css(stabs, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(stabs) == result_tableau
     StabilizerTableau.from_stim_circuit(operations.to_circuit_inverse())
