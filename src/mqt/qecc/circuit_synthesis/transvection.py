@@ -22,6 +22,7 @@ from .elimination import (
     get_n,
 )
 from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
+from .strategy import EliminationStrategy
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -275,11 +276,9 @@ def eliminate_non_css_state(
         A tuple of (operations, final_tableau) where operations is the sequence
         of tableau operations and final_tableau is the reduced tableau.
     """
-    from .config import EliminationConfig
+    strategy = EliminationStrategy.for_non_css_stateprep(optimization_criterion=optimization_criterion)
 
-    config = EliminationConfig.for_non_css_stateprep(optimization_criterion=optimization_criterion)
-
-    operations, final_tableau = eliminate(tableau, config)
+    operations, final_tableau = eliminate(tableau, strategy)
 
     return operations, final_tableau
 
@@ -300,11 +299,9 @@ def eliminate_non_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    from .config import EliminationConfig
+    strategy = EliminationStrategy.for_non_css(optimization_criterion=optimization_criterion)
 
-    config = EliminationConfig.for_non_css(optimization_criterion=optimization_criterion)
-
-    operations, final_tableau = eliminate(tableau, config)
+    operations, final_tableau = eliminate(tableau, strategy)
 
     return operations, final_tableau
 
@@ -333,15 +330,13 @@ def eliminate_non_css_with_lookahead(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    from .config import EliminationConfig
-
-    config = EliminationConfig.for_non_css_with_lookahead(
+    strategy = EliminationStrategy.for_non_css_with_lookahead(
         optimization_criterion=optimization_criterion,
         lookahead=lookahead,
         num_lookahead_candidates=num_lookahead_candidates,
         enable_early_termination=enable_early_termination,
     )
-    operations, final_tableau = eliminate(tableau, config)
+    operations, final_tableau = eliminate(tableau, strategy)
     return operations, final_tableau
 
 

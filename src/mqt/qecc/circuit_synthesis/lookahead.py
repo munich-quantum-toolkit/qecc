@@ -13,8 +13,8 @@ import operator
 from typing import TYPE_CHECKING
 
 from ..codes.pauli import StabilizerTableau
-from .config import EliminationStrategy
 from .elimination import CandidateGenerator, EliminationSequence, eliminate
+from .strategy import EliminationStrategy
 
 if TYPE_CHECKING:
     from collections.abc import Callable
