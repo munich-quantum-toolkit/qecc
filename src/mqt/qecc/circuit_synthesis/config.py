@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class EliminationConfig:
+class EliminationStrategy:
     """Configuration for elimination methods."""
 
     termination_criterion: Callable[[BinaryMatrix], bool]
@@ -41,7 +41,7 @@ class EliminationConfig:
         target_rank: int,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for CSS code elimination.
 
         Args:
@@ -50,7 +50,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for CSS code elimination.
+            EliminationStrategy configured for CSS code elimination.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -88,7 +88,7 @@ class EliminationConfig:
         target_rank: int,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for CSS code elimination.
 
         Args:
@@ -97,7 +97,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for CSS code elimination.
+            EliminationStrategy configured for CSS code elimination.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -134,7 +134,7 @@ class EliminationConfig:
         cls,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for non-CSS stabilizer code elimination.
 
         Args:
@@ -142,7 +142,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for non-CSS code elimination with post-processing.
+            EliminationStrategy configured for non-CSS code elimination with post-processing.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -173,7 +173,7 @@ class EliminationConfig:
         cls,
         optimization_criterion: str = "gates",
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for non-CSS stabilizer code elimination.
 
         Args:
@@ -181,7 +181,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for non-CSS code elimination with post-processing.
+            EliminationStrategy configured for non-CSS code elimination with post-processing.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -215,7 +215,7 @@ class EliminationConfig:
         num_lookahead_candidates: int | list[int] = 10,
         enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for non-CSS elimination with lookahead.
 
         Args:
@@ -227,7 +227,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for non-CSS code elimination with lookahead and post-processing.
+            EliminationStrategy configured for non-CSS code elimination with lookahead and post-processing.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -246,7 +246,7 @@ class EliminationConfig:
 
         filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
-        base_config = EliminationConfig(
+        base_strategy = EliminationStrategy(
             termination_criterion=is_terminal_transvection,
             candidate_generator=GreedyTransvectionGenerator(filters),
             filters=filters,
@@ -259,7 +259,7 @@ class EliminationConfig:
         return cls(
             termination_criterion=is_terminal_transvection,
             candidate_generator=LookaheadCandidateGenerator(
-                base_config,
+                base_strategy,
                 lookahead,
                 num_lookahead_candidates,
                 score_fn,
@@ -279,7 +279,7 @@ class EliminationConfig:
         optimization_criterion: str = "gates",
         enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         r"""Create configuration for CSS elimination with lookahead.
 
         Args:
@@ -292,7 +292,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for CSS code elimination with lookahead.
+            EliminationStrategy configured for CSS code elimination with lookahead.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -310,7 +310,7 @@ class EliminationConfig:
             non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
             return non_zero_columns == target_rank
 
-        base_config = EliminationConfig.for_cnot_up_to_row_ops(
+        base_strategy = EliminationStrategy.for_cnot_up_to_row_ops(
             target_rank=target_rank,
             optimization_criterion=optimization_criterion,
             callback=None,
@@ -328,10 +328,10 @@ class EliminationConfig:
                 depth = ops.depth()
                 return (depth, ops.num_cnots(), depth <= 1)
 
-        return EliminationConfig(
-            termination_criterion=base_config.termination_criterion,
+        return EliminationStrategy(
+            termination_criterion=base_strategy.termination_criterion,
             candidate_generator=LookaheadCandidateGenerator(
-                base_config,
+                base_strategy,
                 lookahead,
                 num_lookahead_candidates,
                 _score_fn,
@@ -350,7 +350,7 @@ class EliminationConfig:
         optimization_criterion: str = "gates",
         enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         r"""Create configuration for CSS elimination with lookahead.
 
         Args:
@@ -363,7 +363,7 @@ class EliminationConfig:
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
-            EliminationConfig configured for CSS code elimination with lookahead.
+            EliminationStrategy configured for CSS code elimination with lookahead.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".
@@ -381,7 +381,7 @@ class EliminationConfig:
             one_columns = (np.sum(matrix, axis=0) == 1).sum()
             return one_columns == target_rank
 
-        base_config = EliminationConfig.for_cnot_exact(
+        base_strategy = EliminationStrategy.for_cnot_exact(
             target_rank=target_rank,
             optimization_criterion=optimization_criterion,
             callback=None,
@@ -399,10 +399,10 @@ class EliminationConfig:
                 depth = ops.depth()
                 return (depth, ops.num_cnots(), depth <= 1)
 
-        return EliminationConfig(
-            termination_criterion=base_config.termination_criterion,
+        return EliminationStrategy(
+            termination_criterion=base_strategy.termination_criterion,
             candidate_generator=LookaheadCandidateGenerator(
-                base_config,
+                base_strategy,
                 lookahead,
                 num_lookahead_candidates,
                 _score_fn,
@@ -418,7 +418,7 @@ class EliminationConfig:
         optimization_criterion: str = "gates",
         lookahead: int = 1,
         num_lookahead_candidates: int | list[int] = 10,
-    ) -> EliminationConfig:
+    ) -> EliminationStrategy:
         """Create configuration for CSS elimination with lookahead.
 
         Args:
@@ -427,7 +427,7 @@ class EliminationConfig:
             num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
 
         Returns:
-            EliminationConfig configured for CSS code elimination with lookahead.
+            EliminationStrategy configured for CSS code elimination with lookahead.
 
         Raises:
             ValueError: If optimization_criterion is not "gates" or "depth".

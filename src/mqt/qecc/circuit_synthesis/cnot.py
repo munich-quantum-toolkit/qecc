@@ -143,14 +143,14 @@ def eliminate_cnot_lookahead(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    from .config import EliminationConfig
+    from .config import EliminationStrategy
 
-    config = EliminationConfig.for_cnot_with_lookahead(
+    strategy = EliminationStrategy.for_cnot_with_lookahead(
         optimization_criterion=optimization_criterion,
         lookahead=lookahead,
         num_lookahead_candidates=num_lookahead_candidates,
     )
-    operations, final_matrix = eliminate(matrix, config)
+    operations, final_matrix = eliminate(matrix, strategy)
     return operations, final_matrix
 
 
@@ -179,7 +179,7 @@ def eliminate_cnot(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
-    from .config import EliminationConfig
+    from .config import EliminationStrategy
 
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
@@ -187,7 +187,7 @@ def eliminate_cnot(
     target_rank = mod2.rank(matrix.matrix)
     if exact:
         if lookahead > 0:
-            config = EliminationConfig.for_cnot_with_lookahead_exact(
+            strategy = EliminationStrategy.for_cnot_with_lookahead_exact(
                 target_rank=target_rank,
                 optimization_criterion=optimization_criterion,
                 lookahead=lookahead,
@@ -195,11 +195,11 @@ def eliminate_cnot(
                 enable_early_termination=enable_early_termination,
             )
         else:
-            config = EliminationConfig.for_cnot_exact(
+            strategy = EliminationStrategy.for_cnot_exact(
                 target_rank=target_rank, optimization_criterion=optimization_criterion
             )
     elif lookahead > 0:
-        config = EliminationConfig.for_cnot_with_lookahead_up_to_row_ops(
+        strategy = EliminationStrategy.for_cnot_with_lookahead_up_to_row_ops(
             optimization_criterion=optimization_criterion,
             lookahead=lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
@@ -207,11 +207,11 @@ def eliminate_cnot(
             enable_early_termination=enable_early_termination,
         )
     else:
-        config = EliminationConfig.for_cnot_up_to_row_ops(
+        strategy = EliminationStrategy.for_cnot_up_to_row_ops(
             target_rank=target_rank, optimization_criterion=optimization_criterion
         )
 
-    operations, final_matrix = eliminate(matrix, config)
+    operations, final_matrix = eliminate(matrix, strategy)
 
     if matrix.is_z_type():
         for op in operations.operations:

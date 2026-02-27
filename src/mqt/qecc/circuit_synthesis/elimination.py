@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ..codes.pauli import StabilizerTableau
-    from .config import EliminationConfig
+    from .config import EliminationStrategy
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
@@ -153,7 +153,7 @@ class EliminationSequence:
         return depth
 
 
-def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[EliminationSequence, BinaryMatrix]:
+def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tuple[EliminationSequence, BinaryMatrix]:
     """Perform Gaussian elimination on the given stabilizer tableau.
 
     This is the main elimination engine that iteratively reduces a binary matrix or
@@ -165,7 +165,7 @@ def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[
         target_tableau: The input binary matrix or stabilizer tableau to reduce.
             Can be either a CheckMatrix (for CSS codes) or StabilizerTableau
             (for general stabilizer codes).
-        config: Configuration object specifying:
+        strategy: Strategy object specifying:
             - termination_criterion: Function that returns True when elimination is complete
             - candidate_generator: Strategy for generating candidate operations from current tableau
             - selection_strategy: Strategy for selecting from candidate operations (optional)
@@ -185,46 +185,46 @@ def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[
 
     Examples:
         >>> # CSS code elimination with greedy selection
-        >>> config = EliminationConfig(
+        >>> strategy = EliminationStrategy(
         ...     termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
         ...     candidate_generator=GreedyCNOTGenerator(),
         ... )
-        >>> operations, final_tableau = eliminate(check_matrix, config)
+        >>> operations, final_tableau = eliminate(check_matrix, strategy)
 
         >>> # Non-CSS code elimination with depth optimization
-        >>> config = EliminationConfig(
+        >>> strategy = EliminationStrategy(
         ...     termination_criterion=is_terminal_transvection,
         ...     candidate_generator=GreedyTransvectionGenerator(),
         ...     filters=[ParallelFilter()],
         ... )
-        >>> operations, final_tableau = eliminate(stabilizer_tableau, config)
+        >>> operations, final_tableau = eliminate(stabilizer_tableau, strategy)
 
         >>> # Lookahead-based elimination
-        >>> config = EliminationConfig(
+        >>> strategy = EliminationStrategy(
         ...     termination_criterion=is_terminal_transvection,
         ...     candidate_generator=LookaheadCandidateGenerator(...),
         ...     post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
         ... )
-        >>> operations, final_tableau = eliminate(tableau, config)
+        >>> operations, final_tableau = eliminate(tableau, strategy)
 
     See Also:
         - eliminate_css: High-level function for CSS code elimination
         - eliminate_non_css: High-level function for non-CSS code elimination
         - eliminate_non_css_with_lookahead: Lookahead-based non-CSS elimination
-        - EliminationConfig: Configuration dataclass for elimination parameters
+        - EliminationStrategy: Configuration dataclass for elimination parameters
         - CandidateGenerator: Abstract base class for candidate generation strategies
         - SelectionStrategy: Abstract base class for operation selection strategies
     """
     tableau = target_tableau.copy()
     operations = EliminationSequence([])
-    selection_strategy = config.selection_strategy or GreedySelection()
+    selection_strategy = strategy.selection_strategy or GreedySelection()
     iteration = 0
 
-    while not config.termination_criterion(tableau):
-        candidate_ops = config.candidate_generator.get_candidates(tableau)
+    while not strategy.termination_criterion(tableau):
+        candidate_ops = strategy.candidate_generator.get_candidates(tableau)
 
-        if _should_terminate_early(config.candidate_generator):
-            return _get_early_termination_result(config.candidate_generator, config.post_process_fn)
+        if _should_terminate_early(strategy.candidate_generator):
+            return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
 
         _validate_candidates(candidate_ops)
 
@@ -232,14 +232,16 @@ def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[
         tableau = op.apply(tableau, inplace=True)
         operations.add_operation(op)
 
-        _update_elimination_state(op, tableau, config)
-        _invoke_callback(iteration, op, tableau, config)
+        _update_elimination_state(op, tableau, strategy)
+        _invoke_callback(iteration, op, tableau, strategy)
         iteration += 1
 
-    result_ops, result_tableau = config.post_process_fn(operations, tableau)
+    result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
-    if hasattr(config.candidate_generator, "use_best_if_better"):
-        return _maybe_use_best_solution(config.candidate_generator, result_ops, result_tableau, config.post_process_fn)
+    if hasattr(strategy.candidate_generator, "use_best_if_better"):
+        return _maybe_use_best_solution(
+            strategy.candidate_generator, result_ops, result_tableau, strategy.post_process_fn
+        )
 
     return result_ops, result_tableau
 
@@ -518,28 +520,30 @@ def _validate_candidates(candidates: list[TableauOperation]) -> None:
         raise RuntimeError(msg)
 
 
-def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
+def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, strategy: EliminationStrategy) -> None:
     """Update generator and filter state after applying an operation.
 
     Args:
         op: The operation that was applied.
         tableau: The resulting tableau after applying the operation.
-        config: Elimination configuration containing generator and filters.
+        strategy: Elimination strategy containing generator and filters.
     """
-    config.candidate_generator.update(op, tableau)
+    strategy.candidate_generator.update(op, tableau)
 
 
-def _invoke_callback(iteration: int, op: TableauOperation, tableau: BinaryMatrix, config: EliminationConfig) -> None:
+def _invoke_callback(
+    iteration: int, op: TableauOperation, tableau: BinaryMatrix, strategy: EliminationStrategy
+) -> None:
     """Invoke callback if configured.
 
     Args:
         iteration: Current iteration number.
         op: The operation that was just applied.
         tableau: The resulting tableau after applying the operation.
-        config: Elimination configuration potentially containing a callback.
+        strategy: Elimination strategy potentially containing a callback.
     """
-    if config.callback:
-        config.callback(iteration, op, tableau)
+    if strategy.callback:
+        strategy.callback(iteration, op, tableau)
 
 
 def is_identity(tableau: StabilizerTableau) -> bool:
