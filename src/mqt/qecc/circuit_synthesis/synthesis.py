@@ -27,7 +27,7 @@ def synthesize_cnot(
     exact: bool = True,
     lookahead: int = 0,
     num_lookahead_candidates: int | list[int] = 10,
-    enable_early_termination: bool = True,
+    enable_early_termination: bool = False,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
