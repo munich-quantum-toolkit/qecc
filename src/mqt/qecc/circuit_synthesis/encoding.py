@@ -21,7 +21,7 @@ import z3
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry
-from .synthesis import synthesize_non_css_with_lookahead
+from .synthesis import synthesize_non_css_with_lookahead, CnotSynthesisConfig
 from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
 from .transvection import (
     score_symplectic,
@@ -786,12 +786,13 @@ def synthesize_clifford(
 
 
 def synthesize_encoding_circuit(
-    code: StabilizerCode, lookahead_depth=0, lookahead_top_k=10, optimize_depth: bool = False
+    code: StabilizerCode, config: CnotSynthesisConfig | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
     Args:
         code: The stabilizer code to synthesize the encoding circuit for.
+        config: Configuration options for the synthesis process.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.

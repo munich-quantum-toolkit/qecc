@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -16,28 +17,44 @@ import ldpc.mod2.mod2_numpy as mod2
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
+from abc import ABC
 
 if TYPE_CHECKING:
     from ..codes.pauli import CheckMatrix, StabilizerTableau
 
 
+class SynthesisConfig(ABC):
+    """Base class for synthesis configuration."""
+
+
+@dataclass
+class CnotSynthesisConfig(SynthesisConfig):
+    """Configuration for CNOT-based synthesis."""
+    
+    optimization_criterion: str = "gates"
+    exact: bool = True
+    lookahead: int = 0
+    num_lookahead_candidates: int | list[int] = 10
+    enable_early_termination: bool = False
+
+@dataclass
+class CliffordSynthesisConfig(SynthesisConfig):
+    """Configuration for non-CSS synthesis."""
+    optimization_criterion: str = "gates"
+    lookahead: int = 0
+    num_lookahead_candidates: int | list[int] = 10
+    enable_early_termination: bool = False
+    
+    
 def synthesize_cnot(
     matrix: CheckMatrix,
-    optimization_criterion: str = "gates",
-    exact: bool = True,
-    lookahead: int = 0,
-    num_lookahead_candidates: int | list[int] = 10,
-    enable_early_termination: bool = True,
+    config: CnotSynthesisConfig | None = None,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
     Args:
         matrix: The CSS check matrix to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-        exact: If True, eliminate to echelon form. If False, eliminate only up to row operations.
-        lookahead: Number of steps to look ahead (0 = greedy).
-        num_lookahead_candidates: Number of candidates to explore at each lookahead layer.
-        enable_early_termination: If True, allows early termination when no improving candidates found.
+        config: Configuration for the synthesis process.
 
     Returns:
         A tuple of (operations, final_matrix) where operations is the sequence
@@ -46,6 +63,15 @@ def synthesize_cnot(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    if config is None:
+        config = CnotSynthesisConfig()
+        
+    exact = config.exact
+    optimization_criterion = config.optimization_criterion
+    lookahead = config.lookahead
+    num_lookahead_candidates = config.num_lookahead_candidates
+    enable_early_termination = config.enable_early_termination
+    
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
