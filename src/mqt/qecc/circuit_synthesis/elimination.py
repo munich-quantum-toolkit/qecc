@@ -235,7 +235,46 @@ def eliminate(target_tableau: BinaryMatrix, config: EliminationConfig) -> tuple[
         _invoke_callback(iteration, op, tableau, config)
         iteration += 1
 
-    return config.post_process_fn(operations, tableau)
+    result_ops, result_tableau = config.post_process_fn(operations, tableau)
+    
+    if hasattr(config.candidate_generator, 'use_best_if_better'):
+        return _maybe_use_best_solution(config.candidate_generator, result_ops, result_tableau, config.post_process_fn)
+    
+    return result_ops, result_tableau
+
+
+def _maybe_use_best_solution(
+    generator: CandidateGenerator,
+    current_ops: EliminationSequence,
+    current_tableau: BinaryMatrix,
+    post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]],
+) -> tuple[EliminationSequence, BinaryMatrix]:
+    """Compare current solution with best tracked solution and return the better one.
+
+    Args:
+        generator: The candidate generator that may have tracked a best solution.
+        current_ops: The operation sequence from normal elimination.
+        current_tableau: The tableau from normal elimination.
+        post_process_fn: Function to post-process solutions.
+
+    Returns:
+        The better of the two solutions (current vs best tracked).
+    """
+    if not hasattr(generator, 'get_best_solution') or not hasattr(generator, 'score_fn'):
+        return current_ops, current_tableau
+    
+    best_solution = generator.get_best_solution()
+    if best_solution is None:
+        return current_ops, current_tableau
+    
+    best_ops, best_tableau = best_solution
+    current_score = generator.score_fn(current_ops)
+    best_score = generator.score_fn(best_ops)
+    
+    if best_score < current_score:
+        return best_ops, best_tableau
+    
+    return current_ops, current_tableau
 
 
 def _should_terminate_early(generator: CandidateGenerator) -> bool:
@@ -739,12 +778,17 @@ def eliminate_cnot(
     exact: bool = True,
     lookahead: int = 0,
     num_lookahead_candidates: int | list[int] = 10,
+    enable_early_termination: bool = True,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
     Args:
         matrix: The CSS check matrix to eliminate.
         optimization_criterion: Either "gates" or "depth" for optimization objective.
+        exact: If True, eliminate to echelon form. If False, eliminate only up to row operations.
+        lookahead: Number of steps to look ahead (0 = greedy).
+        num_lookahead_candidates: Number of candidates to explore at each lookahead layer.
+        enable_early_termination: If True, allows early termination when no improving candidates found.
 
     Returns:
         A tuple of (operations, final_matrix) where operations is the sequence
@@ -764,6 +808,7 @@ def eliminate_cnot(
                 optimization_criterion=optimization_criterion,
                 lookahead=lookahead,
                 num_lookahead_candidates=num_lookahead_candidates,
+                enable_early_termination=enable_early_termination,
             )
         else:
             config = EliminationConfig.for_cnot_exact(
@@ -775,6 +820,7 @@ def eliminate_cnot(
             lookahead=lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
             target_rank=target_rank,
+            enable_early_termination=enable_early_termination,
         )
     else:
         config = EliminationConfig.for_cnot_up_to_row_ops(
@@ -1588,6 +1634,7 @@ class EliminationConfig:
         lookahead: int = 1,
         num_lookahead_candidates: int | list[int] = 10,
         optimization_criterion: str = "gates",
+        enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         r"""Create configuration for CSS elimination with lookahead.
@@ -1597,6 +1644,8 @@ class EliminationConfig:
             lookahead: Number of steps to look ahead when selecting operations.
             num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
                 Can be a single int (same limit for all layers) or a list of ints (one per layer).
+            optimization_criterion: Either "gates" or "depth" for optimization objective.
+            enable_early_termination: If True, allows early termination when no improving candidates found.
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1640,6 +1689,7 @@ class EliminationConfig:
                 lookahead,
                 num_lookahead_candidates,
                 _score_fn,
+                enable_early_termination=enable_early_termination,
             ),
             filters=None,
             callback=callback,
@@ -1652,6 +1702,7 @@ class EliminationConfig:
         lookahead: int = 1,
         num_lookahead_candidates: int | list[int] = 10,
         optimization_criterion: str = "gates",
+        enable_early_termination: bool = True,
         callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
     ) -> EliminationConfig:
         r"""Create configuration for CSS elimination with lookahead.
@@ -1661,6 +1712,8 @@ class EliminationConfig:
             lookahead: Number of steps to look ahead when selecting operations.
             num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
                 Can be a single int (same limit for all layers) or a list of ints (one per layer).
+            optimization_criterion: Either "gates" or "depth" for optimization objective.
+            enable_early_termination: If True, allows early termination when no improving candidates found.
             callback: Optional callback function invoked after each elimination step.
 
         Returns:
@@ -1704,6 +1757,7 @@ class EliminationConfig:
                 lookahead,
                 num_lookahead_candidates,
                 _score_fn,
+                enable_early_termination=enable_early_termination,
             ),
             filters=None,
             callback=callback,
@@ -2366,6 +2420,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.score_fn = score_fn
         self.track_best_solution = track_best_solution
         self.enable_early_termination = enable_early_termination
+        self.use_best_if_better = track_best_solution and not enable_early_termination
         self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
         self._current_sequence = EliminationSequence([])
         self._best_known_score: tuple[int, ...] | None = None
@@ -2556,7 +2611,7 @@ def _score_candidates_with_lookahead(
             score_tuple = result
             is_minimal = score_tuple[-1] if isinstance(score_tuple[-1], bool) else False
 
-            if best_known_score is None or score_tuple < best_known_score:
+            if best_known_score is None or score_tuple <= best_known_score:
                 scored_candidates.append((op, score_tuple))
 
             if is_minimal:
