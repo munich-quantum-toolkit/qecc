@@ -21,9 +21,9 @@ import z3
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry
+from .synthesis import synthesize_non_css_with_lookahead
 from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
 from .transvection import (
-    eliminate_non_css_with_lookahead,
     score_symplectic,
 )
 
@@ -776,7 +776,7 @@ def synthesize_clifford(
             x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
         )
 
-    ops, _ = eliminate_non_css_with_lookahead(
+    ops, _ = synthesize_non_css_with_lookahead(
         tableau,
         lookahead=lookahead_depth,
         num_lookahead_candidates=lookahead_top_k,

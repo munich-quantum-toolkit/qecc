@@ -14,9 +14,11 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
 from mqt.qecc.circuit_synthesis.operations import Transvection
-from mqt.qecc.circuit_synthesis.transvection import (
+from mqt.qecc.circuit_synthesis.synthesis import (
     eliminate_non_css,
-    eliminate_non_css_with_lookahead,
+    synthesize_non_css_with_lookahead,
+)
+from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
     score_stateprep,
 )
@@ -64,7 +66,7 @@ def test_eliminate_non_css(tableau_matrix: StabilizerTableau, request) -> None:
 def test_eliminate_non_css_with_lookahead(tableau_matrix: StabilizerTableau, request) -> None:
     """Test the eliminate_non_css_with_lookahead function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    operations, result_tableau = eliminate_non_css_with_lookahead(target_tableau, lookahead=3)
+    operations, result_tableau = synthesize_non_css_with_lookahead(target_tableau, lookahead=3)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
 

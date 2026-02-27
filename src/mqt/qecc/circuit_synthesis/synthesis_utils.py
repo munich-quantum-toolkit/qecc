@@ -21,7 +21,7 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
-from .cnot import eliminate_cnot
+from .synthesis import synthesize_cnot
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -124,7 +124,7 @@ def cnot_encoding_circuit(
         reduce_checks_by_row_ops(checks, logicals)
 
     mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
-    ops, reduced_checks = eliminate_cnot(
+    ops, reduced_checks = synthesize_cnot(
         mat,
         exact=False,
         optimization_criterion=optimization_criterion,
@@ -133,7 +133,7 @@ def cnot_encoding_circuit(
     )
     assert isinstance(reduced_checks, CheckMatrix)
     encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
-    final_ops, logicals = eliminate_cnot(
+    final_ops, logicals = synthesize_cnot(
         encoding_checks,
         exact=True,
         optimization_criterion=optimization_criterion,

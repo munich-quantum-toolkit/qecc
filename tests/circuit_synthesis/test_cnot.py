@@ -12,7 +12,7 @@ import time
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.cnot import eliminate_cnot
+from mqt.qecc.circuit_synthesis.synthesis import synthesize_cnot
 from mqt.qecc.codes.pauli import CheckMatrix
 
 
@@ -39,7 +39,7 @@ def cnot_matrix() -> CheckMatrix:
 def test_eliminate_cnot_exact(check_matrix: CheckMatrix, request) -> None:
     """Test the eliminate_cnot function with exact elimination."""
     target_matrix = request.getfixturevalue(check_matrix)
-    operations, result_matrix = eliminate_cnot(target_matrix, exact=True)
+    operations, result_matrix = synthesize_cnot(target_matrix, exact=True)
     assert result_matrix.is_identity()
     assert operations.apply(target_matrix) == result_matrix
 
@@ -51,7 +51,7 @@ def test_eliminate_cnot_exact(check_matrix: CheckMatrix, request) -> None:
 def test_eliminate_cnot_up_to_row_ops(check_matrix: CheckMatrix, num_cnots: int, request) -> None:
     """Test the eliminate_cnot function up to row operations."""
     target_matrix = request.getfixturevalue(check_matrix)
-    operations, result_matrix = eliminate_cnot(target_matrix, exact=True)
+    operations, result_matrix = synthesize_cnot(target_matrix, exact=True)
     assert operations.num_two_qubit_gates() == num_cnots
     assert operations.apply(target_matrix) == result_matrix
 
@@ -65,7 +65,7 @@ def test_eliminate_cnot_performance():
     check_matrix = CheckMatrix(matrix_data, type="X")
 
     start_time = time.perf_counter()
-    operations, _result_matrix = eliminate_cnot(check_matrix, exact=False, lookahead=0)
+    operations, _result_matrix = synthesize_cnot(check_matrix, exact=False, lookahead=0)
     elapsed_time = time.perf_counter() - start_time
 
     print(f"\nCNOT elimination completed in {elapsed_time:.4f} seconds")

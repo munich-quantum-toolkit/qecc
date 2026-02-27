@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import random
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -22,7 +23,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ..codes.pauli import StabilizerTableau
-    from .config import EliminationStrategy
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
@@ -151,6 +151,20 @@ class EliminationSequence:
         if qubit_last_used:
             depth = max(qubit_last_used.values()) + 1
         return depth
+
+
+@dataclass
+class EliminationStrategy:
+    """Strategy for elimination methods."""
+
+    termination_criterion: Callable[[BinaryMatrix], bool]
+    candidate_generator: CandidateGenerator
+    selection_strategy: SelectionStrategy | None = None
+    filters: list[OperationFilter] | None = None
+    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None
+    post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]] = (
+        lambda ops, tbl: (ops, tbl)
+    )
 
 
 def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tuple[EliminationSequence, BinaryMatrix]:

@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Transvection-based elimination for non-CSS stabilizer codes."""
+"""Transvection-based candidate generation for non-CSS stabilizer codes."""
 
 from __future__ import annotations
 
@@ -18,11 +18,9 @@ import numpy as np
 from .elimination import (
     CandidateGenerator,
     EliminationSequence,
-    eliminate,
     get_n,
 )
 from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
-from .strategy import EliminationStrategy
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -261,83 +259,6 @@ def get_candidate_transvections(
 
     scores.sort(key=operator.itemgetter(1))
     return [(tv, score) for tv, score in scores]
-
-
-def eliminate_non_css_state(
-    tableau: StabilizerTableau, optimization_criterion: str = "gates"
-) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Eliminate a non-CSS stabilizer tableau to state preparation form using transvections.
-
-    Args:
-        tableau: The stabilizer tableau to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-
-    Returns:
-        A tuple of (operations, final_tableau) where operations is the sequence
-        of tableau operations and final_tableau is the reduced tableau.
-    """
-    strategy = EliminationStrategy.for_non_css_stateprep(optimization_criterion=optimization_criterion)
-
-    operations, final_tableau = eliminate(tableau, strategy)
-
-    return operations, final_tableau
-
-
-def eliminate_non_css(
-    tableau: StabilizerTableau, optimization_criterion: str = "gates"
-) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Eliminate a non-CSS stabilizer tableau using transvections.
-
-    Args:
-        tableau: The stabilizer tableau to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-
-    Returns:
-        A tuple of (operations, final_tableau) where operations is the sequence
-        of tableau operations and final_tableau is the reduced tableau.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    strategy = EliminationStrategy.for_non_css(optimization_criterion=optimization_criterion)
-
-    operations, final_tableau = eliminate(tableau, strategy)
-
-    return operations, final_tableau
-
-
-def eliminate_non_css_with_lookahead(
-    tableau: StabilizerTableau,
-    optimization_criterion: str = "gates",
-    lookahead: int = 1,
-    num_lookahead_candidates: int | list[int] = 10,
-    enable_early_termination: bool = True,
-) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Eliminate a non-CSS stabilizer tableau using transvections with lookahead.
-
-    Args:
-        tableau: The stabilizer tableau to eliminate.
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-        lookahead: Number of steps to look ahead in the synthesis.
-        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
-            Can be a single int (same limit for all layers) or a list of ints (one per layer).
-        enable_early_termination: If True, allows early termination when no improving candidates found.
-
-    Returns:
-        A tuple of (operations, final_tableau) where operations is the sequence
-        of tableau operations and final_tableau is the reduced tableau.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    strategy = EliminationStrategy.for_non_css_with_lookahead(
-        optimization_criterion=optimization_criterion,
-        lookahead=lookahead,
-        num_lookahead_candidates=num_lookahead_candidates,
-        enable_early_termination=enable_early_termination,
-    )
-    operations, final_tableau = eliminate(tableau, strategy)
-    return operations, final_tableau
 
 
 def _compute_r2_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
