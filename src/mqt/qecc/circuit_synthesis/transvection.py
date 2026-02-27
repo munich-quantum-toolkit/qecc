@@ -17,7 +17,6 @@ import numpy as np
 
 from .elimination import (
     CandidateGenerator,
-    EliminationConfig,
     EliminationSequence,
     eliminate,
     get_n,
@@ -276,6 +275,8 @@ def eliminate_non_css_state(
         A tuple of (operations, final_tableau) where operations is the sequence
         of tableau operations and final_tableau is the reduced tableau.
     """
+    from .config import EliminationConfig
+
     config = EliminationConfig.for_non_css_stateprep(optimization_criterion=optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, config)
@@ -299,6 +300,8 @@ def eliminate_non_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    from .config import EliminationConfig
+
     config = EliminationConfig.for_non_css(optimization_criterion=optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, config)
@@ -330,6 +333,8 @@ def eliminate_non_css_with_lookahead(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    from .config import EliminationConfig
+
     config = EliminationConfig.for_non_css_with_lookahead(
         optimization_criterion=optimization_criterion,
         lookahead=lookahead,

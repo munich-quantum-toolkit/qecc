@@ -16,7 +16,6 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from .elimination import (
     CandidateGenerator,
-    EliminationConfig,
     EliminationSequence,
     eliminate,
     get_n,
@@ -144,6 +143,8 @@ def eliminate_cnot_lookahead(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    from .config import EliminationConfig
+
     config = EliminationConfig.for_cnot_with_lookahead(
         optimization_criterion=optimization_criterion,
         lookahead=lookahead,
@@ -178,6 +179,8 @@ def eliminate_cnot(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    from .config import EliminationConfig
+
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
