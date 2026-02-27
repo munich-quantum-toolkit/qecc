@@ -20,7 +20,8 @@ import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
 from .circuits import CNOTCircuit
-from .elimination import CheckMatrix, eliminate_cnot
+from .cnot import eliminate_cnot
+from .elimination import CheckMatrix
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
