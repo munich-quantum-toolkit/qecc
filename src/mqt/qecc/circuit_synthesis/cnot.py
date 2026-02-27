@@ -15,13 +15,13 @@ from typing import TYPE_CHECKING
 import ldpc.mod2.mod2_numpy as mod2
 
 from .elimination import (
-    CNOT,
     CandidateGenerator,
     EliminationConfig,
     EliminationSequence,
     eliminate,
     get_n,
 )
+from .operations import CNOT
 
 if TYPE_CHECKING:
     from ..codes.pauli import CheckMatrix

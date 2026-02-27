@@ -19,13 +19,10 @@ from .elimination import (
     CandidateGenerator,
     EliminationConfig,
     EliminationSequence,
-    PauliOperation,
-    SingleQubitClifford,
-    Swap,
-    Transvection,
     eliminate,
     get_n,
 )
+from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
 
 if TYPE_CHECKING:
     import numpy.typing as npt

@@ -1,0 +1,574 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
+"""Tableau operations used during elimination."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+import numpy as np
+import stim
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
+    from ..codes.pauli import CheckMatrix, StabilizerTableau
+
+BinaryMatrix = "CheckMatrix | StabilizerTableau"
+
+
+class TableauOperation(ABC):
+    """Represents an operation performed during tableau elimination."""
+
+    @abstractmethod
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the operation to the given stabilizer tableau.
+
+        Args:
+            tableau (BinaryMatrix): The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+
+    @abstractmethod
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+
+    def to_stim_circuit(self) -> stim.Circuit:
+        """Convert the operation to a Stim circuit representation.
+
+        Returns:
+            stim.Circuit: The Stim circuit representing the operation.
+        """
+        circuit = stim.Circuit()
+        self.append_to_circuit(circuit)
+        return circuit
+
+    @abstractmethod
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+
+    def __repr__(self) -> str:
+        """Return a string representation of the operation."""
+        return f"{self.__class__.__name__}(qubits={self.qubits()})"
+
+
+TV2 = tuple[int, int, int, int]
+
+
+class Transvection(TableauOperation):
+    """Class representing a transvection operation on a stabilizer tableau."""
+
+    def __init__(self, v: TV2, i: int, j: int) -> None:
+        """Initialize the transvection operation.
+
+        Args:
+            v: A tuple representing the transvection vector (v1, v2, v3, v4).
+            i: The index of the first qubit.
+            j: The index of the second qubit.
+        """
+        self.i = i
+        self.j = j
+        self.v = v
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the transvection operation to the given stabilizer tableau.
+
+        This applies the transvection by simulating the circuit: basis change, CZ, S on both qubits, undo basis change.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+        from ..codes.pauli import StabilizerTableau
+
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "Transvection operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+
+        out = tableau if inplace else tableau.copy()
+
+        i = self.i
+        j = self.j
+        xi, xj, zi, zj = self.v
+
+        paulis = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
+        p_i = paulis[xi, zi]
+        p_j = paulis[xj, zj]
+
+        if p_i == "I" or p_j == "I":
+            msg = f"Expected non-trivial Pauli on both qubits, got {p_i},{p_j}"
+            raise ValueError(msg)
+
+        basis_change_map = {"Z": None, "X": "H", "Y": "SH"}
+        undo_basis_change_map = {"Z": None, "X": "H", "Y": "HS"}
+
+        basis_i = basis_change_map[p_i]
+        basis_j = basis_change_map[p_j]
+        undo_i = undo_basis_change_map[p_i]
+        undo_j = undo_basis_change_map[p_j]
+
+        if basis_i == "H":
+            out.apply_h(i)
+        elif basis_i == "SH":
+            out.apply_sdg(i)
+            out.apply_h(i)
+
+        if basis_j == "H":
+            out.apply_h(j)
+        elif basis_j == "SH":
+            out.apply_sdg(j)
+            out.apply_h(j)
+
+        out.apply_cz(i, j)
+        out.apply_s(i)
+        out.apply_s(j)
+
+        if undo_j == "H":
+            out.apply_h(j)
+        elif undo_j == "HS":
+            out.apply_h(j)
+            out.apply_s(j)
+
+        if undo_i == "H":
+            out.apply_h(i)
+        elif undo_i == "HS":
+            out.apply_h(i)
+            out.apply_s(i)
+
+        return out
+
+    @staticmethod
+    def all_two_qubit_transvections() -> list[TV2]:
+        """Get all 9 possible two-qubit transvections.
+
+        The 9 distinct 2-qubit transvections √(P_i P_j) (P∈{X,Y,Z} non-trivial)
+        correspond to choosing (x,z) in {(1,0),(0,1),(1,1)} for each of the two qubits.
+
+        Returns:
+            List of all 9 transvection vectors as tuples (xi, xj, zi, zj).
+        """
+        nontrivial = [(1, 0), (0, 1), (1, 1)]
+        out: list[TV2] = []
+        for xi, zi in nontrivial:
+            for xj, zj in nontrivial:
+                out.append((xi, xj, zi, zj))
+        return out
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        paulis = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
+        i = self.i
+        j = self.j
+        xi, xj, zi, zj = self.v
+        p_i = paulis[xi, zi]
+        p_j = paulis[xj, zj]
+        if p_i == "I" or p_j == "I":
+            msg = f"Expected non-trivial Pauli on both qubits, got {p_i},{p_j}"
+            raise ValueError(msg)
+
+        basis_change = {"Z": [], "X": ["H"], "Y": ["S_DAG", "H"]}
+        undo_basis_change = {"Z": [], "X": ["H"], "Y": ["H", "S"]}
+        for g in basis_change[p_i]:
+            circuit.append(g, [i])
+        for g in basis_change[p_j]:
+            circuit.append(g, [j])
+
+        circuit.append("CZ", [i, j])
+        circuit.append("S", [i])
+        circuit.append("S", [j])
+
+        for g in undo_basis_change[p_j]:
+            circuit.append(g, [j])
+        for g in undo_basis_change[p_i]:
+            circuit.append(g, [i])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.i, self.j}
+
+
+def _matmul2(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
+    return ((m1 @ m2) % 2).astype(np.int8)
+
+
+identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
+hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
+phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
+
+elems: dict[str, np.ndarray] = {
+    "I": identity,
+    "H": hadamard,
+    "S": phase,
+    "SH": _matmul2(hadamard, phase),
+    "HS": _matmul2(phase, hadamard),
+    "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
+}
+
+
+class SingleQubitClifford(TableauOperation):
+    """Class representing a single-qubit Clifford operation on a stabilizer tableau."""
+
+    def __init__(self, qubit: int, clifford: str) -> None:
+        """Initialize the single-qubit Clifford operation.
+
+        Args:
+            qubit: The index of the qubit.
+            clifford: The Clifford operation to apply {H, S, HS, SH, HSH, I}.
+        """
+        self.qubit = qubit
+        self.clifford = clifford
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the single-qubit Clifford operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+        from ..codes.pauli import StabilizerTableau
+
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+
+        q = self.qubit
+
+        out = tableau if inplace else tableau.copy()
+        if self.clifford == "H":
+            out.apply_h(q)
+        elif self.clifford == "S":
+            out.apply_s(q)
+        elif self.clifford == "HS":
+            out.apply_h(q)
+            out.apply_s(q)
+        elif self.clifford == "SH":
+            out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "HSH":
+            out.apply_h(q)
+            out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "I":
+            pass
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return out
+
+    def apply_inverse(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the inverse of the single-qubit Clifford operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: Whether to modify the tableau in place.
+
+        Returns:
+            BinaryMatrix: The resulting stabilizer tableau after applying the inverse operation.
+        """
+        from ..codes.pauli import StabilizerTableau
+
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+        q = self.qubit
+
+        out = tableau if inplace else tableau.copy()
+        if self.clifford == "H":
+            out.apply_h(q)
+        elif self.clifford == "S":
+            out.apply_sdg(q)
+        elif self.clifford == "HS":
+            out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "SH":
+            out.apply_h(q)
+            out.apply_sdg(q)
+        elif self.clifford == "HSH":
+            out.apply_h(q)
+            out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "I":
+            pass
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return out
+
+    def inverse(self) -> SingleQubitClifford:
+        """Get the inverse of the single-qubit Clifford operation.
+
+        Returns:
+            SingleQubitClifford: The inverse single-qubit Clifford operation.
+        """
+        inverse_map = {
+            "H": "H",
+            "S": "SH",
+            "HS": "SH",
+            "SH": "HS",
+            "HSH": "HSH",
+            "I": "I",
+        }
+        if self.clifford not in inverse_map:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+        return SingleQubitClifford(self.qubit, inverse_map[self.clifford])
+
+    @staticmethod
+    def available_cliffords() -> list[str]:
+        """Get the list of available single-qubit Clifford operations.
+
+        Returns:
+            List of Clifford operation names: H, S, HS, SH, HSH, I.
+        """
+        return ["H", "S", "HS", "SH", "HSH", "I"]
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        if self.clifford in {"H", "S", "I"}:
+            circuit.append(self.clifford, [self.qubit])
+        elif self.clifford == "HS":
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
+        elif self.clifford == "SH":
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
+        elif self.clifford == "HSH":
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
+        else:
+            msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
+            raise ValueError(msg)
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit}
+
+    @staticmethod
+    def from_symplectic_block(block: npt.NDArray[np.int8], qubit: int) -> SingleQubitClifford:
+        """Create a SingleQubitClifford from a symplectic block.
+
+        Args:
+            block: A 2x2 symplectic block representing the single-qubit Clifford operation.
+            qubit: The index of the qubit.
+
+        Returns:
+            A single-qubit Clifford operation.
+        """
+        for name, mat in elems.items():
+            if np.array_equal(block, mat):
+                return SingleQubitClifford(qubit, name)
+        msg = f"Unsupported single-qubit Clifford symplectic block:\n{block}"
+        raise ValueError(msg)
+
+
+class PauliOperation(TableauOperation):
+    """Class representing a Pauli operation on a stabilizer tableau."""
+
+    def __init__(self, qubit: int, pauli: str) -> None:
+        """Initialize the Pauli operation.
+
+        Args:
+            qubit: The index of the qubit.
+            pauli: The Pauli operation to apply {X, Y, Z}.
+        """
+        self.qubit = qubit
+        self.pauli = pauli
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the Pauli operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+        from ..codes.pauli import StabilizerTableau
+
+        if not isinstance(tableau, StabilizerTableau):
+            msg = "Pauli operations can only be applied to StabilizerTableau instances."
+            raise TypeError(msg)
+
+        out = tableau if inplace else tableau.copy()
+        if self.pauli == "X":
+            out.apply_x(self.qubit)
+        elif self.pauli == "Y":
+            out.apply_y(self.qubit)
+        elif self.pauli == "Z":
+            out.apply_z(self.qubit)
+        else:
+            msg = f"Unsupported Pauli operation: {self.pauli}"
+            raise ValueError(msg)
+        return out
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append(self.pauli, [self.qubit])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit}
+
+
+class CNOT(TableauOperation):
+    """Class representing a CNOT operation on a stabilizer tableau."""
+
+    def __init__(self, control: int, target: int) -> None:
+        """Initialize the CNOT operation.
+
+        Args:
+            control: The index of the control qubit.
+            target: The index of the target qubit.
+        """
+        self.control = control
+        self.target = target
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the CNOT operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+        from ..codes.pauli import CheckMatrix, StabilizerTableau
+
+        if isinstance(tableau, StabilizerTableau):
+            return self._apply_stabilizer_tableau(tableau, inplace)
+        if isinstance(tableau, CheckMatrix):
+            return self._apply_check_matrix(tableau, inplace)
+        msg = f"Unsupported tableau type: {type(tableau)}"
+        raise TypeError(msg)
+
+    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        out = tableau if inplace else tableau.copy()
+        out.apply_cx(self.control, self.target)
+        return out
+
+    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
+        """
+        out = check_matrix if inplace else check_matrix.copy()
+        out.matrix[:, self.target] ^= out.matrix[:, self.control]
+        return out
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append("CNOT", [self.control, self.target])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.control, self.target}
+
+
+class Swap(TableauOperation):
+    """Class representing a SWAP operation on a stabilizer tableau."""
+
+    def __init__(self, qubit_a: int, qubit_b: int) -> None:
+        """Initialize the SWAP operation.
+
+        Args:
+            qubit_a: The index of the first qubit.
+            qubit_b: The index of the second qubit.
+        """
+        self.qubit_a = qubit_a
+        self.qubit_b = qubit_b
+
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+        """Apply the SWAP operation to the given stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+        """
+        from ..codes.pauli import CheckMatrix, StabilizerTableau
+
+        if isinstance(tableau, StabilizerTableau):
+            return self._apply_stabilizer_tableau(tableau, inplace)
+        if isinstance(tableau, CheckMatrix):
+            return self._apply_check_matrix(tableau, inplace)
+        msg = f"Unsupported tableau type: {type(tableau)}"
+        raise TypeError(msg)
+
+    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        out = tableau if inplace else tableau.copy()
+        out.apply_swap(self.qubit_a, self.qubit_b)
+        return out
+
+    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix (CheckMatrix): The CSS check matrix to apply the operation to.
+            inplace (bool): If True, modifies the check matrix in place. If False, returns a new check matrix.
+        """
+        out = check_matrix if inplace else check_matrix.copy()
+        out.matrix[:, [self.qubit_a, self.qubit_b]] = out.matrix[:, [self.qubit_b, self.qubit_a]]
+        return out
+
+    def append_to_circuit(self, circuit: stim.Circuit) -> None:
+        """Append the operation to a Stim circuit.
+
+        Args:
+            circuit (stim.Circuit): The Stim circuit to append the operation to.
+        """
+        circuit.append("SWAP", [self.qubit_a, self.qubit_b])
+
+    def qubits(self) -> set[int]:
+        """Get the set of qubits involved in the operation.
+
+        Returns:
+            set[int]: The set of qubit indices involved in the operation.
+        """
+        return {self.qubit_a, self.qubit_b}
