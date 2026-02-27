@@ -12,6 +12,7 @@ from __future__ import annotations
 import operator
 from typing import TYPE_CHECKING
 
+from ..codes.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, eliminate
 
 if TYPE_CHECKING:
@@ -38,345 +39,125 @@ def _normalize_lookahead_candidates(num_candidates: int | list[int], lookahead: 
     return list(num_candidates[:lookahead])
 
 
-def _create_fresh_base_generator(base_generator: CandidateGenerator) -> CandidateGenerator:
-    """Create a fresh copy of the base candidate generator.
+def _create_tableau_cache_key(tableau: BinaryMatrix) -> bytes:
+    """Create a hashable cache key from a tableau.
 
     Args:
-        base_generator: The original base generator.
+        tableau: The binary matrix or stabilizer tableau.
 
     Returns:
-        A new generator instance with fresh state.
+        A bytes representation suitable for dictionary keys.
     """
-    fresh_filters = (
-        [f.copy() for f in base_generator.filters]
-        if hasattr(base_generator, "filters") and base_generator.filters
-        else []
+    if isinstance(tableau, StabilizerTableau):
+        return tableau.tableau.matrix.tobytes()
+    return tableau.matrix.tobytes()
+
+
+def _create_fresh_lookahead_strategy(strategy: EliminationStrategy) -> EliminationStrategy:
+    """Create a fresh copy of the lookahead strategy with copied filter state.
+
+    Args:
+        strategy: The original lookahead strategy.
+
+    Returns:
+        A new strategy with fresh filter copies.
+    """
+    fresh_filters = None
+    if strategy.filters:
+        fresh_filters = [f.copy() for f in strategy.filters]
+
+    return EliminationStrategy(
+        termination_criterion=strategy.termination_criterion,
+        candidate_generator=strategy.candidate_generator,
+        selection_strategy=strategy.selection_strategy,
+        filters=fresh_filters,
+        callback=strategy.callback,
+        post_process_fn=strategy.post_process_fn,
     )
-    return type(base_generator)(fresh_filters)
 
 
-def _create_fresh_filters(filters: list | None) -> list | None:
-    """Create fresh copies of filters.
-
-    Args:
-        filters: List of filters to copy, or None.
-
-    Returns:
-        List of copied filters, or None if input was None.
-    """
-    if filters is None:
-        return None
-    return [f.copy() for f in filters]
-
-
-def _simulate_single_step(
+def _simulate_and_score_operation(
     op: TableauOperation,
     tableau: BinaryMatrix,
-    base_strategy: EliminationStrategy,
-) -> tuple[EliminationSequence, BinaryMatrix] | None:
-    """Simulate a single operation followed by greedy elimination to completion.
+    lookahead_strategy: EliminationStrategy,
+    score_fn: Callable[[EliminationSequence], tuple[int, ...]],
+    prefix_sequence: EliminationSequence,
+    generator: LookaheadCandidateGenerator | None = None,
+) -> tuple[int, ...] | None:
+    """Simulate operation and return score tuple, or None if simulation fails.
 
     Args:
         op: The operation to simulate.
         tableau: The current tableau state.
-        base_strategy: Base strategy with fresh generator and filters.
+        lookahead_strategy: Strategy for lookahead elimination.
+        score_fn: Function to compute score tuple from a sequence.
+        prefix_sequence: The elimination sequence built so far (for depth calculation).
+        generator: The lookahead generator to record complete solutions.
 
     Returns:
-        Tuple of (sequence, final_tableau) if simulation succeeds, None otherwise.
+        A tuple containing scores if simulation succeeds, None otherwise.
     """
     try:
         new_tableau = op.apply(tableau)
 
-        if base_strategy.filters:
-            for f in base_strategy.filters:
+        if lookahead_strategy.filters:
+            for f in lookahead_strategy.filters:
                 f.update(op)
 
-        sequence, final_tableau = eliminate(new_tableau, base_strategy)
-        return sequence, final_tableau
+        sequence, final_tableau = eliminate(new_tableau, lookahead_strategy)
+        full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
+        score = score_fn(full_sequence)
+
+        if generator is not None:
+            generator.record_complete_solution(full_sequence, final_tableau, score)
+
+        return score
     except RuntimeError:
         return None
 
 
-def _score_operation(
-    op: TableauOperation,
+def _score_candidates_with_lookahead(
     tableau: BinaryMatrix,
-    base_strategy: EliminationStrategy,
+    candidates: list[TableauOperation],
+    num_candidates: int,
+    lookahead_strategy: EliminationStrategy,
     score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     prefix_sequence: EliminationSequence,
-) -> tuple[int, ...] | None:
-    """Score a single operation by simulating to completion.
+    best_known_score: tuple[int, ...] | None = None,
+    generator: LookaheadCandidateGenerator | None = None,
+) -> list[tuple[TableauOperation, tuple[int, ...]]]:
+    """Score candidates using lookahead simulation.
 
     Args:
-        op: The operation to score.
         tableau: The current tableau state.
-        base_strategy: Base strategy with fresh state.
-        score_fn: Function to compute score from sequence.
-        prefix_sequence: The elimination sequence built so far.
+        candidates: List of candidate operations to score.
+        num_candidates: Maximum number of candidates to evaluate.
+        lookahead_strategy: Strategy for lookahead elimination.
+        score_fn: Function to compute score tuple from a sequence.
+        prefix_sequence: The elimination sequence built so far (for depth calculation).
+        best_known_score: Best score found so far; used to prune candidates that can't improve.
+        generator: The lookahead generator to record complete solutions.
 
     Returns:
-        Score tuple if simulation succeeds, None otherwise.
+        List of (operation, score) tuples sorted by score.
     """
-    result = _simulate_single_step(op, tableau, base_strategy)
-    if result is None:
-        return None
+    scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
 
-    sequence, _ = result
-    full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
-    return score_fn(full_sequence)
+    for op in candidates[:num_candidates]:
+        fresh_strategy = _create_fresh_lookahead_strategy(lookahead_strategy)
+        result = _simulate_and_score_operation(op, tableau, fresh_strategy, score_fn, prefix_sequence, generator)
+        if result is not None:
+            score_tuple = result
+            is_minimal = score_tuple[-1] if isinstance(score_tuple[-1], bool) else False
 
+            if best_known_score is None or score_tuple <= best_known_score:
+                scored_candidates.append((op, score_tuple))
 
-def _should_prune_candidate(score: tuple[int, ...], best_known_score: tuple[int, ...] | None) -> bool:
-    """Check if a candidate should be pruned based on its score.
+            if is_minimal:
+                break
 
-    Args:
-        score: The candidate's score.
-        best_known_score: The best score found so far.
-
-    Returns:
-        True if the candidate should be pruned, False otherwise.
-    """
-    if best_known_score is None:
-        return False
-    return score > best_known_score
-
-
-class SolutionTracker:
-    """Tracks the best complete solution found during lookahead exploration."""
-
-    def __init__(self) -> None:
-        """Initialize the solution tracker."""
-        self.best_score: tuple[int, ...] | None = None
-        self.best_sequence: EliminationSequence | None = None
-        self.best_tableau: BinaryMatrix | None = None
-
-    def record_solution(self, sequence: EliminationSequence, tableau: BinaryMatrix, score: tuple[int, ...]) -> None:
-        """Record a complete solution if it's better than the current best.
-
-        Args:
-            sequence: The complete elimination sequence.
-            tableau: The final tableau.
-            score: The score of this solution.
-        """
-        if self.best_score is None or score < self.best_score:
-            self.best_score = score
-            self.best_sequence = sequence
-            self.best_tableau = tableau
-
-    def update_best_score(self, score: tuple[int, ...]) -> None:
-        """Update best score without storing full solution.
-
-        Args:
-            score: The new best score.
-        """
-        if self.best_score is None or score < self.best_score:
-            self.best_score = score
-
-    def get_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
-        """Get the best solution found.
-
-        Returns:
-            Tuple of (sequence, tableau) if available, None otherwise.
-        """
-        if self.best_sequence is not None and self.best_tableau is not None:
-            return self.best_sequence, self.best_tableau
-        return None
-
-
-class LayerSimulator:
-    """Simulates lookahead layers for candidate scoring."""
-
-    def __init__(
-        self,
-        base_strategy: EliminationStrategy,
-        score_fn: Callable[[EliminationSequence], tuple[int, ...]],
-        track_solutions: bool,
-    ) -> None:
-        """Initialize the layer simulator.
-
-        Args:
-            base_strategy: Strategy for base candidate generation.
-            score_fn: Function to score elimination sequences.
-            track_solutions: Whether to track complete solutions.
-        """
-        self.base_strategy = base_strategy
-        self.score_fn = score_fn
-        self.track_solutions = track_solutions
-        self.solution_tracker = SolutionTracker() if track_solutions else None
-
-    def simulate_layer(
-        self,
-        tableau: BinaryMatrix,
-        candidates: list[TableauOperation],
-        num_candidates: int,
-        prefix_sequence: EliminationSequence,
-        remaining_depth: int,
-        initial_filters: list | None,
-    ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
-        """Simulate one layer of lookahead.
-
-        Args:
-            tableau: Current tableau state.
-            candidates: Candidate operations to evaluate.
-            num_candidates: Maximum number of candidates to evaluate.
-            prefix_sequence: Sequence of operations applied so far.
-            remaining_depth: Remaining lookahead depth after this layer.
-            initial_filters: Filter state at start of this layer.
-
-        Returns:
-            List of (operation, score) tuples sorted by score.
-        """
-        if remaining_depth == 0:
-            return self._simulate_terminal_layer(tableau, candidates, num_candidates, prefix_sequence, initial_filters)
-
-        return self._simulate_recursive_layer(
-            tableau, candidates, num_candidates, prefix_sequence, remaining_depth, initial_filters
-        )
-
-    def _simulate_terminal_layer(
-        self,
-        tableau: BinaryMatrix,
-        candidates: list[TableauOperation],
-        num_candidates: int,
-        prefix_sequence: EliminationSequence,
-        initial_filters: list | None,
-    ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
-        """Simulate terminal layer using base strategy only.
-
-        Args:
-            tableau: Current tableau state.
-            candidates: Candidate operations to evaluate.
-            num_candidates: Maximum number of candidates to evaluate.
-            prefix_sequence: Sequence of operations applied so far.
-            initial_filters: Filter state at start of this layer.
-
-        Returns:
-            List of (operation, score) tuples sorted by score.
-        """
-        scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
-        best_score = self.solution_tracker.best_score if self.solution_tracker else None
-
-        for op in candidates[:num_candidates]:
-            fresh_filters = _create_fresh_filters(initial_filters)
-            fresh_base_strategy = self._create_base_strategy(fresh_filters)
-
-            result = _simulate_single_step(op, tableau, fresh_base_strategy)
-            if result is None:
-                continue
-
-            sequence, final_tableau = result
-            full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
-            score = self.score_fn(full_sequence)
-
-            if self.solution_tracker:
-                self.solution_tracker.record_solution(full_sequence, final_tableau, score)
-
-            if not _should_prune_candidate(score, best_score):
-                scored_candidates.append((op, score))
-                best_score = score if best_score is None or score < best_score else best_score
-
-        scored_candidates.sort(key=operator.itemgetter(1))
-        return scored_candidates
-
-    def _simulate_recursive_layer(
-        self,
-        tableau: BinaryMatrix,
-        candidates: list[TableauOperation],
-        num_candidates: int,
-        prefix_sequence: EliminationSequence,
-        remaining_depth: int,
-        initial_filters: list | None,
-    ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
-        """Simulate layer with recursive lookahead.
-
-        Args:
-            tableau: Current tableau state.
-            candidates: Candidate operations to evaluate.
-            num_candidates: Maximum number of candidates to evaluate.
-            prefix_sequence: Sequence of operations applied so far.
-            remaining_depth: Remaining lookahead depth after this layer.
-            initial_filters: Filter state at start of this layer.
-
-        Returns:
-            List of (operation, score) tuples sorted by score.
-        """
-        scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
-        best_score = self.solution_tracker.best_score if self.solution_tracker else None
-
-        for op in candidates[:num_candidates]:
-            fresh_filters = _create_fresh_filters(initial_filters)
-            lookahead_strategy = self._create_recursive_strategy(remaining_depth - 1, fresh_filters)
-
-            result = _simulate_single_step(op, tableau, lookahead_strategy)
-            if result is None:
-                continue
-
-            sequence, final_tableau = result
-            full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
-            score = self.score_fn(full_sequence)
-
-            if self.solution_tracker:
-                self.solution_tracker.record_solution(full_sequence, final_tableau, score)
-
-            if not _should_prune_candidate(score, best_score):
-                scored_candidates.append((op, score))
-                best_score = score if best_score is None or score < best_score else best_score
-
-        scored_candidates.sort(key=operator.itemgetter(1))
-        return scored_candidates
-
-    def _create_base_strategy(self, filters: list | None) -> EliminationStrategy:
-        """Create base strategy with fresh generator and filters.
-
-        Args:
-            filters: Filters to use for the strategy.
-
-        Returns:
-            A new base strategy with fresh state.
-        """
-        fresh_generator = _create_fresh_base_generator(self.base_strategy.candidate_generator)
-        return EliminationStrategy(
-            termination_criterion=self.base_strategy.termination_criterion,
-            candidate_generator=fresh_generator,
-            filters=filters,
-        )
-
-    def _create_recursive_strategy(self, remaining_depth: int, filters: list | None) -> EliminationStrategy:
-        """Create strategy with recursive lookahead generator.
-
-        Args:
-            remaining_depth: Remaining depth for recursive lookahead.
-            filters: Filters to use for the strategy.
-
-        Returns:
-            A new strategy with lookahead generator.
-        """
-        fresh_base_strategy = self._create_base_strategy(None)
-
-        lookahead_generator = LookaheadCandidateGenerator(
-            base_strategy=fresh_base_strategy,
-            lookahead=remaining_depth,
-            num_lookahead_candidates=self._get_remaining_candidate_limits(remaining_depth),
-            score_fn=self.score_fn,
-            track_best_solution=self.track_solutions,
-            enable_early_termination=False,
-        )
-
-        return EliminationStrategy(
-            termination_criterion=self.base_strategy.termination_criterion,
-            candidate_generator=lookahead_generator,
-            filters=filters,
-        )
-
-    def _get_remaining_candidate_limits(self, remaining_depth: int) -> list[int]:
-        """Get candidate limits for remaining depth.
-
-        Args:
-            remaining_depth: Remaining lookahead depth.
-
-        Returns:
-            List of candidate limits for each remaining layer.
-        """
-        return [10] * remaining_depth
+    scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
+    return scored_candidates
 
 
 class LookaheadCandidateGenerator(CandidateGenerator):
@@ -412,10 +193,12 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self.track_best_solution = track_best_solution
         self.enable_early_termination = enable_early_termination
         self.use_best_if_better = track_best_solution and not enable_early_termination
-
-        self.simulator = LayerSimulator(base_strategy, score_fn, track_best_solution)
-        self.current_sequence = EliminationSequence([])
-        self.should_terminate = False
+        self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
+        self._current_sequence = EliminationSequence([])
+        self._best_known_score: tuple[int, ...] | None = None
+        self._best_known_sequence: EliminationSequence | None = None
+        self._best_known_tableau: BinaryMatrix | None = None
+        self._should_terminate = False
 
     def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
         """Generate candidates using lookahead simulation.
@@ -430,37 +213,44 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             return self.base_strategy.candidate_generator.get_candidates(tableau)
 
         base_candidates = [cand for cand, _ in self.base_strategy.candidate_generator.get_candidates(tableau)]
-        num_candidates_first_layer = self.num_lookahead_candidates_per_layer[0]
+        num_candidates_this_layer = self.num_lookahead_candidates_per_layer[0]
 
-        initial_filters = _create_fresh_filters(self.base_strategy.filters)
+        current_filter_state = None
+        if self.base_strategy.filters:
+            current_filter_state = [f.copy() for f in self.base_strategy.filters]
 
-        scored_candidates = self.simulator.simulate_layer(
-            tableau=tableau,
-            candidates=base_candidates,
-            num_candidates=num_candidates_first_layer,
-            prefix_sequence=self.current_sequence,
-            remaining_depth=self.lookahead - 1,
-            initial_filters=initial_filters,
+        scored_candidates = _score_candidates_with_lookahead(
+            tableau,
+            base_candidates,
+            num_candidates_this_layer,
+            self._create_lookahead_strategy(current_filter_state),
+            self.score_fn,
+            self._current_sequence,
+            self._best_known_score if self.track_best_solution else None,
+            self if self.track_best_solution else None,
         )
 
         if not scored_candidates and self.track_best_solution and self.enable_early_termination:
-            if self.simulator.solution_tracker and self.simulator.solution_tracker.get_solution() is not None:
-                self.should_terminate = True
+            if self._best_known_sequence is not None:
+                self._should_terminate = True
                 return []
 
         if not scored_candidates:
-            scored_candidates = self.simulator.simulate_layer(
-                tableau=tableau,
-                candidates=base_candidates,
-                num_candidates=num_candidates_first_layer,
-                prefix_sequence=self.current_sequence,
-                remaining_depth=self.lookahead - 1,
-                initial_filters=initial_filters,
+            scored_candidates = _score_candidates_with_lookahead(
+                tableau,
+                base_candidates,
+                num_candidates_this_layer,
+                self._create_lookahead_strategy(current_filter_state),
+                self.score_fn,
+                self._current_sequence,
+                best_known_score=None,
+                generator=None,
             )
 
-        if self.track_best_solution and scored_candidates and self.simulator.solution_tracker:
+        if self.track_best_solution and scored_candidates:
             best_candidate_score = scored_candidates[0][1]
-            self.simulator.solution_tracker.update_best_score(best_candidate_score)
+            if self._best_known_score is None or best_candidate_score < self._best_known_score:
+                self._best_known_score = best_candidate_score
 
         return [(op, score) for op, score in scored_candidates]
 
@@ -470,7 +260,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         Returns:
             True if early termination is requested, False otherwise.
         """
-        return self.should_terminate
+        return self._should_terminate
 
     def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
         """Get the best complete solution found during lookahead exploration.
@@ -478,9 +268,59 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         Returns:
             Tuple of (sequence, tableau) if a solution is available, None otherwise.
         """
-        if self.simulator.solution_tracker:
-            return self.simulator.solution_tracker.get_solution()
+        if self._best_known_sequence is not None and self._best_known_tableau is not None:
+            return self._best_known_sequence, self._best_known_tableau
         return None
+
+    def record_complete_solution(
+        self, sequence: EliminationSequence, tableau: BinaryMatrix, score: tuple[int, ...]
+    ) -> None:
+        """Record a complete solution if it's better than the current best.
+
+        Args:
+            sequence: The complete elimination sequence
+            tableau: The final tableau
+            score: The score of this solution
+        """
+        if self._best_known_score is None or score < self._best_known_score:
+            self._best_known_score = score
+            self._best_known_sequence = sequence
+            self._best_known_tableau = tableau
+
+    def _create_lookahead_strategy(self, initial_filter_state: list | None) -> EliminationStrategy:
+        """Create a fresh lookahead strategy for recursive simulation.
+
+        Args:
+            initial_filter_state: Initial state of filters to copy.
+
+        Returns:
+            A new EliminationStrategy with fresh generator and filters.
+        """
+        fresh_base_filters = (
+            [f.copy() for f in self.base_strategy.candidate_generator.filters]
+            if self.base_strategy.candidate_generator.filters
+            else []
+        )
+        fresh_base_generator = type(self.base_strategy.candidate_generator)(fresh_base_filters)
+
+        fresh_base_strategy = EliminationStrategy(
+            termination_criterion=self.base_strategy.termination_criterion,
+            candidate_generator=fresh_base_generator,
+            filters=self.base_strategy.filters,
+        )
+
+        return EliminationStrategy(
+            termination_criterion=self.base_strategy.termination_criterion,
+            candidate_generator=LookaheadCandidateGenerator(
+                fresh_base_strategy,
+                self.lookahead - 1,
+                self.num_lookahead_candidates_per_layer[1:] if len(self.num_lookahead_candidates_per_layer) > 1 else [],
+                self.score_fn,
+                track_best_solution=self.track_best_solution,
+                enable_early_termination=self.enable_early_termination,
+            ),
+            filters=initial_filter_state,
+        )
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
         """Update internal state by delegating to the base generator.
@@ -489,12 +329,15 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             op: The operation that was applied.
             tableau: The resulting tableau after applying the operation.
         """
-        self.current_sequence.add_operation(op)
+        self._current_sequence.add_operation(op)
+        self._cache.clear()
         self.base_strategy.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
-        self.current_sequence = EliminationSequence([])
-        self.simulator.solution_tracker = SolutionTracker() if self.track_best_solution else None
-        self.should_terminate = False
+        self._current_sequence = EliminationSequence([])
+        self._best_known_score = None
+        self._best_known_sequence = None
+        self._best_known_tableau = None
+        self._should_terminate = False
         self.base_strategy.candidate_generator.reset()
