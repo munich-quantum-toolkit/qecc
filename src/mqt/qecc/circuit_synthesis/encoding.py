@@ -21,8 +21,11 @@ import z3
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry
-from .elimination import eliminate_non_css_with_lookahead, score_symplectic
 from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
+from .transvection import (
+    eliminate_non_css_with_lookahead,
+    score_symplectic,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -884,7 +887,6 @@ def encoder_from_stabilizers_and_logicals(
 
 def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> StabilizerTableau:
     """Optimize a stabilizer tableau by performing row operations to reduce the cost of the initial tableau for synthesis."""
-    # ignore phase for now
     tab = tableau.copy()
 
     best = (tab, score_symplectic(tab))
