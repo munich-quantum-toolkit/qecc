@@ -22,6 +22,7 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, Q
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
+from .synthesis import CnotSynthesisConfig
 from .synthesis_utils import (
     cnot_encoding_circuit,
     iterative_search_with_timeout,
@@ -197,7 +198,7 @@ def _build_state_prep_circuit_from_back(
 
 
 def heuristic_prep_circuit(
-    code: CSSCode, zero_state: bool = True, optimize_depth=True, lookahead=1, lookahead_candidates=5
+    code: CSSCode, zero_state: bool = True, optimize_depth=True, lookahead=0, lookahead_candidates=10
 ) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
@@ -211,12 +212,18 @@ def heuristic_prep_circuit(
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
     type_ = "X" if zero_state else "Z"
+    config = CnotSynthesisConfig(
+        optimization_criterion="depth" if optimize_depth else "gates",
+        exact=False,
+        lookahead=lookahead,
+        num_lookahead_candidates=lookahead_candidates,
+        enable_early_termination=False,
+    )
     circ = cnot_encoding_circuit(
         CheckMatrix(checks, type=type_),
         CheckMatrix(np.empty((0, code.n), dtype=np.int8), type=type_),
-        optimize_depth=optimize_depth,
-        lookahead=lookahead,
-        lookahead_candidates=lookahead_candidates,
+        balance_checks=False,
+        config=config,
     )
 
     # checks, cnots = heuristic_gaussian_elimination(checks)
