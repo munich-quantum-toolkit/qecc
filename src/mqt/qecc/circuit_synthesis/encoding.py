@@ -810,7 +810,6 @@ def synthesize_encoding_circuit(
     log_phase = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
 
     return encoder_from_stabilizers_and_logicals(code.generators, StabilizerTableau(log_mat, log_phase), config=config)
-    # return synthesize_clifford(tableau, use_cnots_if_css, config)
 
 
 def resynthesize_stim_circuit(

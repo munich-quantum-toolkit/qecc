@@ -141,9 +141,10 @@ def _score_candidates_with_lookahead(
     Returns:
         List of (operation, score) tuples sorted by score.
     """
+    candidates_to_evaluate = candidates[:num_candidates]
     scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
 
-    for op in candidates[:num_candidates]:
+    for op in candidates_to_evaluate:
         fresh_strategy = _create_fresh_lookahead_strategy(lookahead_strategy)
         result = _simulate_and_score_operation(op, tableau, fresh_strategy, score_fn, prefix_sequence, generator)
         if result is not None:

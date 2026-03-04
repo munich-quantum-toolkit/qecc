@@ -112,7 +112,7 @@ def synthesize_cnot(
 
 def synthesize_non_css(
     tableau: StabilizerTableau,
-    config: CliffordSynthesisConfig,
+    config: CliffordSynthesisConfig | None = None,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
 

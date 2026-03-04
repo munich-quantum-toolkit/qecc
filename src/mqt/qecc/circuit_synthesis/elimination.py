@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 
+from ..codes.pauli import StabilizerTableau
 from .operations import CNOT, Swap, Transvection
 
 if TYPE_CHECKING:
     from collections import defaultdict
     from collections.abc import Callable
 
-    from ..codes.pauli import StabilizerTableau
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
@@ -582,8 +582,6 @@ def get_n(tableau: BinaryMatrix) -> int:
     Returns:
         int: The number of qubits.
     """
-    from ..codes.pauli import StabilizerTableau
-
     if isinstance(tableau, StabilizerTableau):
         return tableau.n
 
