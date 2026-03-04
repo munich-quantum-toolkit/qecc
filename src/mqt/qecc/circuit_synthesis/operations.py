@@ -459,7 +459,7 @@ class CNOT(TableauOperation):
         self.control = control
         self.target = target
 
-    def apply(self, tableau: BinaryMatrix, inplace: bool = False, css: bool = True) -> BinaryMatrix:
+    def apply(self, tableau: BinaryMatrix, inplace: bool = False, css: bool = False) -> BinaryMatrix:
         """Apply the CNOT operation to the given stabilizer tableau.
 
         Args:

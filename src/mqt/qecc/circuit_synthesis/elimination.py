@@ -37,9 +37,11 @@ class EliminationSequence:
         Args:
             operations: A list of tableau operations.
         """
-        self.operations = operations
+        self.operations = []
         self._depth = 0
         self._qubit_depths: defaultdict[int, int] = {}
+        for op in operations:
+            self.add_operation(op)
 
     def to_circuit(self) -> stim.Circuit:
         """Convert the elimination sequence to a Stim circuit.
