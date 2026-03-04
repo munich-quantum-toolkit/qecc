@@ -785,6 +785,7 @@ def synthesize_clifford(
 def synthesize_encoding_circuit(
     code: StabilizerCode,
     config: SynthesisConfig | None = None,
+    use_cnots_if_css: bool = True,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
@@ -795,7 +796,7 @@ def synthesize_encoding_circuit(
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
     """
-    if isinstance(code, CSSCode):
+    if use_cnots_if_css and isinstance(code, CSSCode):
         x_checks = CheckMatrix(code.Hx, type="X")
         z_checks = CheckMatrix(code.Hz, type="Z")
         x_logicals = CheckMatrix(code.Lx, type="X")
@@ -805,8 +806,11 @@ def synthesize_encoding_circuit(
         )
         return cnot_encoding_circuit(checks, logicals, balance_checks=False, config=config)
 
-    tableau = StabilizerTableau.from_stabilizer_code(code)
-    return synthesize_clifford(tableau, config)
+    log_mat = np.vstack((code.x_logicals.tableau, code.z_logicals.tableau))
+    log_phase = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
+
+    return encoder_from_stabilizers_and_logicals(code.generators, StabilizerTableau(log_mat, log_phase), config=config)
+    # return synthesize_clifford(tableau, use_cnots_if_css, config)
 
 
 def resynthesize_stim_circuit(
