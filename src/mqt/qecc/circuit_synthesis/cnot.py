@@ -61,7 +61,17 @@ class GreedyCNOTGenerator(CandidateGenerator):
         if not self.filters:
             return candidates
 
-        filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
+        if len(self.filters) == 1:
+            f = self.filters[0]
+            filtered = [op for op in candidates if f.should_include(op)]
+        else:
+            filtered = []
+            for op in candidates:
+                for f in self.filters:
+                    if not f.should_include(op):
+                        break
+                else:
+                    filtered.append(op)
 
         if not filtered:
             for f in self.filters:
@@ -118,11 +128,11 @@ def _score_cnots(operations: list[CNOT], matrix: BinaryMatrix) -> list[tuple[CNO
     scored = []
 
     for op in operations:
-        matrix = op.apply(matrix, inplace=True)
+        matrix = op.apply(matrix, inplace=True, css=True)
         weight_after = int(matrix.matrix.sum())
         score = weight_before - weight_after
         scored.append((op, score))
-        matrix = op.apply(matrix, inplace=True)
+        matrix = op.apply(matrix, inplace=True, css=True)
 
     scored.sort(key=operator.itemgetter(1), reverse=True)
     return scored
