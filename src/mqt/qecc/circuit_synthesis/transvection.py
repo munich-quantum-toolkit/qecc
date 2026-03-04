@@ -54,6 +54,11 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         """
         unscored_candidates = _generate_transvection_operations(tableau)
         filtered_candidates = self._apply_filters(unscored_candidates)
+        scored = _score_transvections(filtered_candidates, tableau)
+        if not scored:
+            self._reset_filters()
+
+        filtered_candidates = self._apply_filters(unscored_candidates)
         return _score_transvections(filtered_candidates, tableau)
 
     def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
@@ -71,12 +76,15 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
 
         if not filtered:
-            for f in self.filters:
-                if hasattr(f, "_reset"):
-                    f._reset()
-            return candidates
+            self._reset_filters()
 
         return filtered
+
+    def _reset_filters(self) -> None:
+        """Reset all filters."""
+        for f in self.filters:
+            if hasattr(f, "_reset"):
+                f._reset()
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
         """Update operation history and filters after applying an operation.
