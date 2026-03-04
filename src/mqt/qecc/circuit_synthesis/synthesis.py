@@ -127,6 +127,8 @@ def synthesize_non_css(
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
+    if config is None:
+        config = CliffordSynthesisConfig()
     if config.lookahead > 0:
         strat = strategy.for_non_css_with_lookahead(
             optimization_criterion=config.optimization_criterion,

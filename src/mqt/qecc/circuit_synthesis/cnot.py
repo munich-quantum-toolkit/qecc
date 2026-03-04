@@ -47,7 +47,19 @@ class GreedyCNOTGenerator(CandidateGenerator):
         """
         unscored_candidates = _generate_cnot_operations(tableau)
         filtered_candidates = self._apply_filters(unscored_candidates)
-        return _score_cnots(filtered_candidates, tableau)
+        scored = _score_cnots(filtered_candidates, tableau)
+        if scored:
+            return scored
+
+        self._reset_filters()
+        filtered_candidates = self._apply_filters(unscored_candidates)
+        return _score_cnots(unscored_candidates, tableau)
+
+    def _reset_filters(self) -> None:
+        """Reset all filters to their initial state."""
+        for f in self.filters:
+            if hasattr(f, "_reset"):
+                f._reset()
 
     def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
         """Apply all filters to candidate list.
@@ -131,7 +143,8 @@ def _score_cnots(operations: list[CNOT], matrix: BinaryMatrix) -> list[tuple[CNO
         matrix = op.apply(matrix, inplace=True)
         weight_after = int(matrix.matrix.sum())
         score = weight_before - weight_after
-        scored.append((op, score))
+        if score > 0:
+            scored.append((op, score))
         matrix = op.apply(matrix, inplace=True)
 
     scored.sort(key=operator.itemgetter(1), reverse=True)
