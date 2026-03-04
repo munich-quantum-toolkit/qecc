@@ -1,5 +1,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  suppressNotifications: ["prEditedNotification"],
+  minimumReleaseAge: '7 days',
   extends: [
     "config:recommended",
     ":gitSignOff",
@@ -52,10 +54,38 @@
     },
     {
       description: "Group and automerge all patch updates",
-      groupName: "patch versions",
-      groupSlug: "all-patch",
+      groupName: "patch updates",
       matchUpdateTypes: ["patch"],
+      matchCurrentVersion: "!/^0\.0/",
+      commitMessagePrefix: "⬆\uFE0F\uD83E\uDE79",
       automerge: true
     },
+    {
+      description: "Group and automerge all minor updates of stable dependencies (except our own packages)",
+      groupName: "minor stable updates",
+      matchUpdateTypes: ["minor"],
+      matchCurrentVersion: "!/^0\./",
+      matchPackageNames: [
+        "!munich-quantum-toolkit/*",
+        "!munich-quantum-software/*",
+      ],
+      commitMessagePrefix: "⬆\uFE0F\uD83E\uDE79",
+      automerge: true
+    },
+    {
+      description: 'Disable minimum release age checks for our own GitHub Actions',
+      matchManagers: ['github-actions'],
+      matchPackageNames: [
+        'munich-quantum-toolkit/*',
+        'munich-quantum-software/*',
+      ],
+      minimumReleaseAge: null,
+    },
+    {
+      description: 'Disable minimum release age checks for our own Python packages',
+      matchDatasources: ['pypi'],
+      matchPackageNames: ['mqt*'],
+      minimumReleaseAge: null,
+    }
   ]
 }
