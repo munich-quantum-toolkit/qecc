@@ -800,10 +800,10 @@ def synthesize_encoding_circuit(
         z_checks = CheckMatrix(code.Hz, type="Z")
         x_logicals = CheckMatrix(code.Lx, type="X")
         z_logicals = CheckMatrix(code.Lz, type="Z")
-        checks, _logicals = (
+        checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
-        return cnot_encoding_circuit(checks, config)
+        return cnot_encoding_circuit(checks, logicals, balance_checks=False, config=config)
 
     tableau = StabilizerTableau.from_stabilizer_code(code)
     return synthesize_clifford(tableau, config)
