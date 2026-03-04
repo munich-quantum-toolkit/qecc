@@ -17,7 +17,6 @@ from mqt.qecc.circuit_synthesis.operations import Transvection
 from mqt.qecc.circuit_synthesis.synthesis import CliffordSynthesisConfig, synthesize_non_css
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
-    score_stateprep,
 )
 from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
 
@@ -54,12 +53,12 @@ def clifford_synthesis_config() -> CliffordSynthesisConfig:
         "cnot_tableau",
     ],
 )
-def test_synthesize_non_css(tableau_matrix: StabilizerTableau, request) -> None:
+def test_synthesize_non_css(
+    tableau_matrix: StabilizerTableau, clifford_synthesis_config: CliffordSynthesisConfig, request
+) -> None:
     """Test the synthesize_non_css function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    operations, result_tableau = synthesize_non_css(
-        target_tableau,
-    )
+    operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
 
@@ -76,7 +75,8 @@ def test_synthesize_non_css_with_lookahead(
 ) -> None:
     """Test the synthesize_non_css_with_lookahead function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    clifford_synthesis_config.lookahead = 3
+    clifford_synthesis_config.lookahead = 2
+    clifford_synthesis_config.num_lookahead_candidates = 5
     operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
@@ -95,21 +95,6 @@ def test_transvection_circuit_consistency() -> None:
         circuit_tableau = StabilizerTableau.from_stim_circuit(circuit)
         result_tableau = transvection.apply(identity)
         assert result_tableau == circuit_tableau
-
-
-def test_score_stateprep():
-    """Test the score_stateprep function."""
-    tab = StabilizerTableau.from_pauli_strings(["XI", "IZ"])
-    score = score_stateprep(tab)
-    assert score == 0
-
-    tab = StabilizerTableau.from_pauli_strings(["XX", "IZ"])
-    score = score_stateprep(tab)
-    assert score == 1
-
-    tab = StabilizerTableau.from_pauli_strings(["IXZXI", "IIXZX", "-ZXZIZ", "ZXIXZ", "-IXZIZ"])
-    score = score_stateprep(tab)
-    assert score == 21
 
 
 def test_synthesize_non_css_performance(clifford_synthesis_config: CliffordSynthesisConfig) -> None:

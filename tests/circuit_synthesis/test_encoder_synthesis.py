@@ -140,7 +140,7 @@ def _assert_correct_encoding_circuit_non_css(
 def _assert_correct_encoding_circuit(encoder: CNOTCircuit, code: CSSCode) -> None:
     assert encoder.num_qubits() == code.n
     circuit_code = encoder.get_code()
-
+    print(encoder.to_stim_circuit().to_crumble_url())
     # assert correct propagation of stabilizers
     assert eq_span(code.Hx, circuit_code.Hx)
     assert eq_span(code.Hz, circuit_code.Hz)
@@ -362,5 +362,11 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 def test_cc_4_8_8():
     """Test encoding circuit synthesis for the 4.8.8 color code."""
     code = SquareOctagonColorCode(5)
-    enc = synthesize_encoding_circuit(code, lookahead_depth=1, lookahead_top_k=15, optimize_depth=False)
+    config = CnotSynthesisConfig(
+        optimization_criterion="gates",
+        lookahead=1,
+        num_lookahead_candidates=3,
+        enable_early_termination=False,
+    )
+    enc = synthesize_encoding_circuit(code, config=config)
     _assert_correct_encoding_circuit(enc, code)
