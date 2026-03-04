@@ -128,11 +128,11 @@ def _score_cnots(operations: list[CNOT], matrix: BinaryMatrix) -> list[tuple[CNO
     scored = []
 
     for op in operations:
-        matrix = op.apply(matrix, inplace=True, css=True)
+        matrix = op.apply(matrix, inplace=True)
         weight_after = int(matrix.matrix.sum())
         score = weight_before - weight_after
         scored.append((op, score))
-        matrix = op.apply(matrix, inplace=True, css=True)
+        matrix = op.apply(matrix, inplace=True)
 
     scored.sort(key=operator.itemgetter(1), reverse=True)
     return scored

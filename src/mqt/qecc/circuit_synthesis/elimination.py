@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import random
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,7 +22,6 @@ from ..codes.pauli import StabilizerTableau
 from .operations import CNOT, Swap, Transvection
 
 if TYPE_CHECKING:
-    from collections import defaultdict
     from collections.abc import Callable
 
     from .operations import TableauOperation
@@ -39,7 +39,7 @@ class EliminationSequence:
         """
         self.operations = []
         self._depth = 0
-        self._qubit_depths: defaultdict[int, int] = {}
+        self._qubit_depths: defaultdict[int, int] = defaultdict(int)
         for op in operations:
             self.add_operation(op)
 
@@ -504,7 +504,7 @@ class ParallelFilter(OperationFilter):
         """Check if there are qubits available for operations."""
         if self.n_qubits is None:
             return True
-        return len(self.blocked_qubits) < self.n_qubits
+        return len(self.blocked_qubits) < self.n_qubits - 1
 
     def _reset(self) -> None:
         """Unblock all qubits."""
