@@ -52,14 +52,15 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         Returns:
             List of transvection operations sorted by preference.
         """
-        all_candidates = get_candidate_transvections(tableau)
-        return self._apply_filters(all_candidates)
+        unscored_candidates = _generate_transvection_operations(tableau)
+        filtered_candidates = self._apply_filters(unscored_candidates)
+        return _score_transvections(filtered_candidates, tableau)
 
-    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
+    def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
         """Apply all filters to candidate list.
 
         Args:
-            candidates: List of candidate operations with scores.
+            candidates: List of candidate operations.
 
         Returns:
             Filtered list of candidates.
@@ -67,75 +68,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         if not self.filters:
             return candidates
 
-        filtered = []
-        for op, score in candidates:
-            if score > 0 and all(f.should_include(op) for f in self.filters):
-                filtered.append((op, score))
-
-        if not filtered:
-            for f in self.filters:
-                if hasattr(f, "_reset"):
-                    f._reset()
-            return candidates
-
-        return filtered
-
-    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
-        """Update operation history and filters after applying an operation.
-
-        Args:
-            op: The operation that was applied.
-            tableau: The resulting tableau after applying the operation.
-        """
-        self.operation_history.append(op)
-        for f in self.filters:
-            f.update(op)
-
-    def reset(self) -> None:
-        """Reset the operation history."""
-        self.operation_history.clear()
-
-
-class GreedyTransvectionGeneratorStateprep(CandidateGenerator):
-    """Generates transvection candidates using greedy heuristic for state preparation."""
-
-    def __init__(self, filters: list[OperationFilter] | None = None) -> None:
-        """Initialize the greedy transvection generator.
-
-        Args:
-            filters: Optional list of filters to apply during candidate generation.
-        """
-        self.operation_history: list[TableauOperation] = []
-        self.filters = filters or []
-
-    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
-        """Generate transvection candidates sorted by heuristic score.
-
-        Args:
-            tableau: The current stabilizer tableau.
-
-        Returns:
-            List of transvection operations sorted by preference.
-        """
-        all_candidates = get_candidate_transvections_stateprep(tableau)
-        return self._apply_filters(all_candidates)
-
-    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
-        """Apply all filters to candidate list.
-
-        Args:
-            candidates: List of candidate operations with scores.
-
-        Returns:
-            Filtered list of candidates.
-        """
-        if not self.filters:
-            return candidates
-
-        filtered = []
-        for op, score in candidates:
-            if score > 0 and all(f.should_include(op) for f in self.filters):
-                filtered.append((op, score))
+        filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
 
         if not filtered:
             for f in self.filters:
@@ -198,6 +131,55 @@ def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
     return sorted(pairs)
 
 
+def _generate_transvection_operations(tableau: StabilizerTableau) -> list[Transvection]:
+    """Generate all transvection operations without scoring.
+
+    Args:
+        tableau: The current stabilizer tableau.
+
+    Returns:
+        List of all possible transvection operations.
+    """
+    n = get_n(tableau)
+    symplectic = tableau.tableau.matrix
+    pairs = _sp_gate_options(symplectic)
+
+    if not pairs:
+        pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
+
+    transvections = Transvection.all_two_qubit_transvections()
+    operations = []
+    for i, j in pairs:
+        operations.extend(Transvection(v, i, j) for v in transvections)
+
+    return operations
+
+
+def _score_transvections(
+    operations: list[Transvection], tableau: StabilizerTableau
+) -> list[tuple[Transvection, tuple[int, ...]]]:
+    """Score transvection operations and return sorted list.
+
+    Args:
+        operations: List of transvection operations to score.
+        tableau: The current stabilizer tableau.
+
+    Returns:
+        List of (operation, score) tuples sorted by score.
+    """
+    base_score, _ = score_symplectic(tableau)
+    scored = []
+
+    for op in operations:
+        tableau_op_applied = op.apply(tableau)
+        h_vec, _ = score_symplectic(tableau_op_applied)
+        if h_vec < base_score:
+            scored.append((op, h_vec))
+
+    scored.sort(key=operator.itemgetter(1))
+    return scored
+
+
 def get_candidate_transvections_stateprep(
     tableau: StabilizerTableau,
 ) -> list[Transvection]:
@@ -217,7 +199,7 @@ def get_candidate_transvections_stateprep(
         for v in transvections:
             op = Transvection(v, i, j)
             tablea_op_applied = op.apply(tableau)
-            s = score_stateprep(tablea_op_applied)
+            s, _ = score_symplectic(tablea_op_applied)
             if s == 0:
                 pass
 
@@ -301,20 +283,6 @@ def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.N
     return r1.astype(np.int8), r2.astype(np.int8)
 
 
-def is_terminal_stateprep(tableau: StabilizerTableau) -> bool:
-    """Check if the given stabilizer tableau is in terminal form for state preparation.
-
-    This is the case when there are no overlaps between any pair of qubits.
-
-    Args:
-        tableau (StabilizerTableau): The stabilizer tableau to check.
-
-    Returns:
-        bool: True if the tableau is in terminal form, False otherwise.
-    """
-    return score_stateprep(tableau) == 0
-
-
 def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     """Check if the given stabilizer tableau is in terminal form for transvection elimination.
 
@@ -330,34 +298,6 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     if not np.all(r2.sum(axis=0) == 1):
         return False
     return np.all(r2.sum(axis=1) == 1)
-
-
-def score_stateprep(tableau: StabilizerTableau) -> int:
-    r"""Score the given symplectic matrix representing a state.
-
-    The score is the total number of "overlap" between qubit pairs, i.e., where there is a
-    "1" for both qubits.
-
-    Args:
-        tableau: The stabilizer tableau to score.
-
-    Returns:
-        An integer score used for comparing tableaus.
-    """
-    n = get_n(tableau)
-    symplectic = tableau.tableau.matrix
-    symplectic.shape[0]
-    score = 0
-    for q1 in range(n):
-        for q2 in range(q1 + 1, n):
-            x1 = symplectic[:, q1]
-            z1 = symplectic[:, q1 + n]
-            x2 = symplectic[:, q2]
-            z2 = symplectic[:, q2 + n]
-
-            score += ((x1 & x2) | (x1 & z2) | (z1 & x2) | (z1 & z2)).sum()
-
-    return score
 
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
@@ -486,22 +426,6 @@ def reduce_without_swaps(
         permuted identity.
     """
     return reduce_with_single_qubit_cliffords(tableau)
-
-
-def reduce_single_qubit_gates_stateprep(
-    operations: EliminationSequence,
-    tableau: StabilizerTableau,
-) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce a state preparation tableau using only single-qubit gates.
-
-    Args:
-        operations: The elimination sequence.
-        tableau: A stabilizer tableau in terminal form for state preparation.
-
-    Returns:
-        A tuple of (operation_sequence, final_tableau).
-    """
-    return reduce_without_swaps(tableau)
 
 
 def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[EliminationSequence, StabilizerTableau]:

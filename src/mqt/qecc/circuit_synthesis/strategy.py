@@ -19,11 +19,8 @@ from .elimination import EliminationStrategy, ParallelFilter
 from .lookahead import LookaheadCandidateGenerator
 from .transvection import (
     GreedyTransvectionGenerator,
-    GreedyTransvectionGeneratorStateprep,
-    is_terminal_stateprep,
     is_terminal_transvection,
     reduce_single_qubit_gates_and_swaps,
-    reduce_single_qubit_gates_stateprep,
 )
 
 if TYPE_CHECKING:
@@ -144,37 +141,6 @@ def for_non_css(
         filters=filters,
         callback=callback,
         post_process_fn=reduce_single_qubit_gates_and_swaps,
-    )
-
-
-def for_non_css_stateprep(
-    optimization_criterion: str = "gates",
-    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-) -> EliminationStrategy:
-    """Create strategy for non-CSS stabilizer code elimination.
-
-    Args:
-        optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
-        callback: Optional callback function invoked after each elimination step.
-
-    Returns:
-        EliminationStrategy configured for non-CSS code elimination with post-processing.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    if optimization_criterion not in {"gates", "depth"}:
-        msg = f"Unsupported optimization criterion: {optimization_criterion}"
-        raise ValueError(msg)
-
-    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
-
-    return EliminationStrategy(
-        termination_criterion=is_terminal_stateprep,
-        candidate_generator=GreedyTransvectionGeneratorStateprep(filters),
-        filters=filters,
-        callback=callback,
-        post_process_fn=reduce_single_qubit_gates_stateprep,
     )
 
 
@@ -352,9 +318,6 @@ EliminationStrategy.for_cnot_up_to_row_ops = classmethod(
 )  # type: ignore[attr-defined]
 EliminationStrategy.for_cnot_exact = classmethod(lambda cls, *args, **kwargs: for_cnot_exact(*args, **kwargs))  # type: ignore[attr-defined]
 EliminationStrategy.for_non_css = classmethod(lambda cls, *args, **kwargs: for_non_css(*args, **kwargs))  # type: ignore[attr-defined]
-EliminationStrategy.for_non_css_stateprep = classmethod(
-    lambda cls, *args, **kwargs: for_non_css_stateprep(*args, **kwargs)
-)  # type: ignore[attr-defined]
 EliminationStrategy.for_non_css_with_lookahead = classmethod(
     lambda cls, *args, **kwargs: for_non_css_with_lookahead(*args, **kwargs)
 )  # type: ignore[attr-defined]

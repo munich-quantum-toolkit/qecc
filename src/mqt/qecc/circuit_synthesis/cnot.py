@@ -45,14 +45,15 @@ class GreedyCNOTGenerator(CandidateGenerator):
         Returns:
             List of CNOT operations sorted by preference.
         """
-        all_candidates = greedy_matrix_elimination_candidates(tableau)
-        return self._apply_filters(all_candidates)
+        unscored_candidates = _generate_cnot_operations(tableau)
+        filtered_candidates = self._apply_filters(unscored_candidates)
+        return _score_cnots(filtered_candidates, tableau)
 
-    def _apply_filters(self, candidates: list[tuple[TableauOperation, int]]) -> list[tuple[TableauOperation, int]]:
+    def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
         """Apply all filters to candidate list.
 
         Args:
-            candidates: List of candidate operations with scores.
+            candidates: List of candidate operations.
 
         Returns:
             Filtered list of candidates.
@@ -60,10 +61,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
         if not self.filters:
             return candidates
 
-        filtered = []
-        for op, score in candidates:
-            if score > 0 and all(f.should_include(op) for f in self.filters):
-                filtered.append((op, score))
+        filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
 
         if not filtered:
             for f in self.filters:
@@ -87,6 +85,47 @@ class GreedyCNOTGenerator(CandidateGenerator):
     def reset(self) -> None:
         """Reset the operation history."""
         self.operation_history.clear()
+
+
+def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
+    """Generate all possible CNOT operations without scoring.
+
+    Args:
+        matrix: The CSS check matrix.
+
+    Returns:
+        List of all possible CNOT operations.
+    """
+    n = get_n(matrix)
+    operations = []
+    for i in range(n):
+        operations.extend(CNOT(i, j) for j in range(n) if i != j)
+    return operations
+
+
+def _score_cnots(operations: list[CNOT], matrix: BinaryMatrix) -> list[tuple[CNOT, int]]:
+    """Score CNOT operations and return sorted list.
+
+    Args:
+        operations: List of CNOT operations to score.
+        matrix: The current check matrix.
+
+    Returns:
+        List of (operation, score) tuples sorted by score.
+    """
+    matrix = matrix.copy()
+    weight_before = int(matrix.matrix.sum())
+    scored = []
+
+    for op in operations:
+        matrix = op.apply(matrix, inplace=True)
+        weight_after = int(matrix.matrix.sum())
+        score = weight_before - weight_after
+        scored.append((op, score))
+        matrix = op.apply(matrix, inplace=True)
+
+    scored.sort(key=operator.itemgetter(1), reverse=True)
+    return scored
 
 
 def greedy_matrix_elimination_candidates(matrix: BinaryMatrix) -> list[CNOT]:
