@@ -236,15 +236,44 @@ class CSSCode(StabilizerCode):
     def from_file(cls, file_path: str | Path) -> CSSCode:
         """Load a CSS code from a file.
 
-        The file should have one line per stabilizer generator as a string.
+        The file can contain either:
+        1. Pauli string format - X and Z stabilizers as Pauli strings
+        2. Binary matrix format - X stabilizers followed by empty line, then Z stabilizers
 
-        For the Steane code, this would be:
+        For Pauli string format (Steane code example):
         XIIXXXI
         IXIIXXX
         IIXXIXX
         ZIIZZZI
         IZIIZZZ
         IIZZIZZ
+
+        For binary matrix format (space-separated):
+        1 0 0 1 1 1 0
+        0 1 0 0 1 1 1
+        0 0 1 1 0 1 1
+
+        1 0 0 1 1 1 0
+        0 1 0 0 1 1 1
+        0 0 1 1 0 1 1
+
+        For list notation format:
+        [[1,0,0,1,1,1,0],
+         [0,1,0,0,1,1,1],
+         [0,0,1,1,0,1,1]]
+
+        [[1,0,0,1,1,1,0],
+         [0,1,0,0,1,1,1],
+         [0,0,1,1,0,1,1]]
+
+        For numpy array notation:
+        [[1 0 0 1 1 1 0]
+         [0 1 0 0 1 1 1]
+         [0 0 1 1 0 1 1]]
+
+        [[1 0 0 1 1 1 0]
+         [0 1 0 0 1 1 1]
+         [0 0 1 1 0 1 1]]
 
         Args:
             file_path: The path to the file containing the code.
@@ -253,9 +282,18 @@ class CSSCode(StabilizerCode):
             CSSCode: The CSS code.
         """
         with Path(file_path).open(encoding="utf-8") as f:
-            lines = f.readlines()
+            content = f.read().strip()
+
+        if not content:
+            msg = "File is empty"
+            raise InvalidCSSCodeError(msg)
+
+        if _is_css_binary_matrix_format(content):
+            return _load_css_from_binary_matrix(content)
+
+        lines = content.split("\n")
         stabilizers = [line.strip() for line in lines if line.strip()]
-        # read in stabilizers
+
         x_stabs = []
         z_stabs = []
 
@@ -267,10 +305,10 @@ class CSSCode(StabilizerCode):
             else:
                 msg = f"Invalid stabilizer: {stab}"
                 raise InvalidCSSCodeError(msg)
-        # convert to numpy arrays
-        x_stabs_array = np.array(x_stabs, dtype=np.int8)
-        z_stabs_array = np.array(z_stabs, dtype=np.int8)
-        # check if the code is valid
+
+        x_stabs_array = np.array(x_stabs, dtype=np.int8) if x_stabs else None
+        z_stabs_array = np.array(z_stabs, dtype=np.int8) if z_stabs else None
+
         return CSSCode(x_stabs_array, z_stabs_array)
 
     def _normalize_logicals(self) -> None:
@@ -299,6 +337,159 @@ class CSSCode(StabilizerCode):
                 if j != i:
                     self.Lx[j] ^= xl
             self.Lz[[i, first]] = self.Lz[[first, i]]
+
+
+def _is_css_binary_matrix_format(content: str) -> bool:
+    """Check if the content appears to be CSS binary matrix format.
+
+    Args:
+        content: The file content to check.
+
+    Returns:
+        True if the content looks like a CSS binary matrix format, False otherwise.
+    """
+    content = content.strip()
+
+    if not content:
+        return False
+
+    if content.startswith("[["):
+        sections = content.split("]]")
+        return len(sections) >= 3
+
+    lines = [line.strip() for line in content.split("\n") if line.strip()]
+    if not lines:
+        return False
+
+    first_line = lines[0].strip()
+    if not first_line:
+        return False
+
+    tokens = [t.strip() for t in first_line.split(",")] if "," in first_line else first_line.split()
+
+    if len(tokens) < 2:
+        return False
+
+    return all(token in {"0", "1"} for token in tokens[:5])
+
+
+def _load_css_from_binary_matrix(content: str) -> CSSCode:
+    """Load a CSS code from binary matrix format.
+
+    Args:
+        content: The file content containing the binary matrices.
+
+    Returns:
+        CSSCode: The CSS code.
+    """
+    content = content.strip()
+
+    if content.startswith("[["):
+        return _load_css_from_list_notation(content)
+
+    lines = content.split("\n")
+    sections = []
+    current_section = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if current_section:
+                sections.append(current_section)
+                current_section = []
+        else:
+            current_section.append(line)
+
+    if current_section:
+        sections.append(current_section)
+
+    if len(sections) < 1:
+        msg = "No valid binary matrix data found in file"
+        raise InvalidCSSCodeError(msg)
+
+    if len(sections) > 2:
+        msg = "Too many sections in file. Expected at most 2 (X stabilizers and Z stabilizers)"
+        raise InvalidCSSCodeError(msg)
+
+    hx = _parse_binary_matrix_section(sections[0]) if len(sections) >= 1 else None
+    hz = _parse_binary_matrix_section(sections[1]) if len(sections) >= 2 else None
+
+    return CSSCode(hx, hz)
+
+
+def _load_css_from_list_notation(content: str) -> CSSCode:
+    """Load a CSS code from list notation format.
+
+    Args:
+        content: The file content in list notation format.
+
+    Returns:
+        CSSCode: The CSS code.
+    """
+    sections = content.split("]]")
+    matrices = []
+
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+
+        section = section.lstrip("[").strip()
+        if not section:
+            continue
+
+        rows = []
+        for line in section.split("\n"):
+            line = line.strip().lstrip("[").rstrip(",").rstrip("]")
+            if not line:
+                continue
+
+            # Handle both comma-separated and space-separated values
+            tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
+
+            row = [int(t) for t in tokens if t in {"0", "1"}]
+            if row:
+                rows.append(row)
+
+        if rows:
+            matrices.append(np.array(rows, dtype=np.int8))
+
+    if len(matrices) < 1:
+        msg = "No valid binary matrix data found in file"
+        raise InvalidCSSCodeError(msg)
+
+    if len(matrices) > 2:
+        msg = "Too many matrices in file. Expected at most 2 (X stabilizers and Z stabilizers)"
+        raise InvalidCSSCodeError(msg)
+
+    hx = matrices[0] if len(matrices) >= 1 else None
+    hz = matrices[1] if len(matrices) >= 2 else None
+
+    return CSSCode(hx, hz)
+
+
+def _parse_binary_matrix_section(lines: list[str]) -> npt.NDArray[np.int8]:
+    """Parse a section of lines into a binary matrix.
+
+    Args:
+        lines: List of lines containing binary matrix data.
+
+    Returns:
+        Binary matrix as numpy array.
+    """
+    rows = []
+    for line in lines:
+        tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
+
+        row = [int(t) for t in tokens if t in {"0", "1"}]
+        if row:
+            rows.append(row)
+
+    if not rows:
+        msg = "No valid binary matrix data found in section"
+        raise InvalidCSSCodeError(msg)
+
+    return np.array(rows, dtype=np.int8)
 
 
 class InvalidCSSCodeError(ValueError):
