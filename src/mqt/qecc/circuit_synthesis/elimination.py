@@ -20,6 +20,7 @@ import stim
 from .operations import CNOT, Swap, Transvection
 
 if TYPE_CHECKING:
+    from collections import defaultdict
     from collections.abc import Callable
 
     from ..codes.pauli import StabilizerTableau
@@ -37,6 +38,8 @@ class EliminationSequence:
             operations: A list of tableau operations.
         """
         self.operations = operations
+        self._depth = 0
+        self._qubit_depths: defaultdict[int, int] = {}
 
     def to_circuit(self) -> stim.Circuit:
         """Convert the elimination sequence to a Stim circuit.
@@ -99,6 +102,15 @@ class EliminationSequence:
             op: The tableau operation to add.
         """
         self.operations.append(op)
+        # find maximum depth of involved qubits
+        involved_qubits = op.qubits()
+        earliest_start = 0
+        for q in involved_qubits:
+            if q in self._qubit_depths:
+                earliest_start = max(earliest_start, self._qubit_depths[q] + 1)
+        for q in involved_qubits:
+            self._qubit_depths[q] = earliest_start
+        self._depth = max(self._depth, earliest_start + 1)
 
     def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the elimination sequence to a stabilizer tableau.
@@ -137,20 +149,7 @@ class EliminationSequence:
         Returns:
             int: The estimated circuit depth.
         """
-        depth = 0
-        qubit_last_used: dict[int, int] = {}
-        for op in self.operations:
-            involved_qubits = op.qubits()
-            earliest_start = 0
-            for q in involved_qubits:
-                if q in qubit_last_used:
-                    earliest_start = max(earliest_start, qubit_last_used[q] + 1)
-            for q in involved_qubits:
-                qubit_last_used[q] = earliest_start
-
-        if qubit_last_used:
-            depth = max(qubit_last_used.values()) + 1
-        return depth
+        return self._depth
 
 
 @dataclass
