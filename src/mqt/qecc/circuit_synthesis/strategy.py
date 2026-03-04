@@ -53,7 +53,7 @@ def for_cnot_up_to_row_ops(
         msg = f"Unsupported optimization criterion: {optimization_criterion}"
         raise ValueError(msg)
 
-    filters = [ParallelFilter()]
+    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         if not isinstance(tbl, CheckMatrix):
