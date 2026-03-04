@@ -18,7 +18,7 @@ from qiskit.transpiler.passes import RemoveResetInZeroState
 
 from ..codes import CSSCode, StabilizerCode
 from ..codes.pauli import Pauli
-from .circuit_utils import compose_circuits
+from .circuit_utils import compose_circuits, num_two_qubit_gates, two_qubit_gate_depth
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
@@ -234,6 +234,22 @@ class CliffordIsometry:
         """
         used_qubits = {qubit for control, target in self.cnots for qubit in (control, target)}
         return used_qubits.issubset(self._initializations.keys())
+
+    def num_two_qubit_gates(self) -> int:
+        """Get the number of two-qubit gates in the circuit.
+
+        Returns:
+            The number of two-qubit gates.
+        """
+        return num_two_qubit_gates(self.to_stim_circuit())
+
+    def depth(self) -> int:
+        """Get the depth of the circuit.
+
+        Returns:
+            The depth of the circuit.
+        """
+        return two_qubit_gate_depth(self.to_stim_circuit())
 
 
 class CNOTCircuit(CliffordIsometry):

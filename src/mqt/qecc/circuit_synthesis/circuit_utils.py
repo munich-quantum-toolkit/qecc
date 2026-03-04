@@ -238,6 +238,39 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
     return layers
 
 
+def depth(circ: Circuit) -> int:
+    """Calculate the depth of a stim circuit."""
+    return len(collect_circuit_layers(circ, scheduling_method="asap"))
+
+
+def _remove_single_qubit_gates(circ: Circuit) -> Circuit:
+    """Remove all single-qubit gates from a stim circuit."""
+    new_circ = Circuit()
+    for op in circ:
+        if all(len(grp) == 1 for grp in op.target_groups()):
+            continue
+        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+    return new_circ
+
+
+def _remove_swap_gates(circ: Circuit) -> Circuit:
+    """Remove all SWAP gates from a stim circuit."""
+    new_circ = Circuit()
+    for op in circ:
+        if op.name == "SWAP":
+            continue
+        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+    return new_circ
+
+
+def two_qubit_gate_depth(circ: Circuit, count_swaps: bool = False) -> int:
+    """Calculate the two-qubit depth of a stim circuit."""
+    circ = _remove_single_qubit_gates(circ)
+    if not count_swaps:
+        circ = _remove_swap_gates(circ)
+    return depth(circ)
+
+
 def unmeasured_qubits(circ: Circuit) -> list[int]:
     """Return a list of qubits that are not measured in circ."""
     measured_qubits: set[int] = set()
