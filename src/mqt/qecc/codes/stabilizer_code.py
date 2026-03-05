@@ -181,6 +181,11 @@ class StabilizerCode:
             msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator."
             raise InvalidStabilizerCodeError(msg)
 
+        stabilizer_commutations = (self.generators.tableau @ self.generators.tableau).matrix
+        if not np.all(stabilizer_commutations == 0):
+            msg = "Stabilizer generators must commute with each other."
+            raise InvalidStabilizerCodeError(msg)
+
     @staticmethod
     def get_generators(
         generators: StabilizerTableau | list[Pauli] | list[str], n: int | None = None
@@ -502,17 +507,17 @@ def _load_from_binary_matrix(content: str) -> StabilizerCode:
 
     matrix = np.array(rows, dtype=np.int8)
 
-    if matrix.shape[0] % 2 != 0:
-        msg = f"Binary matrix must have an even number of rows (2n), got {matrix.shape[0]}"
+    if matrix.shape[1] % 2 != 0:
+        msg = f"Binary matrix must have an even number of columns (2n), got {matrix.shape[1]}"
         raise InvalidStabilizerCodeError(msg)
 
-    n = matrix.shape[0] // 2
-    m = matrix.shape[1]
+    n = matrix.shape[1] // 2
+    m = matrix.shape[0]
 
     generators = []
-    for col_idx in range(m):
-        x_part = matrix[:n, col_idx]
-        z_part = matrix[n:, col_idx]
+    for row_idx in range(m):
+        x_part = matrix[row_idx, :n]
+        z_part = matrix[row_idx, n:]
 
         pauli_str = ""
         for i in range(n):

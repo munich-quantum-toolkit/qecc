@@ -566,7 +566,7 @@ def test_many_hypercube_code_level_2() -> None:
 
 def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test that a stabilizer code can be constructed from a file."""
-    file_content = "IXXZZ\nZIXXZ\nZZIXX\nXZZIX"
+    file_content = "XZZXI\nIXZZX\nXIXZZ\nZXIXZ"
     file_path = tmp_path / "test_file.txt"
     file_path.write_text(file_content)
 
@@ -718,71 +718,39 @@ def test_css_code_from_invalid_pauli_string(tmp_path) -> None:  # type: ignore[n
         CSSCode.from_file(file_path)
 
 
-def test_stabilizer_code_from_binary_matrix_space_separated(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Test loading a stabilizer code from a space-separated binary matrix file."""
-    file_content = """1 0 0 0 0
-0 1 0 0 0
-0 0 1 0 0
-0 0 0 1 0
-0 0 0 0 1
-1 1 0 0 0
-0 1 1 0 0
-0 0 1 1 0
-0 0 0 1 1
-1 0 0 0 1"""
-    file_path = tmp_path / "test_binary_space.txt"
-    file_path.write_text(file_content)
-
-    code = StabilizerCode.from_file(file_path)
-
-    assert code.n == 5
-    assert code.generators.n_rows == 5
-
-
 def test_stabilizer_code_from_binary_matrix_comma_separated(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test loading a stabilizer code from a comma-separated binary matrix file."""
-    file_content = """1,0,0,0
-0,1,0,0
-0,0,1,0
-0,0,0,1
-1,1,0,0
-0,1,1,0
-0,0,1,1
-1,0,0,1"""
+    file_content = """1,0,0,1,0,0,1,1,0,0
+0,1,0,0,1,0,0,1,1,0
+1,0,1,0,0,0,0,0,1,1
+0,1,0,1,0,1,0,0,0,1"""
     file_path = tmp_path / "test_binary_comma.txt"
     file_path.write_text(file_content)
 
     code = StabilizerCode.from_file(file_path)
 
-    assert code.n == 4
+    assert code.n == 5
     assert code.generators.n_rows == 4
 
 
 def test_stabilizer_code_from_binary_matrix_list_notation(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test loading a stabilizer code from a binary matrix file with list notation."""
-    file_content = """[[1,0,0,0],
-[0,1,0,0],
-[0,0,1,0],
-[0,0,0,1],
-[1,1,0,0],
-[0,1,1,0],
-[0,0,1,1],
-[1,0,0,1]]"""
+    file_content = """[[1,0,0,1,0,0,1,1,0,0],
+[0,1,0,0,1,0,0,1,1,0],
+[1,0,1,0,0,0,0,0,1,1],
+[0,1,0,1,0,1,0,0,0,1]]"""
     file_path = tmp_path / "test_binary_list.txt"
     file_path.write_text(file_content)
 
     code = StabilizerCode.from_file(file_path)
 
-    assert code.n == 4
+    assert code.n == 5
     assert code.generators.n_rows == 4
 
 
 def test_stabilizer_code_from_binary_matrix_correctness(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test that binary matrix loading produces the correct Pauli strings."""
-    file_content = """1 0
-0 1
-0 0
-1 1"""
+    file_content = """1 1 1 1"""
     file_path = tmp_path / "test_binary_correctness.txt"
     file_path.write_text(file_content)
 
@@ -790,25 +758,20 @@ def test_stabilizer_code_from_binary_matrix_correctness(tmp_path) -> None:  # ty
 
     assert code.n == 2
     stabs = code.stabs_as_pauli_strings()
-    assert stabs == ["XZ", "IT"]
+    assert stabs == ["YY"]
 
 
 def test_stabilizer_code_from_binary_matrix_five_qubit(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test loading the five-qubit code from binary matrix format."""
-    file_content = """1 0 0 1
-0 1 0 0
-0 0 1 0
-0 0 0 1
-1 0 1 0
-0 1 1 0
-1 1 0 0
-0 0 1 1
-1 0 1 0
-0 1 0 1"""
+    file_content = """1 0 0 1 0 0 1 1 0 0
+    0 1 0 0 1 0 0 1 1 0
+    1 0 1 0 0 0 0 0 1 1
+    0 1 0 1 0 1 0 0 0 1"""
     file_path = tmp_path / "test_five_qubit.txt"
     file_path.write_text(file_content)
 
     code = StabilizerCode.from_file(file_path)
+    print(code.stabs_as_pauli_strings())
 
     assert code.n == 5
     assert code.generators.n_rows == 4
@@ -816,13 +779,12 @@ def test_stabilizer_code_from_binary_matrix_five_qubit(tmp_path) -> None:  # typ
 
 def test_stabilizer_code_from_binary_matrix_invalid_rows(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test that an error is raised for binary matrices with odd number of rows."""
-    file_content = """1 0 0
-0 1 0
-0 0 1"""
+    file_content = """1 1 0 0
+0 0 1 0"""
     file_path = tmp_path / "test_binary_invalid.txt"
     file_path.write_text(file_content)
 
-    with pytest.raises(InvalidStabilizerCodeError, match="must have an even number of rows"):
+    with pytest.raises(InvalidStabilizerCodeError, match="Stabilizer generators must commute with each other."):
         StabilizerCode.from_file(file_path)
 
 
