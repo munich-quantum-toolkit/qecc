@@ -49,7 +49,7 @@ class CliffordIsometry:
         if idx >= self.num_inputs():
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
-        tab = self._circ.to_tableau(ignore_reset=True)
+        tab = self.to_stim_circuit().to_tableau(ignore_reset=True)
         pauli_stim = tab.x_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
 
@@ -66,7 +66,7 @@ class CliffordIsometry:
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
 
-        tab = self._circ.to_tableau(ignore_reset=True)
+        tab = self.to_stim_circuit().to_tableau(ignore_reset=True)
         pauli_stim = tab.z_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
 
@@ -91,11 +91,11 @@ class CliffordIsometry:
         Returns:
             Stabilizer code.
         """
-        self._circ.to_tableau(ignore_reset=True)
+        self.to_stim_circuit().to_tableau(ignore_reset=True)
         # remove resets and remember basis
         circ_no_reset = stim.Circuit()
         basis = {}
-        for gate in self._circ:
+        for gate in self.to_stim_circuit():
             if gate.name not in {"R", "RX", "RZ"}:
                 circ_no_reset.append(gate)
             else:
@@ -224,7 +224,7 @@ class CliffordIsometry:
         Returns:
             The total number of qubits.
         """
-        return int(self._circ.num_qubits)
+        return int(self.to_stim_circuit().num_qubits)
 
     def is_state(self) -> bool:
         """Check if all qubits used in the circuit are initialized.
@@ -285,7 +285,7 @@ class CNOTCircuit(CliffordIsometry):
         Args:
             qubit: The qubit index to add as an input.
         """
-        if qubit not in self._inputs and qubit not in self._initializations:
+        if qubit not in self._inputs.values() and qubit not in self._initializations:
             self._inputs[self.num_inputs()] = qubit
 
     def add_cnot(self, control: int, target: int) -> None:
@@ -539,23 +539,23 @@ class CNOTCircuit(CliffordIsometry):
             path_lengths[control] = new_path_length
         return int(np.max(path_lengths))
 
-    def get_logical_x(self) -> dict[int, npt.NDArray[np.int8]]:
+    def get_logical_xs_css(self) -> dict[int, npt.NDArray[np.int8]]:
         """Get logical X operators of the isometry.
 
         Returns:
             A dictionary mapping input qubits to their X-logicals.
         """
-        return {qubit: logicals[0] for qubit, logicals in self.get_logicals().items()}
+        return {qubit: logicals[0] for qubit, logicals in self.get_logicals_css().items()}
 
-    def get_logical_z(self) -> dict[int, npt.NDArray[np.int8]]:
+    def get_logical_zs_css(self) -> dict[int, npt.NDArray[np.int8]]:
         """Get logical Z operators of the isometry.
 
         Returns:
             A dictionary mapping input qubits to their Z-logicals.
         """
-        return {qubit: logicals[1] for qubit, logicals in self.get_logicals().items()}
+        return {qubit: logicals[1] for qubit, logicals in self.get_logicals_css().items()}
 
-    def get_logicals(self) -> dict[int, tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]]:
+    def get_logicals_css(self) -> dict[int, tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]]:
         """Get logical operators of the isomety.
 
         Returns:

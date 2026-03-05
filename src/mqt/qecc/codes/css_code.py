@@ -388,7 +388,7 @@ def _load_css_from_binary_matrix(content: str) -> CSSCode:
 
     lines = content.split("\n")
     sections = []
-    current_section = []
+    current_section: list[str] = []
 
     for line in lines:
         line_stripped = line.strip()

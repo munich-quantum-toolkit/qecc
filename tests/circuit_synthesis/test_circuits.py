@@ -435,14 +435,14 @@ def test_get_logicals():
     }
 
     # Check the result
-    logicals = circuit.get_logicals()
+    logicals = circuit.get_logicals_css()
     for qubit, operator in expected_logical_x.items():
         assert np.array_equal(logicals[qubit][0], operator), f"Logical X operator for qubit {qubit} is incorrect."
     for qubit, operator in expected_logical_z.items():
         assert np.array_equal(logicals[qubit][1], operator), f"Logical Z operator for qubit {qubit} is incorrect."
 
-    x = circuit.get_logical_x()
-    z = circuit.get_logical_z()
+    x = circuit.get_logical_xs_css()
+    z = circuit.get_logical_zs_css()
 
     for qubit, (x_op, z_op) in logicals.items():
         assert np.array_equal(x[qubit], x_op), f"Logical X operator for qubit {qubit} is incorrect."
@@ -456,10 +456,10 @@ def test_logicals_state():
     circuit.initialize_qubit(1, "X")
 
     # Check that the circuit has no logicals
-    logicals = circuit.get_logicals()
+    logicals = circuit.get_logicals_css()
     assert not logicals, "States should not have logical operators."
-    assert circuit.get_logical_x() == {}, "States should not have logical X operators."
-    assert circuit.get_logical_z() == {}, "States should not have logical Z operators."
+    assert circuit.get_logical_xs_css() == {}, "States should not have logical X operators."
+    assert circuit.get_logical_zs_css() == {}, "States should not have logical Z operators."
 
 
 def test_copy_circuit():

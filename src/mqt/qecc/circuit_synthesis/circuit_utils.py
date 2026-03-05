@@ -11,15 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import stim
-from qiskit.circuit import QuantumCircuit
 from stim import Circuit
 
 from .definitions import STIM_MEASUREMENTS
 
 if TYPE_CHECKING:
-    from ..codes.pauli import StabilizerTableau
-    from ..codes.symplectic import SymplecticMatrix
+    from qiskit.circuit import QuantumCircuit
 
 
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
@@ -70,49 +67,6 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
             msg = f"Unsupported gate: {op}"
             raise ValueError(msg)
     return stim_circuit
-
-
-def apply_clifford_circuit(stabs: StabilizerTableau, circ: QuantumCircuit | stim.Circuit) -> SymplecticMatrix:
-    """Apply a Clifford circuit to a stabilizer tableau.
-
-    Args:
-        stabs (StabilizerTableau): The stabilizer tableau.
-        circ (QuantumCircuit | stim.Circuit): The Clifford circuit.
-
-    Returns:
-        The tableau after applying the Clifford circuit.
-    """
-    if isinstance(circ, stim.Circuit):
-        circ = QuantumCircuit.from_qasm_str(circ.to_qasm(open_qasm_version="2.0"))
-
-    n = QuantumCircuit.num_qubits
-    assert n == stabs.n, "The number of qubits in the circuit must match the number of qubits in the tableau."
-
-    # Initialize the new tableau
-    new_stabs = stabs.copy()
-
-    for gate in circ:
-        name = gate.name
-        qubit = gate.qubits[0]
-
-        if name == "H":
-            new_stabs.apply_h(qubit)
-        elif name == "S":
-            new_stabs.apply_s(qubit)
-        elif name == "X":
-            new_stabs.apply_x(qubit)
-        elif name == "Y":
-            new_stabs.apply_y(qubit)
-        elif name == "Z":
-            new_stabs.apply_z(qubit)
-        elif name == "CX":
-            ctrl, tgt = qubit, gate.qubits[1]
-            new_stabs.apply_cx(ctrl, tgt)
-        elif name == "CZ":
-            ctrl, tgt = qubit, gate.qubits[1]
-            new_stabs.apply_cz(ctrl, tgt)
-
-    return new_stabs
 
 
 def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circuit:

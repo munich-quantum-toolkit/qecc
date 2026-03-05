@@ -20,14 +20,14 @@ from mqt.qecc.codes.pauli import CheckMatrix
 @pytest.fixture
 def identity_matrix() -> CheckMatrix:
     """Fixture to create an identity matrix."""
-    return CheckMatrix(np.array([[1, 0], [0, 1]], dtype=np.int8), type="X")
+    return CheckMatrix(np.array([[1, 0], [0, 1]], dtype=np.int8), pauli_type="X")
 
 
 @pytest.fixture
 def cnot_matrix() -> CheckMatrix:
     """Fixture to create a CNOT check matrix."""
     matrix = np.array([[1, 1], [0, 1]], dtype=np.int8)
-    return CheckMatrix(matrix, type="X")
+    return CheckMatrix(matrix, pauli_type="X")
 
 
 @pytest.fixture
@@ -75,16 +75,16 @@ def test_eliminate_cnot_up_to_row_ops(
 
 def test_eliminate_cnot_performance(cnot_synthesis_config: CnotSynthesisConfig) -> None:
     """Performance test for CNOT elimination on a 20x20 check matrix."""
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n = 8
     density = 0.3
     while True:
-        matrix_data = np.random.rand(n, n) < density
+        matrix_data = rng.random((n, n)) < density
         matrix_data = matrix_data.astype(np.int8)
         if mod2.rank(matrix_data) == n:
             break
 
-    check_matrix = CheckMatrix(matrix_data, type="X")
+    check_matrix = CheckMatrix(matrix_data, pauli_type="X")
     start_time = time.perf_counter()
     operations, _result_matrix = synthesize_cnot(check_matrix, cnot_synthesis_config)
     elapsed_time = time.perf_counter() - start_time

@@ -784,7 +784,7 @@ def test_stabilizer_code_from_binary_matrix_invalid_rows(tmp_path) -> None:  # t
     file_path = tmp_path / "test_binary_invalid.txt"
     file_path.write_text(file_content)
 
-    with pytest.raises(InvalidStabilizerCodeError, match="Stabilizer generators must commute with each other."):
+    with pytest.raises(InvalidStabilizerCodeError, match=r"Stabilizer generators must commute with each other."):
         StabilizerCode.from_file(file_path)
 
 

@@ -20,7 +20,7 @@ from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
 def simple_check_matrix() -> CheckMatrix:
     """Fixture to create a simple CSS check matrix."""
     matrix = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
-    return CheckMatrix(matrix, type="X")
+    return CheckMatrix(matrix, pauli_type="X")
 
 
 def test_check_matrix_fixture(simple_check_matrix: CheckMatrix) -> None:

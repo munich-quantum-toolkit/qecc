@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from ..codes.pauli import StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
+    from ..codes.pauli import CheckMatrix
     from .types import BinaryMatrix
 
 
@@ -207,7 +208,7 @@ class Transvection(TableauOperation):
         return {self.i, self.j}
 
 
-def _matmul2(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
+def _matmul2(m1: npt.NDArray[np.int8], m2: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     return ((m1 @ m2) % 2).astype(np.int8)
 
 
@@ -215,7 +216,7 @@ identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
 hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
 phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
 
-elems: dict[str, np.ndarray] = {
+elems: dict[str, npt.NDArray[np.int8]] = {
     "I": identity,
     "H": hadamard,
     "S": phase,
@@ -460,9 +461,9 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the tablau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            out = self._apply_check_matrix(tableau, inplace=inplace)
+            out = self._apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
         else:
-            out = self._apply_stabilizer_tableau(tableau, inplace=inplace)
+            out = self._apply_stabilizer_tableau(tableau, inplace=inplace)  # type: ignore[assignment]
         return out
 
     def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
@@ -522,12 +523,11 @@ class Swap(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
-        if isinstance(tableau, StabilizerTableau):
-            return self._apply_stabilizer_tableau(tableau, inplace)
-        if isinstance(tableau, CheckMatrix):
-            return self._apply_check_matrix(tableau, inplace)
-        msg = f"Unsupported tableau type: {type(tableau)}"
-        raise TypeError(msg)
+        if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
+            out = self._apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+        else:
+            out = self._apply_stabilizer_tableau(tableau, inplace=inplace)  # type: ignore[arg-type]
+        return out
 
     def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
 

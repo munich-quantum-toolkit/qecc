@@ -263,30 +263,30 @@ class StabilizerCode:
                 base = test
                 base_rank += 1
 
-        logical_basis = np.array(logical_basis, dtype=np.int8)
+        logical_basis_arr = np.array(logical_basis, dtype=np.int8)
 
-        if logical_basis.shape[0] != target:
+        if logical_basis_arr.shape[0] != target:
             rows = ns.shape[0]
-            used = base.copy()
-            used_rank = base_rank
+            extended_basis = base.copy()
+            extended_basis_rank = base_rank
             for i in range(rows):
                 for j in range(i + 1, rows):
                     v = (ns[i] ^ ns[j]) % 2
-                    if len(logical_basis) == target:
+                    if len(logical_basis_arr) == target:
                         break
-                    test = np.vstack((used, v))
-                    if mod2_rank(test) > used_rank:
-                        logical_basis.append(v.copy())
-                        used = test
-                        used_rank += 1
-                if len(logical_basis) == target:
+                    test = np.vstack((extended_basis, v))
+                    if mod2_rank(test) > extended_basis_rank:
+                        logical_basis_arr = np.vstack((logical_basis_arr, v.copy))
+                        extended_basis = test
+                        extended_basis_rank += 1
+                if len(logical_basis_arr) == target:
                     break
-            logical_basis = np.array(logical_basis, dtype=np.int8)
+            logical_basis_arr = np.array(logical_basis_arr, dtype=np.int8)
 
         def symp(u: np.ndarray, v: np.ndarray) -> int:
             return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
 
-        logs = logical_basis.copy()
+        logs = logical_basis_arr.copy()
         vecs = [logs[i].copy() for i in range(logs.shape[0])]
         zs: list[np.ndarray] = []
         xs: list[np.ndarray] = []
@@ -308,18 +308,19 @@ class StabilizerCode:
                 i += 1
                 continue
             v = ortho_against_pairs(vecs[i])
-            j = None
+            maybe_j = None
             for t in range(len(vecs)):
                 if t == i or t in used:
                     continue
                 w_cand = ortho_against_pairs(vecs[t])
                 if symp(v, w_cand) == 1:
-                    j = t
+                    maybe_j = t
                     w = w_cand
                     break
-            if j is None:
+            if maybe_j is None:
                 i += 1
                 continue
+            j = maybe_j
 
             v = ortho_against_pairs(v)
             w = ortho_against_pairs(w)

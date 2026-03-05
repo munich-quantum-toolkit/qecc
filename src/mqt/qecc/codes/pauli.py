@@ -145,7 +145,7 @@ class StabilizerTableau:
             msg = "The number of rows in the tableau must match the number of phases."
             raise InvalidPauliError(msg)
         self.n = self.tableau.n
-        self.n_rows = self.tableau.shape[0]
+        self.n_rows = int(self.tableau.shape[0])
         self.phase = phase
         self.shape = (self.n_rows, self.n)
 
@@ -365,7 +365,7 @@ class StabilizerTableau:
         """Check if the stabilizer tableau is in CSS form."""
         x_part = self.tableau.matrix[:, : self.n]
         z_part = self.tableau.matrix[:, self.n :]
-        return np.all(x_part[z_part.any(axis=1)] == 0) and np.all(z_part[x_part.any(axis=1)] == 0)
+        return bool(np.all(x_part[z_part.any(axis=1)] == 0) and np.all(z_part[x_part.any(axis=1)] == 0))
 
     def to_css(self) -> tuple[CheckMatrix, CheckMatrix]:
         """Convert the stabilizer tableau to CSS check matrices.
@@ -378,8 +378,8 @@ class StabilizerTableau:
             raise InvalidPauliError(msg)
         x_part = self.get_x_part()
         z_part = self.get_z_part()
-        x_checks = x_part[np.any(x_part, axis=1)]
-        z_checks = z_part[np.any(z_part, axis=1)]
+        x_checks: npt.NDArray[np.int8] = x_part[np.any(x_part, axis=1)]
+        z_checks: npt.NDArray[np.int8] = z_part[np.any(z_part, axis=1)]
         return CheckMatrix(x_checks, "X"), CheckMatrix(z_checks, "Z")
 
     def get_x_part(self) -> npt.NDArray[np.int8]:
@@ -502,7 +502,7 @@ def complete_stabilizer_tableau_with_destabilizers(
     logical_x_rows = other_rows[:k]
     logical_z_rows = other_rows[k:]
 
-    destabilizers = []
+    destabilizers: list[npt.NDArray[np.int8]] = []
     for idx, stab_row_idx in enumerate(stab_rows):
         stab_i = SymplecticVector(stabilizers.tableau[stab_row_idx])
 
@@ -642,15 +642,15 @@ class InvalidPauliError(ValueError):
 class CheckMatrix:
     """Type alias for CSS check matrices."""
 
-    matrix: np.ndarray[np.int8]
+    matrix: npt.NDArray[np.int8]
     type: str
 
-    def __init__(self, matrix: np.ndarray[np.int8], pauli_type: str) -> None:
+    def __init__(self, matrix: npt.NDArray[np.int8], pauli_type: str) -> None:
         """Initialize the check matrix.
 
         Args:
             matrix: The binary check matrix.
-            type: The type of the check matrix, either 'X' or 'Z'.
+            pauli_type: The type of the check matrix, either 'X' or 'Z'.
         """
         assert pauli_type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
         self.matrix = matrix
@@ -686,8 +686,8 @@ class CheckMatrix:
 
     def num_qubits(self) -> int:
         """Get the number of qubits represented by the check matrix."""
-        return self.matrix.shape[1]
+        return int(self.matrix.shape[1])
 
     def num_rows(self) -> int:
         """Get the number of rows in the check matrix."""
-        return self.matrix.shape[0]
+        return int(self.matrix.shape[0])

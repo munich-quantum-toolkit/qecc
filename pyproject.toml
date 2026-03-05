@@ -251,6 +251,7 @@ aer = "aer"
 anc = "anc"
 arange = "arange"
 nd = "nd"
+strat = "strat"
 
 
 [tool.repo-review]

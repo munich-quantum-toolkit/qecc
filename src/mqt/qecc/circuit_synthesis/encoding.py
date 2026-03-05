@@ -563,8 +563,8 @@ def gate_optimal_encoding_circuit(
         cnots = [(j, i) for i, j in cnots]
 
     return build_css_encoder_from_cnot_list(
-        CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
-        CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
+        CheckMatrix(reduced_checks_and_logicals[:n_checks], pauli_type=checks.type),
+        CheckMatrix(reduced_checks_and_logicals[n_checks:], pauli_type=logicals.type),
         cnots,
     )
 
@@ -616,8 +616,8 @@ def depth_optimal_encoding_circuit(
         cnots = [(j, i) for i, j in cnots]
 
     return build_css_encoder_from_cnot_list(
-        CheckMatrix(reduced_checks_and_logicals[:n_checks], type=checks.type),
-        CheckMatrix(reduced_checks_and_logicals[n_checks:], type=logicals.type),
+        CheckMatrix(reduced_checks_and_logicals[:n_checks], pauli_type=checks.type),
+        CheckMatrix(reduced_checks_and_logicals[n_checks:], pauli_type=logicals.type),
         cnots,
     )
 
@@ -774,7 +774,7 @@ def synthesize_clifford(
     if tableau.is_css() and use_cnots_if_css:
         x_checks, z_checks = tableau.to_css()
         return cnot_encoding_circuit(
-            CheckMatrix(np.empty((0, tableau.n)), type="X"),
+            CheckMatrix(np.empty((0, tableau.n)), pauli_type="X"),
             x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
             config,
         )
@@ -802,10 +802,10 @@ def synthesize_encoding_circuit(
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
     """
     if use_cnots_if_css and isinstance(code, CSSCode):
-        x_checks = CheckMatrix(code.Hx, type="X")
-        z_checks = CheckMatrix(code.Hz, type="Z")
-        x_logicals = CheckMatrix(code.Lx, type="X")
-        z_logicals = CheckMatrix(code.Lz, type="Z")
+        x_checks = CheckMatrix(code.Hx, pauli_type="X")
+        z_checks = CheckMatrix(code.Hz, pauli_type="Z")
+        x_logicals = CheckMatrix(code.Lx, pauli_type="X")
+        z_logicals = CheckMatrix(code.Lz, pauli_type="Z")
         checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
@@ -986,7 +986,7 @@ def cnot_encoding_circuit(
     if balance_checks:
         reduce_checks_by_row_ops(checks, logicals)
 
-    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
+    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), pauli_type=checks.type)
 
     config.exact = False
     ops, reduced_checks = synthesize_cnot(mat, config=config)

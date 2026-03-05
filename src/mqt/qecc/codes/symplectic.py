@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
 
@@ -151,11 +151,36 @@ class SymplecticMatrix:
         m2 = other.matrix
         return SymplecticMatrix(((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2)
 
-    def __getitem__(self, key: tuple[int, int] | int | slice) -> Any:  # noqa: ANN401
+    @overload
+    def __getitem__(self, key: int) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[int, int]) -> np.int8: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, int]) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, slice]) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, list[int]]) -> npt.NDArray[np.int8]: ...
+
+    def __getitem__(
+        self,
+        key: int | slice | tuple[int, int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, list[int]],
+    ) -> Any:
         """Get the value of the matrix at index key."""
         return self.matrix[key]
 
-    def __setitem__(self, key: tuple[int, int] | int | slice, value: npt.NDArray[np.int8]) -> None:
+    def __setitem__(
+        self,
+        key: int | slice | tuple[int, int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, list[int]],
+        value: npt.NDArray[np.int8] | np.int8,
+    ) -> None:
         """Set the value of the matrix at index key."""
         self.matrix[key] = value
 

@@ -21,7 +21,7 @@ from ..codes.pauli import StabilizerTableau
 from .operations import CNOT, Swap, Transvection
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
     from .operations import TableauOperation
     from .types import BinaryMatrix
@@ -36,7 +36,7 @@ class EliminationSequence:
         Args:
             operations: A list of tableau operations.
         """
-        self.operations = []
+        self.operations: list[TableauOperation] = []
         self._depth = 0
         self._qubit_depths: defaultdict[int, int] = defaultdict(int)
         for op in operations:
@@ -136,11 +136,11 @@ class EliminationSequence:
         """
         self.operations.extend(other.operations)
 
-    def __iter__(self) -> iter[TableauOperation]:
+    def __iter__(self) -> Iterator[TableauOperation]:
         """Return iterator over the tableau operations in the sequence."""
         return iter(self.operations)
 
-    def __reversed__(self) -> iter[TableauOperation]:
+    def __reversed__(self) -> Iterator[TableauOperation]:
         """Return reversed iterator over the tableau operations in the sequence."""
         return reversed(self.operations)
 

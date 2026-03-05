@@ -229,15 +229,11 @@ def heuristic_prep_circuit(
         enable_early_termination=False,
     )
     circ = cnot_encoding_circuit(
-        CheckMatrix(checks, type=type_),
-        CheckMatrix(np.empty((0, code.n), dtype=np.int8), type=type_),
+        CheckMatrix(checks, pauli_type=type_),
+        CheckMatrix(np.empty((0, code.n), dtype=np.int8), pauli_type=type_),
         balance_checks=False,
         config=config,
     )
-
-    # checks, cnots = heuristic_gaussian_elimination(checks)
-
-    # circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
 
     return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
