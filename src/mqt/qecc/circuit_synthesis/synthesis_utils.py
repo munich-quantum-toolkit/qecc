@@ -20,15 +20,13 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
-from .synthesis import synthesize_cnot
-from .synthesis import CnotSynthesisConfig
+from .synthesis import CnotSynthesisConfig, synthesize_cnot
+
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     import numpy.typing as npt
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
-
-
 
 
 logger = logging.getLogger(__name__)
@@ -115,7 +113,7 @@ def cnot_encoding_circuit(
 
     if config is None:
         config = CnotSynthesisConfig()
-        
+
     n_stab = checks.num_rows()
 
     if balance_checks:
@@ -129,7 +127,7 @@ def cnot_encoding_circuit(
     encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
     config.exact = True
     final_ops, logicals = synthesize_cnot(encoding_checks, config=config)
-    cnots = [(c.control, c.target) for c in reversed(final_ops)] +[(c.control, c.target) for c in reversed(ops)]
+    cnots = [(c.control, c.target) for c in reversed(final_ops)] + [(c.control, c.target) for c in reversed(ops)]
 
     return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
 
