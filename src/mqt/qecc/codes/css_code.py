@@ -439,12 +439,16 @@ def _load_css_from_list_notation(content: str) -> CSSCode:
 
         rows = []
         for line in section_stripped.split("\n"):
-            line = line.strip().lstrip("[").rstrip(",").rstrip("]")
-            if not line:
+            line_stripped = line.strip().lstrip("[").rstrip(",").rstrip("]")
+            if not line_stripped:
                 continue
 
             # Handle both comma-separated and space-separated values
-            tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
+            tokens = (
+                [t.strip() for t in line_stripped.split(",") if t.strip()]
+                if "," in line_stripped
+                else line_stripped.split()
+            )
 
             row = [int(t) for t in tokens if t in {"0", "1"}]
             if row:

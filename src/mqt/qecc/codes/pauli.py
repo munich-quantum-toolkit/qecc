@@ -229,7 +229,7 @@ class StabilizerTableau:
             A StabilizerTableau instance.
         """
         if matrix.shape[0] % 2 != 0 or matrix.shape[0] != matrix.shape[1]:
-            msg = f"Expected a square 2n×2n symplectic matrix, got shape {matrix.shape}."
+            msg = f"Expected a square 2nx2n symplectic matrix, got shape {matrix.shape}."
             raise ValueError(msg)
 
         matrix.shape[0] // 2
@@ -527,8 +527,8 @@ def complete_stabilizer_tableau_with_destabilizers(
                 d_i += s_j
 
         for logical_idx, (_, logical_row, _) in enumerate(other_rows):
-            l = SymplecticVector(logical_row)
-            if d_i @ l == 1:
+            log = SymplecticVector(logical_row)
+            if d_i @ log == 1:
                 if logical_idx < k:
                     l_z = SymplecticVector(other_rows[logical_idx + k][1])
                     d_i += l_z
@@ -645,16 +645,16 @@ class CheckMatrix:
     matrix: np.ndarray[np.int8]
     type: str
 
-    def __init__(self, matrix: np.ndarray[np.int8], type: str) -> None:
+    def __init__(self, matrix: np.ndarray[np.int8], pauli_type: str) -> None:
         """Initialize the check matrix.
 
         Args:
             matrix: The binary check matrix.
             type: The type of the check matrix, either 'X' or 'Z'.
         """
-        assert type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
+        assert pauli_type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
         self.matrix = matrix
-        self.type = type
+        self.type = pauli_type
 
     def is_x_type(self) -> bool:
         """Check if the check matrix is of type 'X'."""

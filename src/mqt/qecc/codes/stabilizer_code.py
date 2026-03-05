@@ -231,30 +231,30 @@ class StabilizerCode:
             return
 
         n = self.n
-        M = self.generators.tableau.matrix
-        r = M.shape[0]
+        mat = self.generators.tableau.matrix
+        r = mat.shape[0]
 
-        I = np.eye(n, dtype=np.int8)
-        Z0 = np.zeros((n, n), dtype=np.int8)
-        Lambda = np.block([[Z0, I], [I, Z0]])
+        identity = np.eye(n, dtype=np.int8)
+        z0 = np.zeros((n, n), dtype=np.int8)
+        lamb = np.block([[z0, identity], [identity, z0]])
 
-        B = (M @ Lambda) % 2
-        C = nullspace(B).astype(np.int8)
+        mat_times_lamb = (mat @ lamb) % 2
+        ns = nullspace(mat_times_lamb).astype(np.int8)
 
-        if C.size == 0:
+        if ns.size == 0:
             self.z_logicals = StabilizerTableau.empty(n)
             self.x_logicals = StabilizerTableau.empty(n)
             return
 
-        def mod2_rank(A: np.ndarray) -> int:
-            return int(rank(A % 2))
+        def mod2_rank(mat: np.ndarray) -> int:
+            return int(rank(mat % 2))
 
-        base = M.copy()
+        base = mat.copy()
         base_rank = mod2_rank(base)
         target = 2 * (n - r)
 
         logical_basis: list[np.ndarray] = []
-        for v in C:
+        for v in ns:
             if len(logical_basis) == target:
                 break
             test = np.vstack((base, v))
@@ -266,12 +266,12 @@ class StabilizerCode:
         logical_basis = np.array(logical_basis, dtype=np.int8)
 
         if logical_basis.shape[0] != target:
-            rows = C.shape[0]
+            rows = ns.shape[0]
             used = base.copy()
             used_rank = base_rank
             for i in range(rows):
                 for j in range(i + 1, rows):
-                    v = (C[i] ^ C[j]) % 2
+                    v = (ns[i] ^ ns[j]) % 2
                     if len(logical_basis) == target:
                         break
                     test = np.vstack((used, v))
@@ -286,24 +286,24 @@ class StabilizerCode:
         def symp(u: np.ndarray, v: np.ndarray) -> int:
             return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
 
-        L = logical_basis.copy()
-        vecs = [L[i].copy() for i in range(L.shape[0])]
-        Zs: list[np.ndarray] = []
-        Xs: list[np.ndarray] = []
+        logs = logical_basis.copy()
+        vecs = [logs[i].copy() for i in range(logs.shape[0])]
+        zs: list[np.ndarray] = []
+        xs: list[np.ndarray] = []
 
         def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
             a = a.copy()
-            for Zp, Xp in zip(Zs, Xs, strict=False):
-                if symp(a, Xp):
-                    a ^= Zp
-                if symp(a, Zp):
-                    a ^= Xp
+            for zp, xp in zip(zs, xs, strict=False):
+                if symp(a, xp):
+                    a ^= zp
+                if symp(a, zp):
+                    a ^= xp
             return a
 
         used: set[int] = set()
         k = n - r
         i = 0
-        while len(Zs) < k and i < len(vecs):
+        while len(zs) < k and i < len(vecs):
             if i in used:
                 i += 1
                 continue
@@ -337,19 +337,19 @@ class StabilizerCode:
                     u ^= w
                 vecs[t] = u
 
-            Zs.append(v)
-            Xs.append(w)
+            zs.append(v)
+            xs.append(w)
             used.add(i)
             used.add(j)
             i += 1
 
-        if len(Zs) != k or len(Xs) != k:
+        if len(zs) != k or len(xs) != k:
             self.z_logicals = StabilizerTableau.empty(n)
             self.x_logicals = StabilizerTableau.empty(n)
             return
 
-        z_mat = np.vstack(Zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
-        x_mat = np.vstack(Xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
         self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
 
@@ -359,7 +359,7 @@ class StabilizerCode:
 
         The file can contain either:
         1. One line per stabilizer generator as a Pauli string (e.g., "IXXZZ")
-        2. A binary symplectic matrix (2n×m) where m is the number of stabilizers
+        2. A binary symplectic matrix (2nxm) where m is the number of stabilizers
 
         For the 5-qubit perfect code in Pauli string format:
         IXXZZ
@@ -379,8 +379,7 @@ class StabilizerCode:
         Returns:
             StabilizerCode: The stabilizer code.
         """
-        with Path(file_path).open(encoding="utf-8") as f:
-            content = f.read().strip()
+        content = Path(file_path).read_text(encoding="utf-8").strip()
 
         if not content:
             msg = "File is empty"
@@ -398,33 +397,6 @@ class StabilizerCode:
         if isinstance(p, str):
             p = Pauli.from_pauli_string(p)
         return self.stabilizer_equivalent(p, Pauli.from_pauli_string("I" * self.n))
-
-    def to_tableau(self) -> StabilizerTableau:
-        """Convert the code to a tableau with logicals and stabilizers.
-
-        Returns:
-            StabilizerTableau with rows ordered as:
-                - X logical operators
-                - Z logical operators
-                - Stabilizer generators
-        """
-        if self.x_logicals is None or self.z_logicals is None:
-            msg = "Logical operators must be computed before converting to tableau"
-            raise InvalidStabilizerCodeError(msg)
-
-        x_log_matrix = self.x_logicals.tableau.matrix
-        z_log_matrix = self.z_logicals.tableau.matrix
-        stab_matrix = self.generators.tableau.matrix
-
-        combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
-
-        x_log_phases = self.x_logicals.phase
-        z_log_phases = self.z_logicals.phase
-        stab_phases = self.generators.phase
-
-        combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
-
-        return StabilizerTableau(combined_matrix, combined_phases)
 
     def __repr__(self) -> str:
         """Return a string representation of the code."""

@@ -49,7 +49,7 @@ def test_initialize_qubit():
     circuit = CNOTCircuit()
     circuit.initialize_qubit(0, "Z")
     circuit.initialize_qubit(1, "X")
-    assert circuit._initializations == {0: "Z", 1: "X"}, "Qubits were not initialized correctly."
+    assert circuit.get_initialized() == {0: "Z", 1: "X"}, "Qubits were not initialized correctly."
 
 
 def test_initialize_invalid_basis():
@@ -198,7 +198,7 @@ def test_from_qiskit_circuit_simple():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit._initializations == {}, "No qubits should be initialized."
+    assert cnot_circuit.get_initialized() == {}, "No qubits should be initialized."
 
 
 def test_from_qiskit_circuit_with_initialization():
@@ -218,7 +218,7 @@ def test_from_qiskit_circuit_with_initialization():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit._initializations == expected_initializations, "Qubit initialization was not handled correctly."
+    assert cnot_circuit.get_initialized() == expected_initializations, "Qubit initialization was not handled correctly."
 
 
 def test_from_qiskit_circuit_init_all():
@@ -237,7 +237,9 @@ def test_from_qiskit_circuit_init_all():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit._initializations == expected_initializations, "All qubits should be initialized in the Z basis."
+    assert cnot_circuit.get_initialized() == expected_initializations, (
+        "All qubits should be initialized in the Z basis."
+    )
 
 
 def test_from_qiskit_circuit_unsupported_gate():
@@ -280,7 +282,7 @@ def test_from_stim_circuit_simple():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit._initializations == expected_initializations, (
+    assert cnot_circuit.get_initialized() == expected_initializations, (
         "Qubit initializations were not handled correctly."
     )
 
@@ -301,7 +303,7 @@ def test_from_stim_circuit_with_x_initialization():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit._initializations == expected_initializations, (
+    assert cnot_circuit.get_initialized() == expected_initializations, (
         "X-basis initialization was not handled correctly."
     )
 
@@ -478,7 +480,7 @@ def test_copy_circuit():
 
     # Verify that the copied circuit has the same gates and initializations
     assert copied_circuit.cnots == original_circuit.cnots, "CNOT gates were not copied correctly."
-    assert copied_circuit._initializations == original_circuit._initializations, (
+    assert copied_circuit.get_initialized() == original_circuit._initializations, (
         "Initializations were not copied correctly."
     )
 
@@ -489,7 +491,7 @@ def test_copy_circuit():
     assert copied_circuit.cnots != original_circuit.cnots, (
         "Copied circuit should not reflect changes to the original circuit."
     )
-    assert copied_circuit._initializations != original_circuit._initializations, (
+    assert copied_circuit.get_initialized() != original_circuit._initializations, (
         "Copied circuit should not reflect changes to the original circuit."
     )
 
@@ -519,7 +521,7 @@ def test_relabel_qubits():
 
     # Check the result
     assert circuit.cnots == expected_cnots, "CNOT gates were not relabeled correctly."
-    assert circuit._initializations == expected_initializations, "Initializations were not relabeled correctly."
+    assert circuit.get_initialized() == expected_initializations, "Initializations were not relabeled correctly."
 
 
 def test_relabel_qubits_invalid_mapping():
@@ -567,7 +569,9 @@ def test_compose_cnot_circuits_no_wiring():
 
     # Check the result
     assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly."
-    assert composed_circuit._initializations == expected_initializations, "Initializations were not composed correctly."
+    assert composed_circuit.get_initialized() == expected_initializations, (
+        "Initializations were not composed correctly."
+    )
     assert m1 == {0: 0, 1: 1, 2: 2, 3: 3}, "Mapping m1 should be identity."
     assert m2 == {0: 4, 1: 5, 2: 6}, "Mapping m2 should map circ2 qubits to the end of circ1."
 
@@ -602,7 +606,7 @@ def test_compose_cnot_circuits_with_wiring():
 
     # Check the result
     assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly with wiring."
-    assert composed_circuit._initializations == expected_initializations, (
+    assert composed_circuit.get_initialized() == expected_initializations, (
         "Initializations were not composed correctly with wiring."
     )
     assert m1 == {0: 0, 1: 3, 2: 1, 3: 4}, "Mapping m1 should map circ1 qubits to the composed circuit."
