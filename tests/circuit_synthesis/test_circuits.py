@@ -480,7 +480,7 @@ def test_copy_circuit():
 
     # Verify that the copied circuit has the same gates and initializations
     assert copied_circuit.cnots == original_circuit.cnots, "CNOT gates were not copied correctly."
-    assert copied_circuit.get_initialized() == original_circuit._initializations, (
+    assert copied_circuit.get_initialized() == original_circuit.get_initialized(), (
         "Initializations were not copied correctly."
     )
 
@@ -491,7 +491,7 @@ def test_copy_circuit():
     assert copied_circuit.cnots != original_circuit.cnots, (
         "Copied circuit should not reflect changes to the original circuit."
     )
-    assert copied_circuit.get_initialized() != original_circuit._initializations, (
+    assert copied_circuit.get_initialized() != original_circuit.get_initialized(), (
         "Copied circuit should not reflect changes to the original circuit."
     )
 
@@ -636,7 +636,7 @@ def test_trivial_isometry():
     assert iso.num_outputs() == 0
     assert iso.get_all_logicals() == []
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Given index is not a logical qubit index."):
         iso.get_logical(0)
 
 

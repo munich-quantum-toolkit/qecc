@@ -32,7 +32,7 @@ class CliffordIsometry:
     def __init__(self) -> None:
         """Initialize trivial isometry."""
         self._inputs: dict[int, int] = {}
-        self._outputs = []
+        self._outputs: list[int] = []
         self._ancillas: set[int] = set()
         self._initializations: dict[int, str] = {}
         self._circ = stim.Circuit()
@@ -151,7 +151,7 @@ class CliffordIsometry:
         """Get output qubits."""
         return self._outputs
 
-    def inputs(self) -> list[int]:
+    def inputs(self) -> dict[int, int]:
         """Get input qubits."""
         return self._inputs
 
@@ -224,16 +224,15 @@ class CliffordIsometry:
         Returns:
             The total number of qubits.
         """
-        return self._circ.num_qubits
+        return int(self._circ.num_qubits)
 
     def is_state(self) -> bool:
         """Check if all qubits used in the circuit are initialized.
 
         Returns:
-            True if all qubits involved in CNOT operations are initialized, False otherwise.
+            True if all qubits are initialized, False otherwise.
         """
-        used_qubits = {qubit for control, target in self.cnots for qubit in (control, target)}
-        return used_qubits.issubset(self._initializations.keys())
+        return len(self._inputs) == 0
 
     def num_two_qubit_gates(self) -> int:
         """Get the number of two-qubit gates in the circuit.
@@ -280,6 +279,15 @@ class CNOTCircuit(CliffordIsometry):
         self.cnots: list[tuple[int, int]] = []
         self._initializations: dict[int, str] = {}  # Dictionary mapping qubit index to initialization type ('Z' or 'X')
 
+    def _add_input(self, qubit: int) -> None:
+        """Add a qubit to the inputs if it is not already initialized or an input.
+
+        Args:
+            qubit: The qubit index to add as an input.
+        """
+        if qubit not in self._inputs and qubit not in self._initializations:
+            self._inputs[self.num_inputs()] = qubit
+
     def add_cnot(self, control: int, target: int) -> None:
         """Add a single CNOT gate to the circuit.
 
@@ -293,6 +301,9 @@ class CNOTCircuit(CliffordIsometry):
         if control == target:
             msg = "Control and target qubits cannot be the same."
             raise ValueError(msg)
+        self._add_input(control)
+        self._add_input(target)
+
         self.cnots.append((control, target))
 
     def add_cnots(self, cnot_pairs: Iterable[tuple[int, int]]) -> None:
@@ -467,14 +478,6 @@ class CNOTCircuit(CliffordIsometry):
         cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
         init_indices = list(self._initializations.keys())
         return max(cnot_indices + init_indices, default=0) + 1
-
-    def num_inputs(self) -> int:
-        """Get the number of uninitialized qubits, i.e., the inputs of the isometry.
-
-        Returns:
-            The number of uninitialized_qubits.
-        """
-        return self.num_qubits() - len(self._initializations)
 
     def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
         """Draw the circuit using Qiskit visualization tools.
