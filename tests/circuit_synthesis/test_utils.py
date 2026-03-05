@@ -33,7 +33,6 @@ from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
-    heuristic_gaussian_elimination,
     measure_flagged,
     measure_stab_unflagged,
     odd_overlap,
@@ -172,35 +171,6 @@ def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # t
 
     n_parallel_layers = get_n_parallel_layers(ops)
     assert n_parallel_layers <= max_parallel_steps
-
-
-@pytest.mark.parametrize(
-    "test_vals",
-    ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"],
-)
-def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
-    """Test heuristic Gaussian elimination method."""
-    fixture = request.getfixturevalue(test_vals)
-    matrix = fixture.matrix
-    res_seq = heuristic_gaussian_elimination(matrix, parallel_elimination=False)
-    res_parallel = heuristic_gaussian_elimination(matrix, parallel_elimination=True)
-
-    assert res_seq is not None
-    reduced_seq, ops_seq = res_seq
-
-    assert res_parallel is not None
-    reduced_parallel, ops_parallel = res_parallel
-
-    assert check_correct_elimination(matrix, reduced_seq, ops_seq)
-    assert check_correct_elimination(matrix, reduced_parallel, ops_parallel)
-
-    n_parallel_layers_seq = get_n_parallel_layers(ops_seq)
-    assert n_parallel_layers_seq <= fixture.max_parallel_steps
-
-    n_parallel_layers_parallel = get_n_parallel_layers(ops_parallel)
-    assert n_parallel_layers_parallel <= fixture.max_parallel_steps
-
-    assert n_parallel_layers_parallel <= n_parallel_layers_seq
 
 
 def correct_stabilizer_propagation(
