@@ -198,7 +198,7 @@ def _build_state_prep_circuit_from_back(
 
 
 def heuristic_prep_circuit(
-    code: CSSCode, zero_state: bool = True, optimize_depth=True, lookahead=0, lookahead_candidates=10
+    code: CSSCode, zero_state: bool = True, optimize_depth:bool=True, lookahead:int=0, lookahead_candidates:int=10
 ) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
