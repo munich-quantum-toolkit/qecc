@@ -356,8 +356,7 @@ class CandidateGenerator(ABC):
     def reset(self) -> None:
         """Reset internal state (useful for lookahead simulations)."""
 
-    @abstractmethod
-    def should_terminate_early(self) -> bool:
+    def should_terminate_early(self) -> bool:  # noqa: PLR6301
         """Check if elimination should terminate early and use the best solution found.
 
         Returns:
@@ -365,8 +364,7 @@ class CandidateGenerator(ABC):
         """
         return False
 
-    @abstractmethod
-    def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
+    def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:  # noqa: PLR6301
         """Get the best complete solution found during lookahead exploration.
 
         Returns:
