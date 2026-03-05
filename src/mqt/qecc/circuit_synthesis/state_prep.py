@@ -21,10 +21,10 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, Q
 
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
+from .encoding import cnot_encoding_circuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis import CnotSynthesisConfig
 from .synthesis_utils import (
-    cnot_encoding_circuit,
     iterative_search_with_timeout,
     measure_flagged,
     odd_overlap,
@@ -210,6 +210,11 @@ def heuristic_prep_circuit(
         code: The CSS code to prepare the state for.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
         optimize_depth: If True, optimize the circuit for depth. If False, optimize for number of gates.
+        lookahead: The number of lookahead steps to use in the heuristic synthesis. Higher values can lead to better circuits but also increase runtime.
+        lookahead_candidates: The number of candidates to consider in each lookahead step. Higher values can lead to better circuits but also increase runtime.
+
+    Returns:
+        A state preparation circuit for the given code.
     """
     logger.info("Starting heuristic state preparation.")
 

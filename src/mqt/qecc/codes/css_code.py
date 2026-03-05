@@ -281,8 +281,7 @@ class CSSCode(StabilizerCode):
         Returns:
             CSSCode: The CSS code.
         """
-        with Path(file_path).open(encoding="utf-8") as f:
-            content = f.read().strip()
+        content = Path(file_path).read_text(encoding="utf-8").strip()
 
         if not content:
             msg = "File is empty"
@@ -392,13 +391,13 @@ def _load_css_from_binary_matrix(content: str) -> CSSCode:
     current_section = []
 
     for line in lines:
-        line = line.strip()
-        if not line:
+        line_stripped = line.strip()
+        if not line_stripped:
             if current_section:
                 sections.append(current_section)
                 current_section = []
         else:
-            current_section.append(line)
+            current_section.append(line_stripped)
 
     if current_section:
         sections.append(current_section)
@@ -430,16 +429,16 @@ def _load_css_from_list_notation(content: str) -> CSSCode:
     matrices = []
 
     for section in sections:
-        section = section.strip()
-        if not section:
+        section_stripped = section.strip()
+        if not section_stripped:
             continue
 
-        section = section.lstrip("[").strip()
-        if not section:
+        section_stripped = section_stripped.lstrip("[").strip()
+        if not section_stripped:
             continue
 
         rows = []
-        for line in section.split("\n"):
+        for line in section_stripped.split("\n"):
             line = line.strip().lstrip("[").rstrip(",").rstrip("]")
             if not line:
                 continue

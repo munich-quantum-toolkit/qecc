@@ -21,9 +21,9 @@ from ortools.sat.python import cp_model
 
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
-from .circuits import CliffordIsometry
-from .synthesis import synthesize_non_css
-from .synthesis_utils import build_css_encoder_from_cnot_list, cnot_encoding_circuit, optimal_elimination
+from .circuits import CliffordIsometry, CNOTCircuit
+from .synthesis import CnotSynthesisConfig, synthesize_cnot, synthesize_non_css
+from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination, reduce_checks_by_row_ops
 from .transvection import (
     score_symplectic,
 )
@@ -960,3 +960,40 @@ def combine_stabilizer_and_logical_tableau(
     # The stabilizer rows are at indices 0 to m-1
     stab_rows = list(range(logicals.num_rows(), logicals.num_rows() + m))
     return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows)
+
+
+def cnot_encoding_circuit(
+    checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: CnotSynthesisConfig | None = None
+) -> CNOTCircuit:
+    """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
+
+    Args:
+        checks: The stabilizer check matrix of the CSS code.
+        logicals: The logical operator matrix of the CSS code.
+        balance_checks: Whether to balance the entries of the stabilizer matrix via row operations.
+        config: The configuration for the CNOT synthesis process.
+
+    Returns:
+        The synthesized encoding circuit.
+    """
+    logger.info("Starting encoding circuit synthesis.")
+
+    if config is None:
+        config = CnotSynthesisConfig()
+
+    n_stab = checks.num_rows()
+
+    if balance_checks:
+        reduce_checks_by_row_ops(checks, logicals)
+
+    mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), type=checks.type)
+
+    config.exact = False
+    ops, reduced_checks = synthesize_cnot(mat, config=config)
+    assert isinstance(reduced_checks, CheckMatrix)
+    encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
+    config.exact = True
+    final_ops, logicals = synthesize_cnot(encoding_checks, config=config)
+    cnots = [(c.control, c.target) for c in reversed(final_ops)] + [(c.control, c.target) for c in reversed(ops)]
+
+    return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)

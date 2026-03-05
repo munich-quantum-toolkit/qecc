@@ -83,8 +83,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
     def _reset_filters(self) -> None:
         """Reset all filters."""
         for f in self.filters:
-            if hasattr(f, "_reset"):
-                f._reset()
+            f.reset()
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
         """Update operation history and filters after applying an operation.
@@ -116,13 +115,13 @@ def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
     Returns:
         A sorted list of (i, j) pairs where i < j, representing candidate qubit pairs.
     """
-    R1, R2 = r1_r2(symplectic)
+    r1, r2 = r1_r2(symplectic)
     n = symplectic.shape[0] // 2
     pairs: set[tuple[int, int]] = set()
 
     for row in range(n):
-        r2_cols = _bin2set(R2[row])
-        r1_cols = _bin2set(R1[row])
+        r2_cols = _bin2set(r2[row])
+        r1_cols = _bin2set(r1[row])
 
         for a in range(len(r2_cols) - 1):
             for b in range(a + 1, len(r2_cols)):
@@ -271,8 +270,8 @@ def _compute_r0_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]
     return zero.astype(np.int8)
 
 
-def _compute_r1_matrix_from_r2_r0(R2: npt.NDArray[np.int8], R0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    return (1 ^ (R2 | R0)).astype(np.int8)
+def _compute_r1_matrix_from_r2_r0(r2: npt.NDArray[np.int8], r0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+    return (1 ^ (r2 | r0)).astype(np.int8)
 
 
 def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
@@ -436,20 +435,18 @@ def reduce_without_swaps(
     return reduce_with_single_qubit_cliffords(tableau)
 
 
-def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Extract the permutation and corresponding 2×2 blocks from a terminal symplectic matrix.
+def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[np.ndarray, list[np.ndarray]]:
+    """Extract the permutation and corresponding 2x2 blocks from a terminal symplectic matrix.
 
     This function processes a terminal symplectic matrix `U` to determine the permutation
-    of input qubits to output qubits and the associated 2×2 symplectic blocks.
+    of input qubits to output qubits and the associated 2x2 symplectic blocks.
 
     Args:
-        U: A 2n×2n symplectic matrix in terminal form.
+        tableau: A stabilizer tableau in terminal form, where the symplectic matrix is a permutation of 2x2 blocks.
 
     Returns:
-        A tuple containing:
-        - perm: A 1D array where `perm[i]` gives the index `j` such that the determinant
-          of the 2×2 block F_ij is 1 (indicating a valid symplectic transformation).
-        - blocks: A list of 2×2 symplectic blocks corresponding to the permutation.
+        perm: An array of length n where perm[i] gives the output qubit index that input qubit i maps to.
+        blocks: A list of 2x2 numpy arrays representing the symplectic blocks corresponding to each input qubit's mapping.
     """
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
@@ -488,9 +485,7 @@ def _perm_inverse(perm_in_to_out: np.ndarray) -> np.ndarray:
 
 
 def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
-    """Return a SWAP list that realizes perm_in_to_out when right-multiplying
-    the symplectic matrix, i.e. permuting columns (wires).
-    """
+    """Convert a permutation of qubits to a sequence of SWAP operations."""
     n = len(perm_in_to_out)
     swaps: list[Swap] = []
     current = list(range(n))

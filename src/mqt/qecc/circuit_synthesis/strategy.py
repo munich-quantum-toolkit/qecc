@@ -310,20 +310,3 @@ def for_cnot_with_lookahead_exact(
         filters=None,
         callback=callback,
     )
-
-
-# Add factory methods to EliminationStrategy as class methods
-EliminationStrategy.for_cnot_up_to_row_ops = classmethod(
-    lambda cls, *args, **kwargs: for_cnot_up_to_row_ops(*args, **kwargs)
-)  # type: ignore[attr-defined]
-EliminationStrategy.for_cnot_exact = classmethod(lambda cls, *args, **kwargs: for_cnot_exact(*args, **kwargs))  # type: ignore[attr-defined]
-EliminationStrategy.for_non_css = classmethod(lambda cls, *args, **kwargs: for_non_css(*args, **kwargs))  # type: ignore[attr-defined]
-EliminationStrategy.for_non_css_with_lookahead = classmethod(
-    lambda cls, *args, **kwargs: for_non_css_with_lookahead(*args, **kwargs)
-)  # type: ignore[attr-defined]
-EliminationStrategy.for_cnot_with_lookahead_up_to_row_ops = classmethod(
-    lambda cls, *args, **kwargs: for_cnot_with_lookahead_up_to_row_ops(*args, **kwargs)
-)  # type: ignore[attr-defined]
-EliminationStrategy.for_cnot_with_lookahead_exact = classmethod(
-    lambda cls, *args, **kwargs: for_cnot_with_lookahead_exact(*args, **kwargs)
-)  # type: ignore[attr-defined]
