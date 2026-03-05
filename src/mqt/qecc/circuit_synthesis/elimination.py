@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import random
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -254,9 +253,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
     if hasattr(strategy.candidate_generator, "use_best_if_better"):
-        return _maybe_use_best_solution(
-            strategy.candidate_generator, result_ops, result_tableau, strategy.post_process_fn
-        )
+        return _maybe_use_best_solution(strategy.candidate_generator, result_ops, result_tableau)
 
     return result_ops, result_tableau
 
@@ -265,7 +262,6 @@ def _maybe_use_best_solution(
     generator: CandidateGenerator,
     current_ops: EliminationSequence,
     current_tableau: BinaryMatrix,
-    post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]],
 ) -> tuple[EliminationSequence, BinaryMatrix]:
     """Compare current solution with best tracked solution and return the better one.
 
@@ -360,6 +356,7 @@ class CandidateGenerator(ABC):
     def reset(self) -> None:
         """Reset internal state (useful for lookahead simulations)."""
 
+    @abstractmethod
     def should_terminate_early(self) -> bool:
         """Check if elimination should terminate early and use the best solution found.
 
@@ -368,6 +365,7 @@ class CandidateGenerator(ABC):
         """
         return False
 
+    @abstractmethod
     def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
         """Get the best complete solution found during lookahead exploration.
 
@@ -395,7 +393,7 @@ class SelectionStrategy(ABC):
 class GreedySelection(SelectionStrategy):
     """Always select the first candidate."""
 
-    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:
+    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:  # noqa: PLR6301
         """Select the first (best-scored) candidate.
 
         Args:
@@ -405,29 +403,6 @@ class GreedySelection(SelectionStrategy):
             The first candidate in the list.
         """
         return candidates[0][0]
-
-
-class RandomSelection(SelectionStrategy):
-    """Select a random candidate from top-k."""
-
-    def __init__(self, k: int = 3) -> None:
-        """Initialize the random selection strategy.
-
-        Args:
-            k: Number of top candidates to randomly choose from.
-        """
-        self.k = k
-
-    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:
-        """Randomly select one of the top-k candidates.
-
-        Args:
-            candidates: List of candidate operations.
-
-        Returns:
-            A randomly chosen candidate from the first k candidates.
-        """
-        return random.choice(candidates[: self.k])[0]
 
 
 class OperationFilter(ABC):
@@ -459,6 +434,10 @@ class OperationFilter(ABC):
         Returns:
             A new filter instance with copied state.
         """
+
+    @abstractmethod
+    def reset(self) -> None:
+        """Reset the filter to its initial state."""
 
 
 class ParallelFilter(OperationFilter):
@@ -498,7 +477,7 @@ class ParallelFilter(OperationFilter):
             self.n_qubits = max_qubit + 1
 
         if not self.has_available_qubits():
-            self._reset()
+            self.reset()
 
     def has_available_qubits(self) -> bool:
         """Check if there are qubits available for operations."""
@@ -506,7 +485,7 @@ class ParallelFilter(OperationFilter):
             return True
         return len(self.blocked_qubits) < self.n_qubits - 1
 
-    def _reset(self) -> None:
+    def reset(self) -> None:
         """Unblock all qubits."""
         self.blocked_qubits.clear()
 

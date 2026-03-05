@@ -251,6 +251,25 @@ class CliffordIsometry:
         """
         return two_qubit_gate_depth(self.to_stim_circuit())
 
+    def get_initialized(self) -> dict[int, str]:
+        """Get the initialized qubits and their initialization basis.
+
+        Returns:
+            A dictionary mapping qubit indices to their initialization basis ('Z' or 'X').
+        """
+        return self._initializations.copy()
+
+    def is_initialized(self, qubit: int) -> bool:
+        """Check if a qubit is initialized.
+
+        Args:
+            qubit: The qubit index to check.
+
+        Returns:
+            True if the qubit is initialized, False otherwise.
+        """
+        return qubit in self._initializations
+
 
 class CNOTCircuit(CliffordIsometry):
     """Represents a restricted quantum circuit composed of CNOT gates with optional qubit initialization."""
@@ -284,17 +303,6 @@ class CNOTCircuit(CliffordIsometry):
         """
         for control, target in cnot_pairs:
             self.add_cnot(control, target)
-
-    def is_initialized(self, qubit: int) -> bool:
-        """Check if a qubit is initialized.
-
-        Args:
-            qubit: The qubit index to check.
-
-        Returns:
-            True if the qubit is initialized, False otherwise.
-        """
-        return qubit in self._initializations
 
     def to_stim_circuit(self) -> stim.Circuit:
         """Convert the CNOT circuit to a stim.Circuit.
@@ -624,7 +632,7 @@ def compose_cnot_circuits(
         wiring = {}
 
     # make sure that wires are not connected to initialized qubits in circ2
-    if any(q in circ2._initializations for q in wiring.values()):
+    if any(q in circ2.get_initialized() for q in wiring.values()):
         msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
         raise ValueError(msg)
 
@@ -638,6 +646,7 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, in
     Args:
         enc1: Left isometry (outputs serve as inputs to enc2)
         enc2: Right isometry
+        wiring: Optional dict mapping outputs of `enc1` to inputs of `enc2`. If None, the inputs and outputs are connected in ascending order.
 
     Returns:
         Composed isometry.

@@ -17,6 +17,7 @@ import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 import z3
+from ortools.sat.python import cp_model
 
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
@@ -30,7 +31,7 @@ from .transvection import (
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
-    from ..codes import CSSCode, StabilizerCode
+    from ..codes import StabilizerCode
     from .circuits import CNOTCircuit
     from .synthesis import SynthesisConfig
 
@@ -38,19 +39,22 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-from ortools.sat.python import cp_model
-
-from ..codes.css_code import CSSCode
-
-
 def depth_optimal_encoding_circuit_non_css(
-    code,
+    code: StabilizerCode,
     max_depth: int,
     max_two_qubit_gates: int | None = None,
     exact_two_qubit_count: bool = False,
-):
-    """OR-Tools (CP-SAT) version of your Z3 model.
-    Matches gate codes: I=0, H=1, S=2, SQRTX=3, CXCTRL=4, CXTAR=5, CZ=6, CZ2=7.
+) -> tuple[stim.Circuit, list[int]]:
+    """Synthesize a depth-optimal encoding circuit for a CSS code using a CP-SAT solver using the gate set: {I, H, S, SQRT_X, CX, CZ}.
+
+    Args:
+        code: The CSS code to encode.
+        max_depth: The maximum depth of the encoding circuit.
+        max_two_qubit_gates: Optional maximum number of two-qubit gates allowed in the circuit.
+        exact_two_qubit_count: If True, enforce that the number of two-qubit gates is exactly max_two_qubit_gates.
+
+    Returns:
+        A tuple containing the synthesized encoding circuit and a list of the number of two-qubit gates used in each layer.
     """
     n = code.n
     k = code.k
@@ -59,40 +63,40 @@ def depth_optimal_encoding_circuit_non_css(
     assert code.z_logicals is not None
 
     # Constants (just for readability)
-    I, H, Sg, SX, CXCTRL, CXTAR, CZ, CZ2 = 0, 1, 2, 3, 4, 5, 6, 7
+    I, H, Sg, SX, CXCTRL, CXTAR, CZ, CZ2 = 0, 1, 2, 3, 4, 5, 6, 7  # noqa: E741, N806
 
     # ----------------------------------------------------------------------
     # Helpers
     # ----------------------------------------------------------------------
-    def xor_eq(model: cp_model.CpModel, a, b, c, cond=None) -> None:
+    def xor_eq(model: cp_model.CpModel, a, b, c, cond=None) -> None:  # noqa: ANN001
         """Enforce c == a XOR b. If cond provided, enforce only when cond is True."""
         # CNF for c <-> a xor b
         clauses = [
-            [a, b, c.Not()],  # a ∨ b ∨ ¬c
-            [a, b.Not(), c],  # a ∨ ¬b ∨ c
-            [a.Not(), b, c],  # ¬a ∨ b ∨ c
-            [a.Not(), b.Not(), c.Not()],  # ¬a ∨ ¬b ∨ ¬c
+            [a, b, c.Not()],
+            [a, b.Not(), c],
+            [a.Not(), b, c],
+            [a.Not(), b.Not(), c.Not()],
         ]
-        for list in clauses:
-            ct = model.AddBoolOr(list)
+        for lst in clauses:
+            ct = model.AddBoolOr(lst)
             if cond is not None:
                 ct.OnlyEnforceIf(cond)
 
-    def eq_if(model: cp_model.CpModel, a, b, cond) -> None:
-        """A == b only if cond is True."""
+    def eq_if(model: cp_model.CpModel, a, b, cond) -> None:  # noqa: ANN001
+        """Enforce A == b only if cond is True."""
         model.Add(a == b).OnlyEnforceIf(cond)
 
-    def or_equal(model: cp_model.CpModel, out, list) -> None:
-        """Out <-> Or(list)."""
-        if not list:
+    def or_equal(model: cp_model.CpModel, out, lst) -> None:  # noqa: ANN001
+        """Enforce Out <-> Or(list)."""
+        if not lst:
             model.Add(out == 0)
             return
         # Or(list) => out
         # out => Or(list)
-        for L in list:
-            model.AddImplication(L, out)
-        model.Add(sum(list) >= 1).OnlyEnforceIf(out)
-        model.Add(sum(list) == 0).OnlyEnforceIf(out.Not())
+        for constraint in lst:
+            model.AddImplication(constraint, out)
+        model.Add(sum(lst) >= 1).OnlyEnforceIf(out)
+        model.Add(sum(lst) == 0).OnlyEnforceIf(out.Not())
 
     # ----------------------------------------------------------------------
     # Model
@@ -103,17 +107,17 @@ def depth_optimal_encoding_circuit_non_css(
     sqgs = [[model.NewIntVar(0, 7, f"sqg_{t}_{q}") for q in range(n)] for t in range(max_depth)]
 
     # Convenience: code==const booleans (reified equalities)
-    isI = [[model.NewBoolVar(f"isI_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isH = [[model.NewBoolVar(f"isH_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isS = [[model.NewBoolVar(f"isS_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isSX = [[model.NewBoolVar(f"isSX_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isCXc = [[model.NewBoolVar(f"isCXc_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isCXt = [[model.NewBoolVar(f"isCXt_{t}_{q}") for q in range(n)] for t in range(max_depth)]
-    isCZr = [
+    isI = [[model.NewBoolVar(f"isI_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isH = [[model.NewBoolVar(f"isH_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isS = [[model.NewBoolVar(f"isS_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isSX = [[model.NewBoolVar(f"isSX_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isCXc = [[model.NewBoolVar(f"isCXc_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isCXt = [[model.NewBoolVar(f"isCXt_{t}_{q}") for q in range(n)] for t in range(max_depth)]  # noqa: N806
+    isCZr = [  # noqa: N806
         [model.NewBoolVar(f"isCZr_{t}_{q}") for q in range(n)] for t in range(max_depth)
     ]  # CZ role (either 6 or 7)
 
-    def bind_code(bv, code, lit) -> None:
+    def bind_code(bv, code, lit) -> None:  # noqa: ANN001
         model.Add(bv == code).OnlyEnforceIf(lit)
         model.Add(bv != code).OnlyEnforceIf(lit.Not())
 
@@ -226,31 +230,31 @@ def depth_optimal_encoding_circuit_non_css(
     # Tableau variables: Bool for each entry
     # Order rows: stabilizers (m), X-logicals (k), Z-logicals (k)
     # ----------------------------------------------------------------------
-    def make_tableau():
+    def make_tableau():  # noqa: ANN202
         return [
             np.array([[model.NewBoolVar(f"tx_{t}_{r}_{q}") for q in range(n)] for r in range(m + 2 * k)], dtype=object),
             np.array([[model.NewBoolVar(f"tz_{t}_{r}_{q}") for q in range(n)] for r in range(m + 2 * k)], dtype=object),
         ]
 
     # initialize t=0 with constants
-    S = code.symplectic.astype(int)
-    LX = code.x_logicals.tableau.matrix.astype(int)
-    LZ = code.z_logicals.tableau.matrix.astype(int)
+    S = code.symplectic.astype(int)  # noqa: N806
+    LX = code.x_logicals.tableau.matrix.astype(int)  # noqa: N806
+    LZ = code.z_logicals.tableau.matrix.astype(int)  # noqa: N806
 
-    rows_X0 = np.vstack([S[:, :n], LX[:, :n], LZ[:, :n]])  # (m+2k) x n
-    rows_Z0 = np.vstack([S[:, n:], LX[:, n:], LZ[:, n:]])  # (m+2k) x n
+    rows_x0 = np.vstack([S[:, :n], LX[:, :n], LZ[:, :n]])  # (m+2k) x n
+    rows_z0 = np.vstack([S[:, n:], LX[:, n:], LZ[:, n:]])  # (m+2k) x n
 
-    Tx = []
-    Tz = []
-    for t in range(max_depth + 1):
+    Tx = []  # noqa: N806
+    Tz = []  # noqa: N806
+    for _ in range(max_depth + 1):
         x, z = make_tableau()
         Tx.append(x)
         Tz.append(z)
 
     for r in range(m + 2 * k):
         for q in range(n):
-            model.Add(Tx[0][r, q] == rows_X0[r, q])
-            model.Add(Tz[0][r, q] == rows_Z0[r, q])
+            model.Add(Tx[0][r, q] == rows_x0[r, q])
+            model.Add(Tz[0][r, q] == rows_z0[r, q])
 
     # ----------------------------------------------------------------------
     # Gate semantics (reified)
@@ -311,38 +315,38 @@ def depth_optimal_encoding_circuit_non_css(
     # Final constraints (logicals up to stabilizer multiplications)
     # ----------------------------------------------------------------------
     # Helpers for AND/XOR over BoolVars into a BoolVar
-    def and2(a, b, name):
+    def and2(a, b, name):  # noqa: ANN001, ANN202
         v = model.NewBoolVar(name)
         model.Add(v <= a)
         model.Add(v <= b)
         model.Add(v >= a + b - 1)
         return v
 
-    def xor_list_to_var(list, name):
+    def xor_list_to_var(lst, name):  # noqa: ANN001, ANN202
         v = model.NewBoolVar(name)
-        if not list:
+        if not lst:
             model.Add(v == 0)
         else:
             # Enforce v == XOR(list)  via XOR(list + [~v]) == True
-            model.AddBoolXOr([*list, v.Not()])
+            model.AddBoolXOr([*lst, v.Not()])
         return v
 
     # Stabilizer halves at final time (rows 0..m-1)
     # Tx/Tz are (max_depth+1) arrays of shape [(m+2k) x n]
-    Sx_fin = Tx[max_depth]
-    Sz_fin = Tz[max_depth]
+    Sx_fin = Tx[max_depth]  # noqa: N806
+    Sz_fin = Tz[max_depth]  # noqa: N806
 
     # Witnesses: which stabilizers are multiplied into each logical
-    Wx = [[model.NewBoolVar(f"Wx_{i}_{s}") for s in range(m)] for i in range(k)]
-    Wz = [[model.NewBoolVar(f"Wz_{i}_{s}") for s in range(m)] for i in range(k)]
+    Wx = [[model.NewBoolVar(f"Wx_{i}_{s}") for s in range(m)] for i in range(k)]  # noqa: N806
+    Wz = [[model.NewBoolVar(f"Wz_{i}_{s}") for s in range(m)] for i in range(k)]  # noqa: N806
 
     # Adjusted logical rows
     #   X-logical i is at row rx = m + i
     #   Z-logical i is at row rz = m + k + i
-    LxX_adj = [[None for q in range(n)] for i in range(k)]
-    LxZ_adj = [[None for q in range(n)] for i in range(k)]
-    LzX_adj = [[None for q in range(n)] for i in range(k)]
-    LzZ_adj = [[None for q in range(n)] for i in range(k)]
+    LxX_adj = [[None for q in range(n)] for i in range(k)]  # noqa: N806
+    LxZ_adj = [[None for q in range(n)] for i in range(k)]  # noqa: N806
+    LzX_adj = [[None for q in range(n)] for i in range(k)]  # noqa: N806
+    LzZ_adj = [[None for q in range(n)] for i in range(k)]  # noqa: N806
 
     for i in range(k):
         rx = m + i
@@ -381,8 +385,8 @@ def depth_optimal_encoding_circuit_non_css(
             model.Add(LxX_adj[i][q] == LzZ_adj[i][q])
 
     # Stabilizers "up to row ops" — keep your original column-count version
-    col_has_Z = [model.NewBoolVar(f"colHasZ_{q}") for q in range(n)]
-    col_has_X = [model.NewBoolVar(f"colHasX_{q}") for q in range(n)]
+    col_has_Z = [model.NewBoolVar(f"colHasZ_{q}") for q in range(n)]  # noqa: N806
+    col_has_X = [model.NewBoolVar(f"colHasX_{q}") for q in range(n)]  # noqa: N806
 
     for q in range(n):
         z_rows = [Tz[max_depth][i, q] for i in range(m)]
@@ -442,26 +446,26 @@ def depth_optimal_encoding_circuit_non_css(
 
         # --- Encoding qubits from ADJUSTED logicals (use witness Wx/Wz) ---
     # Extract final stabs & logical rows from the model as plain ints
-    Sx_fin_val = np.array([[int(solver.Value(Tx[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)
-    Sz_fin_val = np.array([[int(solver.Value(Tz[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)
+    Sx_fin_val = np.array([[int(solver.Value(Tx[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)  # noqa: N806
+    Sz_fin_val = np.array([[int(solver.Value(Tz[max_depth][s, q])) for q in range(n)] for s in range(m)], dtype=int)  # noqa: N806
 
-    LxX_raw = np.array([[int(solver.Value(Tx[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)
-    LxZ_raw = np.array([[int(solver.Value(Tz[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)
-    LzX_raw = np.array(
+    LxX_raw = np.array([[int(solver.Value(Tx[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)  # noqa: N806
+    LxZ_raw = np.array([[int(solver.Value(Tz[max_depth][m + i, q])) for q in range(n)] for i in range(k)], dtype=int)  # noqa: N806
+    LzX_raw = np.array(  # noqa: N806
         [[int(solver.Value(Tx[max_depth][m + k + i, q])) for q in range(n)] for i in range(k)], dtype=int
     )
-    LzZ_raw = np.array(
+    LzZ_raw = np.array(  # noqa: N806
         [[int(solver.Value(Tz[max_depth][m + k + i, q])) for q in range(n)] for i in range(k)], dtype=int
     )
 
-    Wx_val = np.array([[int(solver.Value(Wx[i][s])) for s in range(m)] for i in range(k)], dtype=int)
-    Wz_val = np.array([[int(solver.Value(Wz[i][s])) for s in range(m)] for i in range(k)], dtype=int)
+    Wx_val = np.array([[int(solver.Value(Wx[i][s])) for s in range(m)] for i in range(k)], dtype=int)  # noqa: N806
+    Wz_val = np.array([[int(solver.Value(Wz[i][s])) for s in range(m)] for i in range(k)], dtype=int)  # noqa: N806
 
     # Adjust: Lx' = Lx ⊕ (Wx · S), Lz' = Lz ⊕ (Wz · S)   over GF(2)
     # (matrix multiply mod 2; we'll do it explicitly)
-    def adjust(LX_raw, LZ_raw, W, Sx, Sz):
-        LX_adj = LX_raw.copy()
-        LZ_adj = LZ_raw.copy()
+    def adjust(LX_raw, LZ_raw, W, Sx, Sz):  # noqa: ANN001, ANN202, N803
+        LX_adj = LX_raw.copy()  # noqa: N806
+        LZ_adj = LZ_raw.copy()  # noqa: N806
         for i in range(k):
             for s in range(m):
                 if W[i, s] == 1:
@@ -469,15 +473,15 @@ def depth_optimal_encoding_circuit_non_css(
                     LZ_adj[i, :] ^= Sz[s, :]
         return LX_adj, LZ_adj
 
-    LxX_adj, LxZ_adj = adjust(LxX_raw, LxZ_raw, Wx_val, Sx_fin_val, Sz_fin_val)
-    LzX_adj, LzZ_adj = adjust(LzX_raw, LzZ_raw, Wz_val, Sx_fin_val, Sz_fin_val)
+    LxX_adj, LxZ_adj = adjust(LxX_raw, LxZ_raw, Wx_val, Sx_fin_val, Sz_fin_val)  # noqa: N806
+    LzX_adj, LzZ_adj = adjust(LzX_raw, LzZ_raw, Wz_val, Sx_fin_val, Sz_fin_val)  # noqa: N806
 
     # Now each row should be canonical: LxZ_adj[i]==0 and LxX_adj[i] one-hot,
     # LzX_adj[i]==0 and LzZ_adj[i] one-hot, and positions match.
     positions = []
     for i in range(k):
         # Be defensive in case of numerical oddities
-        if LxX_adj[i].sum() != 1:
+        if LxX_adj[i].sum() != 1:  # noqa: SIM108
             # fallback: pick argmax (shouldn't happen if constraints are satisfied)
             pos = int(np.argmax(LxX_adj[i]))
         else:
@@ -792,6 +796,7 @@ def synthesize_encoding_circuit(
     Args:
         code: The stabilizer code to synthesize the encoding circuit for.
         config: Configuration options for the synthesis process.
+        use_cnots_if_css: Whether to use CNOT-only synthesis if the code is CSS.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
@@ -821,9 +826,8 @@ def resynthesize_stim_circuit(
 
     Args:
         circ: The stim.Circuit to resynthesize.
-        top_k: The number of candidates to consider during lookahead.
-        lookahead_depth: The depth of lookahead to use in the synthesis.
         use_cnots_if_css: Whether to use CNOT-only synthesis if the circuit is CSS.
+        config: Configuration options for the synthesis process.
 
     Returns:
         A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two

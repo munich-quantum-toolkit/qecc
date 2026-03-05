@@ -111,7 +111,9 @@ def _simulate_and_score_operation(
         if generator is not None:
             generator.record_complete_solution(full_sequence, final_tableau, score)
 
-        return score
+        else:
+            return score
+
     except RuntimeError:
         return None
 
@@ -231,10 +233,14 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             self if self.track_best_solution else None,
         )
 
-        if not scored_candidates and self.track_best_solution and self.enable_early_termination:
-            if self._best_known_sequence is not None:
-                self._should_terminate = True
-                return []
+        if (
+            not scored_candidates
+            and self.track_best_solution
+            and self.enable_early_termination
+            and self._best_known_sequence is not None
+        ):
+            self._should_terminate = True
+            return []
 
         if not scored_candidates:
             scored_candidates = _score_candidates_with_lookahead(

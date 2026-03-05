@@ -58,8 +58,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
     def _reset_filters(self) -> None:
         """Reset all filters to their initial state."""
         for f in self.filters:
-            if hasattr(f, "_reset"):
-                f._reset()
+            f.reset()
 
     def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
         """Apply all filters to candidate list.
@@ -73,27 +72,15 @@ class GreedyCNOTGenerator(CandidateGenerator):
         if not self.filters:
             return candidates
 
-        if len(self.filters) == 1:
-            f = self.filters[0]
-            filtered = [op for op in candidates if f.should_include(op)]
-        else:
-            filtered = []
-            for op in candidates:
-                for f in self.filters:
-                    if not f.should_include(op):
-                        break
-                else:
-                    filtered.append(op)
+        filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
 
         if not filtered:
-            for f in self.filters:
-                if hasattr(f, "_reset"):
-                    f._reset()
+            self._reset_filters()
             return candidates
 
         return filtered
 
-    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
         """Update operation history and filters after applying an operation.
 
         Args:

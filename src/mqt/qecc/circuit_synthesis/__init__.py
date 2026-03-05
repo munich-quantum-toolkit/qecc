@@ -56,7 +56,6 @@ __all__ = [
     "gate_optimal_verification_circuit",
     "gate_optimal_verification_stabilizers",
     "gottesman_encoding_circuit",
-    "heuristic_encoding_circuit",
     "heuristic_prep_circuit",
     "heuristic_verification_circuit",
     "heuristic_verification_stabilizers",

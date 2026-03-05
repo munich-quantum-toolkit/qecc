@@ -15,10 +15,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import stim
 
+from ..codes.pauli import CheckMatrix, StabilizerTableau
+
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from ..codes.pauli import CheckMatrix, StabilizerTableau
     from .types import BinaryMatrix
 
 
@@ -92,8 +93,6 @@ class Transvection(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
-        from ..codes.pauli import StabilizerTableau
-
         if not isinstance(tableau, StabilizerTableau):
             msg = "Transvection operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
@@ -246,8 +245,6 @@ class SingleQubitClifford(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
-        from ..codes.pauli import StabilizerTableau
-
         if not isinstance(tableau, StabilizerTableau):
             msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
@@ -286,8 +283,6 @@ class SingleQubitClifford(TableauOperation):
         Returns:
             BinaryMatrix: The resulting stabilizer tableau after applying the inverse operation.
         """
-        from ..codes.pauli import StabilizerTableau
-
         if not isinstance(tableau, StabilizerTableau):
             msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
@@ -411,8 +406,6 @@ class PauliOperation(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
-        from ..codes.pauli import StabilizerTableau
-
         if not isinstance(tableau, StabilizerTableau):
             msg = "Pauli operations can only be applied to StabilizerTableau instances."
             raise TypeError(msg)
@@ -529,8 +522,6 @@ class Swap(TableauOperation):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
-        from ..codes.pauli import CheckMatrix, StabilizerTableau
-
         if isinstance(tableau, StabilizerTableau):
             return self._apply_stabilizer_tableau(tableau, inplace)
         if isinstance(tableau, CheckMatrix):
