@@ -111,7 +111,6 @@ def _simulate_and_score_operation(
 
         if generator is not None:
             generator.record_complete_solution(full_sequence, final_tableau, score)
-
         else:
             return score
 
@@ -218,7 +217,12 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         if self.lookahead <= 0:
             return self.base_strategy.candidate_generator.get_candidates(tableau)
 
+        if self.base_strategy.filters:
+            for f in self.base_strategy.filters:
+                f.reset()
+
         base_candidates = [cand for cand, _ in self.base_strategy.candidate_generator.get_candidates(tableau)]
+
         num_candidates_this_layer = self.num_lookahead_candidates_per_layer[0]
 
         current_filter_state = None

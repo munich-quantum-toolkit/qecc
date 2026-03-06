@@ -62,7 +62,7 @@ def for_cnot_up_to_row_ops(
             msg = "CSS elimination can only be applied to CheckMatrix instances."
             raise TypeError(msg)
 
-        matrix = tbl.matrix
+        matrix = tbl.matrix[:target_rank, :]
         non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
         return bool(non_zero_columns == target_rank)
 

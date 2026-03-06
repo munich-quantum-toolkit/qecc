@@ -1007,7 +1007,7 @@ def cnot_encoding_circuit(
     mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), pauli_type=checks.type)
 
     config.exact = False
-    ops, reduced_checks = synthesize_cnot(mat, config=config)
+    ops, reduced_checks = synthesize_cnot(mat, config=config, n_stabs=n_stab)
     assert isinstance(reduced_checks, CheckMatrix)
     encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
     config.exact = True

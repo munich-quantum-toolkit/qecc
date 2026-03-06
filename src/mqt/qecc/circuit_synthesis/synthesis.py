@@ -48,12 +48,14 @@ class CliffordSynthesisConfig(SynthesisConfig):
 def synthesize_cnot(
     matrix: CheckMatrix,
     config: CnotSynthesisConfig | None = None,
+    n_stabs: int | None = None,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
     Args:
         matrix: The CSS check matrix to eliminate.
         config: Configuration for the synthesis process.
+        n_stabs: Optional number of stabilizers
 
     Returns:
         A tuple of (operations, final_matrix) where operations is the sequence
@@ -75,7 +77,8 @@ def synthesize_cnot(
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
-    target_rank = mod2.rank(matrix.matrix)
+    target_rank = mod2.rank(matrix.matrix) if n_stabs is None else n_stabs
+
     if exact:
         if lookahead > 0:
             strat = strategy.for_cnot_with_lookahead_exact(
