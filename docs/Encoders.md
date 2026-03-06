@@ -163,7 +163,7 @@ This method uses SMT-based synthesis to find a depth-optimal encoding circuit, s
 
 ## Tweaking Parameters for Heuristic Synthesis
 
-Let's consider a slightly larger example, the $$[[23,1,7]]$$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
+Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
 
 ```{code-cell} ipython3
 code = CSSCode.from_code_name("golay")
