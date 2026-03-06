@@ -13,6 +13,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pytest
 
 from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
@@ -334,9 +335,9 @@ def test_get_sigma_from_syndr_er() -> None:
 
     assert math.ceil(get_sigma_from_syndr_er(ser)) == math.ceil(0.780304146072379)
     ser = 1.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == -0.0
+    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
     ser = 0.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == 0.0
+    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
 
 
 def test_get_error_rate_from_sigma() -> None:
@@ -346,7 +347,7 @@ def test_get_error_rate_from_sigma() -> None:
     sigma = 0.5
     assert np.isclose([get_error_rate_from_sigma(sigma)], [0.02275])
     sigma = 0.0
-    assert get_error_rate_from_sigma(sigma) == 0.0
+    assert get_error_rate_from_sigma(sigma) == pytest.approx(0.0, abs=1e-8)
 
 
 def test_get_virtual_check_init_vals() -> None:
@@ -374,7 +375,7 @@ def test_get_virtual_check_init_vals() -> None:
     sigma = 0.0
     res = get_virtual_check_init_vals(noisy_syndr, sigma)
 
-    assert res[0] == 0.0
+    assert res[0] == pytest.approx(0.0, abs=1e-8)
 
 
 def test_generate_syndr_err() -> None:

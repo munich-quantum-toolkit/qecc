@@ -35,6 +35,10 @@ categories:
       - "submodules"
 change-template: "- $TITLE ([#$NUMBER]($URL)) ([**@$AUTHOR**](https://github.com/$AUTHOR))"
 change-title-escapes: '\<*_&'
+exclude-labels:
+  - "skip-changelog"
+  - "backport"
+  - "release-prep"
 version-resolver:
   major:
     labels:

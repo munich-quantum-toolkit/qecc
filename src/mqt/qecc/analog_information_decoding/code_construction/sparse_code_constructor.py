@@ -140,7 +140,7 @@ def save_code(
             path_str = path + name
             try:
                 np.savetxt(path_str + ".txt", mat.todense(), fmt="%i")
-            except Exception:
+            except ValueError:
                 np.savetxt(path_str + ".txt", mat, fmt="%i")
             sio.mmwrite(
                 path_str + ".mtx",

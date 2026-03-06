@@ -134,18 +134,18 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
         raise ValueError(msg)
 
     # Copy the circuit and separate all instructions by ticks
-    circ_cpy = Circuit()
+    circ_copy = Circuit()
     for instr in circ:
         for grp in instr.target_groups():
             qubits = [q.qubit_value for q in grp]
-            circ_cpy.append_operation(instr.name, qubits)
-            circ_cpy.append_operation("TICK", [])
+            circ_copy.append_operation(instr.name, qubits)
+            circ_copy.append_operation("TICK", [])
 
     if scheduling_method == "alap":
-        circ_cpy = circ_cpy[::-1]  # Reverse the circuit for ALAP scheduling
+        circ_copy = circ_copy[::-1]  # Reverse the circuit for ALAP scheduling
 
     # Now work with the copied circuit
-    circ = circ_cpy
+    circ = circ_copy
     n_qubits = circ.num_qubits
     layers = []
 

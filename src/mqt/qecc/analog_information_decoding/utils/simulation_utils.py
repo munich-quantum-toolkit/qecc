@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import locale
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -141,21 +142,15 @@ def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArra
 
 
 def get_sigma_from_syndr_er(ser: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper.
-
-    :return: sigma.
-    """
-    if ser == 0.0:
+    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
+    if math.isclose(ser, 0.0):
         return 0.0
     return float(1 / np.sqrt(2) / (erfcinv(2 * ser)))  # see Eq. cref{eq:perr-to-sigma} in our paper
 
 
 def get_error_rate_from_sigma(sigma: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper.
-
-    :return: sigma.
-    """
-    if sigma == 0.0:
+    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
+    if math.isclose(sigma, 0.0):
         return 0.0
     return float(0.5 * erfc(1 / np.sqrt(2 * sigma**2)))  # see Eq. cref{eq:perr-to-sigma} in our paper
 
@@ -163,8 +158,7 @@ def get_error_rate_from_sigma(sigma: float) -> float:
 def get_virtual_check_init_vals(noisy_syndr: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
     """Computes a vector of values v_i from the noisy syndrome bits y_i s.t.
 
-    BP initializes the LLRs l_i of the analog nodes with the
-    analog info values (see paper section). v_i := 1/(e^{y_i}+1).
+    BP initializes the LLRs l_i of the analog nodes with the analog info values (see paper section). v_i := 1/(e^{y_i}+1).
     """
     if sigma <= 0.0:
         return np.zeros_like(noisy_syndr).astype(np.float64)
@@ -192,7 +186,7 @@ def get_noisy_analog_syndrome(perfect_syndr: NDArray[np.int32], sigma: float) ->
     """
     # compute signed syndrome: 1 = check satisfied, -1 = check violated. float needed for Gaussian sampling call
     sgns: NDArray[np.float64] = np.where(
-        perfect_syndr == 0.0,
+        np.isclose(perfect_syndr, 0.0, atol=0.0),
         np.ones_like(perfect_syndr),
         np.full_like(perfect_syndr, -1.0),
     ).astype(np.float64)

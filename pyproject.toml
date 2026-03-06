@@ -19,7 +19,7 @@ readme = "README.md"
 authors = [
     { name = "Lucas Berent", email = "lucas.berent@tum.de" },
     { name = "Lukas Burgholzer", email = "lukas.burgholzer@tum.de" },
-    { name = "Peter-Jan H.S. Derks", email = "peter-janderks@hotmail.com" },
+    { name = "Peter-Jan H. S. Derks", email = "peter-janderks@hotmail.com" },
     { name = "Timo Hillmann", email = "timo.hillmann@rwth-aachen.de"},
     { name = "Tom Peham", email = "tom.peham@tum.de" },
     { name = "Ludwig Schmid", email = "ludwig.s.schmid@tum.de" },
@@ -42,7 +42,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
     "Typing :: Typed",
 ]
@@ -66,7 +65,8 @@ dependencies = [
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
   "ortools>=9.8.0",
-  "protobuf==6.31.1"
+  "protobuf==6.31.1",
+  "networkx>=3.4.2",
 ]
 dynamic = ["version"]
 
@@ -124,6 +124,9 @@ filterwarnings = [
 
 [tool.coverage]
 run.source = ["mqt.qecc"]
+run.disable_warnings = [
+  "no-sysmon",
+]
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
@@ -131,9 +134,6 @@ report.exclude_also = [
   'raise NotImplementedError',
   'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
   '@overload'  # Overloads are only for static typing
-]
-run.disable_warnings = [
-  "no-sysmon",
 ]
 
 [tool.mypy]
@@ -153,7 +153,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*", "ortools.*", "ortools.sat.python"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*", "ortools.*", "ortools.sat.python","networkx.*"]
 ignore_missing_imports = true
 
 
@@ -252,12 +252,14 @@ anc = "anc"
 arange = "arange"
 nd = "nd"
 strat = "strat"
+iz = "iz"
 
 
 [tool.repo-review]
 ignore = [
   "GH200", # We use Renovate instead of Dependabot
   "PC160", # We use a mirror of crate-ci/typos
+  "PC170", # We do not use rST files anymore
 ]
 
 

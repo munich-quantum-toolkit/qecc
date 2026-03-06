@@ -166,7 +166,7 @@ def test_single_sample(single_stage_analog_simulator: SingleShotSimulator) -> No
     with mock.patch("pathlib.Path.open"), mock.patch("json.dump"):
         res = single_stage_analog_simulator.run(1)
     assert res is not None
-    assert res["pers"] == 0.1
+    assert res["pers"] == pytest.approx(0.1)
     assert res["code_N"] == 7
     assert res["x_ler"] is not None
     assert res["x_wer"] is not None

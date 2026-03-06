@@ -29,8 +29,10 @@ installation
 LightsOutDecoder
 StatePrep
 CatStates
+CodeSwitching
 Encoders
 AnalogInfo
+cococo
 references
 CHANGELOG
 UPGRADING
@@ -43,6 +45,7 @@ UPGRADING
 :maxdepth: 1
 
 contributing
+tooling
 support
 ```
 

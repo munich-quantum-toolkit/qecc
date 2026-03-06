@@ -53,8 +53,8 @@ def results_dir() -> Generator[str]:
 @pytest.mark.parametrize("code", [SquareOctagonColorCode(distance=d) for d in range(3, 23, 2)])
 def test_number_of_qubits(code: SquareOctagonColorCode) -> None:
     """Test the number of qubits for larger distances."""
-    assert len(code.data_qubits) == 1 / 2 * code.distance**2 + code.distance - 1 / 2
-    assert len(code.ancilla_qubits) == (1 / 2 * code.distance**2 + code.distance - 1 / 2) // 2
+    assert len(code.data_qubits) == int(1 / 2 * code.distance**2 + code.distance - 1 / 2)
+    assert len(code.ancilla_qubits) == int((1 / 2 * code.distance**2 + code.distance - 1 / 2) // 2)
 
 
 def test_d3(d3_so_code: SquareOctagonColorCode) -> None:

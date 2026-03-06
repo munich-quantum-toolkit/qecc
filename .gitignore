@@ -174,3 +174,5 @@ out/build
 
 node_modules/
 wheelhouse/
+
+pytest.ini

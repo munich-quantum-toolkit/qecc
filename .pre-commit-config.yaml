@@ -1,146 +1,89 @@
 # To run all pre-commit checks, use:
 #
-#     pre-commit run -a
+#     uvx prek run -a
 #
 # To install pre-commit hooks that run every time you commit:
 #
-#     pre-commit install
+#     uv tool install prek
+#     prek install
 #
 
 ci:
   autoupdate_commit_msg: "⬆️🪝 update pre-commit hooks"
-  autofix_commit_msg: "🎨 pre-commit fixes"
   autoupdate_schedule: quarterly
+  autofix_commit_msg: "🎨 pre-commit fixes"
   skip: [mypy]
 
 repos:
-  # Standard hooks
+  # Priority 0: Fast validation and independent fixers
+
+  ## Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-      - id: check-added-large-files
-        args: ["--maxkb=2048"]
-      - id: check-case-conflict
-      - id: check-vcs-permalinks
       - id: check-merge-conflict
-      - id: check-symlinks
-      - id: check-json
-      - id: check-toml
-      - id: check-yaml
-      - id: debug-statements
+        priority: 0
       - id: end-of-file-fixer
-      - id: mixed-line-ending
+        priority: 1
       - id: trailing-whitespace
+        priority: 1
 
-  # Clean jupyter notebooks
-  - repo: https://github.com/srstevenson/nb-clean
-    rev: 4.0.1
+  ## Check the pyproject.toml file
+  - repo: https://github.com/henryiii/validate-pyproject-schema-store
+    rev: 2026.02.22
     hooks:
-      - id: nb-clean
-        args:
-          - --remove-empty-cells
-          - --preserve-cell-metadata
-          - raw_mimetype
-          - --
+      - id: validate-pyproject
+        priority: 0
 
-  # Handling unwanted unicode characters
-  - repo: https://github.com/sirosen/texthooks
-    rev: 0.7.1
+  ## Check JSON schemata
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.0
     hooks:
-      - id: fix-ligatures
-      - id: fix-smartquotes
+      - id: check-github-workflows
+        priority: 0
+      - id: check-readthedocs
+        priority: 0
 
-  # Check for common mistakes
-  - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.10.0
-    hooks:
-      - id: rst-backticks
-      - id: rst-directive-colons
-      - id: rst-inline-touching-normal
-
-  # Ensure uv lock file is up-to-date
-  - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.21
-    hooks:
-      - id: uv-lock
-
-  #  Python linting and formatting using ruff
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
-    hooks:
-      - id: ruff-check
-      - id: ruff-format
-
-  # Also run Black on examples in the documentation
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.20.0
-    hooks:
-      - id: blacken-docs
-        additional_dependencies: [black==25.*]
-
-  # Check for license headers
-  - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.9.0
-    hooks:
-      - id: license-tools
-
-  # Check static types with mypy
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
-    hooks:
-      - id: mypy
-        files: ^(src/mqt|tests|noxfile.py)
-        args: []
-        additional_dependencies:
-          - nox
-          - numpy
-          - pytest
-          - pytest-mock
-
-  # Check for spelling
-  - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.42.0
-    hooks:
-      - id: typos
-
-  # Format configuration files with prettier
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.7.4
-    hooks:
-      - id: prettier
-        types_or: [yaml, markdown, html, css, scss, javascript, json]
-
-  # Catch common capitalization mistakes
+  ## Catch common capitalization mistakes
   - repo: local
     hooks:
       - id: disallow-caps
         name: Disallow improper capitalization
         language: pygrep
-        entry: PyBind|Numpy|Cmake|CCache|Github|PyTest|Mqt|Tum
+        entry: '\b(?:Numpy|Github|PyTest|Mqt|Tum)\b'
         exclude: .pre-commit-config.yaml
+        priority: 0
 
-  # Check best practices for scientific Python code
+  ## Check for spelling
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.44.0
+    hooks:
+      - id: typos
+        priority: 0
+
+  ## Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
     rev: 2025.11.21
     hooks:
       - id: sp-repo-review
         additional_dependencies: ["repo-review[cli]"]
+        priority: 0
 
-  # Check JSON schemata
-  - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.36.0
+  ## Check for license headers
+  - repo: https://github.com/emzeat/mz-lictools
+    rev: v2.9.0
     hooks:
-      - id: check-dependabot
-      - id: check-github-workflows
-      - id: check-readthedocs
+      - id: license-tools
+        priority: 0
 
-  # Check the pyproject.toml file
-  - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.01.07
+  ## Ensure uv lock file is up-to-date
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.8
     hooks:
-      - id: validate-pyproject
+      - id: uv-lock
+        priority: 0
 
-  # Tidy up BibTeX files
+  ## Tidy up BibTeX files
   - repo: https://github.com/FlamingTempura/bibtex-tidy
     rev: v1.14.0
     hooks:
@@ -157,3 +100,61 @@ repos:
             "--trailing-commas",
             "--remove-empty-fields",
           ]
+        priority: 0
+
+  # Priority 1: Second-pass fixers
+
+  ## Format configuration files with prettier
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.8.1
+    hooks:
+      - id: prettier
+        types_or: [yaml, markdown, html, css, scss, javascript, json]
+        priority: 1
+
+  ## Python linting using ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff-format
+        priority: 1
+      - id: ruff-check
+        require_serial: true
+        priority: 2
+
+  # Priority 2+: Final checks and fixers
+
+  ## Clean Jupyter notebooks
+  - repo: https://github.com/srstevenson/nb-clean
+    rev: 4.0.1
+    hooks:
+      - id: nb-clean
+        args:
+          - --remove-empty-cells
+          - --preserve-cell-metadata
+          - raw_mimetype
+          - --
+        priority: 2
+
+  ## Also run Black on examples in the documentation (needs to run after ruff format)
+  - repo: https://github.com/adamchainz/blacken-docs
+    rev: 1.20.0
+    hooks:
+      - id: blacken-docs
+        language: python
+        additional_dependencies: [black==26.*]
+        priority: 2
+
+  ## Static type checking using mypy (needs to run after lockfile update/ruff format, and ruff lint)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        files: ^(src/mqt|tests|noxfile.py)
+        args: []
+        additional_dependencies:
+          - nox
+          - numpy
+          - pytest
+          - pytest-mock
+        priority: 3

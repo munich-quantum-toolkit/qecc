@@ -426,13 +426,13 @@ def stabilizer_equivalent(lhs: PureFaultSet, rhs: PureFaultSet, stabs: npt.NDArr
         msg = "Fault sets must have the same number of qubits to compare."
         raise ValueError(msg)
 
-    lhs_cpy = lhs.copy()
-    rhs_cpy = rhs.copy()
+    lhs_copy = lhs.copy()
+    rhs_copy = rhs.copy()
     if stabs is not None:
-        lhs_cpy.normalize(stabs)
-        rhs_cpy.normalize(stabs)
+        lhs_copy.normalize(stabs)
+        rhs_copy.normalize(stabs)
 
-    return lhs_cpy == rhs_cpy
+    return lhs_copy == rhs_copy
 
 
 def t_distinct(fs1: PureFaultSet, fs2: PureFaultSet, t: int, stabs: npt.NDArray[np.int8] | None = None) -> bool:
