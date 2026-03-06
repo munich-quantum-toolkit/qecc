@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from ..codes.pauli import StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .lookahead import LookaheadCandidateGenerator
@@ -58,13 +58,22 @@ def for_cnot_up_to_row_ops(
 
     filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
+    cached_rank: int | None = None
+
     def termination_criterion(tbl: BinaryMatrix) -> bool:
-        if not isinstance(tbl, CheckMatrix):
-            msg = "CSS elimination can only be applied to CheckMatrix instances."
-            raise TypeError(msg)
+        nonlocal cached_rank
+        matrix = tbl.matrix  # type: ignore[union-attr]
+        # Fast check: count total non-zero columns first (cheap operation)
+        total_non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
 
-        matrix = tbl.matrix
+        # Early exit: if too many non-zero columns, can't be terminal
+        if cached_rank is not None and total_non_zero_columns > cached_rank:
+            return False
 
+        if cached_rank is None:
+            cached_rank = mod2.rank(matrix)
+
+        target_rank = cached_rank
         if n_stabs != 0:
             first_rows = matrix[:n_stabs, :]
             rnk_first_rows = mod2.rank(first_rows)
@@ -72,18 +81,23 @@ def for_cnot_up_to_row_ops(
             if non_zero_columns_first != rnk_first_rows:
                 return False
 
-        # Check that remaining rows have no overlap with each other
-        # (they can overlap with first n_stabs rows, but not with each other)
+        # Check that remaining rows have the required structure
         if matrix.shape[0] > n_stabs:
             remaining_rows = matrix[n_stabs:, :]
 
-            # For each column, at most one remaining row can have a non-zero entry
-            for col in range(matrix.shape[1]):
-                col_entries = remaining_rows[:, col]
-                if np.sum(col_entries != 0) > 1:
-                    return False
+            # Each remaining row must have exactly one non-zero entry
+            row_sums = np.sum(remaining_rows != 0, axis=1)
+            if not np.all(row_sums == 1):
+                return False
 
-        return True
+            # No two remaining rows can share the same column
+            remaining_col_counts = np.sum(remaining_rows != 0, axis=0)
+            if np.any(remaining_col_counts > 1):
+                return False
+
+        # Verify total number of non-zero columns equals the rank
+        total_non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+        return bool(total_non_zero_columns == target_rank)
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,

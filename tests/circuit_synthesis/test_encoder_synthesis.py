@@ -136,7 +136,7 @@ def _assert_correct_encoding_circuit_non_css(
 def _assert_correct_encoding_circuit(encoder: CNOTCircuit, code: CSSCode) -> None:
     assert encoder.num_qubits() == code.n
     circuit_code = encoder.get_code()
-    print(encoder.to_stim_circuit().to_crumble_url())
+
     # assert correct propagation of stabilizers
     assert eq_span(code.Hx, circuit_code.Hx)
     assert eq_span(code.Hz, circuit_code.Hz)
