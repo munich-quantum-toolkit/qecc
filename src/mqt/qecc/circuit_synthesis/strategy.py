@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 def for_cnot_up_to_row_ops(
     target_rank: int,
+    n: int,
     optimization_criterion: str = "gates",
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
 ) -> EliminationStrategy:
@@ -40,6 +41,7 @@ def for_cnot_up_to_row_ops(
 
     Args:
         target_rank: The target rank of the check matrix after elimination.
+        n: The number of qubits (columns) in the check matrix
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
         callback: Optional callback function invoked after each elimination step.
 
@@ -53,7 +55,7 @@ def for_cnot_up_to_row_ops(
         msg = f"Unsupported optimization criterion: {optimization_criterion}"
         raise ValueError(msg)
 
-    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+    filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         if not isinstance(tbl, CheckMatrix):
@@ -74,6 +76,7 @@ def for_cnot_up_to_row_ops(
 
 def for_cnot_exact(
     target_rank: int,
+    n: int,
     optimization_criterion: str = "gates",
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
 ) -> EliminationStrategy:
@@ -81,6 +84,7 @@ def for_cnot_exact(
 
     Args:
         target_rank: The target rank of the check matrix after elimination.
+        n: The number of qubits (columns) in the check matrix
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
         callback: Optional callback function invoked after each elimination step.
 
@@ -94,7 +98,7 @@ def for_cnot_exact(
         msg = f"Unsupported optimization criterion: {optimization_criterion}"
         raise ValueError(msg)
 
-    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+    filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         if not isinstance(tbl, CheckMatrix):
@@ -114,13 +118,16 @@ def for_cnot_exact(
 
 
 def for_non_css(
+    n: int,
     optimization_criterion: str = "gates",
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
 ) -> EliminationStrategy:
     """Create strategy for non-CSS stabilizer code elimination.
 
     Args:
+        n: Number of qubits.
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
+
         callback: Optional callback function invoked after each elimination step.
 
     Returns:
@@ -133,7 +140,7 @@ def for_non_css(
         msg = f"Unsupported optimization criterion: {optimization_criterion}"
         raise ValueError(msg)
 
-    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+    filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         if not isinstance(tbl, StabilizerTableau):
@@ -155,6 +162,7 @@ def for_non_css(
 
 
 def for_non_css_with_lookahead(
+    n: int,
     optimization_criterion: str = "gates",
     lookahead: int = 1,
     num_lookahead_candidates: int | list[int] = 10,
@@ -164,6 +172,7 @@ def for_non_css_with_lookahead(
     """Create strategy for non-CSS elimination with lookahead.
 
     Args:
+        n: Number of qubits.
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
         lookahead: Number of steps to look ahead when selecting operations.
         num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
@@ -181,7 +190,7 @@ def for_non_css_with_lookahead(
         msg = f"Unsupported optimization criterion: {optimization_criterion}"
         raise ValueError(msg)
 
-    filters = [ParallelFilter()] if optimization_criterion == "depth" else []
+    filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         if not isinstance(tbl, StabilizerTableau):
@@ -220,6 +229,7 @@ def for_non_css_with_lookahead(
 
 def for_cnot_with_lookahead_up_to_row_ops(
     target_rank: int,
+    n: int,
     lookahead: int = 1,
     num_lookahead_candidates: int | list[int] = 10,
     optimization_criterion: str = "gates",
@@ -230,6 +240,7 @@ def for_cnot_with_lookahead_up_to_row_ops(
 
     Args:
         target_rank: The target rank of the check matrix after elimination.
+        n: The number of qubits (columns) in the check matrix
         lookahead: Number of steps to look ahead when selecting operations.
         num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
@@ -245,6 +256,7 @@ def for_cnot_with_lookahead_up_to_row_ops(
     """
     base_strategy = for_cnot_up_to_row_ops(
         target_rank=target_rank,
+        n=n,
         optimization_criterion=optimization_criterion,
         callback=None,
     )
@@ -277,6 +289,7 @@ def for_cnot_with_lookahead_up_to_row_ops(
 
 def for_cnot_with_lookahead_exact(
     target_rank: int,
+    n: int,
     lookahead: int = 1,
     num_lookahead_candidates: int | list[int] = 10,
     optimization_criterion: str = "gates",
@@ -287,6 +300,7 @@ def for_cnot_with_lookahead_exact(
 
     Args:
         target_rank: The target rank of the check matrix after elimination.
+        n: The number of qubits (columns) in the check matrix
         lookahead: Number of steps to look ahead when selecting operations.
         num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
@@ -302,6 +316,7 @@ def for_cnot_with_lookahead_exact(
     """
     base_strategy = for_cnot_exact(
         target_rank=target_rank,
+        n=n,
         optimization_criterion=optimization_criterion,
         callback=None,
     )

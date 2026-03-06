@@ -70,6 +70,7 @@ def synthesize_cnot(
     lookahead = config.lookahead
     num_lookahead_candidates = config.num_lookahead_candidates
     enable_early_termination = config.enable_early_termination
+    n = matrix.num_qubits()
 
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
@@ -79,23 +80,27 @@ def synthesize_cnot(
         if lookahead > 0:
             strat = strategy.for_cnot_with_lookahead_exact(
                 target_rank=target_rank,
+                n=n,
                 optimization_criterion=optimization_criterion,
                 lookahead=lookahead,
                 num_lookahead_candidates=num_lookahead_candidates,
                 enable_early_termination=enable_early_termination,
             )
         else:
-            strat = strategy.for_cnot_exact(target_rank=target_rank, optimization_criterion=optimization_criterion)
+            strat = strategy.for_cnot_exact(target_rank=target_rank, n=n, optimization_criterion=optimization_criterion)
     elif lookahead > 0:
         strat = strategy.for_cnot_with_lookahead_up_to_row_ops(
+            target_rank=target_rank,
+            n=n,
             optimization_criterion=optimization_criterion,
             lookahead=lookahead,
             num_lookahead_candidates=num_lookahead_candidates,
-            target_rank=target_rank,
             enable_early_termination=enable_early_termination,
         )
     else:
-        strat = strategy.for_cnot_up_to_row_ops(target_rank=target_rank, optimization_criterion=optimization_criterion)
+        strat = strategy.for_cnot_up_to_row_ops(
+            target_rank=target_rank, n=n, optimization_criterion=optimization_criterion
+        )
 
     operations, final_matrix = eliminate(matrix, strat)
 
@@ -130,13 +135,14 @@ def synthesize_non_css(
         config = CliffordSynthesisConfig()
     if config.lookahead > 0:
         strat = strategy.for_non_css_with_lookahead(
+            n=tableau.n,
             optimization_criterion=config.optimization_criterion,
             lookahead=config.lookahead,
             num_lookahead_candidates=config.num_lookahead_candidates,
             enable_early_termination=config.enable_early_termination,
         )
     else:
-        strat = strategy.for_non_css(optimization_criterion=config.optimization_criterion)
+        strat = strategy.for_non_css(n=tableau.n, optimization_criterion=config.optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, strat)
 

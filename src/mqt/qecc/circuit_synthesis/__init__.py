@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from .cat_states import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
 from .circuit_utils import qiskit_to_stim_circuit
-from .circuits import CNOTCircuit
+from .circuits import CliffordIsometry, CNOTCircuit
 from .encoding import (
     cnot_encoding_circuit,
     depth_optimal_encoding_circuit,
     depth_optimal_encoding_circuit_non_css,
     gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
+    synthesize_encoding_circuit,
 )
 from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
@@ -33,12 +34,21 @@ from .state_prep import (
     naive_verification_circuit,
 )
 from .state_prep_det import DeterministicVerification, DeterministicVerificationHelper
+from .synthesis import (
+    CliffordSynthesisConfig,
+    CnotSynthesisConfig,
+    synthesize_cnot,
+    synthesize_non_css,
+)
 
 __all__ = [
     "CNOTCircuit",
     "CatStatePreparationExperiment",
     "CircuitLevelNoiseIdlingParallel",
     "CircuitLevelNoiseIdlingSequential",
+    "CliffordIsometry",
+    "CliffordSynthesisConfig",
+    "CnotSynthesisConfig",
     "DeterministicVerification",
     "DeterministicVerificationHelper",
     "FaultyStatePrepCircuit",
@@ -61,4 +71,7 @@ __all__ = [
     "heuristic_verification_stabilizers",
     "naive_verification_circuit",
     "qiskit_to_stim_circuit",
+    "synthesize_cnot",
+    "synthesize_encoding_circuit",
+    "synthesize_non_css",
 ]

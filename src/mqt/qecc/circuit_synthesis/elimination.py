@@ -448,13 +448,14 @@ class OperationFilter(ABC):
 class ParallelFilter(OperationFilter):
     """Filter that blocks operations on qubits already used in current layer."""
 
-    def __init__(self, n_qubits: int | None = None) -> None:
+    def __init__(self, n_qubits: int) -> None:
         """Initialize the parallel filter.
 
         Args:
             n_qubits: Total number of qubits in the circuit. If None, will be inferred from operations.
         """
-        self.blocked_qubits: set[int] = set()
+        self.blocked_qubits: list[bool] = [False] * n_qubits
+        self._n_blocked = 0
         self.n_qubits = n_qubits
 
     def should_include(self, op: TableauOperation) -> bool:
@@ -466,7 +467,7 @@ class ParallelFilter(OperationFilter):
         Returns:
             True if no qubits are blocked, False otherwise.
         """
-        return not any(qubit in self.blocked_qubits for qubit in op.qubits())
+        return not any(self.blocked_qubits[q] for q in op.qubits())
 
     def update(self, op: TableauOperation) -> None:
         """Block qubits involved in the operation.
@@ -475,24 +476,22 @@ class ParallelFilter(OperationFilter):
             op: The tableau operation to update the filter with.
         """
         qubits_involved = op.qubits()
-        self.blocked_qubits.update(qubits_involved)
-
-        if self.n_qubits is None:
-            max_qubit = max(qubits_involved) if qubits_involved else 0
-            self.n_qubits = max_qubit + 1
+        for q in qubits_involved:
+            if not self.blocked_qubits[q]:
+                self.blocked_qubits[q] = True
+                self._n_blocked += 1
 
         if not self.has_available_qubits():
             self.reset()
 
     def has_available_qubits(self) -> bool:
         """Check if there are qubits available for operations."""
-        if self.n_qubits is None:
-            return True
-        return len(self.blocked_qubits) < self.n_qubits - 1
+        return self._n_blocked < self.n_qubits - 1  # two qubits should be free
 
     def reset(self) -> None:
         """Unblock all qubits."""
-        self.blocked_qubits.clear()
+        self._n_blocked = 0
+        self.blocked_qubits = [False] * self.n_qubits
 
     def copy(self) -> ParallelFilter:
         """Create a copy of the filter with the same state.
