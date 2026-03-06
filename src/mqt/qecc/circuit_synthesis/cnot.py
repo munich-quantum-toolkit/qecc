@@ -12,6 +12,9 @@ from __future__ import annotations
 import operator
 from typing import TYPE_CHECKING
 
+import numba as nb
+import numpy as np
+
 from ..codes.pauli import CheckMatrix
 from .elimination import (
     CandidateGenerator,
@@ -21,6 +24,8 @@ from .operations import CNOT
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    import numpy.typing as npt
 
     from .elimination import OperationFilter
     from .operations import TableauOperation
@@ -100,6 +105,9 @@ class GreedyCNOTGenerator(CandidateGenerator):
         self.operation_history.clear()
 
 
+_CNOT_CACHE: dict[int, list[CNOT]] = {}
+
+
 def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
     """Generate all possible CNOT operations without scoring.
 
@@ -110,38 +118,54 @@ def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
         List of all possible CNOT operations.
     """
     n = get_n(matrix)
-    operations: list[CNOT] = []
-    for i in range(n):
-        operations.extend(CNOT(i, j) for j in range(n) if i != j)
-    return operations
+
+    if n not in _CNOT_CACHE:
+        _CNOT_CACHE[n] = [CNOT(i, j) for i in range(n) for j in range(n) if i != j]
+
+    return _CNOT_CACHE[n]
+
+
+@nb.njit(nb.int64[:](nb.int64[:, :], nb.int64[:], nb.int64[:], nb.int64[:]), cache=True)  # type: ignore[untyped-decorator]
+def _compute_scores_numba(
+    mat: npt.NDArray[np.int64],
+    controls: npt.NDArray[np.int64],
+    targets: npt.NDArray[np.int64],
+    col_weights: npt.NDArray[np.int64],
+) -> npt.NDArray[np.int64]:
+    """Compute scores using numba for speed."""
+    scores = np.empty(len(controls), dtype=np.int64)
+    for i in range(len(controls)):
+        old_weight = col_weights[targets[i]]
+        new_weight = 0
+        for j in range(mat.shape[0]):
+            new_weight += mat[j, targets[i]] ^ mat[j, controls[i]]
+        scores[i] = old_weight - new_weight
+    return scores
 
 
 def _score_cnots(
     operations: Sequence[CNOT], matrix: CheckMatrix
 ) -> list[tuple[TableauOperation, int | tuple[int, ...]]]:
-    """Score CNOT operations and return sorted list.
+    """Score CNOT operations and return sorted list."""
+    mat = matrix.matrix
+    col_weights = mat.sum(axis=0, dtype=np.int64)
 
-    Args:
-        operations: List of CNOT operations to score.
-        matrix: The current check matrix.
+    controls = np.array([op.control for op in operations], dtype=np.int64)
+    targets = np.array([op.target for op in operations], dtype=np.int64)
 
-    Returns:
-        List of (operation, score) tuples sorted by score.
-    """
-    matrix_copy = matrix.copy()
-    weight_before = int(matrix_copy.matrix.sum())
-    scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
+    scores = _compute_scores_numba(mat, controls, targets, col_weights)
 
-    for op in operations:
-        matrix_copy = op.apply_check_matrix(matrix_copy, inplace=True)
-        weight_after = int(matrix_copy.matrix.sum())
-        score = weight_before - weight_after
-        if score > 0:
-            scored.append((op, score))
-        matrix_copy = op.apply_check_matrix(matrix_copy, inplace=True)
+    # Filter positive scores
+    positive_mask = scores > 0
 
-    scored.sort(key=operator.itemgetter(1), reverse=True)
-    return scored
+    if not positive_mask.any():
+        return []
+
+    positive_indices = np.where(positive_mask)[0]
+    positive_scores = scores[positive_indices]
+    sorted_order = np.argsort(-positive_scores)  # Negate for descending order
+
+    return [(operations[positive_indices[i]], int(positive_scores[i])) for i in sorted_order]
 
 
 def greedy_matrix_elimination_candidates(matrix: CheckMatrix) -> list[tuple[CNOT, int]]:
