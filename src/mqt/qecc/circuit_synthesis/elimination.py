@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ import stim
 
 from ..codes.pauli import StabilizerTableau
 from .operations import CNOT, Swap, Transvection
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -240,6 +243,8 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
 
+        if not candidate_ops:
+            logger.debug(f"Iteration {iteration}: No candidates available, but termination criterion not met.")
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)

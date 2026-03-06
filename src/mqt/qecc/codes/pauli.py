@@ -653,7 +653,7 @@ class CheckMatrix:
             pauli_type: The type of the check matrix, either 'X' or 'Z'.
         """
         assert pauli_type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
-        self.matrix = matrix
+        self.matrix = matrix.copy()
         self.type = pauli_type
 
     def is_x_type(self) -> bool:
