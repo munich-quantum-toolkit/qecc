@@ -125,9 +125,9 @@ def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
     return _CNOT_CACHE[n]
 
 
-@nb.njit(nb.int64[:](nb.int64[:, :], nb.int64[:], nb.int64[:], nb.int64[:]), cache=True)  # type: ignore[untyped-decorator]
+@nb.njit(nb.int64[:](nb.int8[:, :], nb.int64[:], nb.int64[:], nb.int64[:]), cache=True)  # type: ignore[untyped-decorator]
 def _compute_scores_numba(
-    mat: npt.NDArray[np.int64],
+    mat: npt.NDArray[np.int8],
     controls: npt.NDArray[np.int64],
     targets: npt.NDArray[np.int64],
     col_weights: npt.NDArray[np.int64],
