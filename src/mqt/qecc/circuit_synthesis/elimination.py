@@ -249,7 +249,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
-        logger.debug(f"Iteration {iteration}: Selected operation {op}")
+        logger.info(f"Iteration {iteration}: Selected operation {op}")
         tableau = op.apply(tableau, inplace=True)
         operations.add_operation(op)
 
