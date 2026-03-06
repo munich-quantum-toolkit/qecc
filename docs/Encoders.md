@@ -87,7 +87,7 @@ from mqt.qecc.circuit_synthesis import (
     SynthesisConfig
 )
 
-config = CnotSynthesisConfig(optimization_criterion="depth")
+config = SynthesisConfig(optimization_criterion="depth")
 heuristic_circ = synthesize_encoding_circuit(steane_code)
 q_enc = heuristic_circ.inputs()
 
@@ -181,9 +181,9 @@ The way the greedy synthesis works in QECC is by trying to reduce the check matr
 This search is generally costlier, but can lead to significantly better results. We can tell the synthesis to perform lookahead-based synthesis by setting the appropriate flags in the config. `lookahead` is an int parameter that determines for how many layers the search should perform the lookahead. If it is set to `0`, no lookahead is performed (default). If it is set to `1`, the `num_lookahead_candidates` parameter determines for how many candidates per gate in the search the lookahead is performed. This determines how many complete circuits are synthesized before the single gate is chosen leading to the locally best circuit. If `enable_early_termination` lookahead is only performed until no better solutions are found. In that case, the search returns whatever the current best circuit is. If it is set to `False`, lookahead will be performed until the last gate of the search is placed. This will take longer but leads to better results in general:
 
 ```{code-cell} ipython3
-from mqt.qecc.circuit_synthesis import CnotSynthesisConfig
+from mqt.qecc.circuit_synthesis import SynthesisConfig
 
-config = CnotSynthesisConfig(lookahead=1, num_lookahead_candidates=5, optimization_criterion="gates", enable_early_termination=False)
+config = SynthesisConfig(lookahead=1, num_lookahead_candidates=5, optimization_criterion="gates", enable_early_termination=False)
 
 encoder = synthesize_encoding_circuit(code, config=config)
 print(f"Logical to physical qubit mapping: {encoder.inputs()}")
