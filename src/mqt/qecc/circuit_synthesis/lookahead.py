@@ -16,8 +16,9 @@ from ..codes.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, eliminate
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
+    from .elimination import OperationFilter
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
@@ -117,6 +118,8 @@ def _simulate_and_score_operation(
     except RuntimeError:
         return None
 
+    return None
+
 
 def _score_candidates_with_lookahead(
     tableau: BinaryMatrix,
@@ -203,7 +206,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self._best_known_tableau: BinaryMatrix | None = None
         self._should_terminate = False
 
-    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
+    def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
         """Generate candidates using lookahead simulation.
 
         Args:
@@ -294,7 +297,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             self._best_known_sequence = sequence
             self._best_known_tableau = tableau
 
-    def _create_lookahead_strategy(self, initial_filter_state: list | None) -> EliminationStrategy:
+    def _create_lookahead_strategy(self, initial_filter_state: list[OperationFilter] | None) -> EliminationStrategy:
         """Create a fresh lookahead strategy for recursive simulation.
 
         Args:
@@ -303,11 +306,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         Returns:
             A new EliminationStrategy with fresh generator and filters.
         """
-        fresh_base_filters = (
-            [f.copy() for f in self.base_strategy.candidate_generator.filters]
-            if self.base_strategy.candidate_generator.filters
-            else []
-        )
+        fresh_base_filters = [f.copy() for f in self.base_strategy.filters] if self.base_strategy.filters else []
         fresh_base_generator = type(self.base_strategy.candidate_generator)(fresh_base_filters)
 
         fresh_base_strategy = EliminationStrategy(

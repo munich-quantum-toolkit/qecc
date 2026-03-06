@@ -15,17 +15,15 @@ from typing import TYPE_CHECKING
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
-from .elimination import (
-    CandidateGenerator,
-    EliminationSequence,
-    get_n,
-)
+from ..codes.pauli import StabilizerTableau
+from .elimination import CandidateGenerator, EliminationSequence, get_n
 from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import numpy.typing as npt
 
-    from ..codes.pauli import StabilizerTableau
     from .elimination import OperationFilter
     from .operations import TableauOperation
     from .types import BinaryMatrix
@@ -34,24 +32,16 @@ if TYPE_CHECKING:
 class GreedyTransvectionGenerator(CandidateGenerator):
     """Generates transvection candidates using greedy heuristic."""
 
-    def __init__(self, filters: list[OperationFilter] | None = None) -> None:
-        """Initialize the greedy transvection generator.
-
-        Args:
-            filters: Optional list of filters to apply during candidate generation.
-        """
+    def __init__(self, filters: Sequence[OperationFilter] | None = None) -> None:
+        """Initialize the greedy transvection generator."""
         self.operation_history: list[TableauOperation] = []
-        self.filters = filters or []
+        self.filters = list(filters) if filters else []
 
-    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
-        """Generate transvection candidates sorted by heuristic score.
+    def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
+        """Generate transvection candidates sorted by heuristic score."""
+        if not isinstance(tableau, StabilizerTableau):
+            return []
 
-        Args:
-            tableau: The current stabilizer tableau.
-
-        Returns:
-            List of transvection operations sorted by preference.
-        """
         unscored_candidates = _generate_transvection_operations(tableau)
         filtered_candidates = self._apply_filters(unscored_candidates)
         scored = _score_transvections(filtered_candidates, tableau)
@@ -61,22 +51,16 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         filtered_candidates = self._apply_filters(unscored_candidates)
         return _score_transvections(filtered_candidates, tableau)
 
-    def _apply_filters(self, candidates: list[TableauOperation]) -> list[TableauOperation]:
-        """Apply all filters to candidate list.
-
-        Args:
-            candidates: List of candidate operations.
-
-        Returns:
-            Filtered list of candidates.
-        """
+    def _apply_filters(self, candidates: Sequence[Transvection]) -> list[Transvection]:
+        """Apply all filters to candidate list."""
         if not self.filters:
-            return candidates
+            return list(candidates)
 
         filtered = [op for op in candidates if all(f.should_include(op) for f in self.filters)]
 
         if not filtered:
             self._reset_filters()
+            return list(candidates)
 
         return filtered
 
@@ -86,12 +70,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
             f.reset()
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
-        """Update operation history and filters after applying an operation.
-
-        Args:
-            op: The operation that was applied.
-            tableau: The resulting tableau after applying the operation.
-        """
+        """Update operation history and filters after applying an operation."""
         self.operation_history.append(op)
         for f in self.filters:
             f.update(op)
@@ -107,14 +86,7 @@ def _bin2set(row: npt.NDArray[np.int8]) -> list[int]:
 
 
 def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
-    """Return a reduced set of candidate pairs (i,j) to consider, based on R2/R1 structure.
-
-    Args:
-        symplectic: The symplectic matrix (2n x 2n).
-
-    Returns:
-        A sorted list of (i, j) pairs where i < j, representing candidate qubit pairs.
-    """
+    """Return a reduced set of candidate pairs (i,j) to consider, based on R2/R1 structure."""
     r1, r2 = r1_r2(symplectic)
     n = symplectic.shape[0] // 2
     pairs: set[tuple[int, int]] = set()
@@ -139,14 +111,7 @@ def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
 
 
 def _generate_transvection_operations(tableau: StabilizerTableau) -> list[Transvection]:
-    """Generate all transvection operations without scoring.
-
-    Args:
-        tableau: The current stabilizer tableau.
-
-    Returns:
-        List of all possible transvection operations.
-    """
+    """Generate all transvection operations without scoring."""
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
     pairs = _sp_gate_options(symplectic)
@@ -155,7 +120,7 @@ def _generate_transvection_operations(tableau: StabilizerTableau) -> list[Transv
         pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
 
     transvections = Transvection.all_two_qubit_transvections()
-    operations = []
+    operations: list[Transvection] = []
     for i, j in pairs:
         operations.extend(Transvection(v, i, j) for v in transvections)
 
@@ -163,70 +128,30 @@ def _generate_transvection_operations(tableau: StabilizerTableau) -> list[Transv
 
 
 def _score_transvections(
-    operations: list[Transvection], tableau: StabilizerTableau
-) -> list[tuple[Transvection, tuple[int, ...]]]:
-    """Score transvection operations and return sorted list.
-
-    Args:
-        operations: List of transvection operations to score.
-        tableau: The current stabilizer tableau.
-
-    Returns:
-        List of (operation, score) tuples sorted by score.
-    """
+    operations: Sequence[Transvection], tableau: StabilizerTableau
+) -> list[tuple[TableauOperation, int | tuple[int, ...]]]:
+    """Score transvection operations and return sorted list."""
     base_score, _ = score_symplectic(tableau)
-    scored = []
+    scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
 
     for op in operations:
         tableau_op_applied = op.apply(tableau)
+        if not isinstance(tableau_op_applied, StabilizerTableau):
+            continue
         h_vec, _ = score_symplectic(tableau_op_applied)
         if h_vec < base_score:
-            scored.append((op, h_vec))
+            # Convert tuple to int for compatibility with the return type
+            score_value = sum(h_vec)
+            scored.append((op, score_value))
 
     scored.sort(key=operator.itemgetter(1))
     return scored
 
 
-def get_candidate_transvections_stateprep(
-    tableau: StabilizerTableau,
-) -> list[Transvection]:
-    """Score all possible operations and return the top k scored operations for state preparation.
-
-    Args:
-        tableau: The current symplectic matrix.
-
-    Returns:
-        A list of scored operations, each represented as a tuple of (operation, score).
-    """
-    n = get_n(tableau)
-    pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
-    transvections = Transvection.all_two_qubit_transvections()
-    scores: list[tuple(Transvection, list[int, ...])] = []
-    for i, j in pairs:
-        for v in transvections:
-            op = Transvection(v, i, j)
-            tablea_op_applied = op.apply(tableau)
-            s, _ = score_symplectic(tablea_op_applied)
-            if s == 0:
-                pass
-
-            scores.append((op, s))
-
-    scores.sort(key=operator.itemgetter(1))
-    return [(tv, score) for tv, score in scores]
-
-
 def get_candidate_transvections(
     tableau: StabilizerTableau,
-) -> list[Transvection]:
-    """Score all possible operations and return scored operations.
-
-    Args:
-        tableau: The current symplectic matrix.
-
-    Returns:
-        A list of scored operations, each represented as a tuple of (operation, score).
-    """
+) -> list[tuple[Transvection, tuple[int, ...]]]:
+    """Score all possible operations and return scored operations."""
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
 
@@ -236,18 +161,20 @@ def get_candidate_transvections(
         pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
 
     transvections = Transvection.all_two_qubit_transvections()
-    scores: list[tuple(Transvection, list[int, ...])] = []
+    scores: list[tuple[Transvection, tuple[int, ...]]] = []
     base_score, _ = score_symplectic(tableau)
     for i, j in pairs:
         for v in transvections:
             op = Transvection(v, i, j)
-            tablea_op_applied = op.apply(tableau)
-            h_vec, _ = score_symplectic(tablea_op_applied)
+            tableau_op_applied = op.apply(tableau)
+            if not isinstance(tableau_op_applied, StabilizerTableau):
+                continue
+            h_vec, _ = score_symplectic(tableau_op_applied)
             if h_vec < base_score:
                 scores.append((op, h_vec))
 
     scores.sort(key=operator.itemgetter(1))
-    return [(tv, score) for tv, score in scores]
+    return scores
 
 
 def _compute_r2_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
@@ -267,7 +194,8 @@ def _compute_r0_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]
     a_zx = symplectic[n:, :n]
     a_zz = symplectic[n:, n:]
     zero = (a_xx == 0) & (a_xz == 0) & (a_zx == 0) & (a_zz == 0)
-    return zero.astype(np.int8)
+    result: npt.NDArray[np.int8] = zero.astype(np.int8)
+    return result
 
 
 def _compute_r1_matrix_from_r2_r0(r2: npt.NDArray[np.int8], r0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
@@ -291,31 +219,17 @@ def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.N
 
 
 def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
-    """Check if the given stabilizer tableau is in terminal form for transvection elimination.
-
-    Args:
-        tableau (StabilizerTableau): The stabilizer tableau to check.
-
-    Returns:
-        bool: True if the tableau is in terminal form, False otherwise.
-    """
+    """Check if the given stabilizer tableau is in terminal form for transvection elimination."""
     r1, r2 = r1_r2(tableau.tableau.matrix)
     if np.any(r1):
         return False
     if not np.all(r2.sum(axis=0) == 1):
         return False
-    return np.all(r2.sum(axis=1) == 1)
+    return bool(np.all(r2.sum(axis=1) == 1))
 
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
-    """Score the given symplectic matrix using the default symplectic heuristic.
-
-    Args:
-        tableau: The stabilizer tableau to score.
-
-    Returns:
-        A tuple of (heuristic_vector, scalar_score) used for comparing tableaus.
-    """
+    """Score the given symplectic matrix using the default symplectic heuristic."""
     n = get_n(tableau)
 
     symplectic = tableau.tableau.matrix
@@ -337,14 +251,7 @@ def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
 def reduce_with_swaps(
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce a TERMINAL symplectic matrix by applying SWAPs to align blocks on diagonal.
-
-    Args:
-        tableau: A stabilizer tableau in terminal form (permutation matrix of 2x2 blocks).
-
-    Returns:
-        A tuple of (swap_sequence, tableau_after_swaps) where the blocks are now diagonal.
-    """
+    """Reduce a TERMINAL symplectic matrix by applying SWAPs to align blocks on diagonal."""
     tableau_copy = tableau.copy()
     get_n(tableau)
     perm, _blocks = _extract_perm_in_to_out_and_blocks(tableau_copy)
@@ -359,7 +266,9 @@ def reduce_with_swaps(
     swap_sequence = EliminationSequence([])
 
     for swap in swaps:
-        tableau_copy = swap.apply(tableau_copy, inplace=True)
+        result = swap.apply(tableau_copy, inplace=True)
+        if isinstance(result, StabilizerTableau):
+            tableau_copy = result
         swap_sequence.add_operation(swap)
     return swap_sequence, tableau_copy
 
@@ -367,14 +276,7 @@ def reduce_with_swaps(
 def reduce_with_single_qubit_cliffords(
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce diagonal blocks to identity using single-qubit Cliffords and Paulis.
-
-    Args:
-        tableau: A stabilizer tableau where each qubit has a 2x2 block on its diagonal.
-
-    Returns:
-        A tuple of (clifford_sequence, final_tableau) where final_tableau should be identity.
-    """
+    """Reduce diagonal blocks to identity using single-qubit Cliffords and Paulis."""
     tableau_copy = tableau.copy()
     n = get_n(tableau)
 
@@ -382,9 +284,11 @@ def reduce_with_single_qubit_cliffords(
 
     for q in range(n):
         f = tableau_copy.symplectic_submatrix(q)
-        op = SingleQubitClifford.from_symplectic_block(f, q)
-        clifford_sequence.add_operation(op)
-        tableau_copy = op.apply(tableau_copy, inplace=True)
+        clifford_op = SingleQubitClifford.from_symplectic_block(f, q)
+        clifford_sequence.add_operation(clifford_op)
+        result = clifford_op.apply(tableau_copy, inplace=True)
+        if isinstance(result, StabilizerTableau):
+            tableau_copy = result
 
     pauli_ops = fix_tableau_signs_in_place(tableau_copy)
     for op in pauli_ops:
@@ -396,23 +300,12 @@ def reduce_single_qubit_gates_and_swaps(
     operations: EliminationSequence,
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce a TERMINAL symplectic matrix to identity using SWAP/H/S/Pauli gates.
-
-    This function combines swap-based permutation correction with single-qubit Clifford
-    reduction to bring a terminal-form tableau to the identity.
-
-    Args:
-        operations: The elimination sequence (unused but required by post_process_fn signature).
-        tableau: A stabilizer tableau in terminal form.
-
-    Returns:
-        A tuple of (operation_sequence, final_tableau) where final_tableau is identity.
-    """
+    """Reduce a TERMINAL symplectic matrix to identity using SWAP/H/S/Pauli gates."""
     swap_seq, tableau_after_swaps = reduce_with_swaps(tableau)
 
     clifford_seq, final_tableau = reduce_with_single_qubit_cliffords(tableau_after_swaps)
 
-    operations.extend(EliminationSequence(swap_seq.operations + clifford_seq.operations))
+    operations.extend(EliminationSequence(list(swap_seq.operations) + list(clifford_seq.operations)))
 
     return operations, final_tableau
 
@@ -420,40 +313,18 @@ def reduce_single_qubit_gates_and_swaps(
 def reduce_without_swaps(
     tableau: StabilizerTableau,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
-    """Reduce a TERMINAL symplectic matrix to a permuted identity using only single-qubit gates.
-
-    This variant does NOT apply SWAPs, so the final tableau will be a permutation of the
-    identity (i.e., blocks aligned but possibly permuted).
-
-    Args:
-        tableau: A stabilizer tableau in terminal form.
-
-    Returns:
-        A tuple of (operation_sequence, final_tableau) where final_tableau is a
-        permuted identity.
-    """
+    """Reduce a TERMINAL symplectic matrix to a permuted identity using only single-qubit gates."""
     return reduce_with_single_qubit_cliffords(tableau)
 
 
-def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[np.ndarray, list[np.ndarray]]:
-    """Extract the permutation and corresponding 2x2 blocks from a terminal symplectic matrix.
-
-    This function processes a terminal symplectic matrix `U` to determine the permutation
-    of input qubits to output qubits and the associated 2x2 symplectic blocks.
-
-    Args:
-        tableau: A stabilizer tableau in terminal form, where the symplectic matrix is a permutation of 2x2 blocks.
-
-    Returns:
-        perm: An array of length n where perm[i] gives the output qubit index that input qubit i maps to.
-        blocks: A list of 2x2 numpy arrays representing the symplectic blocks corresponding to each input qubit's mapping.
-    """
+def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[np.ndarray, list[npt.NDArray[np.int8]]]:
+    """Extract the permutation and corresponding 2x2 blocks from a terminal symplectic matrix."""
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
     r2 = _compute_r2_matrix(symplectic)
 
     perm = np.full(n, -1, dtype=int)
-    blocks: list[np.ndarray] = [None] * n
+    blocks: list[npt.NDArray[np.int8]] = []
 
     for i in range(n):
         js = np.flatnonzero(r2[i])
@@ -462,13 +333,14 @@ def _extract_perm_in_to_out_and_blocks(tableau: StabilizerTableau) -> tuple[np.n
             raise ValueError(msg)
         j = int(js[0])
         perm[i] = j
-        blocks[i] = np.array(
+        block = np.array(
             [
                 [int(symplectic[i, j]), int(symplectic[i, j + n])],
                 [int(symplectic[i + n, j]), int(symplectic[i + n, j + n])],
             ],
             dtype=np.int8,
         )
+        blocks.append(block)
 
     if len(set(perm.tolist())) != n:
         msg = "Not terminal: R2 columns not one-hot."
@@ -501,12 +373,8 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
     return swaps
 
 
-def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequence:
-    """Determine Pauli corrections so that the tableau matches the desired sign bits.
-
-    This function ensures that the tableau matches the target signs
-    by appending the necessary Pauli corrections.
-    """
+def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> list[PauliOperation]:
+    """Determine Pauli corrections so that the tableau matches the desired sign bits."""
     n = get_n(tableau)
     x_part = tableau.tableau.matrix[:, :n]
     z_part = tableau.tableau.matrix[:, n:]
@@ -522,7 +390,7 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> EliminationSequenc
     correction_symplectic = ker[-1]
     xc = correction_symplectic[:n]
     zc = correction_symplectic[n:-1]
-    ops = []
+    ops: list[PauliOperation] = []
     for i, (xv, zv) in enumerate(zip(xc, zc, strict=False)):
         if xv == 1 and zv == 1:
             op = PauliOperation(i, "Y")

@@ -114,7 +114,7 @@ def test_symplectic() -> None:
         (np.array([[1, 0, 0, 1], [0, 1, 1, 0]], dtype=np.int8), False),
     ],
 )
-def test_is_css(tableau_matrix, expected) -> None:
+def test_is_css(tableau_matrix: npt.NDArray[np.int8], expected: bool) -> None:
     """Test the is_css method."""
     tableau = StabilizerTableau(SymplecticMatrix(tableau_matrix))
     assert tableau.is_css() == expected
@@ -128,7 +128,10 @@ def test_is_css(tableau_matrix, expected) -> None:
     ],
 )
 def test_get_x_and_z_parts(
-    tableau_fixture: str, expected_x_part: np.ndarray, expected_z_part: np.ndarray, request
+    tableau_fixture: str,
+    expected_x_part: npt.NDArray[np.int8],
+    expected_z_part: npt.NDArray[np.int8],
+    request: pytest.FixtureRequest,
 ) -> None:
     """Test the get_x_part and get_z_part methods with various tableaus."""
     tableau = request.getfixturevalue(tableau_fixture)
@@ -203,7 +206,7 @@ def cnot_tableau() -> StabilizerTableau:
     ],
 )
 def test_stabilizer_tableau_from_stim_tableau(
-    stim_tableau: stim.Tableau, expected_tableau_fixture: str, request
+    stim_tableau: stim.Tableau, expected_tableau_fixture: str, request: pytest.FixtureRequest
 ) -> None:
     """Test the from_stim_tableau method of StabilizerTableau."""
     expected_tableau = request.getfixturevalue(expected_tableau_fixture)
@@ -220,7 +223,7 @@ def test_stabilizer_tableau_from_stim_tableau(
     ],
 )
 def test_stabilizer_tableau_from_stim_circuit(
-    stim_circuit: stim.Circuit, expected_tableau_fixture: str, request
+    stim_circuit: stim.Circuit, expected_tableau_fixture: str, request: pytest.FixtureRequest
 ) -> None:
     """Test the from_stim_circuit method of StabilizerTableau."""
     expected_tableau = request.getfixturevalue(expected_tableau_fixture)
@@ -292,7 +295,7 @@ def test_invalid_css_codes() -> None:
 
 
 @pytest.mark.parametrize("checks", ["steane_code_checks", "rep_code_checks", "rep_code_checks_reverse"])
-def test_logicals(checks: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None], request) -> None:  # type: ignore[no-untyped-def]
+def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:
     """Test the logical operators of the CSSCode class."""
     hx, hz = request.getfixturevalue(checks)
     code = CSSCode(distance=3, Hx=hx, Hz=hz)

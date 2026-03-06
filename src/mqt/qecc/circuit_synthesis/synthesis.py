@@ -11,16 +11,13 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
 
+from ..codes.pauli import CheckMatrix, StabilizerTableau
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
-
-if TYPE_CHECKING:
-    from ..codes.pauli import CheckMatrix, StabilizerTableau
 
 
 class SynthesisConfig(ABC):  # noqa:B024
@@ -102,6 +99,8 @@ def synthesize_cnot(
 
     operations, final_matrix = eliminate(matrix, strat)
 
+    assert isinstance(final_matrix, CheckMatrix), "Expected CheckMatrix from CSS elimination"
+
     if matrix.is_z_type():
         for op in operations.operations:
             if isinstance(op, CNOT):
@@ -140,4 +139,7 @@ def synthesize_non_css(
         strat = strategy.for_non_css(optimization_criterion=config.optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, strat)
+
+    assert isinstance(final_tableau, StabilizerTableau), "Expected StabilizerTableau from non-CSS elimination"
+
     return operations, final_tableau

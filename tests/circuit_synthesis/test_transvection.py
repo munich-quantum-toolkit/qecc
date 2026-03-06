@@ -18,7 +18,8 @@ from mqt.qecc.circuit_synthesis.synthesis import CliffordSynthesisConfig, synthe
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
 )
-from mqt.qecc.codes.pauli import StabilizerTableau, SymplecticMatrix
+from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.symplectic import SymplecticMatrix
 
 
 @pytest.fixture
@@ -54,7 +55,7 @@ def clifford_synthesis_config() -> CliffordSynthesisConfig:
     ],
 )
 def test_synthesize_non_css(
-    tableau_matrix: StabilizerTableau, clifford_synthesis_config: CliffordSynthesisConfig, request
+    tableau_matrix: str, clifford_synthesis_config: CliffordSynthesisConfig, request: pytest.FixtureRequest
 ) -> None:
     """Test the synthesize_non_css function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
@@ -71,7 +72,7 @@ def test_synthesize_non_css(
     ],
 )
 def test_synthesize_non_css_with_lookahead(
-    tableau_matrix: StabilizerTableau, clifford_synthesis_config: CliffordSynthesisConfig, request
+    tableau_matrix: str, clifford_synthesis_config: CliffordSynthesisConfig, request: pytest.FixtureRequest
 ) -> None:
     """Test the synthesize_non_css_with_lookahead function."""
     target_tableau = request.getfixturevalue(tableau_matrix)

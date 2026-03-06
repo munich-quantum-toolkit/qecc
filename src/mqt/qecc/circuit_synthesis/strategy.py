@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..codes.pauli import CheckMatrix
+from ..codes.pauli import CheckMatrix, StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .lookahead import LookaheadCandidateGenerator
@@ -62,7 +62,7 @@ def for_cnot_up_to_row_ops(
 
         matrix = tbl.matrix
         non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
-        return non_zero_columns == target_rank
+        return bool(non_zero_columns == target_rank)
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,
@@ -103,7 +103,7 @@ def for_cnot_exact(
 
         matrix = tbl.matrix
         one_columns = (np.sum(matrix, axis=0) == 1).sum()
-        return one_columns == target_rank
+        return bool(one_columns == target_rank)
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,
@@ -135,12 +135,22 @@ def for_non_css(
 
     filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
+    def termination_criterion(tbl: BinaryMatrix) -> bool:
+        if not isinstance(tbl, StabilizerTableau):
+            return False
+        return is_terminal_transvection(tbl)
+
+    def post_process_fn(ops: EliminationSequence, tbl: BinaryMatrix) -> tuple[EliminationSequence, BinaryMatrix]:
+        if not isinstance(tbl, StabilizerTableau):
+            return ops, tbl
+        return reduce_single_qubit_gates_and_swaps(ops, tbl)
+
     return EliminationStrategy(
-        termination_criterion=is_terminal_transvection,
+        termination_criterion=termination_criterion,
         candidate_generator=GreedyTransvectionGenerator(filters),
         filters=filters,
         callback=callback,
-        post_process_fn=reduce_single_qubit_gates_and_swaps,
+        post_process_fn=post_process_fn,
     )
 
 
@@ -173,8 +183,13 @@ def for_non_css_with_lookahead(
 
     filters = [ParallelFilter()] if optimization_criterion == "depth" else []
 
+    def termination_criterion(tbl: BinaryMatrix) -> bool:
+        if not isinstance(tbl, StabilizerTableau):
+            return False
+        return is_terminal_transvection(tbl)
+
     base_strategy = EliminationStrategy(
-        termination_criterion=is_terminal_transvection,
+        termination_criterion=termination_criterion,
         candidate_generator=GreedyTransvectionGenerator(filters),
         filters=filters,
     )
@@ -183,8 +198,13 @@ def for_non_css_with_lookahead(
         n_transvections = ops.num_transvections()
         return n_transvections, n_transvections <= 1
 
+    def post_process_fn(ops: EliminationSequence, tbl: BinaryMatrix) -> tuple[EliminationSequence, BinaryMatrix]:
+        if not isinstance(tbl, StabilizerTableau):
+            return ops, tbl
+        return reduce_single_qubit_gates_and_swaps(ops, tbl)
+
     return EliminationStrategy(
-        termination_criterion=is_terminal_transvection,
+        termination_criterion=termination_criterion,
         candidate_generator=LookaheadCandidateGenerator(
             base_strategy,
             lookahead,
@@ -194,7 +214,7 @@ def for_non_css_with_lookahead(
         ),
         filters=filters,
         callback=callback,
-        post_process_fn=reduce_single_qubit_gates_and_swaps,
+        post_process_fn=post_process_fn,
     )
 
 

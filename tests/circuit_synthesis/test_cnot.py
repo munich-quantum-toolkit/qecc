@@ -49,7 +49,9 @@ def cnot_synthesis_config() -> CnotSynthesisConfig:
         "cnot_matrix",
     ],
 )
-def test_eliminate_cnot_exact(check_matrix: CheckMatrix, cnot_synthesis_config: CnotSynthesisConfig, request) -> None:
+def test_eliminate_cnot_exact(
+    check_matrix: str, cnot_synthesis_config: CnotSynthesisConfig, request: pytest.FixtureRequest
+) -> None:
     """Test the eliminate_cnot function with exact elimination."""
     target_matrix = request.getfixturevalue(check_matrix)
     cnot_synthesis_config.exact = True
@@ -63,7 +65,10 @@ def test_eliminate_cnot_exact(check_matrix: CheckMatrix, cnot_synthesis_config: 
     [("identity_matrix", 0), ("cnot_matrix", 1)],
 )
 def test_eliminate_cnot_up_to_row_ops(
-    check_matrix: CheckMatrix, num_cnots: int, cnot_synthesis_config: CnotSynthesisConfig, request
+    check_matrix: str,
+    num_cnots: int,
+    cnot_synthesis_config: CnotSynthesisConfig,
+    request: pytest.FixtureRequest,
 ) -> None:
     """Test the eliminate_cnot function up to row operations."""
     target_matrix = request.getfixturevalue(check_matrix)
@@ -84,7 +89,7 @@ def test_eliminate_cnot_performance(cnot_synthesis_config: CnotSynthesisConfig) 
         if mod2.rank(matrix_data) == n:
             break
 
-    check_matrix = CheckMatrix(matrix_data, pauli_type="X")
+    check_matrix = CheckMatrix(matrix_data.astype(np.int8), pauli_type="X")
     start_time = time.perf_counter()
     operations, _result_matrix = synthesize_cnot(check_matrix, cnot_synthesis_config)
     elapsed_time = time.perf_counter() - start_time

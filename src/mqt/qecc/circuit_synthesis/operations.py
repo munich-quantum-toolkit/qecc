@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 class TableauOperation(ABC):
     """Represents an operation performed during tableau elimination."""
 
-    @abstractmethod
     def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the operation to the given stabilizer tableau.
 
@@ -35,6 +34,9 @@ class TableauOperation(ABC):
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
+        if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
+            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+        return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     @abstractmethod
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
@@ -66,6 +68,30 @@ class TableauOperation(ABC):
         """Return a string representation of the operation."""
         return f"{self.__class__.__name__}(qubits={self.qubits()})"
 
+    @abstractmethod
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the operation to a stabilizer tableau.
+
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
+
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
+
+    @abstractmethod
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the operation to a CSS check matrix.
+
+        Args:
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
+        """
+
 
 TV2 = tuple[int, int, int, int]
 
@@ -85,19 +111,16 @@ class Transvection(TableauOperation):
         self.j = j
         self.v = v
 
-    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
-        """Apply the transvection operation to the given stabilizer tableau.
-
-        This applies the transvection by simulating the circuit: basis change, CZ, S on both qubits, undo basis change.
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the transvection operation to a stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
-        """
-        if not isinstance(tableau, StabilizerTableau):
-            msg = "Transvection operations can only be applied to StabilizerTableau instances."
-            raise TypeError(msg)
 
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
         out = tableau if inplace else tableau.copy()
 
         i = self.i
@@ -149,6 +172,19 @@ class Transvection(TableauOperation):
             out.apply_s(i)
 
         return out
+
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the transvection operation to a CSS check matrix.
+
+        Args:
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
+        """
+        msg = "Transvection operations are not implemented for CheckMatrix instances."
+        raise NotImplementedError(msg)
 
     @staticmethod
     def all_two_qubit_transvections() -> list[TV2]:
@@ -239,17 +275,16 @@ class SingleQubitClifford(TableauOperation):
         self.qubit = qubit
         self.clifford = clifford
 
-    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
-        """Apply the single-qubit Clifford operation to the given stabilizer tableau.
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the single-qubit Clifford operation to a stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
-        """
-        if not isinstance(tableau, StabilizerTableau):
-            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
-            raise TypeError(msg)
 
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
         q = self.qubit
 
         out = tableau if inplace else tableau.copy()
@@ -273,6 +308,19 @@ class SingleQubitClifford(TableauOperation):
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
         return out
+
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+        """Apply the single-qubit Clifford operation to a CSS check matrix.
+
+        Args:
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
+        """
+        msg = "SingleQubitClifford operations are not implemented for CheckMatrix instances."
+        raise NotImplementedError(msg)
 
     def apply_inverse(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
         """Apply the inverse of the single-qubit Clifford operation to the given stabilizer tableau.
@@ -400,17 +448,28 @@ class PauliOperation(TableauOperation):
         self.qubit = qubit
         self.pauli = pauli
 
-    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
-        """Apply the Pauli operation to the given stabilizer tableau.
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:  # noqa: ARG002, PLR6301
+        """Apply the Pauli operation to a CSS check matrix.
+
+        Args:
+            check_matrix: The CSS check matrix to apply the operation to.
+            inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
+
+        Returns:
+            CheckMatrix: The resulting CSS check matrix after applying the operation.
+        """
+        return check_matrix  # Pauli operations do not change the check matrix
+
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the Pauli operation to a stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the operation to.
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
-        """
-        if not isinstance(tableau, StabilizerTableau):
-            msg = "Pauli operations can only be applied to StabilizerTableau instances."
-            raise TypeError(msg)
 
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
         out = tableau if inplace else tableau.copy()
         if self.pauli == "X":
             out.apply_x(self.qubit)
@@ -461,18 +520,24 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the tablau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            out = self._apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
-        else:
-            out = self._apply_stabilizer_tableau(tableau, inplace=inplace)  # type: ignore[assignment]
-        return out
+            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+        return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
-    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the CNOT operation to a stabilizer tableau.
 
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
+
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
         out = tableau if inplace else tableau.copy()
         out.apply_cx(self.control, self.target)
         return out
 
-    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:
@@ -524,18 +589,24 @@ class Swap(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            out = self._apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
-        else:
-            out = self._apply_stabilizer_tableau(tableau, inplace=inplace)  # type: ignore[arg-type]
-        return out
+            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+        return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
-    def _apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+        """Apply the SWAP operation to a stabilizer tableau.
 
+        Args:
+            tableau: The stabilizer tableau to apply the operation to.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
+
+        Returns:
+            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+        """
         out = tableau if inplace else tableau.copy()
         out.apply_swap(self.qubit_a, self.qubit_b)
         return out
 
-    def _apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the operation to a CSS check matrix.
 
         Args:

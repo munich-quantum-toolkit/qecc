@@ -61,8 +61,6 @@ class StabilizerCode:
             raise InvalidStabilizerCodeError(msg)
 
         self.distance = 1 if distance is None else distance  # default distance is 1
-        self.z_logicals = None
-        self.x_logicals = None
         self.compute_logical_ops()
         if z_logicals is not None:
             self.z_logicals = self.get_generators(z_logicals)
@@ -119,10 +117,6 @@ class StabilizerCode:
                 - Z logical operators
                 - Stabilizer generators
         """
-        if self.x_logicals is None or self.z_logicals is None:
-            msg = "Logical operators must be computed before converting to tableau"
-            raise InvalidStabilizerCodeError(msg)
-
         x_log_matrix = self.x_logicals.tableau.matrix
         z_log_matrix = self.z_logicals.tableau.matrix
         stab_matrix = self.generators.tableau.matrix
@@ -139,20 +133,6 @@ class StabilizerCode:
 
     def _check_code_correct(self) -> None:
         """Check if the code is correct. Throws an exception if not."""
-        if self.z_logicals is not None or self.x_logicals is not None:
-            if self.z_logicals is None:
-                msg = "If logical X-operators are given, logical Z-operators must also be given."
-                raise InvalidStabilizerCodeError(msg)
-            if self.x_logicals is None:
-                msg = "If logical Z-operators are given, logical X-operators must also be given."
-                raise InvalidStabilizerCodeError(msg)
-
-        if self.z_logicals is None:
-            return
-
-        if self.x_logicals is None:
-            return
-
         if self.z_logicals.n != self.n:
             msg = "Logical operators must have the same number of qubits as the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
@@ -372,7 +352,7 @@ class StabilizerCode:
         - Space-separated: "1 0 0 0 0 ..."
         - Comma-separated: "1,0,0,0,0,..."
         - List notation: "[[1,0,0,...],[0,1,0,...]]"
-        - Numpy array notation: "[[1 0 0 ...]\n [0 1 0 ...]]"
+        - NumPy array notation: "[[1 0 0 ...]\n [0 1 0 ...]]"
 
         Args:
             file_path: The path to the file containing the code.
@@ -408,11 +388,10 @@ class StabilizerCode:
         lines = [f"Stabilizer Code: n={self.n}, k={self.k}, distance={self.distance}"]
         lines.append("Stabilizer Generators:")
         lines.extend(f"  {gen}" for gen in self.generators)
-        if self.z_logicals is not None and self.x_logicals is not None:
-            lines.append("Logical Z operators:")
-            lines.extend(f"  {z}" for z in self.z_logicals)
-            lines.append("Logical X operators:")
-            lines.extend(f"  {x}" for x in self.x_logicals)
+        lines.append("Logical Z operators:")
+        lines.extend(f"  {z}" for z in self.z_logicals)
+        lines.append("Logical X operators:")
+        lines.extend(f"  {x}" for x in self.x_logicals)
         return "\n".join(lines)
 
 

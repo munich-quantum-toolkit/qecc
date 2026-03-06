@@ -673,7 +673,7 @@ def five_qubit_code() -> StabilizerCode:
     return StabilizerCode(stabilizers)
 
 
-def test_basic_isometry(rep_code_encoder: stim.Circuit):
+def test_basic_isometry(rep_code_encoder: stim.Circuit) -> None:
     """Test simple encoding isometry."""
     iso = CliffordIsometry.from_stim_circuit(rep_code_encoder)
     assert iso.num_inputs() == 1
@@ -683,7 +683,7 @@ def test_basic_isometry(rep_code_encoder: stim.Circuit):
     assert z == Pauli.from_pauli_string("ZII")
 
 
-def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_code: StabilizerCode):
+def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_code: StabilizerCode) -> None:
     """Test five-qubit code encoding isometry."""
     iso = CliffordIsometry.from_stim_circuit(five_qubit_code_encoder)
     assert iso.num_inputs() == 1

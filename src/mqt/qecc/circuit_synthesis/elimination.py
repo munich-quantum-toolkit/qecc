@@ -21,7 +21,7 @@ from ..codes.pauli import StabilizerTableau
 from .operations import CNOT, Swap, Transvection
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Sequence
 
     from .operations import TableauOperation
     from .types import BinaryMatrix
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class EliminationSequence:
     """Class representing a sequence of tableau operations."""
 
-    def __init__(self, operations: list[TableauOperation]) -> None:
+    def __init__(self, operations: Sequence[TableauOperation]) -> None:
         """Initialize the elimination sequence.
 
         Args:
@@ -160,7 +160,7 @@ class EliminationStrategy:
     termination_criterion: Callable[[BinaryMatrix], bool]
     candidate_generator: CandidateGenerator
     selection_strategy: SelectionStrategy | None = None
-    filters: list[OperationFilter] | None = None
+    filters: Sequence[OperationFilter] | None = None
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None
     post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]] = (
         lambda ops, tbl: (ops, tbl)
@@ -240,7 +240,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
 
-        _validate_candidates(candidate_ops)
+        _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
         tableau = op.apply(tableau, inplace=True)
@@ -269,7 +269,6 @@ def _maybe_use_best_solution(
         generator: The candidate generator that may have tracked a best solution.
         current_ops: The operation sequence from normal elimination.
         current_tableau: The tableau from normal elimination.
-        post_process_fn: Function to post-process solutions.
 
     Returns:
         The better of the two solutions (current vs best tracked).
@@ -333,14 +332,22 @@ class CandidateGenerator(ABC):
     """Abstract base class for generating candidate operations."""
 
     @abstractmethod
-    def get_candidates(self, tableau: BinaryMatrix) -> list[tuple[TableauOperation, int]]:
+    def __init__(self, filters: Sequence[OperationFilter] | None = None) -> None:
+        """Initialize the greedy CNOT generator.
+
+        Args:
+            filters: Optional list of filters to apply during candidate generation.
+        """
+
+    @abstractmethod
+    def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
         """Generate sorted candidate operations for the current tableau.
 
         Args:
             tableau: The current binary matrix/tableau
 
         Returns:
-            A list of candidate operations, sorted by preference
+            A list of (operation, score) tuples, sorted by preference
         """
 
     @abstractmethod
@@ -377,11 +384,11 @@ class SelectionStrategy(ABC):
     """Abstract base class for selecting the best operation from candidates."""
 
     @abstractmethod
-    def select(self, candidates: list[TableauOperation]) -> TableauOperation:
+    def select(self, candidates: Sequence[tuple[TableauOperation, int | tuple[int, ...]]]) -> TableauOperation:
         """Select the best operation from candidates.
 
         Args:
-            candidates: List of candidate operations, typically sorted by preference.
+            candidates: List of (operation, score) tuples, typically sorted by preference.
 
         Returns:
             The selected operation to apply.
@@ -391,11 +398,11 @@ class SelectionStrategy(ABC):
 class GreedySelection(SelectionStrategy):
     """Always select the first candidate."""
 
-    def select(self, candidates: list[tuple[TableauOperation, int]]) -> TableauOperation:  # noqa: PLR6301
+    def select(self, candidates: Sequence[tuple[TableauOperation, int | tuple[int, ...]]]) -> TableauOperation:  # noqa: PLR6301
         """Select the first (best-scored) candidate.
 
         Args:
-            candidates: List of candidate operations.
+            candidates: List of (operation, score) tuples.
 
         Returns:
             The first candidate in the list.
@@ -549,7 +556,7 @@ def is_identity(tableau: StabilizerTableau) -> bool:
     """
     n = get_n(tableau)
     identity_matrix = np.eye(2 * n, dtype=np.int8)
-    return np.array_equal(tableau.tableau.matrix, identity_matrix)
+    return bool(np.array_equal(tableau.tableau.matrix, identity_matrix))
 
 
 def get_n(tableau: BinaryMatrix) -> int:
@@ -562,9 +569,9 @@ def get_n(tableau: BinaryMatrix) -> int:
         int: The number of qubits.
     """
     if isinstance(tableau, StabilizerTableau):
-        return tableau.n
+        return int(tableau.n)
 
-    return tableau.matrix.shape[1]
+    return int(tableau.matrix.shape[1])
 
 
 def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
@@ -577,5 +584,5 @@ def has_k_non_zero_columns(matrix: BinaryMatrix, k: int) -> bool:
     Returns:
         bool: True if the matrix has at least k non-zero columns, False otherwise.
     """
-    non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+    non_zero_columns = int(np.sum(np.any(matrix != 0, axis=0)))
     return non_zero_columns >= k

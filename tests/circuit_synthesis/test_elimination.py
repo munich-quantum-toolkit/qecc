@@ -71,8 +71,8 @@ def test_elimination_sequence_multiple_operations() -> None:
 def test_elimination_sequence_with_transvections() -> None:
     """Test elimination sequence with transvections."""
     ops = [
-        Transvection(0, 1, "XZ"),
-        Transvection(1, 2, "ZX"),
+        Transvection((0, 1, 0, 1), 0, 1),
+        Transvection((1, 1, 0, 1), 1, 2),
         CNOT(0, 2),
     ]
     seq = EliminationSequence(ops)
@@ -168,6 +168,7 @@ def test_elimination_sequence_apply_inplace() -> None:
     result = seq.apply(tableau, inplace=True)
 
     assert result is tableau
+    assert isinstance(result, StabilizerTableau)
     assert not np.array_equal(result.tableau.matrix, original_matrix)
 
 

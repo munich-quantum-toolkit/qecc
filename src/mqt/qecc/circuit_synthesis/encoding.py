@@ -22,7 +22,8 @@ from ortools.sat.python import cp_model
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
-from .synthesis import CnotSynthesisConfig, synthesize_cnot, synthesize_non_css
+from .operations import CNOT
+from .synthesis import CliffordSynthesisConfig, CnotSynthesisConfig, synthesize_cnot, synthesize_non_css
 from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination, reduce_checks_by_row_ops
 from .transvection import (
     score_symplectic,
@@ -44,7 +45,7 @@ def depth_optimal_encoding_circuit_non_css(
     max_depth: int,
     max_two_qubit_gates: int | None = None,
     exact_two_qubit_count: bool = False,
-) -> tuple[stim.Circuit, list[int]]:
+) -> str | tuple[stim.Circuit, list[int]]:
     """Synthesize a depth-optimal encoding circuit for a CSS code using a CP-SAT solver using the gate set: {I, H, S, SQRT_X, CX, CZ}.
 
     Args:
@@ -68,7 +69,7 @@ def depth_optimal_encoding_circuit_non_css(
     # ----------------------------------------------------------------------
     # Helpers
     # ----------------------------------------------------------------------
-    def xor_eq(model: cp_model.CpModel, a, b, c, cond=None) -> None:  # noqa: ANN001
+    def xor_eq(model: cp_model.CpModel, a, b, c, cond=None) -> None:  # type: ignore[no-untyped-def] # noqa: ANN001
         """Enforce c == a XOR b. If cond provided, enforce only when cond is True."""
         # CNF for c <-> a xor b
         clauses = [
@@ -82,11 +83,11 @@ def depth_optimal_encoding_circuit_non_css(
             if cond is not None:
                 ct.OnlyEnforceIf(cond)
 
-    def eq_if(model: cp_model.CpModel, a, b, cond) -> None:  # noqa: ANN001
+    def eq_if(model: cp_model.CpModel, a, b, cond) -> None:  # type: ignore[no-untyped-def] # noqa: ANN001
         """Enforce A == b only if cond is True."""
         model.Add(a == b).OnlyEnforceIf(cond)
 
-    def or_equal(model: cp_model.CpModel, out, lst) -> None:  # noqa: ANN001
+    def or_equal(model: cp_model.CpModel, out, lst) -> None:  # type: ignore[no-untyped-def] # noqa: ANN001
         """Enforce Out <-> Or(list)."""
         if not lst:
             model.Add(out == 0)
@@ -117,7 +118,7 @@ def depth_optimal_encoding_circuit_non_css(
         [model.NewBoolVar(f"isCZr_{t}_{q}") for q in range(n)] for t in range(max_depth)
     ]  # CZ role (either 6 or 7)
 
-    def bind_code(bv, code, lit) -> None:  # noqa: ANN001
+    def bind_code(bv, code, lit) -> None:  # type: ignore[no-untyped-def] # noqa: ANN001
         model.Add(bv == code).OnlyEnforceIf(lit)
         model.Add(bv != code).OnlyEnforceIf(lit.Not())
 
@@ -215,7 +216,7 @@ def depth_optimal_encoding_circuit_non_css(
 
     # Two-qubit budget
     if max_two_qubit_gates is not None:
-        twoq = []
+        twoq = []  # type: ignore[var-annotated]
         for t in range(max_depth):
             for u in range(n):
                 twoq.extend(cxs[t][u][v] for v in range(n) if u != v)
@@ -247,7 +248,7 @@ def depth_optimal_encoding_circuit_non_css(
     Tx = []  # noqa: N806
     Tz = []  # noqa: N806
     for _ in range(max_depth + 1):
-        x, z = make_tableau()
+        x, z = make_tableau()  # type: ignore[no-untyped-call]
         Tx.append(x)
         Tz.append(z)
 
@@ -354,31 +355,31 @@ def depth_optimal_encoding_circuit_non_css(
 
         for q in range(n):
             # --- X-logical adjusted by Wx:  (LxX', LxZ') = (LxX, LxZ) ⊕ ⨁_s Wx[i,s]*(Sx[s,*], Sz[s,*])
-            terms_x = [and2(Wx[i][s], Sx_fin[s, q], f"ax_{i}_{s}_{q}") for s in range(m)]
-            terms_z = [and2(Wx[i][s], Sz_fin[s, q], f"az_{i}_{s}_{q}") for s in range(m)]
-            acc_x = xor_list_to_var(terms_x, f"accx_{i}_{q}")
-            acc_z = xor_list_to_var(terms_z, f"accz_{i}_{q}")
+            terms_x = [and2(Wx[i][s], Sx_fin[s, q], f"ax_{i}_{s}_{q}") for s in range(m)]  # type: ignore[no-untyped-call]
+            terms_z = [and2(Wx[i][s], Sz_fin[s, q], f"az_{i}_{s}_{q}") for s in range(m)]  # type: ignore[no-untyped-call]
+            acc_x = xor_list_to_var(terms_x, f"accx_{i}_{q}")  # type: ignore[no-untyped-call]
+            acc_z = xor_list_to_var(terms_z, f"accz_{i}_{q}")  # type: ignore[no-untyped-call]
 
-            LxX_adj[i][q] = xor_list_to_var([Tx[max_depth][rx, q], acc_x], f"LxXadj_{i}_{q}")
-            LxZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rx, q], acc_z], f"LxZadj_{i}_{q}")
+            LxX_adj[i][q] = xor_list_to_var([Tx[max_depth][rx, q], acc_x], f"LxXadj_{i}_{q}")  # type: ignore[no-untyped-call]
+            LxZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rx, q], acc_z], f"LxZadj_{i}_{q}")  # type: ignore[no-untyped-call]
 
             # --- Z-logical adjusted by Wz:  (LzX', LzZ') = (LzX, LzZ) ⊕ ⨁_s Wz[i,s]*(Sx[s,*], Sz[s,*])
-            terms_x2 = [and2(Wz[i][s], Sx_fin[s, q], f"bx_{i}_{s}_{q}") for s in range(m)]
-            terms_z2 = [and2(Wz[i][s], Sz_fin[s, q], f"bz_{i}_{s}_{q}") for s in range(m)]
-            acc_x2 = xor_list_to_var(terms_x2, f"accx2_{i}_{q}")
-            acc_z2 = xor_list_to_var(terms_z2, f"accz2_{i}_{q}")
+            terms_x2 = [and2(Wz[i][s], Sx_fin[s, q], f"bx_{i}_{s}_{q}") for s in range(m)]  # type: ignore[no-untyped-call]
+            terms_z2 = [and2(Wz[i][s], Sz_fin[s, q], f"bz_{i}_{s}_{q}") for s in range(m)]  # type: ignore[no-untyped-call]
+            acc_x2 = xor_list_to_var(terms_x2, f"accx2_{i}_{q}")  # type: ignore[no-untyped-call]
+            acc_z2 = xor_list_to_var(terms_z2, f"accz2_{i}_{q}")  # type: ignore[no-untyped-call]
 
-            LzX_adj[i][q] = xor_list_to_var([Tx[max_depth][rz, q], acc_x2], f"LzXadj_{i}_{q}")
-            LzZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rz, q], acc_z2], f"LzZadj_{i}_{q}")
+            LzX_adj[i][q] = xor_list_to_var([Tx[max_depth][rz, q], acc_x2], f"LzXadj_{i}_{q}")  # type: ignore[no-untyped-call]
+            LzZ_adj[i][q] = xor_list_to_var([Tz[max_depth][rz, q], acc_z2], f"LzZadj_{i}_{q}")  # type: ignore[no-untyped-call]
 
         # Canonical conditions on the adjusted logicals
         # X-logical: Z-part == 0, X-part is one-hot
-        model.Add(sum(LxZ_adj[i][q] for q in range(n)) == 0)
-        model.Add(sum(LxX_adj[i][q] for q in range(n)) == 1)
+        model.Add(sum(LxZ_adj[i][q] for q in range(n)) == 0)  # type: ignore[misc]
+        model.Add(sum(LxX_adj[i][q] for q in range(n)) == 1)  # type: ignore[misc]
 
         # Z-logical: X-part == 0, Z-part is one-hot
-        model.Add(sum(LzX_adj[i][q] for q in range(n)) == 0)
-        model.Add(sum(LzZ_adj[i][q] for q in range(n)) == 1)
+        model.Add(sum(LzX_adj[i][q] for q in range(n)) == 0)  # type: ignore[misc]
+        model.Add(sum(LzZ_adj[i][q] for q in range(n)) == 1)  # type: ignore[misc]
 
         # Positions match: enforce equality of the one-hot vectors
         for q in range(n):
@@ -473,8 +474,8 @@ def depth_optimal_encoding_circuit_non_css(
                     LZ_adj[i, :] ^= Sz[s, :]
         return LX_adj, LZ_adj
 
-    LxX_adj, LxZ_adj = adjust(LxX_raw, LxZ_raw, Wx_val, Sx_fin_val, Sz_fin_val)  # noqa: N806
-    LzX_adj, LzZ_adj = adjust(LzX_raw, LzZ_raw, Wz_val, Sx_fin_val, Sz_fin_val)  # noqa: N806
+    LxX_adj, LxZ_adj = adjust(LxX_raw, LxZ_raw, Wx_val, Sx_fin_val, Sz_fin_val)  # type: ignore[no-untyped-call] # noqa: N806
+    LzX_adj, LzZ_adj = adjust(LzX_raw, LzZ_raw, Wz_val, Sx_fin_val, Sz_fin_val)  # type: ignore[no-untyped-call] # noqa: N806
 
     # Now each row should be canonical: LxZ_adj[i]==0 and LxX_adj[i] one-hot,
     # LzX_adj[i]==0 and LzZ_adj[i] one-hot, and positions match.
@@ -511,7 +512,7 @@ def depth_optimal_encoding_circuit_non_css(
             elif zv == 1:
                 enc_circ.append("Z", [i])
 
-    return enc_circ, encoding_qubits
+    return enc_circ, list(encoding_qubits)
 
 
 def gate_optimal_encoding_circuit(
@@ -773,12 +774,18 @@ def synthesize_clifford(
     """
     if tableau.is_css() and use_cnots_if_css:
         x_checks, z_checks = tableau.to_css()
+        assert isinstance(config, CnotSynthesisConfig) or config is None, (
+            "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
+        )
         return cnot_encoding_circuit(
-            CheckMatrix(np.empty((0, tableau.n)), pauli_type="X"),
+            CheckMatrix(np.empty((0, tableau.n), dtype=np.int8), pauli_type="X"),
             x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
-            config,
+            config=config,
         )
 
+    assert isinstance(config, CliffordSynthesisConfig) or config is None, (
+        "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
+    )
     ops, _ = synthesize_non_css(
         tableau,
         config=config,
@@ -809,10 +816,18 @@ def synthesize_encoding_circuit(
         checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
+
+        assert isinstance(config, CnotSynthesisConfig) or config is None, (
+            "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
+        )
         return cnot_encoding_circuit(checks, logicals, balance_checks=False, config=config)
 
-    log_mat = np.vstack((code.x_logicals.tableau, code.z_logicals.tableau))
-    log_phase = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
+    assert isinstance(config, CliffordSynthesisConfig) or config is None, (
+        "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
+    )
+
+    log_mat: npt.NDArray[np.int8] = np.vstack((code.x_logicals.tableau.matrix, code.z_logicals.tableau.matrix))
+    log_phase: npt.NDArray[np.int8] = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
 
     return encoder_from_stabilizers_and_logicals(code.generators, StabilizerTableau(log_mat, log_phase), config=config)
 
@@ -994,6 +1009,8 @@ def cnot_encoding_circuit(
     encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
     config.exact = True
     final_ops, logicals = synthesize_cnot(encoding_checks, config=config)
-    cnots = [(c.control, c.target) for c in reversed(final_ops)] + [(c.control, c.target) for c in reversed(ops)]
+    cnots = [(c.control, c.target) for c in reversed(final_ops) if isinstance(c, CNOT)] + [
+        (c.control, c.target) for c in reversed(ops) if isinstance(c, CNOT)
+    ]
 
     return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
