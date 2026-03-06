@@ -9,10 +9,7 @@
 
 from __future__ import annotations
 
-from abc import ABC
 from dataclasses import dataclass
-
-import ldpc.mod2.mod2_numpy as mod2
 
 from ..codes.pauli import CheckMatrix, StabilizerTableau
 from . import strategy
@@ -20,24 +17,9 @@ from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
 
 
-class SynthesisConfig(ABC):  # noqa:B024
+@dataclass
+class SynthesisConfig:
     """Base class for synthesis configuration."""
-
-
-@dataclass
-class CnotSynthesisConfig(SynthesisConfig):
-    """Configuration for CNOT-based synthesis."""
-
-    optimization_criterion: str = "gates"
-    exact: bool = True
-    lookahead: int = 0
-    num_lookahead_candidates: int | list[int] = 10
-    enable_early_termination: bool = False
-
-
-@dataclass
-class CliffordSynthesisConfig(SynthesisConfig):
-    """Configuration for non-CSS synthesis."""
 
     optimization_criterion: str = "gates"
     lookahead: int = 0
@@ -47,8 +29,8 @@ class CliffordSynthesisConfig(SynthesisConfig):
 
 def synthesize_cnot(
     matrix: CheckMatrix,
-    config: CnotSynthesisConfig | None = None,
-    n_stabs: int | None = None,
+    config: SynthesisConfig | None = None,
+    n_stabs: int = 0,
 ) -> tuple[EliminationSequence, CheckMatrix]:
     """Eliminate a CSS check matrix using CNOT operations.
 
@@ -65,9 +47,8 @@ def synthesize_cnot(
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     if config is None:
-        config = CnotSynthesisConfig()
+        config = SynthesisConfig()
 
-    exact = config.exact
     optimization_criterion = config.optimization_criterion
     lookahead = config.lookahead
     num_lookahead_candidates = config.num_lookahead_candidates
@@ -77,23 +58,9 @@ def synthesize_cnot(
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
-    target_rank = mod2.rank(matrix.matrix) if n_stabs is None else n_stabs
-
-    if exact:
-        if lookahead > 0:
-            strat = strategy.for_cnot_with_lookahead_exact(
-                target_rank=target_rank,
-                n=n,
-                optimization_criterion=optimization_criterion,
-                lookahead=lookahead,
-                num_lookahead_candidates=num_lookahead_candidates,
-                enable_early_termination=enable_early_termination,
-            )
-        else:
-            strat = strategy.for_cnot_exact(target_rank=target_rank, n=n, optimization_criterion=optimization_criterion)
-    elif lookahead > 0:
+    if lookahead > 0:
         strat = strategy.for_cnot_with_lookahead_up_to_row_ops(
-            target_rank=target_rank,
+            n_stabs=n_stabs,
             n=n,
             optimization_criterion=optimization_criterion,
             lookahead=lookahead,
@@ -101,9 +68,7 @@ def synthesize_cnot(
             enable_early_termination=enable_early_termination,
         )
     else:
-        strat = strategy.for_cnot_up_to_row_ops(
-            target_rank=target_rank, n=n, optimization_criterion=optimization_criterion
-        )
+        strat = strategy.for_cnot_up_to_row_ops(n_stabs=n_stabs, n=n, optimization_criterion=optimization_criterion)
 
     operations, final_matrix = eliminate(matrix, strat)
 
@@ -119,7 +84,7 @@ def synthesize_cnot(
 
 def synthesize_non_css(
     tableau: StabilizerTableau,
-    config: CliffordSynthesisConfig | None = None,
+    config: SynthesisConfig | None = None,
 ) -> tuple[EliminationSequence, StabilizerTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
 
@@ -135,7 +100,7 @@ def synthesize_non_css(
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     if config is None:
-        config = CliffordSynthesisConfig()
+        config = SynthesisConfig()
     if config.lookahead > 0:
         strat = strategy.for_non_css_with_lookahead(
             n=tableau.n,

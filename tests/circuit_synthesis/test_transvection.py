@@ -14,7 +14,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
 from mqt.qecc.circuit_synthesis.operations import Transvection
-from mqt.qecc.circuit_synthesis.synthesis import CliffordSynthesisConfig, synthesize_non_css
+from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig, synthesize_non_css
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
 )
@@ -37,9 +37,9 @@ def cnot_tableau() -> StabilizerTableau:
 
 
 @pytest.fixture
-def clifford_synthesis_config() -> CliffordSynthesisConfig:
+def clifford_synthesis_config() -> SynthesisConfig:
     """Fixture to create a Clifford synthesis configuration."""
-    return CliffordSynthesisConfig(
+    return SynthesisConfig(
         optimization_criterion="gates",
         lookahead=0,
         num_lookahead_candidates=10,
@@ -55,7 +55,7 @@ def clifford_synthesis_config() -> CliffordSynthesisConfig:
     ],
 )
 def test_synthesize_non_css(
-    tableau_matrix: str, clifford_synthesis_config: CliffordSynthesisConfig, request: pytest.FixtureRequest
+    tableau_matrix: str, clifford_synthesis_config: SynthesisConfig, request: pytest.FixtureRequest
 ) -> None:
     """Test the synthesize_non_css function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
@@ -72,7 +72,7 @@ def test_synthesize_non_css(
     ],
 )
 def test_synthesize_non_css_with_lookahead(
-    tableau_matrix: str, clifford_synthesis_config: CliffordSynthesisConfig, request: pytest.FixtureRequest
+    tableau_matrix: str, clifford_synthesis_config: SynthesisConfig, request: pytest.FixtureRequest
 ) -> None:
     """Test the synthesize_non_css_with_lookahead function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
@@ -98,7 +98,7 @@ def test_transvection_circuit_consistency() -> None:
         assert result_tableau == circuit_tableau
 
 
-def test_synthesize_non_css_performance(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
+def test_synthesize_non_css_performance(clifford_synthesis_config: SynthesisConfig) -> None:
     """Performance test for non-CSS elimination on a 12-qubit encoding isometry."""
     iso = gottesman_encoding_circuit([
         "ZZXYIXZXYZIX",
@@ -124,7 +124,7 @@ def test_synthesize_non_css_performance(clifford_synthesis_config: CliffordSynth
     assert elapsed_time < 10.0
 
 
-def test_four_qubit(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
+def test_four_qubit(clifford_synthesis_config: SynthesisConfig) -> None:
     """Test elimination on the 4-qubit error detection code."""
     stabs = StabilizerTableau.from_pauli_strings(["XXXI", "IIIZ", "XXII", "IXXI", "ZZZZ", "XXXX", "IZZI", "ZZII"])
 

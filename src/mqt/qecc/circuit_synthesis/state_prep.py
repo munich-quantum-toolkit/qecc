@@ -23,7 +23,7 @@ from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .encoding import cnot_encoding_circuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
-from .synthesis import CnotSynthesisConfig
+from .synthesis import SynthesisConfig
 from .synthesis_utils import (
     iterative_search_with_timeout,
     measure_flagged,
@@ -221,9 +221,8 @@ def heuristic_prep_circuit(
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
     type_ = "X" if zero_state else "Z"
-    config = CnotSynthesisConfig(
+    config = SynthesisConfig(
         optimization_criterion="depth" if optimize_depth else "gates",
-        exact=False,
         lookahead=lookahead,
         num_lookahead_candidates=lookahead_candidates,
         enable_early_termination=False,

@@ -23,7 +23,7 @@ from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
 from .operations import CNOT
-from .synthesis import CliffordSynthesisConfig, CnotSynthesisConfig, synthesize_cnot, synthesize_non_css
+from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
 from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination, reduce_checks_by_row_ops
 from .transvection import (
     score_symplectic,
@@ -33,8 +33,6 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
     from ..codes import StabilizerCode
-    from .circuits import CNOTCircuit
-    from .synthesis import SynthesisConfig
 
 
 logger = logging.getLogger(__name__)
@@ -778,7 +776,7 @@ def synthesize_clifford(
     """
     if tableau.is_css() and use_cnots_if_css:
         x_checks, z_checks = tableau.to_css()
-        assert isinstance(config, CnotSynthesisConfig) or config is None, (
+        assert isinstance(config, SynthesisConfig) or config is None, (
             "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
         )
         return cnot_encoding_circuit(
@@ -787,7 +785,7 @@ def synthesize_clifford(
             config=config,
         )
 
-    assert isinstance(config, CliffordSynthesisConfig) or config is None, (
+    assert isinstance(config, SynthesisConfig) or config is None, (
         "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
     )
     ops, _ = synthesize_non_css(
@@ -821,12 +819,12 @@ def synthesize_encoding_circuit(
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
 
-        assert isinstance(config, CnotSynthesisConfig) or config is None, (
+        assert isinstance(config, SynthesisConfig) or config is None, (
             "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
         )
         return cnot_encoding_circuit(checks, logicals, balance_checks=False, config=config)
 
-    assert isinstance(config, CliffordSynthesisConfig) or config is None, (
+    assert isinstance(config, SynthesisConfig) or config is None, (
         "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
     )
 
@@ -982,7 +980,7 @@ def combine_stabilizer_and_logical_tableau(
 
 
 def cnot_encoding_circuit(
-    checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: CnotSynthesisConfig | None = None
+    checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: SynthesisConfig | None = None
 ) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
@@ -998,7 +996,7 @@ def cnot_encoding_circuit(
     logger.info("Starting encoding circuit synthesis.")
 
     if config is None:
-        config = CnotSynthesisConfig()
+        config = SynthesisConfig()
 
     n_stab = checks.num_rows()
     if balance_checks:
@@ -1006,14 +1004,25 @@ def cnot_encoding_circuit(
 
     mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), pauli_type=checks.type)
 
-    config.exact = False
     ops, reduced_checks = synthesize_cnot(mat, config=config, n_stabs=n_stab)
     assert isinstance(reduced_checks, CheckMatrix)
-    encoding_checks = CheckMatrix(reduced_checks.matrix[n_stab:, :], reduced_checks.type)
-    config.exact = True
-    final_ops, logicals = synthesize_cnot(encoding_checks, config=config)
-    cnots = [(c.control, c.target) for c in reversed(final_ops) if isinstance(c, CNOT)] + [
-        (c.control, c.target) for c in reversed(ops) if isinstance(c, CNOT)
-    ]
 
-    return build_css_encoder_from_cnot_list(reduced_checks, logicals, cnots)
+    cnots = [(c.control, c.target) for c in reversed(ops) if isinstance(c, CNOT)]
+
+    x_qubits = set()
+    for row in range(n_stab):
+        for col in range(reduced_checks.num_qubits()):
+            if reduced_checks.matrix[row, col] == 1:
+                x_qubits.add(col)
+
+    logical_qubits = set()
+    for row in range(n_stab, reduced_checks.num_rows()):
+        for col in range(reduced_checks.num_qubits()):
+            if reduced_checks.matrix[row, col] == 1:
+                logical_qubits.add(col)
+
+    z_qubits = set(range(reduced_checks.num_qubits())) - x_qubits - logical_qubits
+    if checks.type == "Z":
+        z_qubits, x_qubits = x_qubits, z_qubits
+
+    return CNOTCircuit.from_cnot_list(cnots, z_qubits, x_qubits)

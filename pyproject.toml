@@ -64,7 +64,7 @@ dependencies = [
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
-  "ortools>=9.11.0",
+  "ortools>=9.14.2151",
   "protobuf==6.31.1",
   "networkx>=3.4.2",
 ]

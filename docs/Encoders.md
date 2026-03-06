@@ -84,7 +84,7 @@ By default the heuristic synthesis tries to optimize for two-qubit gate count. W
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis import (
-    CnotSynthesisConfig
+    SynthesisConfig
 )
 
 config = CnotSynthesisConfig(optimization_criterion="depth")

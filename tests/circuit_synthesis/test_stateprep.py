@@ -203,6 +203,7 @@ def test_plus_state_heuristic(code: str, request: pytest.FixtureRequest) -> None
     assert sp_circ_plus is not None
 
     circ_plus = sp_circ_plus.circ
+    print(circ_plus.to_stim_circuit().to_crumble_url())
     max_cnots = np.sum(code_.Hx) + np.sum(code_.Hz)
 
     assert circ_plus.num_qubits() == code_.n
@@ -214,11 +215,11 @@ def test_plus_state_heuristic(code: str, request: pytest.FixtureRequest) -> None
     sp_circ_zero = heuristic_prep_circuit(code_, zero_state=True)
 
     if code_.is_self_dual():
-        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
+        assert eq_span(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert eq_span(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
+        assert not eq_span(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not eq_span(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")

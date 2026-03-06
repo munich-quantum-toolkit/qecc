@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
 from ..codes.pauli import CheckMatrix, StabilizerTableau
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 
 
 def for_cnot_up_to_row_ops(
-    target_rank: int,
+    n_stabs: int,
     n: int,
     optimization_criterion: str = "gates",
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
@@ -40,50 +41,7 @@ def for_cnot_up_to_row_ops(
     """Create strategy for CSS code elimination.
 
     Args:
-        target_rank: The target rank of the check matrix after elimination.
-        n: The number of qubits (columns) in the check matrix
-        optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
-        callback: Optional callback function invoked after each elimination step.
-
-    Returns:
-        EliminationStrategy configured for CSS code elimination.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    if optimization_criterion not in {"gates", "depth"}:
-        msg = f"Unsupported optimization criterion: {optimization_criterion}"
-        raise ValueError(msg)
-
-    filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
-
-    def termination_criterion(tbl: BinaryMatrix) -> bool:
-        if not isinstance(tbl, CheckMatrix):
-            msg = "CSS elimination can only be applied to CheckMatrix instances."
-            raise TypeError(msg)
-
-        matrix = tbl.matrix[:target_rank, :]
-        non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
-        return bool(non_zero_columns == target_rank)
-
-    return EliminationStrategy(
-        termination_criterion=termination_criterion,
-        candidate_generator=GreedyCNOTGenerator(filters),
-        filters=filters,
-        callback=callback,
-    )
-
-
-def for_cnot_exact(
-    target_rank: int,
-    n: int,
-    optimization_criterion: str = "gates",
-    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-) -> EliminationStrategy:
-    """Create strategy for CSS code elimination.
-
-    Args:
-        target_rank: The target rank of the check matrix after elimination.
+        n_stabs: The number of stabilizers.
         n: The number of qubits (columns) in the check matrix
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
         callback: Optional callback function invoked after each elimination step.
@@ -106,8 +64,26 @@ def for_cnot_exact(
             raise TypeError(msg)
 
         matrix = tbl.matrix
-        one_columns = (np.sum(matrix, axis=0) == 1).sum()
-        return bool(one_columns == target_rank)
+
+        if n_stabs != 0:
+            first_rows = matrix[:n_stabs, :]
+            rnk_first_rows = mod2.rank(first_rows)
+            non_zero_columns_first = np.sum(np.any(first_rows != 0, axis=0))
+            if non_zero_columns_first != rnk_first_rows:
+                return False
+
+        # Check that remaining rows have no overlap with each other
+        # (they can overlap with first n_stabs rows, but not with each other)
+        if matrix.shape[0] > n_stabs:
+            remaining_rows = matrix[n_stabs:, :]
+
+            # For each column, at most one remaining row can have a non-zero entry
+            for col in range(matrix.shape[1]):
+                col_entries = remaining_rows[:, col]
+                if np.sum(col_entries != 0) > 1:
+                    return False
+
+        return True
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,
@@ -228,7 +204,7 @@ def for_non_css_with_lookahead(
 
 
 def for_cnot_with_lookahead_up_to_row_ops(
-    target_rank: int,
+    n_stabs: int,
     n: int,
     lookahead: int = 1,
     num_lookahead_candidates: int | list[int] = 10,
@@ -239,7 +215,7 @@ def for_cnot_with_lookahead_up_to_row_ops(
     r"""Create strategy for CSS elimination with lookahead.
 
     Args:
-        target_rank: The target rank of the check matrix after elimination.
+        n_stabs: The target rank of the check matrix after elimination.
         n: The number of qubits (columns) in the check matrix
         lookahead: Number of steps to look ahead when selecting operations.
         num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
@@ -255,67 +231,7 @@ def for_cnot_with_lookahead_up_to_row_ops(
         ValueError: If optimization_criterion is not "gates" or "depth".
     """
     base_strategy = for_cnot_up_to_row_ops(
-        target_rank=target_rank,
-        n=n,
-        optimization_criterion=optimization_criterion,
-        callback=None,
-    )
-
-    if optimization_criterion == "gates":
-
-        def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
-            n_cnots = ops.num_cnots()
-            return (n_cnots, ops.depth(), n_cnots <= 1)
-
-    else:
-
-        def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
-            depth = ops.depth()
-            return (depth, ops.num_cnots(), depth <= 1)
-
-    return EliminationStrategy(
-        termination_criterion=base_strategy.termination_criterion,
-        candidate_generator=LookaheadCandidateGenerator(
-            base_strategy,
-            lookahead,
-            num_lookahead_candidates,
-            _score_fn,
-            enable_early_termination=enable_early_termination,
-        ),
-        filters=None,
-        callback=callback,
-    )
-
-
-def for_cnot_with_lookahead_exact(
-    target_rank: int,
-    n: int,
-    lookahead: int = 1,
-    num_lookahead_candidates: int | list[int] = 10,
-    optimization_criterion: str = "gates",
-    enable_early_termination: bool = True,
-    callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
-) -> EliminationStrategy:
-    r"""Create strategy for CSS elimination with lookahead.
-
-    Args:
-        target_rank: The target rank of the check matrix after elimination.
-        n: The number of qubits (columns) in the check matrix
-        lookahead: Number of steps to look ahead when selecting operations.
-        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
-            Can be a single int (same limit for all layers) or a list of ints (one per layer).
-        optimization_criterion: Either "gates" or "depth" for optimization objective.
-        enable_early_termination: If True, allows early termination when no improving candidates found.
-        callback: Optional callback function invoked after each elimination step.
-
-    Returns:
-        EliminationStrategy configured for CSS code elimination with lookahead.
-
-    Raises:
-        ValueError: If optimization_criterion is not "gates" or "depth".
-    """
-    base_strategy = for_cnot_exact(
-        target_rank=target_rank,
+        n_stabs=n_stabs,
         n=n,
         optimization_criterion=optimization_criterion,
         callback=None,

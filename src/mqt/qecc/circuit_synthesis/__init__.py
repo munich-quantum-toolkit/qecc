@@ -35,8 +35,7 @@ from .state_prep import (
 )
 from .state_prep_det import DeterministicVerification, DeterministicVerificationHelper
 from .synthesis import (
-    CliffordSynthesisConfig,
-    CnotSynthesisConfig,
+    SynthesisConfig,
     synthesize_cnot,
     synthesize_non_css,
 )
@@ -47,13 +46,12 @@ __all__ = [
     "CircuitLevelNoiseIdlingParallel",
     "CircuitLevelNoiseIdlingSequential",
     "CliffordIsometry",
-    "CliffordSynthesisConfig",
-    "CnotSynthesisConfig",
     "DeterministicVerification",
     "DeterministicVerificationHelper",
     "FaultyStatePrepCircuit",
     "LutDecoder",
     "SteaneNDFTStatePrepSimulator",
+    "SynthesisConfig",
     "VerificationNDFTStatePrepSimulator",
     "cat_state_balanced_tree",
     "cat_state_line",

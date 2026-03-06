@@ -29,7 +29,7 @@ from mqt.qecc.circuit_synthesis.encoding import (
     resynthesize_stim_circuit,
     synthesize_encoding_circuit,
 )
-from mqt.qecc.circuit_synthesis.synthesis import CliffordSynthesisConfig, CnotSynthesisConfig
+from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
 from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
 
@@ -99,11 +99,10 @@ def non_css_8_qubit() -> StabilizerCode:  # from https://arxiv.org/abs/quant-ph/
 
 
 @pytest.fixture
-def cnot_synthesis_config() -> CnotSynthesisConfig:
+def cnot_synthesis_config() -> SynthesisConfig:
     """Fixture to create a CNOT synthesis configuration."""
-    return CnotSynthesisConfig(
+    return SynthesisConfig(
         optimization_criterion="gates",
-        exact=False,
         lookahead=0,
         num_lookahead_candidates=10,
         enable_early_termination=False,
@@ -111,9 +110,9 @@ def cnot_synthesis_config() -> CnotSynthesisConfig:
 
 
 @pytest.fixture
-def clifford_synthesis_config() -> CliffordSynthesisConfig:
+def clifford_synthesis_config() -> SynthesisConfig:
     """Fixture to create a Clifford synthesis configuration."""
-    return CliffordSynthesisConfig(
+    return SynthesisConfig(
         optimization_criterion="gates",
         lookahead=0,
         num_lookahead_candidates=10,
@@ -259,7 +258,7 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
 )
 @pytest.mark.parametrize("lookahead_depth", [0, 1, 2])
 def test_resynthesize_stim_circuit(
-    circuit: stim.Circuit, lookahead_depth: int, clifford_synthesis_config: CliffordSynthesisConfig
+    circuit: stim.Circuit, lookahead_depth: int, clifford_synthesis_config: SynthesisConfig
 ) -> None:
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
@@ -280,7 +279,7 @@ def test_resynthesize_stim_circuit(
     assert resynthesized_two_qubit_gates <= original_two_qubit_gates
 
 
-def test_encoder_from_stabilizers_and_logicals(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
+def test_encoder_from_stabilizers_and_logicals(clifford_synthesis_config: SynthesisConfig) -> None:
     """Test encoder_from_stabilizers_and_logicals function."""
     stabilizers = StabilizerTableau.from_pauli_strings(["ZZZZ", "XXXX"])
     logicals = StabilizerTableau.from_pauli_strings(["XXII", "IXXI", "IZZI", "ZZII"])
@@ -293,7 +292,7 @@ def test_encoder_from_stabilizers_and_logicals(clifford_synthesis_config: Cliffo
         assert tab.is_row(Pauli.from_pauli_string(str(logical)))
 
 
-def test_encoder_from_stabilizers_and_logicals_five_qubit(clifford_synthesis_config: CliffordSynthesisConfig) -> None:
+def test_encoder_from_stabilizers_and_logicals_five_qubit(clifford_synthesis_config: SynthesisConfig) -> None:
     """Test encoder_from_stabilizers_and_logicals function."""
     stabilizers = StabilizerTableau.from_pauli_strings(["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"])
     x_logicals = ["XXXXX"]
@@ -358,7 +357,7 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 def test_cc_4_8_8():
     """Test encoding circuit synthesis for the 4.8.8 color code."""
     code = SquareOctagonColorCode(5)
-    config = CnotSynthesisConfig(
+    config = SynthesisConfig(
         optimization_criterion="gates",
         lookahead=1,
         num_lookahead_candidates=3,
