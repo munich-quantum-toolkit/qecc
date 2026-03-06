@@ -62,7 +62,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
         self._reset_filters()
         filtered_candidates = self._apply_filters(unscored_candidates)
-        return _score_cnots(unscored_candidates, tableau)
+        return _score_cnots(filtered_candidates, tableau)
 
     def _reset_filters(self) -> None:
         """Reset all filters to their initial state."""
