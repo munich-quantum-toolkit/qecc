@@ -64,7 +64,7 @@ def depth_optimal_encoding_circuit_non_css(
     assert code.z_logicals is not None
 
     # Constants (just for readability)
-    I, H, Sg, SX, CXCTRL, CXTAR, CZ, CZ2 = 0, 1, 2, 3, 4, 5, 6, 7  # noqa: E741, N806
+    I, H, Sg, SX, CXCTRL, CXTAR, CZ, CZ2 = 0, 1, 2, 3, 4, 5, 6, 7  # noqa: N806
 
     # ----------------------------------------------------------------------
     # Helpers
