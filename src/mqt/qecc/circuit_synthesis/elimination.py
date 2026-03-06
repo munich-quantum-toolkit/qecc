@@ -244,7 +244,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
 
         if not candidate_ops:
-            logger.debug(f"Iteration {iteration}: No candidates available, but termination criterion not met.")
+            logger.info(f"Iteration {iteration}: No candidates available, but termination criterion not met.")
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
