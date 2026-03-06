@@ -169,7 +169,7 @@ Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://
 code = CSSCode.from_code_name("golay")
 
 encoder = synthesize_encoding_circuit(code)
-print(f"Logical to physical qubit mapping: {q_enc}")
+print(f"Logical to physical qubit mapping: {encoder.inputs()}")
 print(f"Circuit has depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
