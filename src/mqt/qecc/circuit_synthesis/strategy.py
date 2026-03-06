@@ -70,7 +70,8 @@ def for_cnot_up_to_row_ops(
         target_rank = cached_rank
 
         # Fast early rejection: check total non-zero columns first
-        total_non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
+        col_nonzero = np.any(matrix != 0, axis=0)
+        total_non_zero_columns = np.sum(col_nonzero)
         if total_non_zero_columns != target_rank:
             return False
 
@@ -78,38 +79,44 @@ def for_cnot_up_to_row_ops(
             first_rows = matrix[:n_stabs, :]
 
             # Fast check: rank and non-zero columns must match
-            non_zero_columns_first = np.sum(np.any(first_rows != 0, axis=0))
+            first_nonzero = np.any(first_rows != 0, axis=0)
+            non_zero_columns_first = np.sum(first_nonzero)
             rnk_first_rows = mod2.rank(first_rows)
             if non_zero_columns_first != rnk_first_rows:
                 return False
 
             # Get pivot columns from the first n_stabs rows
-            _, _, _, pivot_cols = mod2.row_echelon(first_rows, full=True)
+            first_rows_reduced, _, _, pivot_cols = mod2.row_echelon(first_rows, full=True)
             pivot_cols_set = set(pivot_cols)
         else:
             pivot_cols_set = set()
+            first_rows_reduced = None
 
         # Check remaining rows
         if matrix.shape[0] > n_stabs:
-            if n_stabs > 0:
-                first_rows_reduced, _, _, _ = mod2.row_echelon(matrix[:n_stabs, :], full=True)
+            remaining_rows = matrix[n_stabs:, :]
 
-                remaining_rows = matrix[n_stabs:, :].copy()
-                for i in range(remaining_rows.shape[0]):
-                    for pivot_row in first_rows_reduced:
-                        nz = np.nonzero(pivot_row)[0]
-                        if len(nz) > 0 and remaining_rows[i, nz[0]] == 1:
-                            remaining_rows[i] = (remaining_rows[i] + pivot_row) % 2
-            else:
-                remaining_rows = matrix.copy()
+            if n_stabs > 0:
+                # Reduce remaining rows using first n_stabs rows (vectorized)
+                remaining_rows = remaining_rows.copy()
+                for pivot_row in first_rows_reduced:
+                    pivot_col = np.argmax(pivot_row != 0)
+                    mask = remaining_rows[:, pivot_col] == 1
+                    if np.any(mask):
+                        remaining_rows[mask] = (remaining_rows[mask] + pivot_row) % 2
 
             # Fast check: all rows must have exactly one non-zero
-            row_sums = np.sum(remaining_rows != 0, axis=1)
-            if not np.all(row_sums == 1):
+            row_nonzero_count = np.sum(remaining_rows != 0, axis=1)
+            if not np.all(row_nonzero_count == 1):
                 return False
 
-            # Check non-pivot columns for duplicates
-            non_pivot_remaining = remaining_rows[:, [c for c in range(matrix.shape[1]) if c not in pivot_cols_set]]
+            # Check non-pivot columns for duplicates using vectorized operation
+            if pivot_cols_set:
+                non_pivot_mask = np.array([c not in pivot_cols_set for c in range(matrix.shape[1])])
+                non_pivot_remaining = remaining_rows[:, non_pivot_mask]
+            else:
+                non_pivot_remaining = remaining_rows
+
             if non_pivot_remaining.shape[1] > 0:
                 col_sums = np.sum(non_pivot_remaining != 0, axis=0)
                 if np.any(col_sums > 1):
