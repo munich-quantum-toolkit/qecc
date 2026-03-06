@@ -486,7 +486,7 @@ class ParallelFilter(OperationFilter):
 
     def has_available_qubits(self) -> bool:
         """Check if there are qubits available for operations."""
-        return self._n_blocked <= self.n_qubits - 1  # two qubits should be free
+        return self._n_blocked < self.n_qubits - 1  # two qubits should be free
 
     def reset(self) -> None:
         """Unblock all qubits."""
