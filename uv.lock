@@ -1862,7 +1862,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24.1" },
     { name = "numpy", marker = "python_full_version >= '3.12'", specifier = ">=1.26" },
     { name = "numpy", marker = "python_full_version >= '3.13'", specifier = ">=2.1" },
-    { name = "ortools", specifier = ">=9.8.0" },
+    { name = "ortools", specifier = ">=9.11.0" },
     { name = "protobuf", specifier = "==6.31.1" },
     { name = "pymatching", specifier = ">=2.2.2" },
     { name = "qecsim", specifier = ">=1.0b9" },
