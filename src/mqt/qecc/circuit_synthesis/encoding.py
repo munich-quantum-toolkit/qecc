@@ -45,7 +45,7 @@ def depth_optimal_encoding_circuit_non_css(
     max_depth: int,
     max_two_qubit_gates: int | None = None,
     exact_two_qubit_count: bool = False,
-) -> str | tuple[stim.Circuit, list[int]]:
+) -> CliffordIsometry | str:
     """Synthesize a depth-optimal encoding circuit for a CSS code using a CP-SAT solver using the gate set: {I, H, S, SQRT_X, CX, CZ}.
 
     Args:
@@ -418,12 +418,12 @@ def depth_optimal_encoding_circuit_non_css(
 
     for t in range(max_depth):
         for q in range(n):
-            code = solver.Value(sqgs[t][q])
-            if code == H:
+            gate_code = solver.Value(sqgs[t][q])
+            if gate_code == H:
                 circ.append("H", [q])
-            elif code == Sg:
+            elif gate_code == Sg:
                 circ.append("S_DAG", [q])  # match your original and invert later
-            elif code == SX:
+            elif gate_code == SX:
                 circ.append("SQRT_X_DAG", [q])
 
         # 2q
@@ -492,8 +492,12 @@ def depth_optimal_encoding_circuit_non_css(
     encoding_qubits = np.array(positions, dtype=int)
 
     # Invert & sign fix
-    enc_circ = circ.inverse()
-    stabs_numpy = enc_circ.to_tableau().to_numpy()
+
+    enc_circ = stim.Circuit()
+
+    enc_circ.append("RZ", [q for q in range(code.n) if q not in encoding_qubits])
+    enc_circ += circ.inverse()
+    stabs_numpy = circ.inverse().to_tableau().to_numpy()
     x_part = stabs_numpy[2].astype(int)
     z_part = stabs_numpy[3].astype(int)
     signs = stabs_numpy[-1].astype(int)
@@ -512,7 +516,7 @@ def depth_optimal_encoding_circuit_non_css(
             elif zv == 1:
                 enc_circ.append("Z", [i])
 
-    return enc_circ, list(encoding_qubits)
+    return CliffordIsometry.from_stim_circuit(enc_circ)
 
 
 def gate_optimal_encoding_circuit(

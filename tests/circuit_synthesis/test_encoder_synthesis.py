@@ -226,17 +226,12 @@ def test_depth_optimal_encoding_non_css_consistent(code_fixture: str, request) -
     result = depth_optimal_encoding_circuit_non_css(code, max_depth=10)
     assert result != "UNSAT"
     assert not isinstance(result, str)
-    encoder, message_qs = result
-
-    assert encoder is not None
-    assert encoder.num_qubits == code.n
+    encoder = result
+    assert encoder.to_stim_circuit().num_qubits == code.n
 
     # Assert correct propagation of stabilizers and logicals
-    stabs = encoder.to_tableau().to_stabilizers()
-    paulis = [str(s) for s in stabs]
-    paulis = [pauli for i, pauli in enumerate(paulis) if i not in message_qs]
-
-    circuit_code = StabilizerCode(paulis)
+    circuit_code = encoder.get_code()
+    print(circuit_code.stabs_as_pauli_strings())
     assert code == circuit_code
 
 

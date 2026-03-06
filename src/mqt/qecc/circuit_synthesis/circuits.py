@@ -155,6 +155,29 @@ class CliffordIsometry:
         """Get input qubits."""
         return self._inputs
 
+    def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
+        """Draw the circuit using Qiskit visualization tools.
+
+        Args:
+            *args: Positional arguments for the Qiskit draw method.
+            **kwargs: Keyword arguments for the Qiskit draw method.
+        """
+        return self.to_qiskit_circuit().draw(*args, **kwargs)
+
+    def to_qiskit_circuit(self, remove_resets: bool = True) -> QuantumCircuit:
+        """Convert the isometry to a qiskit.QuantumCircuit.
+
+        Args:
+            remove_resets: If set to `True`, removes resets in the |0> state from the circuit.
+
+        Returns:
+            A qiskit.QuantumCircuit representation of the isometry.
+        """
+        circ = QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
+        if remove_resets:
+            return RemoveResetInZeroState()(circ)
+        return circ
+
     def num_inputs(self) -> int:
         """Get number of logical inputs."""
         return len(self._inputs)
@@ -462,11 +485,11 @@ class CNOTCircuit(CliffordIsometry):
             CNOT circuit
         """
         cnot_circuit = cls()
-        cnot_circuit.add_cnots(cnots)
         for q in initialize_z:
             cnot_circuit.initialize_qubit(q, "Z")
         for q in initialize_x:
             cnot_circuit.initialize_qubit(q, "X")
+        cnot_circuit.add_cnots(cnots)
         cnot_circuit._check_valid()
         return cnot_circuit
 
