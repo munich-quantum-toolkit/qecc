@@ -63,17 +63,12 @@ def for_cnot_up_to_row_ops(
     def termination_criterion(tbl: BinaryMatrix) -> bool:
         nonlocal cached_rank
         matrix = tbl.matrix  # type: ignore[union-attr]
-        # Fast check: count total non-zero columns first (cheap operation)
-        total_non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
-
-        # Early exit: if too many non-zero columns, can't be terminal
-        if cached_rank is not None and total_non_zero_columns > cached_rank:
-            return False
 
         if cached_rank is None:
             cached_rank = mod2.rank(matrix)
 
         target_rank = cached_rank
+
         if n_stabs != 0:
             first_rows = matrix[:n_stabs, :]
             rnk_first_rows = mod2.rank(first_rows)
@@ -81,19 +76,40 @@ def for_cnot_up_to_row_ops(
             if non_zero_columns_first != rnk_first_rows:
                 return False
 
-        # Check that remaining rows have the required structure
+            # Get pivot columns from the first n_stabs rows
+            _, _, _, pivot_cols = mod2.row_echelon(first_rows, full=True)
+            pivot_cols_set = set(pivot_cols)
+        else:
+            pivot_cols_set = set()
+
+        # Check remaining rows
         if matrix.shape[0] > n_stabs:
-            remaining_rows = matrix[n_stabs:, :]
+            if n_stabs > 0:
+                # Reduce only the first n_stabs rows to row echelon form
+                first_rows_reduced, _, _, _ = mod2.row_echelon(matrix[:n_stabs, :], full=True)
+
+                # Manually reduce remaining rows using only the first n_stabs rows
+                remaining_rows = matrix[n_stabs:, :].copy()
+                for i in range(remaining_rows.shape[0]):
+                    for pivot_row in first_rows_reduced:
+                        nz = np.nonzero(pivot_row)[0]
+                        if len(nz) > 0 and remaining_rows[i, nz[0]] == 1:
+                            remaining_rows[i] = (remaining_rows[i] + pivot_row) % 2
+            else:
+                # No stabilizers, so remaining rows are just the entire matrix
+                remaining_rows = matrix.copy()
 
             # Each remaining row must have exactly one non-zero entry
             row_sums = np.sum(remaining_rows != 0, axis=1)
             if not np.all(row_sums == 1):
                 return False
 
-            # No two remaining rows can share the same column
-            remaining_col_counts = np.sum(remaining_rows != 0, axis=0)
-            if np.any(remaining_col_counts > 1):
-                return False
+            # No two remaining rows can share the same non-pivot column
+            for col in range(matrix.shape[1]):
+                if col not in pivot_cols_set:
+                    col_sum = np.sum(remaining_rows[:, col] != 0)
+                    if col_sum > 1:
+                        return False
 
         # Verify total number of non-zero columns equals the rank
         total_non_zero_columns = np.sum(np.any(matrix != 0, axis=0))
