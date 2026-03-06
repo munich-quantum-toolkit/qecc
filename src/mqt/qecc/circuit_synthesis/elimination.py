@@ -245,7 +245,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
 
         if not candidate_ops:
             logger.info(f"Iteration {iteration}: No candidates available, but termination criterion not met.")
-            logger.info(f"Current tableau:\n{tableau}")
+            logger.info(f"Current tableau:\n{tableau.matrix}")  # type: ignore[union-attr]
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
