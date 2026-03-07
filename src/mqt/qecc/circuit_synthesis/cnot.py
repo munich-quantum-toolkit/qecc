@@ -58,12 +58,8 @@ class GreedyCNOTGenerator(CandidateGenerator):
         """
         assert isinstance(tableau, CheckMatrix), "Input must be a CheckMatrix."
         unscored_candidates = _generate_cnot_operations(tableau)
-        for op in unscored_candidates:
-            logger.info(f"Generated candidate: {op}")
         filtered_candidates = self._apply_filters(unscored_candidates)
         scored = _score_cnots(filtered_candidates, tableau)
-        for op, score in scored:  # type: ignore[assignment]
-            logger.info(f"Scored candidate: {op} with score {score}")
         if scored:
             return scored
 
@@ -127,9 +123,15 @@ def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
     n = get_n(matrix)
 
     if n not in _CNOT_CACHE:
-        _CNOT_CACHE[n] = [CNOT(i, j) for i in range(n) for j in range(n) if i != j]
+        cnots = [CNOT(i, j) for i in range(n) for j in range(n) if i != j]
+        logger.info(f"Generating CNOT cache for n={n}: {len(cnots)} operations")
+        _CNOT_CACHE[n] = cnots
+    else:
+        logger.info(f"Using cached CNOTs for n={n}: {len(_CNOT_CACHE[n])} operations")
 
-    return _CNOT_CACHE[n]
+    result = _CNOT_CACHE[n]
+    logger.info(f"Returning {len(result)} CNOT operations")
+    return result
 
 
 @nb.njit(
