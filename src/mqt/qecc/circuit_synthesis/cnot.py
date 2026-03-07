@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 import operator
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from .elimination import OperationFilter
     from .operations import TableauOperation
     from .types import BinaryMatrix
+
+logger = logging.getLogger(__name__)
 
 
 class GreedyCNOTGenerator(CandidateGenerator):
@@ -55,8 +58,12 @@ class GreedyCNOTGenerator(CandidateGenerator):
         """
         assert isinstance(tableau, CheckMatrix), "Input must be a CheckMatrix."
         unscored_candidates = _generate_cnot_operations(tableau)
+        for op in unscored_candidates:
+            logger.info(f"Generated candidate: {op}")
         filtered_candidates = self._apply_filters(unscored_candidates)
         scored = _score_cnots(filtered_candidates, tableau)
+        for op, score in scored:  # type: ignore[assignment]
+            logger.info(f"Scored candidate: {op} with score {score}")
         if scored:
             return scored
 

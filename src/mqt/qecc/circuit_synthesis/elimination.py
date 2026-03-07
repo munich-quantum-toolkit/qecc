@@ -480,14 +480,11 @@ class ParallelFilter(OperationFilter):
             op: The tableau operation to update the filter with.
         """
         qubits_involved = op.qubits()
-        logger.info(f"Updating ParallelFilter with operation {op}, involving qubits {qubits_involved}")
-        logger.info(f"Current blocked qubits before update: {self.blocked_qubits}")
         for q in qubits_involved:
             if not self.blocked_qubits[q]:
                 self.blocked_qubits[q] = True
                 self._n_blocked += 1
 
-        logger.info(f"Blocked qubits after update: {self.blocked_qubits}")
         if not self.has_available_qubits():
             self.reset()
 
