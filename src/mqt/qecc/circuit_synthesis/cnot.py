@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import logging
 import operator
 from typing import TYPE_CHECKING
 
@@ -32,8 +31,6 @@ if TYPE_CHECKING:
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
-logger = logging.getLogger(__name__)
-
 
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
@@ -46,6 +43,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
         """
         self.operation_history: list[TableauOperation] = []
         self.filters = list(filters) if filters else []
+        self._cnot_cache: dict[int, list[CNOT]] = {}
 
     def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
         """Generate CNOT candidates sorted by heuristic score.
@@ -57,9 +55,10 @@ class GreedyCNOTGenerator(CandidateGenerator):
             List of (operation, score) tuples sorted by preference.
         """
         assert isinstance(tableau, CheckMatrix), "Input must be a CheckMatrix."
-        unscored_candidates = _generate_cnot_operations(tableau)
+        unscored_candidates = self._generate_cnot_operations(tableau)
         filtered_candidates = self._apply_filters(unscored_candidates)
         scored = _score_cnots(filtered_candidates, tableau)
+
         if scored:
             return scored
 
@@ -107,31 +106,22 @@ class GreedyCNOTGenerator(CandidateGenerator):
         """Reset the operation history."""
         self.operation_history.clear()
 
+    def _generate_cnot_operations(self, matrix: BinaryMatrix) -> list[CNOT]:
+        """Generate all possible CNOT operations without scoring.
 
-_CNOT_CACHE: dict[int, list[CNOT]] = {}
+        Args:
+            matrix: The CSS check matrix.
 
+        Returns:
+            List of all possible CNOT operations.
+        """
+        n = get_n(matrix)
 
-def _generate_cnot_operations(matrix: BinaryMatrix) -> list[CNOT]:
-    """Generate all possible CNOT operations without scoring.
+        if n not in self._cnot_cache:
+            cnots = [CNOT(i, j) for i in range(n) for j in range(n) if i != j]
+            self._cnot_cache[n] = cnots
 
-    Args:
-        matrix: The CSS check matrix.
-
-    Returns:
-        List of all possible CNOT operations.
-    """
-    n = get_n(matrix)
-
-    if n not in _CNOT_CACHE:
-        cnots = [CNOT(i, j) for i in range(n) for j in range(n) if i != j]
-        logger.info(f"Generating CNOT cache for n={n}: {len(cnots)} operations")
-        _CNOT_CACHE[n] = cnots
-    else:
-        logger.info(f"Using cached CNOTs for n={n}: {len(_CNOT_CACHE[n])} operations")
-
-    result = _CNOT_CACHE[n]
-    logger.info(f"Returning {len(result)} CNOT operations")
-    return result
+        return self._cnot_cache[n]
 
 
 @nb.njit(
