@@ -243,13 +243,10 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
 
-        if not candidate_ops:
-            logger.info(f"Iteration {iteration}: No candidates available, but termination criterion not met.")
-            logger.info(f"Current tableau:\n{tableau.matrix}")  # type: ignore[union-attr]
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
-        logger.info(f"Iteration {iteration}: Selected operation {op}")
+
         tableau = op.apply(tableau, inplace=True)
         operations.add_operation(op)
 
@@ -483,11 +480,14 @@ class ParallelFilter(OperationFilter):
             op: The tableau operation to update the filter with.
         """
         qubits_involved = op.qubits()
+        logger.info(f"Updating ParallelFilter with operation {op}, involving qubits {qubits_involved}")
+        logger.info(f"Current blocked qubits before update: {self.blocked_qubits}")
         for q in qubits_involved:
             if not self.blocked_qubits[q]:
                 self.blocked_qubits[q] = True
                 self._n_blocked += 1
 
+        logger.info(f"Blocked qubits after update: {self.blocked_qubits}")
         if not self.has_available_qubits():
             self.reset()
 
