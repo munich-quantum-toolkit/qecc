@@ -10,11 +10,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..codes.pauli import CheckMatrix, StabilizerTableau
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
+
+if TYPE_CHECKING:
+    from .operations import TableauOperation
 
 
 @dataclass
@@ -75,9 +79,11 @@ def synthesize_cnot(
     assert isinstance(final_matrix, CheckMatrix), "Expected CheckMatrix from CSS elimination"
 
     if matrix.is_z_type():
+        swapped_operations: list[TableauOperation] = []
         for op in operations.operations:
-            if isinstance(op, CNOT):
-                op.control, op.target = op.target, op.control
+            assert isinstance(op, CNOT)
+            swapped_operations.append(CNOT(op.target, op.control))
+        operations.operations = swapped_operations
 
     return operations, final_matrix
 
