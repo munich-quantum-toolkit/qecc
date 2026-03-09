@@ -153,25 +153,13 @@ class Transvection(TableauOperation):
             matrix[:, j] ^= matrix[:, j + n]
             matrix[:, j + n] ^= matrix[:, j]
 
-        # apply_cz(i, j) = apply_h(j) + apply_cx(i, j) + apply_h(j)
-        # apply_h(j)
-        phase ^= matrix[:, j] * matrix[:, j + n]
-        matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
-        # apply_cx(i, j)
-        phase ^= matrix[:, i] * matrix[:, j + n] * (matrix[:, j] ^ matrix[:, i + n] ^ 1)
-        matrix[:, j] ^= matrix[:, i]
-        matrix[:, i + n] ^= matrix[:, j + n]
-        # apply_h(j)
-        phase ^= matrix[:, j] * matrix[:, j + n]
-        matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
-
-        # apply_s(i)
-        phase ^= matrix[:, i] * matrix[:, i + n]
-        matrix[:, i + n] ^= matrix[:, i]
-
-        # apply_s(j)
-        phase ^= matrix[:, j] * matrix[:, j + n]
-        matrix[:, j + n] ^= matrix[:, j]
+        phase ^= (
+            (matrix[:, j] * matrix[:, j + n])
+            ^ (matrix[:, i] * matrix[:, i + n])
+            ^ (matrix[:, i] * matrix[:, j] * (matrix[:, j + n] ^ matrix[:, i + n]))
+        )
+        matrix[:, i + n] ^= matrix[:, j] ^ matrix[:, i]
+        matrix[:, j + n] ^= matrix[:, i] ^ matrix[:, j]
 
         if undo_j == "H":
             phase ^= matrix[:, j] * matrix[:, j + n]
