@@ -13,12 +13,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
+import stim
 
 from mqt.qecc import CSSCode
-from mqt.qecc.circuit_synthesis import (
-    DeterministicVerificationHelper,
-    heuristic_prep_circuit,
-)
+from mqt.qecc.circuit_synthesis import CNOTCircuit, DeterministicVerificationHelper, FaultyStatePrepCircuit
 
 from .utils import in_span
 
@@ -34,7 +32,7 @@ except ImportError:
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from mqt.qecc.circuit_synthesis import DeterministicVerification, FaultyStatePrepCircuit
+    from mqt.qecc.circuit_synthesis import DeterministicVerification
 
 # Simulation parameters
 
@@ -50,7 +48,17 @@ if HAS_QSAMPLE:
 def steane_code_sp_plus() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the Steane code."""
     steane_code = CSSCode.from_code_name("Steane")
-    sp_circ = heuristic_prep_circuit(steane_code, zero_state=False)
+    sp_circ = FaultyStatePrepCircuit(
+        CNOTCircuit.from_stim_circuit(
+            stim.Circuit(
+                """R 0 1 3
+        RX 2 4 5 6
+        CX 5 3 2 0 6 5 4 3 0 1 6 2 5 1 4 0"""
+            )
+        ),
+        steane_code.x_distance // 2,
+        steane_code.z_distance // 2,
+    )
     sp_circ.compute_fault_sets()
     return sp_circ
 
@@ -70,8 +78,19 @@ def verified_steane_data(
 def surface_code_sp_zero() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=3 rotated surface code."""
     surface_code = CSSCode.from_code_name("surface", 3)
-    sp_circ = heuristic_prep_circuit(surface_code, zero_state=True)
+    sp_circ = FaultyStatePrepCircuit(
+        CNOTCircuit.from_stim_circuit(
+            stim.Circuit(
+                """R 1 3 4 7 8
+                RX 0 2 5 6
+                CX 5 8 0 4 5 7 0 3 7 4 6 3 2 5 0 1"""
+            )
+        ),
+        surface_code.x_distance // 2,
+        surface_code.z_distance // 2,
+    )
     sp_circ.compute_fault_sets()
+    sp_circ.circ.to_stim_circuit().to_file("surface_code_sp_zero.stim")
     return sp_circ
 
 
@@ -97,8 +116,19 @@ def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
         [0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1],
     ])
     code = CSSCode(Hx=check_matrix, Hz=check_matrix, distance=3)
-    sp_circ = heuristic_prep_circuit(code)
+    sp_circ = FaultyStatePrepCircuit(
+        CNOTCircuit.from_stim_circuit(
+            stim.Circuit(
+                """R 5 6 7 8 9 10
+                RX 0 1 2 3 4
+                CX 4 10 3 8 4 7 1 8 4 6 2 8 1 7 3 6 2 9 1 10 0 8 7 5 1 6 0 7 10 9 8 5"""
+            )
+        ),
+        code.x_distance // 2,
+        code.z_distance // 2,
+    )
     sp_circ.compute_fault_sets()
+    sp_circ.circ.to_stim_circuit().to_file("11_1_3_code_sp.stim")
     return sp_circ
 
 
