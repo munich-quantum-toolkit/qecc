@@ -135,10 +135,9 @@ def _score_transvections(
     scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
 
     for op in operations:
-        tableau_op_applied = op.apply(tableau)
-        if not isinstance(tableau_op_applied, StabilizerTableau):
-            continue
+        tableau_op_applied = op.apply_stabilizer_tableau(tableau)
         h_vec, _ = score_symplectic(tableau_op_applied)
+
         if h_vec < base_score:
             # Convert tuple to int for compatibility with the return type
             score_value = sum(h_vec)

@@ -12,6 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+import numba as nb
 import numpy as np
 import stim
 
@@ -115,65 +116,18 @@ class Transvection(TableauOperation):
         """Apply the transvection operation to a stabilizer tableau."""
         out = tableau if inplace else tableau.copy()
 
-        matrix = out.tableau
-        phase = out.phase
         n = out.n
-        i = self.i
-        j = self.j
-        xi, xj, zi, zj = self.v
+        mat = out.tableau.matrix
 
-        paulis = {(0, 0): "I", (1, 0): "X", (0, 1): "Z", (1, 1): "Y"}
-        p_i = paulis[xi, zi]
-        p_j = paulis[xj, zj]
-
-        if p_i == "I" or p_j == "I":
-            msg = f"Expected non-trivial Pauli on both qubits, got {p_i},{p_j}"
-            raise ValueError(msg)
-
-        basis_change_map = {"Z": None, "X": "H", "Y": "SH"}
-        undo_basis_change_map = {"Z": None, "X": "H", "Y": "HS"}
-
-        basis_i = basis_change_map[p_i]
-        basis_j = basis_change_map[p_j]
-        undo_i = undo_basis_change_map[p_i]
-        undo_j = undo_basis_change_map[p_j]
-
-        if basis_i == "H":
-            phase ^= matrix[:, i] * matrix[:, i + n]
-            matrix[:, [i, i + n]] = matrix[:, [i + n, i]]
-        elif basis_i == "SH":
-            matrix[:, i] ^= matrix[:, i + n]
-            matrix[:, i + n] ^= matrix[:, i]
-
-        if basis_j == "H":
-            phase ^= matrix[:, j] * matrix[:, j + n]
-            matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
-
-        elif basis_j == "SH":
-            matrix[:, j] ^= matrix[:, j + n]
-            matrix[:, j + n] ^= matrix[:, j]
-
-        phase ^= (
-            (matrix[:, j] * matrix[:, j + n])
-            ^ (matrix[:, i] * matrix[:, i + n])
-            ^ (matrix[:, i] * matrix[:, j] * (matrix[:, j + n] ^ matrix[:, i + n]))
+        mat_i, mat_i_n, mat_j, mat_j_n, phase = _apply_transvection_numba(
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v
         )
-        matrix[:, i + n] ^= matrix[:, j] ^ matrix[:, i]
-        matrix[:, j + n] ^= matrix[:, i] ^ matrix[:, j]
 
-        if undo_j == "H":
-            phase ^= matrix[:, j] * matrix[:, j + n]
-            matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
-        elif undo_j == "HS":
-            matrix[:, j + n] ^= matrix[:, j]
-            matrix[:, j] ^= matrix[:, j + n]
-
-        if undo_i == "H":
-            phase ^= matrix[:, i] * matrix[:, i + n]
-            matrix[:, [i, i + n]] = matrix[:, [i + n, i]]
-        elif undo_i == "HS":
-            matrix[:, i + n] ^= matrix[:, i]
-            matrix[:, i] ^= matrix[:, i + n]
+        mat[:, self.i] = mat_i
+        mat[:, self.i + n] = mat_i_n
+        mat[:, self.j] = mat_j
+        mat[:, self.j + n] = mat_j_n
+        out.phase[:] = phase
 
         return out
 
@@ -636,3 +590,88 @@ class Swap(TableauOperation):
             set[int]: The set of qubit indices involved in the operation.
         """
         return {self.qubit_a, self.qubit_b}
+
+
+@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def _apply_transvection_numba(
+    mat_i: np.ndarray,
+    mat_i_n: np.ndarray,
+    mat_j: np.ndarray,
+    mat_j_n: np.ndarray,
+    phase: np.ndarray,
+    xi: int,
+    xj: int,
+    zi: int,
+    zj: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    p_i = xi + 2 * zi
+    p_j = xj + 2 * zj
+
+    if p_i == 0 or p_j == 0:
+        return mat_i, mat_i_n, mat_j, mat_j_n, phase
+
+    basis_i = 1 if p_i == 1 else (2 if p_i == 3 else 0)
+    basis_j = 1 if p_j == 1 else (2 if p_j == 3 else 0)
+    undo_i = 1 if p_i == 1 else (3 if p_i == 3 else 0)
+    undo_j = 1 if p_j == 1 else (3 if p_j == 3 else 0)
+
+    if basis_i == 1:
+        phase ^= mat_i * mat_i_n
+        temp = mat_i.copy()
+        mat_i[:] = mat_i_n
+        mat_i_n[:] = temp
+    elif basis_i == 2:
+        phase ^= mat_i * mat_i_n
+        mat_i_n ^= mat_i
+        phase ^= mat_i
+        phase ^= mat_i * mat_i_n
+        temp = mat_i.copy()
+        mat_i[:] = mat_i_n
+        mat_i_n[:] = temp
+
+    if basis_j == 1:
+        phase ^= mat_j * mat_j_n
+        temp = mat_j.copy()
+        mat_j[:] = mat_j_n
+        mat_j_n[:] = temp
+    elif basis_j == 2:
+        phase ^= mat_j * mat_j_n
+        mat_j_n ^= mat_j
+        phase ^= mat_j
+        phase ^= mat_j * mat_j_n
+        temp = mat_j.copy()
+        mat_j[:] = mat_j_n
+        mat_j_n[:] = temp
+
+    phase ^= (mat_j * mat_j_n) ^ (mat_i * mat_i_n) ^ (mat_i * mat_j * (mat_j_n ^ mat_i_n))
+
+    mat_i_n ^= mat_j ^ mat_i
+    mat_j_n ^= mat_i ^ mat_j
+
+    if undo_j == 1:
+        phase ^= mat_j * mat_j_n
+        temp = mat_j.copy()
+        mat_j[:] = mat_j_n
+        mat_j_n[:] = temp
+    elif undo_j == 3:
+        phase ^= mat_j * mat_j_n
+        temp = mat_j.copy()
+        mat_j[:] = mat_j_n
+        mat_j_n[:] = temp
+        phase ^= mat_j * mat_j_n
+        mat_j_n ^= mat_j
+
+    if undo_i == 1:
+        phase ^= mat_i * mat_i_n
+        temp = mat_i.copy()
+        mat_i[:] = mat_i_n
+        mat_i_n[:] = temp
+    elif undo_i == 3:
+        phase ^= mat_i * mat_i_n
+        temp = mat_i.copy()
+        mat_i[:] = mat_i_n
+        mat_i_n[:] = temp
+        phase ^= mat_i * mat_i_n
+        mat_i_n ^= mat_i
+
+    return mat_i, mat_i_n, mat_j, mat_j_n, phase
