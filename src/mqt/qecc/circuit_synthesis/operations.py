@@ -129,7 +129,7 @@ class Transvection(TableauOperation):
         mat = out.tableau.matrix
 
         _apply_transvection_numba(
-            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v
         )
 
         return out
@@ -651,10 +651,7 @@ def _apply_transvection_numba(
         mat_i[:] = mat_i_n
         mat_i_n[:] = temp
     elif basis_i == 2:
-        phase ^= mat_i * mat_i_n
         mat_i_n ^= mat_i
-        phase ^= mat_i
-        phase ^= mat_i * mat_i_n
         temp = mat_i.copy()
         mat_i[:] = mat_i_n
         mat_i_n[:] = temp
@@ -665,10 +662,7 @@ def _apply_transvection_numba(
         mat_j[:] = mat_j_n
         mat_j_n[:] = temp
     elif basis_j == 2:
-        phase ^= mat_j * mat_j_n
         mat_j_n ^= mat_j
-        phase ^= mat_j
-        phase ^= mat_j * mat_j_n
         temp = mat_j.copy()
         mat_j[:] = mat_j_n
         mat_j_n[:] = temp
@@ -684,11 +678,9 @@ def _apply_transvection_numba(
         mat_j[:] = mat_j_n
         mat_j_n[:] = temp
     elif undo_j == 3:
-        phase ^= mat_j * mat_j_n
         temp = mat_j.copy()
         mat_j[:] = mat_j_n
         mat_j_n[:] = temp
-        phase ^= mat_j * mat_j_n
         mat_j_n ^= mat_j
 
     if undo_i == 1:
@@ -697,10 +689,8 @@ def _apply_transvection_numba(
         mat_i[:] = mat_i_n
         mat_i_n[:] = temp
     elif undo_i == 3:
-        phase ^= mat_i * mat_i_n
         temp = mat_i.copy()
         mat_i[:] = mat_i_n
         mat_i_n[:] = temp
-        phase ^= mat_i * mat_i_n
         mat_i_n ^= mat_i
     return
