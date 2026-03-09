@@ -13,6 +13,7 @@ import operator
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
+import numba as nb
 import numpy as np
 
 from ..codes.pauli import StabilizerTableau
@@ -138,7 +139,7 @@ def _score_transvections(
         tableau_op_applied = op.apply_stabilizer_tableau(tableau)
         h_vec, _ = score_symplectic(tableau_op_applied)
 
-        if h_vec < base_score:
+        if lexicographical_compare_np(h_vec, base_score):
             # Convert tuple to int for compatibility with the return type
             score_value = sum(h_vec)
             scored.append((op, score_value))
@@ -147,9 +148,19 @@ def _score_transvections(
     return scored
 
 
+def lexicographical_compare_np(arr1: np.ndarray, arr2: np.ndarray) -> bool:
+    """Perform lexicographical comparison of two NumPy arrays."""
+    for a, b in zip(arr1, arr2, strict=False):
+        if a < b:
+            return True
+        if a > b:
+            return False
+    return False  # Arrays are identical
+
+
 def get_candidate_transvections(
     tableau: StabilizerTableau,
-) -> list[tuple[Transvection, tuple[int, ...]]]:
+) -> list[tuple[Transvection, np.ndarray]]:
     """Score all possible operations and return scored operations."""
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
@@ -160,7 +171,7 @@ def get_candidate_transvections(
         pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
 
     transvections = Transvection.all_two_qubit_transvections()
-    scores: list[tuple[Transvection, tuple[int, ...]]] = []
+    scores: list[tuple[Transvection, np.ndarray]] = []
     base_score, _ = score_symplectic(tableau)
     for i, j in pairs:
         for v in transvections:
@@ -169,7 +180,7 @@ def get_candidate_transvections(
             if not isinstance(tableau_op_applied, StabilizerTableau):
                 continue
             h_vec, _ = score_symplectic(tableau_op_applied)
-            if h_vec < base_score:
+            if lexicographical_compare_np(h_vec, base_score):
                 scores.append((op, h_vec))
 
     scores.sort(key=operator.itemgetter(1))
@@ -197,24 +208,35 @@ def _compute_r0_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]
     return result
 
 
-def _compute_r1_matrix_from_r2_r0(r2: npt.NDArray[np.int8], r0: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    return (1 ^ (r2 | r0)).astype(np.int8)
-
-
-def r1_r2(symplectic: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
-    """Compute R1 and R2 matrices from a symplectic matrix."""
+@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def r1_r2(symplectic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Compute R1 and R2 matrices from a symplectic matrix using Numba."""
     n = symplectic.shape[0] // 2
 
+    # Extract quadrants of the symplectic matrix
     a_xx = symplectic[:n, :n]
     a_xz = symplectic[:n, n:]
     a_zx = symplectic[n:, :n]
     a_zz = symplectic[n:, n:]
 
-    r2 = (a_xx & a_zz) ^ (a_xz & a_zx)
-    r0 = ~(a_xx | a_xz | a_zx | a_zz)
-    r1 = ~(r2 | r0)
+    # Precompute intermediate results
+    and_xx_zz = np.bitwise_and(a_xx, a_zz)
+    and_xz_zx = np.bitwise_and(a_xz, a_zx)
 
-    return r1.astype(np.int8), r2.astype(np.int8)
+    # Compute R2
+    r2 = np.bitwise_xor(and_xx_zz, and_xz_zx)
+
+    # Compute R0 (zero matrix) using explicit element-wise OR
+    combined = np.zeros_like(a_xx, dtype=np.int8)
+    for i in range(combined.shape[0]):
+        for j in range(combined.shape[1]):
+            combined[i, j] = a_xx[i, j] | a_xz[i, j] | a_zx[i, j] | a_zz[i, j]
+    r0 = np.logical_not(combined).astype(np.int8)
+
+    # Compute R1
+    r1 = np.logical_not(np.bitwise_or(r2, r0)).astype(np.int8)
+
+    return r1, r2
 
 
 def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
@@ -227,23 +249,67 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
     return bool(np.all(r2.sum(axis=1) == 1))
 
 
-def score_symplectic(tableau: StabilizerTableau) -> tuple[tuple[int, ...], int]:
-    """Score the given symplectic matrix using the default symplectic heuristic."""
+@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def _r1_r2_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Compute R1 and R2 matrices from a symplectic matrix using Numba."""
+    # Extract quadrants of the symplectic matrix
+    a_xx = symplectic[:n, :n]
+    a_xz = symplectic[:n, n:]
+    a_zx = symplectic[n:, :n]
+    a_zz = symplectic[n:, n:]
+
+    # Precompute intermediate results
+    and_xx_zz = np.bitwise_and(a_xx, a_zz)
+    and_xz_zx = np.bitwise_and(a_xz, a_zx)
+
+    # Compute R2
+    r2 = np.bitwise_xor(and_xx_zz, and_xz_zx)
+
+    # Compute R0 (zero matrix) using explicit element-wise OR
+    combined = np.zeros_like(a_xx, dtype=np.int8)
+    for i in range(combined.shape[0]):
+        for j in range(combined.shape[1]):
+            combined[i, j] = a_xx[i, j] | a_xz[i, j] | a_zx[i, j] | a_zz[i, j]
+    r0 = np.logical_not(combined).astype(np.int8)
+
+    # Compute R1
+    r1 = np.logical_not(np.bitwise_or(r2, r0)).astype(np.int8)
+
+    return r1, r2
+
+
+@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def score_symplectic_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, int]:
+    """Score the given symplectic matrix using the default symplectic heuristic with Numba."""
+    # Compute R1 and R2 matrices using the Numba-optimized r1_r2_numba
+    r1, r2 = _r1_r2_numba(symplectic, n)
+
+    # Precompute sums for columns and rows
+    r1_col_sum = r1.sum(axis=0)
+    r2_col_sum = r2.sum(axis=0)
+    r1_row_sum = r1.sum(axis=1)
+    r2_row_sum = r2.sum(axis=1)
+
+    # Combine column and row sums into a single vector
+    vec = np.empty(2 * n, dtype=np.int32)
+    for i in range(n):
+        vec[i] = n * r2_col_sum[i] + r1_col_sum[i]
+        vec[n + i] = n * r2_row_sum[i] + r1_row_sum[i]
+
+    # Sort the vector for the heuristic score
+    h_vec = np.sort(vec)
+
+    # Compute the scalar score
+    h_scalar = int(r1_col_sum.sum() + r2_col_sum.sum())
+
+    return h_vec, h_scalar
+
+
+def score_symplectic(tableau: StabilizerTableau) -> tuple[np.ndarray, int]:
+    """Wrapper for the Numba-optimized score_symplectic function."""
     n = get_n(tableau)
-
     symplectic = tableau.tableau.matrix
-    r1, r2 = r1_r2(symplectic)
-
-    c1 = r1.sum(axis=0).astype(int)
-    c2 = r2.sum(axis=0).astype(int)
-
-    c1t = r1.sum(axis=1).astype(int)
-    c2t = r2.sum(axis=1).astype(int)
-    vec = np.concatenate([n * c2 + c1, n * c2t + c1t])
-
-    h_vec = tuple(sorted(int(x) for x in vec))
-
-    h_scalar = int(r1.sum() + r2.sum())
+    h_vec, h_scalar = score_symplectic_numba(symplectic, n)
     return h_vec, h_scalar
 
 

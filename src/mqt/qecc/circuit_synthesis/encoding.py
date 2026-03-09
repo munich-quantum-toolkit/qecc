@@ -25,9 +25,7 @@ from .circuits import CliffordIsometry, CNOTCircuit
 from .operations import CNOT
 from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
 from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination, reduce_checks_by_row_ops
-from .transvection import (
-    score_symplectic,
-)
+from .transvection import lexicographical_compare_np, score_symplectic
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -897,7 +895,7 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
     """Optimize a stabilizer tableau by performing row operations to reduce the cost of the initial tableau for synthesis."""
     tab = tableau.copy()
 
-    best = (tab, score_symplectic(tab))
+    best = (tab, score_symplectic(tab)[0])
     improved = True
     half = tableau.num_rows() // 2
     x_logical_rows = [i for i in range(half) if i not in stab_rows]
@@ -918,8 +916,8 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
                 destabs[j] ^= destabs[i]
                 mat[:half][stab_rows] = destabs
                 mat[half:][stab_rows] = stabs
-                new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
-                if new_score < best[1]:
+                new_score, _ = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
             for j in range(len(logical_rows)):
@@ -936,8 +934,8 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
                 logj ^= stabs[i]
                 mat[:half][stab_rows] = destabs
                 mat[logical_rows[j]] = logj
-                new_score = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
-                if new_score < best[1]:
+                new_score, _ = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
         tableau = best[0]
