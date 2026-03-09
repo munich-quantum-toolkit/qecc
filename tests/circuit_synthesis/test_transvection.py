@@ -113,12 +113,8 @@ def test_synthesize_non_css_performance(clifford_synthesis_config: SynthesisConf
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
 
     start_time = time.perf_counter()
-    operations, result_tableau = synthesize_non_css(tab, config=clifford_synthesis_config)
+    _, result_tableau = synthesize_non_css(tab, config=clifford_synthesis_config)
     elapsed_time = time.perf_counter() - start_time
-
-    print(f"\nNon-CSS elimination completed in {elapsed_time:.4f} seconds")
-    print(f"Number of operations: {len(operations.operations)}")
-    print(f"Number of two-qubit gates: {operations.num_transvections()}")
 
     assert result_tableau.is_identity()
     assert elapsed_time < 10.0

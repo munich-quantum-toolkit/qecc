@@ -112,17 +112,12 @@ class Transvection(TableauOperation):
         self.v = v
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
-        """Apply the transvection operation to a stabilizer tableau.
-
-        Args:
-            tableau: The stabilizer tableau to apply the operation to.
-            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
-
-        Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
-        """
+        """Apply the transvection operation to a stabilizer tableau."""
         out = tableau if inplace else tableau.copy()
 
+        matrix = out.tableau
+        phase = out.phase
+        n = out.n
         i = self.i
         j = self.j
         xi, xj, zi, zj = self.v
@@ -144,32 +139,53 @@ class Transvection(TableauOperation):
         undo_j = undo_basis_change_map[p_j]
 
         if basis_i == "H":
-            out.apply_h(i)
+            phase ^= matrix[:, i] * matrix[:, i + n]
+            matrix[:, [i, i + n]] = matrix[:, [i + n, i]]
         elif basis_i == "SH":
-            out.apply_sdg(i)
-            out.apply_h(i)
+            matrix[:, i] ^= matrix[:, i + n]
+            matrix[:, i + n] ^= matrix[:, i]
 
         if basis_j == "H":
-            out.apply_h(j)
-        elif basis_j == "SH":
-            out.apply_sdg(j)
-            out.apply_h(j)
+            phase ^= matrix[:, j] * matrix[:, j + n]
+            matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
 
-        out.apply_cz(i, j)
-        out.apply_s(i)
-        out.apply_s(j)
+        elif basis_j == "SH":
+            matrix[:, j] ^= matrix[:, j + n]
+            matrix[:, j + n] ^= matrix[:, j]
+
+        # apply_cz(i, j) = apply_h(j) + apply_cx(i, j) + apply_h(j)
+        # apply_h(j)
+        phase ^= matrix[:, j] * matrix[:, j + n]
+        matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
+        # apply_cx(i, j)
+        phase ^= matrix[:, i] * matrix[:, j + n] * (matrix[:, j] ^ matrix[:, i + n] ^ 1)
+        matrix[:, j] ^= matrix[:, i]
+        matrix[:, i + n] ^= matrix[:, j + n]
+        # apply_h(j)
+        phase ^= matrix[:, j] * matrix[:, j + n]
+        matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
+
+        # apply_s(i)
+        phase ^= matrix[:, i] * matrix[:, i + n]
+        matrix[:, i + n] ^= matrix[:, i]
+
+        # apply_s(j)
+        phase ^= matrix[:, j] * matrix[:, j + n]
+        matrix[:, j + n] ^= matrix[:, j]
 
         if undo_j == "H":
-            out.apply_h(j)
+            phase ^= matrix[:, j] * matrix[:, j + n]
+            matrix[:, [j, j + n]] = matrix[:, [j + n, j]]
         elif undo_j == "HS":
-            out.apply_h(j)
-            out.apply_s(j)
+            matrix[:, j + n] ^= matrix[:, j]
+            matrix[:, j] ^= matrix[:, j + n]
 
         if undo_i == "H":
-            out.apply_h(i)
+            phase ^= matrix[:, i] * matrix[:, i + n]
+            matrix[:, [i, i + n]] = matrix[:, [i + n, i]]
         elif undo_i == "HS":
-            out.apply_h(i)
-            out.apply_s(i)
+            matrix[:, i + n] ^= matrix[:, i]
+            matrix[:, i] ^= matrix[:, i + n]
 
         return out
 
