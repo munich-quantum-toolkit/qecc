@@ -112,6 +112,15 @@ class Transvection(TableauOperation):
         self.j = j
         self.v = v
 
+    def apply_stabilizer_tableau_inplace(self, tableau: StabilizerTableau) -> None:
+        """Apply the transvection operation to a stabilizer tableau."""
+        n = tableau.n
+        mat = tableau.tableau.matrix
+
+        _apply_transvection_numba(
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
+        )
+
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the transvection operation to a stabilizer tableau."""
         out = tableau if inplace else tableau.copy()
@@ -119,15 +128,9 @@ class Transvection(TableauOperation):
         n = out.n
         mat = out.tableau.matrix
 
-        mat_i, mat_i_n, mat_j, mat_j_n, phase = _apply_transvection_numba(
-            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v
+        _apply_transvection_numba(
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
         )
-
-        mat[:, self.i] = mat_i
-        mat[:, self.i + n] = mat_i_n
-        mat[:, self.j] = mat_j
-        mat[:, self.j + n] = mat_j_n
-        out.phase[:] = phase
 
         return out
 
@@ -592,7 +595,34 @@ class Swap(TableauOperation):
         return {self.qubit_a, self.qubit_b}
 
 
-@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+@nb.jit(
+    [
+        nb.void(
+            nb.int8[:],
+            nb.int8[:],
+            nb.int8[:],
+            nb.int8[:],
+            nb.int8[:],
+            nb.int32,
+            nb.int32,
+            nb.int32,
+            nb.int32,
+        ),
+        nb.void(
+            nb.int64[:],
+            nb.int64[:],
+            nb.int64[:],
+            nb.int64[:],
+            nb.int8[:],
+            nb.int32,
+            nb.int32,
+            nb.int32,
+            nb.int32,
+        ),
+    ],
+    nopython=True,
+    cache=True,
+)  # type: ignore[untyped-decorator]
 def _apply_transvection_numba(
     mat_i: np.ndarray,
     mat_i_n: np.ndarray,
@@ -603,12 +633,12 @@ def _apply_transvection_numba(
     xj: int,
     zi: int,
     zj: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> None:
     p_i = xi + 2 * zi
     p_j = xj + 2 * zj
 
     if p_i == 0 or p_j == 0:
-        return mat_i, mat_i_n, mat_j, mat_j_n, phase
+        return
 
     basis_i = 1 if p_i == 1 else (2 if p_i == 3 else 0)
     basis_j = 1 if p_j == 1 else (2 if p_j == 3 else 0)
@@ -673,5 +703,4 @@ def _apply_transvection_numba(
         mat_i_n[:] = temp
         phase ^= mat_i * mat_i_n
         mat_i_n ^= mat_i
-
-    return mat_i, mat_i_n, mat_j, mat_j_n, phase
+    return

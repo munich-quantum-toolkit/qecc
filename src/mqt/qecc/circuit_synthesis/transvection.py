@@ -135,56 +135,31 @@ def _score_transvections(
     base_score, _ = score_symplectic(tableau)
     scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
 
+    original_state = tableau.tableau.matrix.copy()
+    original_phase = tableau.phase.copy()
     for op in operations:
-        tableau_op_applied = op.apply_stabilizer_tableau(tableau)
-        h_vec, _ = score_symplectic(tableau_op_applied)
+        op.apply_stabilizer_tableau_inplace(tableau)
+        h_vec, _ = score_symplectic(tableau)
 
         if lexicographical_compare_np(h_vec, base_score):
-            # Convert tuple to int for compatibility with the return type
-            score_value = sum(h_vec)
+            score_value = np.sum(h_vec)
             scored.append((op, score_value))
 
+        tableau.tableau.matrix[:] = original_state
+        tableau.phase[:] = original_phase
     scored.sort(key=operator.itemgetter(1))
     return scored
 
 
+@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def lexicographical_compare_np(arr1: np.ndarray, arr2: np.ndarray) -> bool:
-    """Perform lexicographical comparison of two NumPy arrays."""
-    for a, b in zip(arr1, arr2, strict=False):
-        if a < b:
+    """Perform lexicographical comparison of two NumPy arrays using Numba."""
+    for i in range(len(arr1)):
+        if arr1[i] < arr2[i]:
             return True
-        if a > b:
+        if arr1[i] > arr2[i]:
             return False
-    return False  # Arrays are identical
-
-
-def get_candidate_transvections(
-    tableau: StabilizerTableau,
-) -> list[tuple[Transvection, np.ndarray]]:
-    """Score all possible operations and return scored operations."""
-    n = get_n(tableau)
-    symplectic = tableau.tableau.matrix
-
-    pairs = _sp_gate_options(symplectic)
-
-    if not pairs:
-        pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
-
-    transvections = Transvection.all_two_qubit_transvections()
-    scores: list[tuple[Transvection, np.ndarray]] = []
-    base_score, _ = score_symplectic(tableau)
-    for i, j in pairs:
-        for v in transvections:
-            op = Transvection(v, i, j)
-            tableau_op_applied = op.apply(tableau)
-            if not isinstance(tableau_op_applied, StabilizerTableau):
-                continue
-            h_vec, _ = score_symplectic(tableau_op_applied)
-            if lexicographical_compare_np(h_vec, base_score):
-                scores.append((op, h_vec))
-
-    scores.sort(key=operator.itemgetter(1))
-    return scores
+    return False
 
 
 def _compute_r2_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
