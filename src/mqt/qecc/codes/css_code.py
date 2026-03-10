@@ -91,6 +91,11 @@ class CSSCode(StabilizerCode):
         if Lx is None and Lz is None:
             self._normalize_logicals()
 
+        if len(self.Lx) == 0:
+            self.Lx = np.zeros((0, self.n), dtype=np.int8)
+        if len(self.Lz) == 0:
+            self.Lz = np.zeros((0, self.n), dtype=np.int8)
+
         self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
         self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
 
