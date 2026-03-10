@@ -549,11 +549,11 @@ class CNOTCircuit(CliffordIsometry):
         pluses = self.get_plus_initialized()
         zeros = self.get_zero_initialized()
         hx, hz = self._propagate_paulis(pluses, zeros)
-        # logicals = self.inputs()
+
         logicals = self.get_logicals_css()
         lx = np.array([logicals[i][0] for i in self.inputs()])
         lz = np.array([logicals[i][1] for i in self.inputs()])
-        # print(lx)
+
         return CSSCode(hx, hz, Lx=lx, Lz=lz)
 
     def num_cnots(self) -> int:
