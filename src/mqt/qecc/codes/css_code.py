@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
-from .pauli import StabilizerTableau
+from .pauli import CheckMatrix, StabilizerTableau
 from .stabilizer_code import StabilizerCode
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -33,6 +33,8 @@ class CSSCode(StabilizerCode):
         x_distance: int | None = None,
         z_distance: int | None = None,
         n: int | None = None,
+        Lx: npt.NDArray[np.int8] | None = None,  # noqa: N803
+        Lz: npt.NDArray[np.int8] | None = None,  # noqa: N803
     ) -> None:
         """Initialize the code."""
         if Hx is None and Hz is None:
@@ -77,8 +79,20 @@ class CSSCode(StabilizerCode):
             msg = "The x and z distances must be greater than or equal to the distance"
             raise InvalidCSSCodeError(msg)
 
-        self.Lx = CSSCode._compute_logical(self.Hz, self.Hx)
-        self.Lz = CSSCode._compute_logical(self.Hx, self.Hz)
+        if Lx is not None:
+            self.Lx = Lx
+        else:
+            self.Lx = CSSCode._compute_logical(self.Hz, self.Hx)
+        if Lz is not None:
+            self.Lz = Lz
+        else:
+            self.Lz = CSSCode._compute_logical(self.Hx, self.Hz)
+
+        if Lx is None and Lz is None:
+            self._normalize_logicals()
+
+        self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
+        self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
 
     def x_checks_as_pauli_strings(self) -> list[str]:
         """Return the x checks as Pauli strings."""

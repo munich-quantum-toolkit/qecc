@@ -85,13 +85,27 @@ class CliffordIsometry:
         """Get logical X- and Z-operators of all logical qubits."""
         return [self.get_logical(i) for i in range(self.num_inputs())]
 
+    def logical_to_input_mapping(self, code: StabilizerCode) -> list[int] | None:
+        """Get mapping from logical qubits of the code to input qubits of the isometry.
+
+        Args:
+            code: Stabilizer code.
+
+        Returns:
+            A list mapping logical qubits of the code to input qubits of the isometry, or None if no such mapping exists, i.e. the code does not match the code represented by the isometry.
+        """
+        circuit_code = self.get_code()
+        logical_mapping = code.get_logical_mapping(circuit_code)  # which circuit logicals map to which code logicals
+        if logical_mapping is None:
+            return None
+        return [self._inputs[logical_mapping[i]] for i in range(len(logical_mapping))]
+
     def get_code(self) -> StabilizerCode:
         """Get the stabilizer code defined by the isometry.
 
         Returns:
             Stabilizer code.
         """
-        self.to_stim_circuit().to_tableau(ignore_reset=True)
         # remove resets and remember basis
         circ_no_reset = stim.Circuit()
         basis = {}
@@ -535,12 +549,12 @@ class CNOTCircuit(CliffordIsometry):
         pluses = self.get_plus_initialized()
         zeros = self.get_zero_initialized()
         hx, hz = self._propagate_paulis(pluses, zeros)
-        logicals = self.get_uninitialized()
-        lx, lz = self._propagate_paulis(logicals, logicals)
-        code = CSSCode(hx, hz)
-        code.Lx = lx
-        code.Lz = lz
-        return code
+        # logicals = self.inputs()
+        logicals = self.get_logicals_css()
+        lx = np.array([logicals[i][0] for i in self.inputs()])
+        lz = np.array([logicals[i][1] for i in self.inputs()])
+        # print(lx)
+        return CSSCode(hx, hz, Lx=lx, Lz=lz)
 
     def num_cnots(self) -> int:
         """Get number of CNOT gates in the circuit."""
@@ -584,9 +598,9 @@ class CNOTCircuit(CliffordIsometry):
         if self.is_state():
             return {}
 
-        inputs = self.get_uninitialized()
-        x, z = self._propagate_paulis(inputs, inputs)
-        return {qubit: (x[i], z[i]) for i, qubit in enumerate(inputs)}
+        in_ = self.inputs()
+        x, z = self._propagate_paulis(in_, in_)
+        return {qubit: (x[i], z[i]) for i, qubit in enumerate(in_)}
 
     def copy(self) -> CNOTCircuit:
         """Create a copy of the CNOT circuit.

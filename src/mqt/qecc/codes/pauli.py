@@ -236,6 +236,29 @@ class StabilizerTableau:
         symplectic_matrix = SymplecticMatrix(matrix)
         return cls(symplectic_matrix)
 
+    @classmethod
+    def from_check_matrix(cls, check_matrix: CheckMatrix) -> StabilizerTableau:
+        """Create a StabilizerTableau from a CSS check matrix.
+
+        Args:
+            check_matrix: A CheckMatrix object representing the CSS check matrix.
+
+        Returns:
+            A StabilizerTableau instance.
+        """
+        if check_matrix.is_x_type():
+            x_part = check_matrix.matrix
+            z_part = np.zeros_like(x_part)
+        elif check_matrix.is_z_type():
+            z_part = check_matrix.matrix
+            x_part = np.zeros_like(z_part)
+        else:
+            msg = "Check matrix must be of type 'X' or 'Z'."
+            raise ValueError(msg)
+
+        symplectic_matrix = SymplecticMatrix(np.hstack((x_part, z_part)))
+        return cls(symplectic_matrix)
+
     def __eq__(self, other: object) -> bool:
         """Check if two stabilizer tableaus are equal."""
         if not isinstance(other, StabilizerTableau):

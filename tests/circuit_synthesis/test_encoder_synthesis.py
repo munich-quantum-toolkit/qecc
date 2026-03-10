@@ -344,3 +344,49 @@ def test_cc_4_8_8():
     assert isinstance(enc, CNOTCircuit)
 
     assert enc.get_code() == code
+
+
+def test_logical_mapping_non_css() -> None:
+    """Test that logical to input mapping is correct for non-CSS codes."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XXXXXXXX", "ZZZZZZZZ", "IXIXYZYZ", "IXZYIXZY", "IYXZXZIY"])
+    x_logicals = ["XXIIIZIZ", "XIXZIIZI", "XIIZXZII"]
+    z_logicals = ["IZIZIZIZ", "IIZZIIZZ", "IIIIZZZZ"]
+    code = StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals)
+    encoder = synthesize_encoding_circuit(code)
+    mapping = encoder.logical_to_input_mapping(code)
+
+    # non-CSS synthesis always encodes logicals sequentially in the first physical qubits
+    assert mapping == [0, 1, 2], f"Expected logical mapping [0, 1, 2], got {mapping}"
+
+    code = StabilizerCode(  # swap logicals
+        stabilizers,
+        z_logicals=x_logicals,
+        x_logicals=z_logicals,
+    )
+
+    mapping = encoder.logical_to_input_mapping(code)
+    assert mapping is None
+
+
+def test_logical_mapping_css() -> None:
+    """Test that logical to input mapping is correct for CSS codes."""
+    code = CSSCode.from_code_name("Hamming")
+    encoder = synthesize_encoding_circuit(code)
+    mapping = encoder.logical_to_input_mapping(code)
+
+    assert encoder.get_code() == code, "Encoder code does not match original code."
+
+    assert mapping is not None, "Expected a valid logical to input mapping, got None."
+    for i, j in enumerate(mapping):
+        xl = code.x_logicals[i]
+        zl = code.z_logicals[i]
+        for k, (xl_circuit, zl_circuit) in enumerate(encoder.get_all_logicals()):
+            if encoder.inputs()[k] != j:
+                continue
+
+            assert code.stabilizer_equivalent(xl, xl_circuit), (
+                f"X logical {xl} not equivalent to circuit logical {xl_circuit}"
+            )
+            assert code.stabilizer_equivalent(zl, zl_circuit), (
+                f"Z logical {zl} not equivalent to circuit logical {zl_circuit}"
+            )
