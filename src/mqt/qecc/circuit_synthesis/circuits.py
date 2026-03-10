@@ -31,7 +31,7 @@ class CliffordIsometry:
 
     def __init__(self) -> None:
         """Initialize trivial isometry."""
-        self._inputs: dict[int, int] = {}
+        self._inputs: list[int] = []
         self._outputs: list[int] = []
         self._ancillas: set[int] = set()
         self._initializations: dict[int, str] = {}
@@ -109,7 +109,7 @@ class CliffordIsometry:
         tab_no_reset = circ_no_reset.to_tableau()
         stabilizers = []
         for q in range(self.num_outputs()):
-            if q not in self._inputs.values():
+            if q not in self._inputs:
                 pauli_stim = tab_no_reset.z_output(q) if basis.get(q, "Z") == "Z" else tab_no_reset.x_output(q)
                 stabilizers.append(Pauli.from_stim(pauli_stim))
         logicals = self.get_all_logicals()
@@ -138,8 +138,7 @@ class CliffordIsometry:
                 for grp in gate.target_groups():
                     iso._ancillas.add(grp[0].qubit_value)
 
-        for i, q in enumerate(set(iso._outputs) - iso._ancillas):
-            iso._inputs[i] = q
+        iso._inputs = list(set(iso._outputs) - iso._ancillas)
 
         return iso
 
@@ -151,7 +150,7 @@ class CliffordIsometry:
         """Get output qubits."""
         return self._outputs
 
-    def inputs(self) -> dict[int, int]:
+    def inputs(self) -> list[int]:
         """Get input qubits."""
         return self._inputs
 
@@ -201,10 +200,8 @@ class CliffordIsometry:
             raise ValueError(msg)
 
         # remove from inputs
-        for idx, q in self._inputs.items():
-            if q == qubit:
-                del self._inputs[idx]
-                break
+        if qubit in self._inputs:
+            self._inputs.remove(qubit)
         self._initializations[qubit] = basis
 
     def initialize_qubits(self, qubits: Iterable[int], basis: str) -> None:
@@ -308,8 +305,8 @@ class CNOTCircuit(CliffordIsometry):
         Args:
             qubit: The qubit index to add as an input.
         """
-        if qubit not in self._inputs.values() and qubit not in self._initializations:
-            self._inputs[self.num_inputs()] = qubit
+        if qubit not in self._inputs and qubit not in self._initializations:
+            self._inputs.append(qubit)
 
     def add_cnot(self, control: int, target: int) -> None:
         """Add a single CNOT gate to the circuit.

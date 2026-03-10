@@ -73,7 +73,7 @@ from mqt.qecc.circuit_synthesis import (
 heuristic_circ = synthesize_encoding_circuit(steane_code)
 q_enc = heuristic_circ.inputs()
 
-print(f"Logical to physical qubit mapping: {q_enc}")
+print(f"Messaging (logical input) qubits: {q_enc}")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
 print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
@@ -91,14 +91,14 @@ config = SynthesisConfig(optimization_criterion="depth")
 heuristic_circ = synthesize_encoding_circuit(steane_code)
 q_enc = heuristic_circ.inputs()
 
-print(f"Logical to physical qubit mapping: {q_enc}")
+print(f"Messaging (logical input) qubits: {q_enc}")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
 print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
 heuristic_circ.draw('mpl')
 ```
 
-The `inputs()` method returns a dictionary mapping logical qubit indices to physical qubit indices. These are the qubits that represent the encoded logical information. All other qubits are ancillas initialized in the $|0\rangle$ or $|+\rangle$ state.
+The `inputs()` method returns a list of physical qubit indices representing the encoded logical information. All other qubits are ancillas initialized in the $|0\rangle$ or $|+\rangle$ state.
 
 # Encoder Circuit Synthesis for non-CSS Stabilizer Codes
 
@@ -169,7 +169,7 @@ Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://
 code = CSSCode.from_code_name("golay")
 
 encoder = synthesize_encoding_circuit(code)
-print(f"Logical to physical qubit mapping: {encoder.inputs()}")
+print(f"Messaging (logical input) qubits: {encoder.inputs()}")
 print(f"Circuit has depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
@@ -186,7 +186,7 @@ from mqt.qecc.circuit_synthesis import SynthesisConfig
 config = SynthesisConfig(lookahead=1, num_lookahead_candidates=5, optimization_criterion="gates", enable_early_termination=False)
 
 encoder = synthesize_encoding_circuit(code, config=config)
-print(f"Logical to physical qubit mapping: {encoder.inputs()}")
+print(f"Messaging (logical input) qubits: {encoder.inputs()}")
 print(f"Circuit has depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
