@@ -128,6 +128,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
     [
         nb.int64[:](nb.int8[:, :], nb.int64[:], nb.int64[:], nb.int64[:]),
         nb.int64[:](nb.int64[:, :], nb.int64[:], nb.int64[:], nb.int64[:]),
+        nb.int64[:](nb.int32[:, :], nb.int64[:], nb.int64[:], nb.int64[:]),
     ],
     cache=True,
 )  # type: ignore[untyped-decorator]
