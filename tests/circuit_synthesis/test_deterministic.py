@@ -210,7 +210,7 @@ def test_11_1_3_det_verification_correctness(
     assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
     # Check Z-verification
-    assert_statistics(verify_z, 2, 4, 1, 4, 1, 2, 1, [0, 4])
+    assert_statistics(verify_z, 2, 8, 1, 4, 1, 2, 1, [0, 4])
     assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
 
 
