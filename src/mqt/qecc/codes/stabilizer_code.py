@@ -73,29 +73,30 @@ class StabilizerCode:
         """Compute a hash for the stabilizer code."""
         return hash((self.generators, tuple(self.z_logicals), tuple(self.x_logicals)))
 
-    def __eq__(self, other: object) -> bool:
-        """Check if two stabilizer codes are equal."""
-        if not isinstance(other, StabilizerCode):
-            return NotImplemented
+    def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes have the same stabilizer group."""
         self_matrix = self.generators.as_matrix()
         other_matrix = other.generators.as_matrix()
         stabs_rnk = rank(self_matrix)
 
-        if not (stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix)))):
-            return False
+        return bool(stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix))))
 
+    def equal_logical_basis(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes have the same logical basis."""
         if len(self.z_logicals) != len(other.z_logicals) or len(self.x_logicals) != len(other.x_logicals):
             return False
 
-        for lz_self, lz_other in zip(self.z_logicals, other.z_logicals, strict=False):
-            if not self.stabilizer_equivalent(lz_self, lz_other):
+        for lz_other in other.z_logicals:
+            if not self.is_z_logical(lz_other):
                 return False
 
-        for lx_self, lx_other in zip(self.x_logicals, other.x_logicals, strict=False):
-            if not self.stabilizer_equivalent(lx_self, lx_other):
-                return False
+        return all(self.is_x_logical(lx_other) for lx_other in other.x_logicals)
 
-        return True
+    def __eq__(self, other: object) -> bool:
+        """Check if two stabilizer codes are equal."""
+        if not isinstance(other, StabilizerCode):
+            return NotImplemented
+        return self.equal_stabilizer_group(other) and self.equal_logical_basis(other)
 
     def is_z_logical(self, p: Pauli | str) -> bool:
         """Check if a given Pauli string is a logical Z operator of the code."""
@@ -110,6 +111,30 @@ class StabilizerCode:
             p = Pauli.from_pauli_string(p)
 
         return any(self.stabilizer_equivalent(p, logical) for logical in self.x_logicals)
+
+    def get_logical_mapping(self, other: StabilizerCode) -> list[int] | None:
+        """Get a mapping of logical qubits from this code to another code, if it exists.
+
+        Returns:
+            A list of integers where the i-th element is the index of the logical qubit in the other code that corresponds to the i-th logical qubit in this code. Returns None if no such mapping exists.
+        """
+        if self.k != other.k:
+            return None
+
+        if not self.equal_logical_basis(other):
+            return None
+
+        mapping = []
+        for lz_self, lx_self in zip(self.z_logicals, self.x_logicals, strict=False):
+            found_match = False
+            for idx, (lz_other, lx_other) in enumerate(zip(other.z_logicals, other.x_logicals, strict=False)):
+                if self.stabilizer_equivalent(lz_self, lz_other) and self.stabilizer_equivalent(lx_self, lx_other):
+                    mapping.append(idx)
+                    found_match = True
+                    break
+            if not found_match:
+                return None
+        return mapping
 
     def is_logical(self, p: Pauli | str) -> bool:
         """Check if a given Pauli string is a logical operator of the code."""

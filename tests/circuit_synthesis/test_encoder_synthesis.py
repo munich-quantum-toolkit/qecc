@@ -23,7 +23,7 @@ from mqt.qecc.circuit_synthesis import (
     gottesman_encoding_circuit,
 )
 from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
-from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import (
     encoder_from_stabilizers_and_logicals,
     resynthesize_stim_circuit,
@@ -32,8 +32,6 @@ from mqt.qecc.circuit_synthesis.encoding import (
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
 from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
-
-from .utils import eq_span, in_span
 
 
 @pytest.fixture
@@ -120,39 +118,10 @@ def clifford_synthesis_config() -> SynthesisConfig:
     )
 
 
-def _assert_correct_encoding_circuit_non_css(
-    encoder: stim.Circuit, message_qs: dict[int, int], code: StabilizerCode
-) -> None:
-    assert encoder.num_qubits == code.n
-    assert len(message_qs) == code.k
-    stabs = encoder.to_tableau().to_stabilizers()
-    paulis = [Pauli.from_pauli_string(str(s)) for s in stabs]
-    paulis = [pauli for i, pauli in enumerate(paulis) if i not in message_qs]
-
-    circuit_code = StabilizerCode(paulis)
-    assert code == circuit_code
-
-
-def _assert_correct_encoding_circuit(encoder: CNOTCircuit, code: CSSCode) -> None:
-    assert encoder.num_qubits() == code.n
-    circuit_code = encoder.get_code()
-
-    # assert correct propagation of stabilizers
-    assert eq_span(code.Hx, circuit_code.Hx)
-    assert eq_span(code.Hz, circuit_code.Hz)
-
-    # assert correct propagation of logicals
-    for logical in circuit_code.Lz:
-        assert in_span(np.vstack((code.Hz, code.Lz)), logical)
-
-    for logical in circuit_code.Lx:
-        assert in_span(np.vstack((code.Hx, code.Lx)), logical)
-
-
 @pytest.mark.parametrize(
     "code_fixture", ["steane_code", "css_4_2_2_code", "css_6_2_2_code", "tetrahedral", "surface_3", "hamming", "shor"]
 )
-def test_heuristic_encoding_consistent(code_fixture: str, request: pytest.FixtureRequest) -> None:
+def test_css_encoding_consistent(code_fixture: str, request: pytest.FixtureRequest) -> None:
     """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code_fixture)
 
@@ -161,7 +130,21 @@ def test_heuristic_encoding_consistent(code_fixture: str, request: pytest.Fixtur
     assert encoder.num_qubits() == code.n
 
     assert isinstance(encoder, CNOTCircuit)
-    _assert_correct_encoding_circuit(encoder, code)
+
+    assert encoder.get_code() == code
+
+
+@pytest.mark.parametrize("code_fixture", ["non_css_5_qubit", "non_css_8_qubit"])
+def test_css_encoding_non_css_consistent(code_fixture: str, request: pytest.FixtureRequest) -> None:
+    """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
+    code = request.getfixturevalue(code_fixture)
+
+    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=False)
+    encoder.get_uninitialized()
+    assert encoder.num_qubits() == code.n
+    assert isinstance(encoder, CliffordIsometry)
+
+    assert encoder.get_code() == code
 
 
 @pytest.mark.skipif(
@@ -175,10 +158,7 @@ def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # ty
 
     encoder = gate_optimal_encoding_circuit(code, max_timeout=1, min_gates=3, max_gates=10)
     assert encoder is not None
-    encoder.get_uninitialized()
-    assert encoder.num_qubits() == code.n
-
-    _assert_correct_encoding_circuit(encoder, code)
+    assert encoder.get_code() == code
 
 
 @pytest.mark.skipif(
@@ -192,10 +172,7 @@ def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # t
 
     encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
     assert encoder is not None
-    encoder.get_uninitialized()
-    assert encoder.num_qubits() == code.n
-
-    _assert_correct_encoding_circuit(encoder, code)
+    assert encoder.get_code() == code
 
 
 @pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit", "steane_code"])
@@ -206,7 +183,8 @@ def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ign
     encoder = gottesman_encoding_circuit(tab)
     assert encoder is not None
 
-    _assert_correct_encoding_circuit_non_css(encoder.to_stim_circuit(), encoder.inputs(), code)
+    circuit_code = encoder.get_code()
+    assert circuit_code.equal_stabilizer_group(code)
 
 
 def test_gottesman_encoding_invalid() -> None:
@@ -230,8 +208,7 @@ def test_depth_optimal_encoding_non_css_consistent(code_fixture: str, request) -
 
     # Assert correct propagation of stabilizers and logicals
     circuit_code = encoder.get_code()
-    print(circuit_code.stabs_as_pauli_strings())
-    assert code == circuit_code
+    assert circuit_code.equal_stabilizer_group(code)
 
 
 @pytest.mark.parametrize("code", ["non_css_5_qubit"])
@@ -365,4 +342,5 @@ def test_cc_4_8_8():
     )
     enc = synthesize_encoding_circuit(code, config=config)
     assert isinstance(enc, CNOTCircuit)
-    _assert_correct_encoding_circuit(enc, code)
+
+    assert enc.get_code() == code

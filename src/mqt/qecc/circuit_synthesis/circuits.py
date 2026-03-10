@@ -83,7 +83,7 @@ class CliffordIsometry:
 
     def get_all_logicals(self) -> list[tuple[Pauli, Pauli]]:
         """Get logical X- and Z-operators of all logical qubits."""
-        return [self.get_logical(idx) for idx in self._inputs]
+        return [self.get_logical(i) for i in range(self.num_inputs())]
 
     def get_code(self) -> StabilizerCode:
         """Get the stabilizer code defined by the isometry.

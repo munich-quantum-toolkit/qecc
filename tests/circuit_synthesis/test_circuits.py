@@ -670,7 +670,9 @@ def five_qubit_code() -> StabilizerCode:
         "XIXZZ",
         "ZXIXZ",
     ]
-    return StabilizerCode(stabilizers)
+    x_logicals = ["XXXXX"]
+    z_logicals = ["ZZZZZ"]
+    return StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals, distance=3)
 
 
 def test_basic_isometry(rep_code_encoder: stim.Circuit) -> None:

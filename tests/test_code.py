@@ -551,6 +551,36 @@ def test_code_equality() -> None:
     assert code1 != code4
 
 
+def test_logical_mapping() -> None:
+    """Test the get_logical_mapping method of StabilizerCode."""
+    # Define two equivalent codes
+    code1 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    code2 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    mapping = code1.get_logical_mapping(code2)
+    assert mapping == [0]
+
+    code3 = StabilizerCode(["XXXX", "ZZZZ"], z_logicals=["ZZII", "IZZI"], x_logicals=["IXXI", "XXII"])
+    code4 = StabilizerCode(["XXXX", "ZZZZ"], z_logicals=["IZZI", "ZZII"], x_logicals=["XXII", "IXXI"])
+
+    mapping = code3.get_logical_mapping(code4)
+    assert mapping == [1, 0]
+
+    code_5 = StabilizerCode(  # first logical is product of logicals
+        ["XXXX", "ZZZZ"], z_logicals=["ZIZI", "IZZI"], x_logicals=["IXXI", "XIXI"]
+    )
+
+    mapping = code3.get_logical_mapping(code_5)
+    assert mapping is None
+
+
 def test_trivial_css_concatenation(steane_code: CSSCode) -> None:
     """Test that the trivial concatenation of a CSS code is the code itself."""
     inner_code = CSSCode.get_trivial_code(1)
