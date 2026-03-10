@@ -18,7 +18,6 @@ from numpy.testing import assert_array_equal
 
 from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.codes import (
-    ConcatenatedCode,
     ConcatenatedCSSCode,
     InvalidCSSCodeError,
     InvalidStabilizerCodeError,
@@ -519,15 +518,37 @@ def test_too_many_logicals() -> None:
         StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["IZZI"], x_logicals=["XXII", "XXII", "XXII"])
 
 
-def test_trivial_concatenation(five_qubit_code: StabilizerCode) -> None:
-    """Test that the trivial concatenation of a code is the code itself."""
-    inner_code = StabilizerCode.get_trivial_code(1)
-    concatenated = ConcatenatedCode(five_qubit_code, inner_code)
+def test_code_equality() -> None:
+    """Test equality of stabilizer codes."""
+    # Equal codes
+    code1 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    code2 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    assert code1 == code2
 
-    assert concatenated.n == 5
-    assert concatenated.k == 1
-    assert concatenated.distance == 3
-    assert concatenated == five_qubit_code
+    # different basis of stabilizers, logicals automatically computed
+    code3 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "YXXYI"],
+        z_logicals=["ZIXXI"],
+        x_logicals=["XXXXX"],
+    )
+
+    assert code1 == code3
+
+    # Unequal codes (swapped logical operators)
+    code4 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["XXXXX"],
+        x_logicals=["ZZZZZ"],
+    )
+    assert code1 != code4
 
 
 def test_trivial_css_concatenation(steane_code: CSSCode) -> None:

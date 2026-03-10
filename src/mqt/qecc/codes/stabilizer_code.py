@@ -71,7 +71,7 @@ class StabilizerCode:
 
     def __hash__(self) -> int:
         """Compute a hash for the stabilizer code."""
-        return hash(self.generators)
+        return hash((self.generators, tuple(self.z_logicals), tuple(self.x_logicals)))
 
     def __eq__(self, other: object) -> bool:
         """Check if two stabilizer codes are equal."""
@@ -79,8 +79,41 @@ class StabilizerCode:
             return NotImplemented
         self_matrix = self.generators.as_matrix()
         other_matrix = other.generators.as_matrix()
-        rnk = rank(self_matrix)
-        return bool(rnk == rank(other_matrix) and rnk == rank(np.vstack((self_matrix, other_matrix))))
+        stabs_rnk = rank(self_matrix)
+
+        if not (stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix)))):
+            return False
+
+        if len(self.z_logicals) != len(other.z_logicals) or len(self.x_logicals) != len(other.x_logicals):
+            return False
+
+        for lz_self, lz_other in zip(self.z_logicals, other.z_logicals, strict=False):
+            if not self.stabilizer_equivalent(lz_self, lz_other):
+                return False
+
+        for lx_self, lx_other in zip(self.x_logicals, other.x_logicals, strict=False):
+            if not self.stabilizer_equivalent(lx_self, lx_other):
+                return False
+
+        return True
+
+    def is_z_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical Z operator of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+
+        return any(self.stabilizer_equivalent(p, logical) for logical in self.z_logicals)
+
+    def is_x_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical X operator of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+
+        return any(self.stabilizer_equivalent(p, logical) for logical in self.x_logicals)
+
+    def is_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical operator of the code."""
+        return self.is_z_logical(p) or self.is_x_logical(p)
 
     def get_syndrome(self, error: Pauli | str) -> npt.NDArray[np.int8]:
         """Compute the syndrome of the error.
