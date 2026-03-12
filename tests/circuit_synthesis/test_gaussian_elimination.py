@@ -280,3 +280,48 @@ def test_compute_cost_matrix_off_diagonal_logic(get_instance):
     cost_matrix = get_instance._compute_cost_matrix()
 
     assert cost_matrix[0, 1] == expected_cost_0_1
+
+
+def test_fault_set_guided_synthesis_validation_error(get_instance):
+    """Verify that providing a code without reference fault sets raises an error."""
+    with pytest.raises(ValueError, match=r"Must provide either both a reference fault set and CSS code, or neither."):
+        # get_instance already has a CSSCode, but we provide no reference fault sets
+        get_instance.fault_set_guided_synthesis()
+
+
+def test_fault_set_guided_synthesis_happy_path(get_instance):
+    """Verify that the synthesis successfully reduces the matrix with valid inputs."""
+    # Create dummy reference fault sets for the 7-qubit Steane code
+    ref_x_fs = np.zeros((1, 7), dtype=np.int8)
+    ref_z_fs = np.zeros((1, 7), dtype=np.int8)
+
+    get_instance.fault_set_guided_synthesis(ref_x_fs=ref_x_fs, ref_z_fs=ref_z_fs)
+
+    assert get_instance.is_reduced() is True
+    assert len(get_instance.eliminations) > 0
+    assert len(get_instance.used_cnots) > 0
+
+
+def test_fault_set_guided_synthesis_with_penalties(get_instance):
+    """Verify that the synthesis avoids CNOTs specified in penalty_cnots."""
+    ref_x_fs = np.zeros((1, 7), dtype=np.int8)
+    ref_z_fs = np.zeros((1, 7), dtype=np.int8)
+
+    # The greedy approach normally picks (0, 4) first for the Steane code.
+    # We penalize it to ensure the algorithm finds an alternative path.
+    penalties = [(0, 4)]
+
+    get_instance.fault_set_guided_synthesis(ref_x_fs=ref_x_fs, ref_z_fs=ref_z_fs, penalty_cnots=penalties)
+
+    assert get_instance.is_reduced() is True
+    assert (0, 4) not in get_instance.eliminations
+
+
+def test_fault_set_guided_synthesis_guide_by_z(get_instance):
+    """Verify that the synthesis completes when guided by Z errors instead of X."""
+    ref_x_fs = np.zeros((1, 7), dtype=np.int8)
+    ref_z_fs = np.zeros((1, 7), dtype=np.int8)
+
+    get_instance.fault_set_guided_synthesis(ref_x_fs=ref_x_fs, ref_z_fs=ref_z_fs, guide_by_x=False)
+
+    assert get_instance.is_reduced() is True
