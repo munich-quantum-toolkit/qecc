@@ -714,3 +714,7 @@ class CheckMatrix:
     def num_rows(self) -> int:
         """Get the number of rows in the check matrix."""
         return int(self.matrix.shape[0])
+
+    def __repr__(self) -> str:
+        """Return a string representation of the check matrix."""
+        return f"CheckMatrix(type={self.type}, matrix=\n{self.matrix})"

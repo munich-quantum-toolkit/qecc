@@ -158,7 +158,7 @@ def reduce_checks_by_row_ops(
         best_op: tuple[int, int] | None = None
         best_delta = 0  # positive = global reduction
 
-        # try all check→check additions
+        # try all check -> check additions
         for i in range(r):
             row_i = checks[i]
             w_i = int(row_i.sum())
@@ -171,7 +171,6 @@ def reduce_checks_by_row_ops(
                 s = (row_j + row_i) % 2
                 w_s = int(s.sum())
 
-                # enforce "don't increase row weight" constraint
                 if w_s > w_j or w_s > w_i:
                     continue
 
@@ -185,9 +184,43 @@ def reduce_checks_by_row_ops(
                     best_delta = delta
                     best_op = (i, j)
 
+        # try all check -> logical additions
+
         if best_op is not None:
             i, j = best_op
             checks[j] = (checks[j] + checks[i]) % 2
+            improved = True
+
+        best_op = None
+        best_delta = 0
+        for j in range(logical_matrix.shape[0]):
+            row_j = logical_matrix[j]
+            w_j = int(row_j.sum())
+            for i in range(r):
+                row_i = checks[i]
+                w_i = int(row_i.sum())
+
+                s = (row_j + row_i) % 2
+                w_s = int(s.sum())
+
+                # enforce "don't increase row weight" constraint
+                if w_s > w_j:
+                    continue
+
+                # effect on global #ones:
+                # only logical row j changes
+                delta = w_j - w_s  # positive = improvement
+                if delta <= 0:
+                    continue
+
+                if delta > best_delta:
+                    best_delta = delta
+                    best_op = (i, j)
+
+        if best_op is not None:
+            i, j = best_op
+            logical_matrix[j] = (logical_matrix[j] + checks[i]) % 2
+
             improved = True
 
 
