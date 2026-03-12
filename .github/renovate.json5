@@ -1,7 +1,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   suppressNotifications: ["prEditedNotification"],
-  minimumReleaseAge: '7 days',
+  minimumReleaseAge: "7 days",
   extends: [
     "config:recommended",
     ":gitSignOff",
@@ -14,10 +14,17 @@
     ":prConcurrentLimitNone",
     ":prHourlyLimitNone",
   ],
-  enabledManagers: ["cargo", "github-actions", "npm", "pep621", "pre-commit"],
+  enabledManagers: [
+    "cargo",
+    "github-actions",
+    "npm",
+    "pep621",
+    "pip_requirements",
+    "pre-commit",
+  ],
   lockFileMaintenance: {
     enabled: true,
-    automerge: true
+    automerge: true,
   },
   labels: ["dependencies"],
   schedule: ["every weekend"],
@@ -25,67 +32,68 @@
     {
       matchManagers: ["cargo"],
       addLabels: ["rust"],
-      commitMessagePrefix: "⬆\uFE0F\uD83E\uDD80"
+      commitMessagePrefix: "⬆\uFE0F\uD83E\uDD80",
     },
     {
       matchManagers: ["github-actions"],
       addLabels: ["github-actions"],
-      commitMessagePrefix: "⬆\uFE0F\uD83D\uDC68\u200D\uD83D\uDCBB"
+      commitMessagePrefix: "⬆\uFE0F\uD83D\uDC68\u200D\uD83D\uDCBB",
     },
     {
       matchManagers: ["npm"],
       addLabels: ["javascript"],
-      commitMessagePrefix: "⬆\uFE0F\uD83D\uDCDC"
+      commitMessagePrefix: "⬆\uFE0F\uD83D\uDCDC",
     },
     {
-      matchManagers: ["pep621"],
+      matchManagers: ["pep621", "pip_requirements"],
       addLabels: ["python"],
-      commitMessagePrefix: "⬆\uFE0F\uD83D\uDC0D"
+      commitMessagePrefix: "⬆\uFE0F\uD83D\uDC0D",
     },
     {
       matchManagers: ["pre-commit"],
       addLabels: ["pre-commit"],
       commitMessagePrefix: "⬆\uFE0F\uD83E\uDE9D",
-      versioning: "pep440"
+      versioning: "pep440",
     },
     {
       matchUpdateTypes: ["lockFileMaintenance"],
       commitMessagePrefix: "⬆\uFE0F\uD83D\uDD12\uFE0F",
     },
     {
-      description: "Group and automerge all patch updates",
+      description: "Group and auto-merge all patch updates",
       groupName: "patch updates",
       matchUpdateTypes: ["patch"],
       matchCurrentVersion: "!/^0\.0/",
       commitMessagePrefix: "⬆\uFE0F\uD83E\uDE79",
-      automerge: true
+      automerge: true,
     },
     {
-      description: "Group and automerge all minor updates of stable dependencies (except our own packages)",
+      description: "Group and auto-merge minor updates of stable dependencies",
       groupName: "minor stable updates",
       matchUpdateTypes: ["minor"],
       matchCurrentVersion: "!/^0\./",
       matchPackageNames: [
         "!munich-quantum-toolkit/*",
         "!munich-quantum-software/*",
+        "!nanobind",
       ],
       commitMessagePrefix: "⬆\uFE0F\uD83E\uDE79",
-      automerge: true
+      automerge: true,
     },
     {
-      description: 'Disable minimum release age checks for our own GitHub Actions',
-      matchManagers: ['github-actions'],
+      description: "Disable minimum release age checks for our own GitHub Actions",
+      matchManagers: ["github-actions"],
       matchPackageNames: [
-        'munich-quantum-toolkit/*',
-        'munich-quantum-software/*',
+        "munich-quantum-toolkit/*",
+        "munich-quantum-software/*",
       ],
       minimumReleaseAge: null,
     },
     {
-      description: 'Disable minimum release age checks for our own Python packages',
-      matchDatasources: ['pypi'],
-      matchPackageNames: ['mqt*'],
+      description: "Disable minimum release age checks for our own Python packages",
+      matchDatasources: ["pypi"],
+      matchPackageNames: ["mqt*"],
       minimumReleaseAge: null,
-    }
-  ]
+    },
+  ],
 }
