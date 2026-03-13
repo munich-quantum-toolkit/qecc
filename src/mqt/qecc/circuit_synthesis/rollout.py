@@ -87,7 +87,7 @@ def _simulate_and_score_operation(
     """
     try:
         new_tableau = op.apply(tableau)
-        cached_result = memoization_cache.get(new_tableau, rollout)
+        cached_result = cache.get(new_tableau, rollout)
         if cached_result is not None:
             seq = EliminationSequence([*prefix_sequence.operations, op, *cached_result])
             score = score_fn(seq)
@@ -105,7 +105,7 @@ def _simulate_and_score_operation(
         new_tableau = tableau
         for i, op_sequence in enumerate(sequence):
             new_tableau = op_sequence.apply(new_tableau)
-            memoization_cache.set(new_tableau, rollout, sequence.operations[i:])
+            cache.set(new_tableau, rollout, sequence.operations[i:])
 
         if generator is not None:
             generator.record_complete_solution(full_sequence, score)
@@ -353,7 +353,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self.base_strategy.candidate_generator.reset()
 
 
-class MemoizationCache:
+class RolloutCache:
     """Class to handle memoization for rollout synthesis."""
 
     def __init__(self) -> None:
@@ -427,4 +427,9 @@ class MemoizationCache:
         return (self._hit_count / total) * 100 if total > 0 else 0.0
 
 
-memoization_cache = MemoizationCache()  # global cache instance for rollout synthesis
+def clear_cache() -> None:
+    """Clear global search cache used for rollout synthesis."""
+    cache.clear()
+
+
+cache = RolloutCache()  # global cache instance for rollout synthesis
