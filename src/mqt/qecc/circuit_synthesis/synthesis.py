@@ -26,8 +26,8 @@ class SynthesisConfig:
     """Base class for synthesis configuration."""
 
     optimization_criterion: str = "gates"
-    lookahead: int = 0
-    num_lookahead_candidates: int | list[int] = 10
+    rollout: int = 0
+    num_rollout_candidates: int | list[int] = 10
     enable_early_termination: bool = False
 
 
@@ -54,21 +54,21 @@ def synthesize_cnot(
         config = SynthesisConfig()
 
     optimization_criterion = config.optimization_criterion
-    lookahead = config.lookahead
-    num_lookahead_candidates = config.num_lookahead_candidates
+    rollout = config.rollout
+    num_rollout_candidates = config.num_rollout_candidates
     enable_early_termination = config.enable_early_termination
     n = matrix.num_qubits()
 
     if matrix.num_rows() == 0:
         return EliminationSequence([]), matrix.copy()
 
-    if lookahead > 0:
-        strat = strategy.for_cnot_with_lookahead_up_to_row_ops(
+    if rollout > 0:
+        strat = strategy.for_cnot_with_rollout_up_to_row_ops(
             n_stabs=n_stabs,
             n=n,
             optimization_criterion=optimization_criterion,
-            lookahead=lookahead,
-            num_lookahead_candidates=num_lookahead_candidates,
+            rollout=rollout,
+            num_rollout_candidates=num_rollout_candidates,
             enable_early_termination=enable_early_termination,
         )
     else:
@@ -107,12 +107,12 @@ def synthesize_non_css(
     """
     if config is None:
         config = SynthesisConfig()
-    if config.lookahead > 0:
-        strat = strategy.for_non_css_with_lookahead(
+    if config.rollout > 0:
+        strat = strategy.for_non_css_with_rollout(
             n=tableau.n,
             optimization_criterion=config.optimization_criterion,
-            lookahead=config.lookahead,
-            num_lookahead_candidates=config.num_lookahead_candidates,
+            rollout=config.rollout,
+            num_rollout_candidates=config.num_rollout_candidates,
             enable_early_termination=config.enable_early_termination,
         )
     else:

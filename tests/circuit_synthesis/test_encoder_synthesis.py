@@ -101,8 +101,8 @@ def cnot_synthesis_config() -> SynthesisConfig:
     """Fixture to create a CNOT synthesis configuration."""
     return SynthesisConfig(
         optimization_criterion="gates",
-        lookahead=0,
-        num_lookahead_candidates=10,
+        rollout=0,
+        num_rollout_candidates=10,
         enable_early_termination=False,
     )
 
@@ -112,8 +112,8 @@ def clifford_synthesis_config() -> SynthesisConfig:
     """Fixture to create a Clifford synthesis configuration."""
     return SynthesisConfig(
         optimization_criterion="gates",
-        lookahead=0,
-        num_lookahead_candidates=10,
+        rollout=0,
+        num_rollout_candidates=10,
         enable_early_termination=False,
     )
 
@@ -233,15 +233,15 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
         stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),
     ],
 )
-@pytest.mark.parametrize("lookahead_depth", [0, 1, 2])
+@pytest.mark.parametrize("rollout_depth", [0, 1, 2])
 def test_resynthesize_stim_circuit(
-    circuit: stim.Circuit, lookahead_depth: int, clifford_synthesis_config: SynthesisConfig
+    circuit: stim.Circuit, rollout_depth: int, clifford_synthesis_config: SynthesisConfig
 ) -> None:
     """Test that resynthesized circuit has the same tableau and fewer or equal two-qubit gates."""
     original_tableau = circuit.to_tableau()
     original_two_qubit_gates = num_two_qubit_gates(circuit)
-    clifford_synthesis_config.lookahead = lookahead_depth
-    clifford_synthesis_config.num_lookahead_candidates = 5
+    clifford_synthesis_config.rollout = rollout_depth
+    clifford_synthesis_config.num_rollout_candidates = 5
 
     resynthesized_circuit = resynthesize_stim_circuit(circuit, config=clifford_synthesis_config, use_cnots_if_css=False)
     resynthesized_tableau = resynthesized_circuit.to_tableau()
@@ -336,8 +336,8 @@ def test_cc_4_8_8():
     code = SquareOctagonColorCode(5)
     config = SynthesisConfig(
         optimization_criterion="gates",
-        lookahead=1,
-        num_lookahead_candidates=3,
+        rollout=1,
+        num_rollout_candidates=3,
         enable_early_termination=False,
     )
     enc = synthesize_encoding_circuit(code, config=config)

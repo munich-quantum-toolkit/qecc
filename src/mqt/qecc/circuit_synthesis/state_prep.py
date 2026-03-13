@@ -201,8 +201,8 @@ def heuristic_prep_circuit(
     code: CSSCode,
     zero_state: bool = True,
     optimize_depth: bool = True,
-    lookahead: int = 0,
-    lookahead_candidates: int = 10,
+    rollout: int = 0,
+    rollout_candidates: int = 10,
 ) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
@@ -210,8 +210,8 @@ def heuristic_prep_circuit(
         code: The CSS code to prepare the state for.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
         optimize_depth: If True, optimize the circuit for depth. If False, optimize for number of gates.
-        lookahead: The number of lookahead steps to use in the heuristic synthesis. Higher values can lead to better circuits but also increase runtime.
-        lookahead_candidates: The number of candidates to consider in each lookahead step. Higher values can lead to better circuits but also increase runtime.
+        rollout: The number of rollout steps to use in the heuristic synthesis. Higher values can lead to better circuits but also increase runtime.
+        rollout_candidates: The number of candidates to consider in each rollout step. Higher values can lead to better circuits but also increase runtime.
 
     Returns:
         A state preparation circuit for the given code.
@@ -223,8 +223,8 @@ def heuristic_prep_circuit(
     type_ = "X" if zero_state else "Z"
     config = SynthesisConfig(
         optimization_criterion="depth" if optimize_depth else "gates",
-        lookahead=lookahead,
-        num_lookahead_candidates=lookahead_candidates,
+        rollout=rollout,
+        num_rollout_candidates=rollout_candidates,
         enable_early_termination=False,
     )
     circ = cnot_encoding_circuit(

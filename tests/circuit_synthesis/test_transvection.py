@@ -41,8 +41,8 @@ def clifford_synthesis_config() -> SynthesisConfig:
     """Fixture to create a Clifford synthesis configuration."""
     return SynthesisConfig(
         optimization_criterion="gates",
-        lookahead=0,
-        num_lookahead_candidates=10,
+        rollout=0,
+        num_rollout_candidates=10,
         enable_early_termination=False,
     )
 
@@ -71,13 +71,13 @@ def test_synthesize_non_css(
         "cnot_tableau",
     ],
 )
-def test_synthesize_non_css_with_lookahead(
+def test_synthesize_non_css_with_rollout(
     tableau_matrix: str, clifford_synthesis_config: SynthesisConfig, request: pytest.FixtureRequest
 ) -> None:
-    """Test the synthesize_non_css_with_lookahead function."""
+    """Test the synthesize_non_css_with_rollout function."""
     target_tableau = request.getfixturevalue(tableau_matrix)
-    clifford_synthesis_config.lookahead = 2
-    clifford_synthesis_config.num_lookahead_candidates = 5
+    clifford_synthesis_config.rollout = 2
+    clifford_synthesis_config.num_rollout_candidates = 5
     operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau

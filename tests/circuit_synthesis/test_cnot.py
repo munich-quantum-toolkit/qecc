@@ -35,8 +35,8 @@ def cnot_synthesis_config() -> SynthesisConfig:
     """Fixture to create a CNOT synthesis configuration."""
     return SynthesisConfig(
         optimization_criterion="gates",
-        lookahead=0,
-        num_lookahead_candidates=10,
+        rollout=0,
+        num_rollout_candidates=10,
         enable_early_termination=False,
     )
 

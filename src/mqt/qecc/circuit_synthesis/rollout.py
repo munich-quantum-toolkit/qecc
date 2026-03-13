@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Lookahead-based candidate generation for circuit synthesis."""
+"""Rollout-based candidate generation for circuit synthesis."""
 
 from __future__ import annotations
 
@@ -22,28 +22,28 @@ if TYPE_CHECKING:
     from .types import BinaryMatrix
 
 
-def _normalize_lookahead_candidates(num_candidates: int | list[int], lookahead: int) -> list[int]:
-    """Normalize num_lookahead_candidates to a list of proper length.
+def _normalize_rollout_candidates(num_candidates: int | list[int], rollout: int) -> list[int]:
+    """Normalize num_rollout_candidates to a list of proper length.
 
     Args:
         num_candidates: Either a single int or a list of ints.
-        lookahead: The lookahead depth.
+        rollout: The rollout depth.
 
     Returns:
-        A list of length lookahead where each element is the number of candidates to consider at that layer.
+        A list of length rollout where each element is the number of candidates to consider at that layer.
     """
     if isinstance(num_candidates, int):
-        return [num_candidates] * lookahead
-    if len(num_candidates) < lookahead:
-        return list(num_candidates) + [num_candidates[-1]] * (lookahead - len(num_candidates))
-    return list(num_candidates[:lookahead])
+        return [num_candidates] * rollout
+    if len(num_candidates) < rollout:
+        return list(num_candidates) + [num_candidates[-1]] * (rollout - len(num_candidates))
+    return list(num_candidates[:rollout])
 
 
-def _create_fresh_lookahead_strategy(strategy: EliminationStrategy) -> EliminationStrategy:
-    """Create a fresh copy of the lookahead strategy with copied filter state.
+def _create_fresh_rollout_strategy(strategy: EliminationStrategy) -> EliminationStrategy:
+    """Create a fresh copy of the rollout strategy with copied filter state.
 
     Args:
-        strategy: The original lookahead strategy.
+        strategy: The original rollout strategy.
 
     Returns:
         A new strategy with fresh filter copies.
@@ -65,29 +65,29 @@ def _create_fresh_lookahead_strategy(strategy: EliminationStrategy) -> Eliminati
 def _simulate_and_score_operation(
     op: TableauOperation,
     tableau: BinaryMatrix,
-    lookahead_strategy: EliminationStrategy,
+    rollout_strategy: EliminationStrategy,
     score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     prefix_sequence: EliminationSequence,
-    generator: LookaheadCandidateGenerator | None = None,
-    lookahead: int = 0,
+    generator: RolloutCandidateGenerator | None = None,
+    rollout: int = 0,
 ) -> tuple[int, ...] | None:
     """Simulate operation and return score tuple, or None if simulation fails.
 
     Args:
         op: The operation to simulate.
         tableau: The current tableau state.
-        lookahead_strategy: Strategy for lookahead elimination.
+        rollout_strategy: Strategy for rollout elimination.
         score_fn: Function to compute score tuple from a sequence.
         prefix_sequence: The elimination sequence built so far (for depth calculation).
-        generator: The lookahead generator to record complete solutions.
-        lookahead: The current lookahead depth (used for caching).
+        generator: The rollout generator to record complete solutions.
+        rollout: The current rollout depth (used for caching).
 
     Returns:
         A tuple containing scores if simulation succeeds, None otherwise.
     """
     try:
         new_tableau = op.apply(tableau)
-        cached_result = memoization_cache.get(new_tableau, lookahead)
+        cached_result = memoization_cache.get(new_tableau, rollout)
         if cached_result is not None:
             seq = EliminationSequence([*prefix_sequence.operations, op, *cached_result])
             score = score_fn(seq)
@@ -95,17 +95,17 @@ def _simulate_and_score_operation(
                 generator.record_complete_solution(seq, score)
             return score  # Return the cached score
 
-        if lookahead_strategy.filters:
-            for f in lookahead_strategy.filters:
+        if rollout_strategy.filters:
+            for f in rollout_strategy.filters:
                 f.update(op)
 
-        sequence, _final_tableau = eliminate(new_tableau, lookahead_strategy)
+        sequence, _final_tableau = eliminate(new_tableau, rollout_strategy)
         full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
         score = score_fn(full_sequence)
         new_tableau = tableau
         for i, op_sequence in enumerate(sequence):
             new_tableau = op_sequence.apply(new_tableau)
-            memoization_cache.set(new_tableau, lookahead, sequence.operations[i:])
+            memoization_cache.set(new_tableau, rollout, sequence.operations[i:])
 
         if generator is not None:
             generator.record_complete_solution(full_sequence, score)
@@ -118,29 +118,29 @@ def _simulate_and_score_operation(
     return None
 
 
-def _score_candidates_with_lookahead(
+def _score_candidates_with_rollout(
     tableau: BinaryMatrix,
     candidates: list[TableauOperation],
     num_candidates: int,
-    lookahead_strategy: EliminationStrategy,
+    rollout_strategy: EliminationStrategy,
     score_fn: Callable[[EliminationSequence], tuple[int, ...]],
     prefix_sequence: EliminationSequence,
     best_known_score: tuple[int, ...] | None = None,
-    generator: LookaheadCandidateGenerator | None = None,
-    lookahead: int = 0,
+    generator: RolloutCandidateGenerator | None = None,
+    rollout: int = 0,
 ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
-    """Score candidates using lookahead simulation.
+    """Score candidates using rollout simulation.
 
     Args:
         tableau: The current tableau state.
         candidates: List of candidate operations to score.
         num_candidates: Maximum number of candidates to evaluate.
-        lookahead_strategy: Strategy for lookahead elimination.
+        rollout_strategy: Strategy for rollout elimination.
         score_fn: Function to compute score tuple from a sequence.
         prefix_sequence: The elimination sequence built so far (for depth calculation).
         best_known_score: Best score found so far; used to prune candidates that can't improve.
-        generator: The lookahead generator to record complete solutions.
-        lookahead: The current lookahead depth (used for caching).
+        generator: The rollout generator to record complete solutions.
+        rollout: The current rollout depth (used for caching).
 
     Returns:
         List of (operation, score) tuples sorted by score.
@@ -149,9 +149,9 @@ def _score_candidates_with_lookahead(
     scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
 
     for op in candidates_to_evaluate:
-        fresh_strategy = _create_fresh_lookahead_strategy(lookahead_strategy)
+        fresh_strategy = _create_fresh_rollout_strategy(rollout_strategy)
         result = _simulate_and_score_operation(
-            op, tableau, fresh_strategy, score_fn, prefix_sequence, generator, lookahead
+            op, tableau, fresh_strategy, score_fn, prefix_sequence, generator, rollout
         )
         if result is not None:
             score_tuple = result
@@ -167,35 +167,35 @@ def _score_candidates_with_lookahead(
     return scored_candidates
 
 
-class LookaheadCandidateGenerator(CandidateGenerator):
-    """Generates candidates using lookahead simulation.
+class RolloutCandidateGenerator(CandidateGenerator):
+    """Generates candidates using rollout simulation.
 
-    This generator tracks the best complete solution found during lookahead exploration
+    This generator tracks the best complete solution found during rollout exploration
     to ensure that greedy local choices lead to globally good solutions.
     """
 
     def __init__(
         self,
         base_strategy: EliminationStrategy,
-        lookahead: int,
-        num_lookahead_candidates: int | list[int],
+        rollout: int,
+        num_rollout_candidates: int | list[int],
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
         track_best_solution: bool = True,
         enable_early_termination: bool = True,
     ) -> None:
-        """Initialize the lookahead candidate generator.
+        """Initialize the rollout candidate generator.
 
         Args:
             base_strategy: Base strategy for greedy candidate generation
-            lookahead: Number of steps to look ahead
-            num_lookahead_candidates: Number of candidates to explore per layer
+            rollout: Number of steps to look ahead
+            num_rollout_candidates: Number of candidates to explore per layer
             score_fn: Function to score complete elimination sequences
             track_best_solution: If True, tracks best complete solution found during exploration
             enable_early_termination: If True, allows early termination when no improving candidates found
         """
         self.base_strategy = base_strategy
-        self.lookahead = lookahead
-        self.num_lookahead_candidates_per_layer = _normalize_lookahead_candidates(num_lookahead_candidates, lookahead)
+        self.rollout = rollout
+        self.num_rollout_candidates_per_layer = _normalize_rollout_candidates(num_rollout_candidates, rollout)
         self.score_fn = score_fn
         self.track_best_solution = track_best_solution
         self.enable_early_termination = enable_early_termination
@@ -208,15 +208,15 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         self._should_terminate = False
 
     def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
-        """Generate candidates using lookahead simulation.
+        """Generate candidates using rollout simulation.
 
         Args:
             tableau: The current binary matrix or tableau.
 
         Returns:
-            List of operations sorted by lookahead score.
+            List of operations sorted by rollout score.
         """
-        if self.lookahead <= 0:
+        if self.rollout <= 0:
             return self.base_strategy.candidate_generator.get_candidates(tableau)
 
         if self.base_strategy.filters:
@@ -225,22 +225,22 @@ class LookaheadCandidateGenerator(CandidateGenerator):
 
         base_candidates = [cand for cand, _ in self.base_strategy.candidate_generator.get_candidates(tableau)]
 
-        num_candidates_this_layer = self.num_lookahead_candidates_per_layer[0]
+        num_candidates_this_layer = self.num_rollout_candidates_per_layer[0]
 
         current_filter_state = None
         if self.base_strategy.filters:
             current_filter_state = [f.copy() for f in self.base_strategy.filters]
 
-        scored_candidates = _score_candidates_with_lookahead(
+        scored_candidates = _score_candidates_with_rollout(
             tableau,
             base_candidates,
             num_candidates_this_layer,
-            self._create_lookahead_strategy(current_filter_state),
+            self._create_rollout_strategy(current_filter_state),
             self.score_fn,
             self._current_sequence,
             self._best_known_score if self.track_best_solution else None,
             self if self.track_best_solution else None,
-            lookahead=self.lookahead,
+            rollout=self.rollout,
         )
 
         if (
@@ -253,16 +253,16 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             return []
 
         if not scored_candidates:
-            scored_candidates = _score_candidates_with_lookahead(
+            scored_candidates = _score_candidates_with_rollout(
                 tableau,
                 base_candidates,
                 num_candidates_this_layer,
-                self._create_lookahead_strategy(current_filter_state),
+                self._create_rollout_strategy(current_filter_state),
                 self.score_fn,
                 self._current_sequence,
                 best_known_score=None,
                 generator=None,
-                lookahead=self.lookahead,
+                rollout=self.rollout,
             )
 
         if self.track_best_solution and scored_candidates:
@@ -281,7 +281,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         return self._should_terminate
 
     def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
-        """Get the best complete solution found during lookahead exploration.
+        """Get the best complete solution found during rollout exploration.
 
         Returns:
             Tuple of (sequence, tableau) if a solution is available, None otherwise.
@@ -302,8 +302,8 @@ class LookaheadCandidateGenerator(CandidateGenerator):
             self._best_known_score = score
             self._best_known_sequence = sequence
 
-    def _create_lookahead_strategy(self, initial_filter_state: list[OperationFilter] | None) -> EliminationStrategy:
-        """Create a fresh lookahead strategy for recursive simulation.
+    def _create_rollout_strategy(self, initial_filter_state: list[OperationFilter] | None) -> EliminationStrategy:
+        """Create a fresh rollout strategy for recursive simulation.
 
         Args:
             initial_filter_state: Initial state of filters to copy.
@@ -321,10 +321,10 @@ class LookaheadCandidateGenerator(CandidateGenerator):
         )
         return EliminationStrategy(
             termination_criterion=self.base_strategy.termination_criterion,
-            candidate_generator=LookaheadCandidateGenerator(
+            candidate_generator=RolloutCandidateGenerator(
                 fresh_base_strategy,
-                self.lookahead - 1,
-                self.num_lookahead_candidates_per_layer[1:] if len(self.num_lookahead_candidates_per_layer) > 1 else [],
+                self.rollout - 1,
+                self.num_rollout_candidates_per_layer[1:] if len(self.num_rollout_candidates_per_layer) > 1 else [],
                 self.score_fn,
                 track_best_solution=self.track_best_solution,
                 enable_early_termination=self.enable_early_termination,
@@ -354,7 +354,7 @@ class LookaheadCandidateGenerator(CandidateGenerator):
 
 
 class MemoizationCache:
-    """Class to handle memoization for lookahead synthesis."""
+    """Class to handle memoization for rollout synthesis."""
 
     def __init__(self) -> None:
         """Initialize the memoization cache."""
@@ -363,44 +363,44 @@ class MemoizationCache:
         self._miss_count = 0
 
     @staticmethod
-    def generate_key(tableau: BinaryMatrix, lookahead: int) -> tuple[int, int]:
-        """Generate a unique cache key based on the tableau state and lookahead depth.
+    def generate_key(tableau: BinaryMatrix, rollout: int) -> tuple[int, int]:
+        """Generate a unique cache key based on the tableau state and rollout depth.
 
         Args:
             tableau: The current tableau state.
-            lookahead: The current lookahead depth.
+            rollout: The current rollout depth.
 
         Returns:
             A tuple representing the unique cache key.
         """
-        return (hash(tableau), lookahead)
+        return (hash(tableau), rollout)
 
-    def get(self, tableau: BinaryMatrix, lookahead: int) -> list[TableauOperation] | None:
+    def get(self, tableau: BinaryMatrix, rollout: int) -> list[TableauOperation] | None:
         """Retrieve a cached result if it exists.
 
         Args:
             tableau: The current tableau state.
-            lookahead: The current lookahead depth.
+            rollout: The current rollout depth.
 
         Returns:
             The cached result, or None if not found.
         """
-        key = self.generate_key(tableau, lookahead)
+        key = self.generate_key(tableau, rollout)
         if key in self._cache:
             self._hit_count += 1
         else:
             self._miss_count += 1
         return self._cache.get(key)
 
-    def set(self, tableau: BinaryMatrix, lookahead: int, result: list[TableauOperation]) -> None:
+    def set(self, tableau: BinaryMatrix, rollout: int, result: list[TableauOperation]) -> None:
         """Store a result in the cache.
 
         Args:
             tableau: The current tableau state.
-            lookahead: The current lookahead depth.
+            rollout: The current rollout depth.
             result: The result to cache.
         """
-        key = self.generate_key(tableau, lookahead)
+        key = self.generate_key(tableau, rollout)
         self._cache[key] = result
 
     def clear(self) -> None:
@@ -427,4 +427,4 @@ class MemoizationCache:
         return (self._hit_count / total) * 100 if total > 0 else 0.0
 
 
-memoization_cache = MemoizationCache()  # global cache instance for lookahead synthesis
+memoization_cache = MemoizationCache()  # global cache instance for rollout synthesis

@@ -17,7 +17,7 @@ import numpy as np
 from ..codes.pauli import StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
-from .lookahead import LookaheadCandidateGenerator
+from .rollout import RolloutCandidateGenerator
 from .transvection import (
     GreedyTransvectionGenerator,
     is_terminal_transvection,
@@ -176,27 +176,27 @@ def for_non_css(
     )
 
 
-def for_non_css_with_lookahead(
+def for_non_css_with_rollout(
     n: int,
     optimization_criterion: str = "gates",
-    lookahead: int = 1,
-    num_lookahead_candidates: int | list[int] = 10,
+    rollout: int = 1,
+    num_rollout_candidates: int | list[int] = 10,
     enable_early_termination: bool = True,
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
 ) -> EliminationStrategy:
-    """Create strategy for non-CSS elimination with lookahead.
+    """Create strategy for non-CSS elimination with rollout.
 
     Args:
         n: Number of qubits.
         optimization_criterion: Either "gates" (minimize gate count) or "depth" (minimize circuit depth).
-        lookahead: Number of steps to look ahead when selecting operations.
-        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+        rollout: Number of steps to look ahead when selecting operations.
+        num_rollout_candidates: Number of top candidates to explore at each rollout layer.
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
         enable_early_termination: If True, allows early termination when no improving candidates found.
         callback: Optional callback function invoked after each elimination step.
 
     Returns:
-        EliminationStrategy configured for non-CSS code elimination with lookahead and post-processing.
+        EliminationStrategy configured for non-CSS code elimination with rollout and post-processing.
 
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
@@ -229,10 +229,10 @@ def for_non_css_with_lookahead(
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,
-        candidate_generator=LookaheadCandidateGenerator(
+        candidate_generator=RolloutCandidateGenerator(
             base_strategy,
-            lookahead,
-            num_lookahead_candidates,
+            rollout,
+            num_rollout_candidates,
             score_fn,
             enable_early_termination=enable_early_termination,
         ),
@@ -242,29 +242,29 @@ def for_non_css_with_lookahead(
     )
 
 
-def for_cnot_with_lookahead_up_to_row_ops(
+def for_cnot_with_rollout_up_to_row_ops(
     n_stabs: int,
     n: int,
-    lookahead: int = 1,
-    num_lookahead_candidates: int | list[int] = 10,
+    rollout: int = 1,
+    num_rollout_candidates: int | list[int] = 10,
     optimization_criterion: str = "gates",
     enable_early_termination: bool = True,
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
 ) -> EliminationStrategy:
-    r"""Create strategy for CSS elimination with lookahead.
+    r"""Create strategy for CSS elimination with rollout.
 
     Args:
         n_stabs: The target rank of the check matrix after elimination.
         n: The number of qubits (columns) in the check matrix
-        lookahead: Number of steps to look ahead when selecting operations.
-        num_lookahead_candidates: Number of top candidates to explore at each lookahead layer.
+        rollout: Number of steps to look ahead when selecting operations.
+        num_rollout_candidates: Number of top candidates to explore at each rollout layer.
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         enable_early_termination: If True, allows early termination when no improving candidates found.
         callback: Optional callback function invoked after each elimination step.
 
     Returns:
-        EliminationStrategy configured for CSS code elimination with lookahead.
+        EliminationStrategy configured for CSS code elimination with rollout.
 
     Raises:
         ValueError: If optimization_criterion is not "gates" or "depth".
@@ -290,10 +290,10 @@ def for_cnot_with_lookahead_up_to_row_ops(
 
     return EliminationStrategy(
         termination_criterion=base_strategy.termination_criterion,
-        candidate_generator=LookaheadCandidateGenerator(
+        candidate_generator=RolloutCandidateGenerator(
             base_strategy,
-            lookahead,
-            num_lookahead_candidates,
+            rollout,
+            num_rollout_candidates,
             _score_fn,
             enable_early_termination=enable_early_termination,
         ),
