@@ -283,7 +283,7 @@ class StabilizerTableau:
 
     def __hash__(self) -> int:
         """Compute the hash of the stabilizer tableau."""
-        return hash((self.tableau, self.phase))
+        return hash((self.tableau, self.phase.tobytes()))
 
     def __iter__(self) -> Iterator[Pauli]:
         """Iterate over the Pauli operators in the stabilizer tableau."""
