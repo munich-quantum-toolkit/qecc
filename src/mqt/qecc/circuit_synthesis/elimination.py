@@ -241,7 +241,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         candidate_ops = strategy.candidate_generator.get_candidates(tableau)
 
         if _should_terminate_early(strategy.candidate_generator):
-            return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn)
+            return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
 
         _validate_candidates([op for op, _score in candidate_ops])
 
@@ -257,7 +257,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
     if hasattr(strategy.candidate_generator, "use_best_if_better"):
-        return _maybe_use_best_solution(strategy.candidate_generator, result_ops, result_tableau)
+        return _maybe_use_best_solution(strategy.candidate_generator, result_ops, result_tableau, target_tableau)
 
     return result_ops, result_tableau
 
@@ -266,6 +266,7 @@ def _maybe_use_best_solution(
     generator: CandidateGenerator,
     current_ops: EliminationSequence,
     current_tableau: BinaryMatrix,
+    original_tableau: BinaryMatrix,
 ) -> tuple[EliminationSequence, BinaryMatrix]:
     """Compare current solution with best tracked solution and return the better one.
 
@@ -273,6 +274,7 @@ def _maybe_use_best_solution(
         generator: The candidate generator that may have tracked a best solution.
         current_ops: The operation sequence from normal elimination.
         current_tableau: The tableau from normal elimination.
+        original_tableau: The original tableau before elimination, used to apply the best solution if needed.
 
     Returns:
         The better of the two solutions (current vs best tracked).
@@ -284,12 +286,12 @@ def _maybe_use_best_solution(
     if best_solution is None:
         return current_ops, current_tableau
 
-    best_ops, best_tableau = best_solution
+    best_ops = best_solution
     current_score = generator.score_fn(current_ops)
     best_score = generator.score_fn(best_ops)
 
     if best_score < current_score:
-        return best_ops, best_tableau
+        return best_ops, best_ops.apply(original_tableau, inplace=False)
 
     return current_ops, current_tableau
 
@@ -309,12 +311,14 @@ def _should_terminate_early(generator: CandidateGenerator) -> bool:
 def _get_early_termination_result(
     generator: CandidateGenerator,
     post_process_fn: Callable[[EliminationSequence, BinaryMatrix], tuple[EliminationSequence, BinaryMatrix]],
+    tableau: BinaryMatrix,
 ) -> tuple[EliminationSequence, BinaryMatrix]:
     """Get the result when terminating early.
 
     Args:
         generator: The candidate generator that requested early termination.
         post_process_fn: Function to post-process the result.
+        tableau: The original tableau before elimination.
 
     Returns:
         The best solution found by the generator.
@@ -328,8 +332,8 @@ def _get_early_termination_result(
         msg = "Generator requested early termination but has no best solution"
         raise RuntimeError(msg)
 
-    best_sequence, best_tableau = best_solution
-    return post_process_fn(best_sequence, best_tableau)
+    tab = best_solution.apply(tableau, inplace=False)
+    return post_process_fn(best_solution, tab)
 
 
 class CandidateGenerator(ABC):
@@ -375,7 +379,7 @@ class CandidateGenerator(ABC):
         """
         return False
 
-    def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:  # noqa: PLR6301
+    def get_best_solution(self) -> EliminationSequence | None:  # noqa: PLR6301
         """Get the best complete solution found during lookahead exploration.
 
         Returns:

@@ -280,14 +280,14 @@ class RolloutCandidateGenerator(CandidateGenerator):
         """
         return self._should_terminate
 
-    def get_best_solution(self) -> tuple[EliminationSequence, BinaryMatrix] | None:
+    def get_best_solution(self) -> EliminationSequence | None:
         """Get the best complete solution found during rollout exploration.
 
         Returns:
             Tuple of (sequence, tableau) if a solution is available, None otherwise.
         """
-        if self._best_known_sequence is not None and self._best_known_tableau is not None:
-            return self._best_known_sequence, self._best_known_tableau
+        if self._best_known_sequence is not None:
+            return self._best_known_sequence
         return None
 
     def record_complete_solution(self, sequence: EliminationSequence, score: tuple[int, ...]) -> None:
