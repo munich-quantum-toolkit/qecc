@@ -100,7 +100,18 @@ def _simulate_and_score_operation(
                 f.update(op)
 
         sequence, _final_tableau = eliminate(new_tableau, rollout_strategy)
-        full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
+
+        complete = False  # TODO: this is a hack to fix the incorrect handling of early termination in the rollout strategy - we should refactor to properly handle this case
+        if (
+            len(prefix_sequence.operations) > 0
+            and len(sequence.operations) > 0
+            and prefix_sequence.operations[0] == sequence.operations[0]
+        ) or (len(sequence.operations) > 0 and op == sequence.operations[0]):
+            complete = True
+        if not complete:
+            full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
+        else:
+            full_sequence = sequence
         score = score_fn(full_sequence)
 
         new_tableau = tableau
@@ -149,7 +160,8 @@ def _score_candidates_with_rollout(
 
     for op in candidates_to_evaluate:
         fresh_strategy = _create_fresh_rollout_strategy(rollout_strategy)
-        fresh_strategy.candidate_generator._current_sequence.add_operation(op)  # type: ignore[attr-defined] # noqa: SLF001
+        fresh_strategy.candidate_generator._current_sequence = prefix_sequence.copy()  # type: ignore[attr-defined]  # noqa: SLF001
+        fresh_strategy.candidate_generator._current_sequence.add_operation(op)  # type: ignore[attr-defined]  # noqa: SLF001
         result = _simulate_and_score_operation(
             op, tableau, fresh_strategy, score_fn, prefix_sequence, generator, rollout
         )
@@ -342,6 +354,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             tableau: The resulting tableau after applying the operation.
         """
         self._current_sequence.add_operation(op)
+        # print(f"Adding operation {op} to current sequence. Current sequence length: {len(self._current_sequence.operations)}. rollout depth: {self.rollout}")
         self.base_strategy.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
