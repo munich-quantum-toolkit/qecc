@@ -155,6 +155,14 @@ class EliminationSequence:
         """
         return self._depth
 
+    def copy(self) -> EliminationSequence:
+        """Create a copy of the elimination sequence.
+
+        Returns:
+            EliminationSequence: A new instance with the same operations.
+        """
+        return EliminationSequence(self.operations.copy())
+
 
 @dataclass
 class EliminationStrategy:
@@ -248,6 +256,7 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         op = selection_strategy.select(candidate_ops)
 
         tableau = op.apply(tableau, inplace=True)
+
         operations.add_operation(op)
 
         _update_elimination_state(op, tableau, strategy)
@@ -257,7 +266,9 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
     if hasattr(strategy.candidate_generator, "use_best_if_better"):
-        return _maybe_use_best_solution(strategy.candidate_generator, result_ops, result_tableau, target_tableau)
+        result_ops, result_tableau = _maybe_use_best_solution(
+            strategy.candidate_generator, result_ops, result_tableau, target_tableau
+        )
 
     return result_ops, result_tableau
 
@@ -328,11 +339,13 @@ def _get_early_termination_result(
         raise RuntimeError(msg)
 
     best_solution = generator.get_best_solution()
+
     if best_solution is None:
         msg = "Generator requested early termination but has no best solution"
         raise RuntimeError(msg)
 
     tab = best_solution.apply(tableau, inplace=False)
+
     return post_process_fn(best_solution, tab)
 
 

@@ -102,20 +102,19 @@ def _simulate_and_score_operation(
         sequence, _final_tableau = eliminate(new_tableau, rollout_strategy)
         full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
         score = score_fn(full_sequence)
+
         new_tableau = tableau
-        for i, op_sequence in enumerate(sequence):
+        to_cache_sequence = [op, *sequence.operations]
+        for i, op_sequence in enumerate(to_cache_sequence):
             new_tableau = op_sequence.apply(new_tableau)
-            cache.set(new_tableau, rollout, sequence.operations[i:])
+            cache.set(new_tableau, rollout, to_cache_sequence[i + 1 :])
 
         if generator is not None:
             generator.record_complete_solution(full_sequence, score)
-        else:
-            return score
+        return score  # noqa: TRY300
 
     except RuntimeError:
         return None
-
-    return None
 
 
 def _score_candidates_with_rollout(
@@ -150,6 +149,7 @@ def _score_candidates_with_rollout(
 
     for op in candidates_to_evaluate:
         fresh_strategy = _create_fresh_rollout_strategy(rollout_strategy)
+        fresh_strategy.candidate_generator._current_sequence.add_operation(op)  # type: ignore[attr-defined] # noqa: SLF001
         result = _simulate_and_score_operation(
             op, tableau, fresh_strategy, score_fn, prefix_sequence, generator, rollout
         )
@@ -182,6 +182,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
         track_best_solution: bool = True,
         enable_early_termination: bool = True,
+        current_sequence: EliminationSequence | None = None,
     ) -> None:
         """Initialize the rollout candidate generator.
 
@@ -192,6 +193,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             score_fn: Function to score complete elimination sequences
             track_best_solution: If True, tracks best complete solution found during exploration
             enable_early_termination: If True, allows early termination when no improving candidates found
+            current_sequence: The elimination sequence built so far (used for depth calculation)
         """
         self.base_strategy = base_strategy
         self.rollout = rollout
@@ -200,8 +202,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self.track_best_solution = track_best_solution
         self.enable_early_termination = enable_early_termination
         self.use_best_if_better = track_best_solution and not enable_early_termination
-        self._cache: dict[bytes, list[tuple[TableauOperation, int]]] = {}
-        self._current_sequence = EliminationSequence([])
+        self._current_sequence = current_sequence.copy() if current_sequence is not None else EliminationSequence([])
         self._best_known_score: tuple[int, ...] | None = None
         self._best_known_sequence: EliminationSequence | None = None
         self._best_known_tableau: BinaryMatrix | None = None
@@ -300,7 +301,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         """
         if self._best_known_score is None or score < self._best_known_score:
             self._best_known_score = score
-            self._best_known_sequence = sequence
+            self._best_known_sequence = sequence.copy()
 
     def _create_rollout_strategy(self, initial_filter_state: list[OperationFilter] | None) -> EliminationStrategy:
         """Create a fresh rollout strategy for recursive simulation.
@@ -328,6 +329,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 self.score_fn,
                 track_best_solution=self.track_best_solution,
                 enable_early_termination=self.enable_early_termination,
+                current_sequence=self._current_sequence,
             ),
             filters=initial_filter_state,
         )
@@ -340,7 +342,6 @@ class RolloutCandidateGenerator(CandidateGenerator):
             tableau: The resulting tableau after applying the operation.
         """
         self._current_sequence.add_operation(op)
-        self._cache.clear()
         self.base_strategy.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
