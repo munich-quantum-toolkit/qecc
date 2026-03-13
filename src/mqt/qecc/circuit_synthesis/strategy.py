@@ -17,7 +17,7 @@ import numpy as np
 from ..codes.pauli import StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
-from .rollout import RolloutCandidateGenerator
+from .rollout import RolloutCandidateGenerator, clear_cache
 from .transvection import (
     GreedyTransvectionGenerator,
     is_terminal_transvection,
@@ -300,3 +300,8 @@ def for_cnot_with_rollout_up_to_row_ops(
         filters=None,
         callback=callback,
     )
+
+
+def cleanup() -> None:  # TODO: not a good idea to manage global state like this
+    """Clear up any used resources, caches, or temporary data after synthesis."""
+    clear_cache()

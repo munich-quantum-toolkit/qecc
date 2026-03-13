@@ -75,6 +75,7 @@ def synthesize_cnot(
         strat = strategy.for_cnot_up_to_row_ops(n_stabs=n_stabs, n=n, optimization_criterion=optimization_criterion)
 
     operations, final_matrix = eliminate(matrix, strat)
+    strategy.cleanup()
 
     assert isinstance(final_matrix, CheckMatrix), "Expected CheckMatrix from CSS elimination"
 
@@ -119,7 +120,7 @@ def synthesize_non_css(
         strat = strategy.for_non_css(n=tableau.n, optimization_criterion=config.optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, strat)
-
+    strategy.cleanup()
     assert isinstance(final_tableau, StabilizerTableau), "Expected StabilizerTableau from non-CSS elimination"
 
     return operations, final_tableau
