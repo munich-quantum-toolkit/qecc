@@ -46,7 +46,7 @@ def dict_to_csc_matrix(elements_dict: dict[int, frozenset[int]], shape: tuple[in
     scipy.sparse.csc_matrix
         The `scipy.sparse.csc_matrix` check matrix defined by `elements_dict` and `shape`
     """
-    nnz = sum(len(v) for k, v in elements_dict.items())
+    nnz = sum(len(v) for v in elements_dict.values())
     data = np.ones(nnz, dtype=np.uint8)
     row_ind = np.zeros(nnz, dtype=np.int64)
     col_ind = np.zeros(nnz, dtype=np.int64)

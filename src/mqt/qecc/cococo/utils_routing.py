@@ -1213,7 +1213,7 @@ class TeleportationRouter(BasicRouter):
                 )  # {(a,b,terminal): (path1, path2) for (a,b,terminal), (path1, path2) in subset}
             )
             # move_type_lst_red = {(a,b,terminal): move_type_lst[(a,b,terminal)] for (a,b,terminal), (_, _) in best_dct_temp.items()}
-            move_type_lst_red = {key: move_type_lst[key] for key, (_, _) in best_dct_temp.items()}  # type: ignore[union-attr]
+            move_type_lst_red = {key: move_type_lst[key] for key in best_dct_temp}  # type: ignore[union-attr]
             final_schedule = best_schedule.copy()  # type: ignore[union-attr]
         else:  # return the inputs if nothing is found
             steiner_reduced = steiner_dct
