@@ -62,123 +62,6 @@ def _create_fresh_rollout_strategy(strategy: EliminationStrategy) -> Elimination
     )
 
 
-def _simulate_and_score_operation(
-    op: TableauOperation,
-    tableau: BinaryMatrix,
-    rollout_strategy: EliminationStrategy,
-    score_fn: Callable[[EliminationSequence], tuple[int, ...]],
-    prefix_sequence: EliminationSequence,
-    generator: RolloutCandidateGenerator | None = None,
-    rollout: int = 0,
-) -> tuple[int, ...] | None:
-    """Simulate operation and return score tuple, or None if simulation fails.
-
-    Args:
-        op: The operation to simulate.
-        tableau: The current tableau state.
-        rollout_strategy: Strategy for rollout elimination.
-        score_fn: Function to compute score tuple from a sequence.
-        prefix_sequence: The elimination sequence built so far (for depth calculation).
-        generator: The rollout generator to record complete solutions.
-        rollout: The current rollout depth (used for caching).
-
-    Returns:
-        A tuple containing scores if simulation succeeds, None otherwise.
-    """
-    try:
-        new_tableau = op.apply(tableau)
-        cached_result = cache.get(new_tableau, rollout)
-        if cached_result is not None:
-            seq = EliminationSequence([*prefix_sequence.operations, op, *cached_result])
-            score = score_fn(seq)
-            if generator is not None:
-                generator.record_complete_solution(seq, score)
-            return score  # Return the cached score
-
-        if rollout_strategy.filters:
-            for f in rollout_strategy.filters:
-                f.update(op)
-
-        sequence, _final_tableau = eliminate(new_tableau, rollout_strategy)
-
-        complete = False  # TODO: this is a hack to fix the incorrect handling of early termination in the rollout strategy - we should refactor to properly handle this case
-        if (
-            len(prefix_sequence.operations) > 0
-            and len(sequence.operations) > 0
-            and prefix_sequence.operations[0] == sequence.operations[0]
-        ) or (len(sequence.operations) > 0 and op == sequence.operations[0]):
-            complete = True
-        if not complete:
-            full_sequence = EliminationSequence([*prefix_sequence.operations, op, *sequence.operations])
-        else:
-            full_sequence = sequence
-        score = score_fn(full_sequence)
-
-        new_tableau = tableau
-        to_cache_sequence = [op, *sequence.operations]
-        for i, op_sequence in enumerate(to_cache_sequence):
-            new_tableau = op_sequence.apply(new_tableau)
-            cache.set(new_tableau, rollout, to_cache_sequence[i + 1 :])
-
-        if generator is not None:
-            generator.record_complete_solution(full_sequence, score)
-        return score  # noqa: TRY300
-
-    except RuntimeError:
-        return None
-
-
-def _score_candidates_with_rollout(
-    tableau: BinaryMatrix,
-    candidates: list[TableauOperation],
-    num_candidates: int,
-    rollout_strategy: EliminationStrategy,
-    score_fn: Callable[[EliminationSequence], tuple[int, ...]],
-    prefix_sequence: EliminationSequence,
-    best_known_score: tuple[int, ...] | None = None,
-    generator: RolloutCandidateGenerator | None = None,
-    rollout: int = 0,
-) -> list[tuple[TableauOperation, tuple[int, ...]]]:
-    """Score candidates using rollout simulation.
-
-    Args:
-        tableau: The current tableau state.
-        candidates: List of candidate operations to score.
-        num_candidates: Maximum number of candidates to evaluate.
-        rollout_strategy: Strategy for rollout elimination.
-        score_fn: Function to compute score tuple from a sequence.
-        prefix_sequence: The elimination sequence built so far (for depth calculation).
-        best_known_score: Best score found so far; used to prune candidates that can't improve.
-        generator: The rollout generator to record complete solutions.
-        rollout: The current rollout depth (used for caching).
-
-    Returns:
-        List of (operation, score) tuples sorted by score.
-    """
-    candidates_to_evaluate = candidates[:num_candidates]
-    scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]] = []
-
-    for op in candidates_to_evaluate:
-        fresh_strategy = _create_fresh_rollout_strategy(rollout_strategy)
-        fresh_strategy.candidate_generator._current_sequence = prefix_sequence.copy()  # type: ignore[attr-defined]  # noqa: SLF001
-        fresh_strategy.candidate_generator._current_sequence.add_operation(op)  # type: ignore[attr-defined]  # noqa: SLF001
-        result = _simulate_and_score_operation(
-            op, tableau, fresh_strategy, score_fn, prefix_sequence, generator, rollout
-        )
-        if result is not None:
-            score_tuple = result
-            is_minimal = score_tuple[-1] if isinstance(score_tuple[-1], bool) else False
-
-            if best_known_score is None or score_tuple <= best_known_score:
-                scored_candidates.append((op, score_tuple))
-
-            if is_minimal:
-                break
-
-    scored_candidates.sort(key=operator.itemgetter(1), reverse=False)
-    return scored_candidates
-
-
 class RolloutCandidateGenerator(CandidateGenerator):
     """Generates candidates using rollout simulation.
 
@@ -192,7 +75,6 @@ class RolloutCandidateGenerator(CandidateGenerator):
         rollout: int,
         num_rollout_candidates: int | list[int],
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
-        track_best_solution: bool = True,
         enable_early_termination: bool = True,
         current_sequence: EliminationSequence | None = None,
     ) -> None:
@@ -211,14 +93,68 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self.rollout = rollout
         self.num_rollout_candidates_per_layer = _normalize_rollout_candidates(num_rollout_candidates, rollout)
         self.score_fn = score_fn
-        self.track_best_solution = track_best_solution
         self.enable_early_termination = enable_early_termination
-        self.use_best_if_better = track_best_solution and not enable_early_termination
         self._current_sequence = current_sequence.copy() if current_sequence is not None else EliminationSequence([])
         self._best_known_score: tuple[int, ...] | None = None
         self._best_known_sequence: EliminationSequence | None = None
         self._best_known_tableau: BinaryMatrix | None = None
         self._should_terminate = False
+
+    def get_base_candidates(self, tableau: BinaryMatrix) -> Sequence[TableauOperation]:
+        """Get base candidates from the underlying strategy without scoring.
+
+        Args:
+            tableau: The current binary matrix.
+
+        Returns:
+            List of candidate operations from the base strategy.
+        """
+        return [cand for cand, _ in self.base_strategy.candidate_generator.get_candidates(tableau)][
+            : self.num_rollout_candidates_per_layer[0]
+        ]
+
+    def _update_best_scored_candidates(self, scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]]) -> bool:
+        """Update the best known complete solution based on scored candidates.
+
+        Args:
+            scored_candidates: List of (operation, score) tuples from the current rollout layer.
+
+        Returns:
+            True if an improvement was found, False otherwise.
+        """
+        improvement_found = False
+        for op, score in scored_candidates:
+            if self._best_known_score is None or score < self._best_known_score:
+                self._best_known_score = score
+                new_sequence = self._current_sequence.copy()
+                new_sequence.add_operation(op)
+                self._best_known_sequence = new_sequence
+                improvement_found = True
+        return improvement_found
+
+    def score_rollout_candidates(
+        self, tableau: BinaryMatrix, base_candidates: Sequence[TableauOperation]
+    ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
+        """Score base candidates using rollout simulation.
+
+        Args:
+            tableau: The current binary matrix.
+            base_candidates: List of candidate operations from the base strategy.
+
+        Returns:
+            List of (operation, score) tuples sorted by score.
+        """
+        scored: list[tuple[TableauOperation, tuple[int, ...]]] = []
+        for op in base_candidates:
+            new_tableau = op.apply(tableau)
+            lower_level_strategy = self._create_rollout_strategy(op, None)  # type: ignore[attr-defined]
+            seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
+            completed = EliminationSequence([*self._current_sequence.operations, op, *seq.operations])
+            score = self.score_fn(completed)
+            scored.append((op, score))
+
+        scored.sort(key=operator.itemgetter(1))
+        return scored
 
     def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
         """Generate candidates using rollout simulation.
@@ -232,56 +168,15 @@ class RolloutCandidateGenerator(CandidateGenerator):
         if self.rollout <= 0:
             return self.base_strategy.candidate_generator.get_candidates(tableau)
 
-        if self.base_strategy.filters:
-            for f in self.base_strategy.filters:
-                f.reset()
+        base_candidates = self.get_base_candidates(tableau)
 
-        base_candidates = [cand for cand, _ in self.base_strategy.candidate_generator.get_candidates(tableau)]
+        scored_candidates = self.score_rollout_candidates(tableau, base_candidates)
 
-        num_candidates_this_layer = self.num_rollout_candidates_per_layer[0]
+        is_improvement = self._update_best_scored_candidates(scored_candidates)
 
-        current_filter_state = None
-        if self.base_strategy.filters:
-            current_filter_state = [f.copy() for f in self.base_strategy.filters]
-
-        scored_candidates = _score_candidates_with_rollout(
-            tableau,
-            base_candidates,
-            num_candidates_this_layer,
-            self._create_rollout_strategy(current_filter_state),
-            self.score_fn,
-            self._current_sequence,
-            self._best_known_score if self.track_best_solution else None,
-            self if self.track_best_solution else None,
-            rollout=self.rollout,
-        )
-
-        if (
-            not scored_candidates
-            and self.track_best_solution
-            and self.enable_early_termination
-            and self._best_known_sequence is not None
-        ):
+        if not is_improvement and self.enable_early_termination:
             self._should_terminate = True
             return []
-
-        if not scored_candidates:
-            scored_candidates = _score_candidates_with_rollout(
-                tableau,
-                base_candidates,
-                num_candidates_this_layer,
-                self._create_rollout_strategy(current_filter_state),
-                self.score_fn,
-                self._current_sequence,
-                best_known_score=None,
-                generator=None,
-                rollout=self.rollout,
-            )
-
-        if self.track_best_solution and scored_candidates:
-            best_candidate_score = scored_candidates[0][1]
-            if self._best_known_score is None or best_candidate_score < self._best_known_score:
-                self._best_known_score = best_candidate_score
 
         return [(op, score) for op, score in scored_candidates]
 
@@ -315,7 +210,9 @@ class RolloutCandidateGenerator(CandidateGenerator):
             self._best_known_score = score
             self._best_known_sequence = sequence.copy()
 
-    def _create_rollout_strategy(self, initial_filter_state: list[OperationFilter] | None) -> EliminationStrategy:
+    def _create_rollout_strategy(
+        self, op: TableauOperation, initial_filter_state: list[OperationFilter] | None
+    ) -> EliminationStrategy:
         """Create a fresh rollout strategy for recursive simulation.
 
         Args:
@@ -324,38 +221,26 @@ class RolloutCandidateGenerator(CandidateGenerator):
         Returns:
             A new EliminationStrategy with fresh generator and filters.
         """
-        fresh_base_filters = [f.copy() for f in self.base_strategy.filters] if self.base_strategy.filters else []
-        fresh_base_generator = type(self.base_strategy.candidate_generator)(fresh_base_filters)
-
-        fresh_base_strategy = EliminationStrategy(
-            termination_criterion=self.base_strategy.termination_criterion,
-            candidate_generator=fresh_base_generator,
-            filters=self.base_strategy.filters,
-        )
+        # TODO initialize filter state
         return EliminationStrategy(
             termination_criterion=self.base_strategy.termination_criterion,
             candidate_generator=RolloutCandidateGenerator(
-                fresh_base_strategy,
+                self.base_strategy,
                 self.rollout - 1,
                 self.num_rollout_candidates_per_layer[1:] if len(self.num_rollout_candidates_per_layer) > 1 else [],
                 self.score_fn,
-                track_best_solution=self.track_best_solution,
                 enable_early_termination=self.enable_early_termination,
-                current_sequence=self._current_sequence,
+                current_sequence=EliminationSequence([*self._current_sequence.operations, op]),
             ),
-            filters=initial_filter_state,
         )
 
     def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:
-        """Update internal state by delegating to the base generator.
+        """Update internal state based on the operation applied.
 
         Args:
-            op: The operation that was applied.
-            tableau: The resulting tableau after applying the operation.
+            op: The operation that was applied to the tableau.
         """
         self._current_sequence.add_operation(op)
-        # print(f"Adding operation {op} to current sequence. Current sequence length: {len(self._current_sequence.operations)}. rollout depth: {self.rollout}")
-        self.base_strategy.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
