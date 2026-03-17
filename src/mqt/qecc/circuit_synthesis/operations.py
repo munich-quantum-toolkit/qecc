@@ -208,7 +208,7 @@ class Transvection(TableauOperation):
         """
         return {self.i, self.j}
 
-    def hash(self) -> int:
+    def __hash__(self) -> int:
         """Return a hash of the operation."""
         return hash((self.__class__, self.v, self.i, self.j))
 

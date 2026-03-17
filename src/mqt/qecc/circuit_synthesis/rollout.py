@@ -90,7 +90,6 @@ class RolloutCandidateGenerator(CandidateGenerator):
             rollout: Number of steps to look ahead
             num_rollout_candidates: Number of candidates to explore per layer
             score_fn: Function to score complete elimination sequences
-            track_best_solution: If True, tracks best complete solution found during exploration
             enable_early_termination: If True, allows early termination when no improving candidates found
             current_sequence: The elimination sequence built so far (used for depth calculation)
             cache_policy: Policy for caching rollout results
@@ -100,7 +99,8 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self.num_rollout_candidates_per_layer = _normalize_rollout_candidates(num_rollout_candidates, rollout)
         self.score_fn = score_fn
         self.enable_early_termination = enable_early_termination
-        self._current_sequence = current_sequence.copy() if current_sequence is not None else EliminationSequence([])
+        self._evaluation_prefix = current_sequence.copy() if current_sequence is not None else EliminationSequence([])
+        self._local_prefix = EliminationSequence([])
         self._best_known_score: tuple[int, ...] | None = None
         self._best_known_sequence: EliminationSequence | None = None
         self._best_known_tableau: BinaryMatrix | None = None
@@ -114,6 +114,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         op: TableauOperation
         score: tuple[int, ...]
         completed_sequence: EliminationSequence
+        local_sequence: EliminationSequence
 
     def get_base_candidates(self, tableau: BinaryMatrix) -> Sequence[TableauOperation]:
         """Get base candidates from the underlying strategy without scoring.
@@ -142,7 +143,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             score = cand.score
             if self._best_known_score is None or score < self._best_known_score:
                 self._best_known_score = score
-                self._best_known_sequence = cand.completed_sequence.copy()
+                self._best_known_sequence = cand.local_sequence.copy()
                 improvement_found = True
         return improvement_found
 
@@ -162,7 +163,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         for op in base_candidates:
             new_tableau = op.apply(tableau)
 
-            prefix = EliminationSequence([*self._current_sequence.operations, op])
+            prefix = EliminationSequence([*self._evaluation_prefix.operations, op])
             cache_key = self.cache_policy.key(new_tableau, self.rollout - 1, prefix) if self.cache_policy else None
             cached = cache.get(cache_key) if self.cache_policy else None
 
@@ -185,8 +186,10 @@ class RolloutCandidateGenerator(CandidateGenerator):
                     cache.set(key, EliminationSequence([*child_suffix.operations]))
 
             completed = EliminationSequence([*prefix.operations, *seq.operations])
+            local_seq = EliminationSequence([*self._local_prefix, op, *seq.operations])
+
             score = self.score_fn(completed)
-            scored.append(self.ScoredCandidate(op, score, completed))
+            scored.append(self.ScoredCandidate(op, score, completed, local_seq))
 
         scored.sort(key=operator.attrgetter("score"))
         return scored
@@ -209,7 +212,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
 
         is_improvement = self._update_best_scored_candidates(scored_candidates)
 
-        if not is_improvement and self.enable_early_termination:
+        if not is_improvement and self.enable_early_termination and self._best_known_sequence is not None:
             self._should_terminate = True
             return []
 
@@ -233,18 +236,6 @@ class RolloutCandidateGenerator(CandidateGenerator):
             return self._best_known_sequence
         return None
 
-    def record_complete_solution(self, sequence: EliminationSequence, score: tuple[int, ...]) -> None:
-        """Record a complete solution if it's better than the current best.
-
-        Args:
-            sequence: The complete elimination sequence
-            tableau: The final tableau
-            score: The score of this solution
-        """
-        if self._best_known_score is None or score < self._best_known_score:
-            self._best_known_score = score
-            self._best_known_sequence = sequence.copy()
-
     def _create_rollout_strategy(
         self, op: TableauOperation, initial_filter_state: list[OperationFilter] | None
     ) -> EliminationStrategy:
@@ -265,7 +256,8 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 self.num_rollout_candidates_per_layer[1:] if len(self.num_rollout_candidates_per_layer) > 1 else [],
                 self.score_fn,
                 enable_early_termination=self.enable_early_termination,
-                current_sequence=EliminationSequence([*self._current_sequence.operations, op]),
+                current_sequence=EliminationSequence([*self._evaluation_prefix.operations, op]),
+                cache_policy=self.cache_policy,
             ),
         )
 
@@ -275,11 +267,13 @@ class RolloutCandidateGenerator(CandidateGenerator):
         Args:
             op: The operation that was applied to the tableau.
         """
-        self._current_sequence.add_operation(op)
+        self._evaluation_prefix.add_operation(op)
+        self._local_prefix.add_operation(op)
 
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
-        self._current_sequence = EliminationSequence([])
+        self._evaluation_prefix = EliminationSequence([])
+        self._local_prefix = EliminationSequence([])
         self._best_known_score = None
         self._best_known_sequence = None
         self._best_known_tableau = None
