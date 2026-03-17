@@ -192,6 +192,13 @@ class EliminationSequence:
         """
         return hash(tuple(self.operations))
 
+    def last_layer_qubits(self) -> set[int]:
+        """Get the set of qubits involved in the last layer of operations."""
+        if self._depth == 0:
+            return set()
+        last_layer = self._depth - 1
+        return {q for q, d in self._qubit_depths.items() if d == last_layer}
+
 
 @dataclass
 class EliminationStrategy:
@@ -280,6 +287,11 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
 
+        if not candidate_ops:
+            pass
+
+        if not candidate_ops:
+            pass
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
@@ -527,6 +539,20 @@ class ParallelFilter(OperationFilter):
         """
         qubits_involved = op.qubits()
         for q in qubits_involved:
+            if not self.blocked_qubits[q]:
+                self.blocked_qubits[q] = True
+                self._n_blocked += 1
+
+        if not self.has_available_qubits():
+            self.reset()
+
+    def block_qubits(self, qubits: set[int]) -> None:
+        """Manually block a list of qubits.
+
+        Args:
+            qubits: List of qubit indices to block.
+        """
+        for q in qubits:
             if not self.blocked_qubits[q]:
                 self.blocked_qubits[q] = True
                 self._n_blocked += 1

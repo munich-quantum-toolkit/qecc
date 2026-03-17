@@ -14,7 +14,7 @@ import operator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, eliminate
+from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, ParallelFilter, eliminate
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Sequence
@@ -44,21 +44,16 @@ def _normalize_rollout_candidates(num_candidates: int | list[int], rollout: int)
 
 
 def _create_fresh_rollout_strategy(strategy: EliminationStrategy) -> EliminationStrategy:
-    """Create a fresh copy of the rollout strategy with copied filter state.
-
-    Args:
-        strategy: The original rollout strategy.
-
-    Returns:
-        A new strategy with fresh filter copies.
-    """
     fresh_filters = None
     if strategy.filters:
         fresh_filters = [f.copy() for f in strategy.filters]
 
+    candidate_generator_cls = type(strategy.candidate_generator)
+    fresh_candidate_generator = candidate_generator_cls(fresh_filters)
+
     return EliminationStrategy(
         termination_criterion=strategy.termination_criterion,
-        candidate_generator=strategy.candidate_generator,
+        candidate_generator=fresh_candidate_generator,
         selection_strategy=strategy.selection_strategy,
         filters=fresh_filters,
         callback=strategy.callback,
@@ -159,7 +154,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         Returns:
             List of (operation, score) tuples sorted by score.
         """
-        scored: list[self.ScoredCandidate] = []
+        scored: list[RolloutCandidateGenerator.ScoredCandidate] = []
         for op in base_candidates:
             new_tableau = op.apply(tableau)
 
@@ -170,7 +165,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             if cached is not None:
                 seq = cached.copy()
             else:
-                lower_level_strategy = self._create_rollout_strategy(op, None)  # type: ignore[attr-defined]
+                lower_level_strategy = self._create_rollout_strategy(op)
                 seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
 
                 cache.set(cache_key, seq.copy())
@@ -186,7 +181,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
                     cache.set(key, EliminationSequence([*child_suffix.operations]))
 
             completed = EliminationSequence([*prefix.operations, *seq.operations])
-            local_seq = EliminationSequence([*self._local_prefix, op, *seq.operations])
+            local_seq = EliminationSequence([*self._local_prefix.operations, op, *seq.operations])
 
             score = self.score_fn(completed)
             scored.append(self.ScoredCandidate(op, score, completed, local_seq))
@@ -236,27 +231,36 @@ class RolloutCandidateGenerator(CandidateGenerator):
             return self._best_known_sequence
         return None
 
-    def _create_rollout_strategy(
-        self, op: TableauOperation, initial_filter_state: list[OperationFilter] | None
-    ) -> EliminationStrategy:
+    def _create_rollout_strategy(self, op: TableauOperation) -> EliminationStrategy:
         """Create a fresh rollout strategy for recursive simulation.
 
         Args:
-            initial_filter_state: Initial state of filters to copy.
+        op: The operation to be applied at the current layer, used to build the child evaluation prefix.
 
         Returns:
             A new EliminationStrategy with fresh generator and filters.
         """
-        # TODO initialize filter state
+        child_eval_prefix = EliminationSequence([*self._evaluation_prefix.operations, op])
+        child_base_strategy = _create_fresh_rollout_strategy(self.base_strategy)
+
+        if self.rollout - 1 == 0:
+            child_base_strategy.filters = self._initialize_filter_state_from_prefix(
+                child_eval_prefix,
+                child_base_strategy.filters,
+            )
+        # also make sure the candidate generator sees those filters
+        if hasattr(child_base_strategy.candidate_generator, "filters"):
+            child_base_strategy.candidate_generator.filters = list(child_base_strategy.filters or [])
+
         return EliminationStrategy(
             termination_criterion=self.base_strategy.termination_criterion,
             candidate_generator=RolloutCandidateGenerator(
-                self.base_strategy,
+                child_base_strategy,
                 self.rollout - 1,
                 self.num_rollout_candidates_per_layer[1:] if len(self.num_rollout_candidates_per_layer) > 1 else [],
                 self.score_fn,
                 enable_early_termination=self.enable_early_termination,
-                current_sequence=EliminationSequence([*self._evaluation_prefix.operations, op]),
+                current_sequence=child_eval_prefix,
                 cache_policy=self.cache_policy,
             ),
         )
@@ -266,9 +270,11 @@ class RolloutCandidateGenerator(CandidateGenerator):
 
         Args:
             op: The operation that was applied to the tableau.
+            tableau: The resulting tableau after applying the operation.
         """
         self._evaluation_prefix.add_operation(op)
         self._local_prefix.add_operation(op)
+        self.base_strategy.candidate_generator.update(op, tableau)
 
     def reset(self) -> None:
         """Reset internal state by delegating to the base generator."""
@@ -280,15 +286,50 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self._should_terminate = False
         self.base_strategy.candidate_generator.reset()
 
+    @staticmethod
+    def _initialize_filter_state_from_prefix(
+        prefix: EliminationSequence,
+        filters: Sequence[OperationFilter] | None,
+    ) -> list[OperationFilter] | None:
+        """Initialize filter state based on the operations in the prefix sequence.
+
+        Args:
+            prefix: The elimination sequence prefix to initialize from.
+            filters: The list of filters to initialize, or None if no filters are used.
+        """
+        if not filters:
+            return None
+
+        initialized = [f.copy() for f in filters]
+        last_layer_qubits = prefix.last_layer_qubits()
+
+        for f in initialized:
+            f.reset()
+            if isinstance(f, ParallelFilter):
+                f.block_qubits(last_layer_qubits)
+
+        return initialized
+
 
 class CachePolicy(Protocol):
+    """Protocol for defining cache policies for rollout candidate generation."""
+
     def key(
         self,
         tableau: BinaryMatrix,
         rollout: int,
         current_sequence: EliminationSequence,
     ) -> Hashable | None:
-        pass
+        """Generate a cache key based on the tableau, rollout depth, and current elimination sequence.
+
+        Args:
+            tableau: The current binary matrix.
+            rollout: The remaining rollout depth.
+            current_sequence: The current elimination sequence.
+
+        Returns:
+            A hashable key for caching rollout results, or None if caching is disabled.
+        """
 
 
 @dataclass(frozen=True)
@@ -296,7 +337,7 @@ class AdditiveCachePolicy:
     """Cache policy that ignores the current elimination sequence for key generation, i.e. the cached value is independent of the synthesis context."""
 
     @staticmethod
-    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:
+    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:  # noqa: ARG004
         """Generate a cache key based on the tableau and rollout depth, ignoring the current sequence.
 
         tableau: The current binary matrix.
@@ -324,7 +365,7 @@ class NonAdditiveCachePolicy:
         Returns:
             A hashable key for caching rollout results that includes the current sequence.
         """
-        return (hash(tableau), rollout, current_sequence)
+        return (hash(tableau), rollout, frozenset(current_sequence.last_layer_qubits()))
 
 
 class RolloutCache:
@@ -332,11 +373,11 @@ class RolloutCache:
 
     def __init__(self) -> None:
         """Initialize an empty cache."""
-        self._cache: dict[Hashable, tuple[tuple[int, ...], EliminationSequence]] = {}
+        self._cache: dict[Hashable, EliminationSequence] = {}
         self.hits = 0
         self.misses = 0
 
-    def get(self, key: Hashable | None) -> tuple[tuple[int, ...], EliminationSequence] | None:
+    def get(self, key: Hashable | None) -> EliminationSequence | None:
         """Retrieve a cached result for the given key.
 
         Args:

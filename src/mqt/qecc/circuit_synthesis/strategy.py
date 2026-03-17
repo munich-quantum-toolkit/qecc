@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
     from .elimination import EliminationSequence
     from .operations import TableauOperation
+    from .rollout import CachePolicy
     from .types import BinaryMatrix
 
 
@@ -223,7 +224,7 @@ def for_non_css_with_rollout(
         def score_fn(ops: EliminationSequence) -> tuple[int, int]:
             return ops.num_transvections(), ops.depth()
 
-        policy = AdditiveCachePolicy()
+        policy: CachePolicy = AdditiveCachePolicy()
     else:
 
         def score_fn(ops: EliminationSequence) -> tuple[int, int]:
@@ -291,7 +292,7 @@ def for_cnot_with_rollout_up_to_row_ops(
         def _score_fn(ops: EliminationSequence) -> tuple[int, int]:
             return (ops.num_cnots(), ops.depth())
 
-        policy = AdditiveCachePolicy()
+        policy: CachePolicy = AdditiveCachePolicy()
 
     else:
 
