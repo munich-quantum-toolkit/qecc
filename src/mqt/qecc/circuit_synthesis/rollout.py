@@ -14,6 +14,7 @@ import operator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from .cnot import GreedyCNOTGenerator
 from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, ParallelFilter, eliminate
 
 if TYPE_CHECKING:
@@ -49,7 +50,12 @@ def _create_fresh_rollout_strategy(strategy: EliminationStrategy) -> Elimination
         fresh_filters = [f.copy() for f in strategy.filters]
 
     candidate_generator_cls = type(strategy.candidate_generator)
-    fresh_candidate_generator = candidate_generator_cls(fresh_filters)
+    if isinstance(strategy.candidate_generator, GreedyCNOTGenerator):
+        fresh_candidate_generator: CandidateGenerator = GreedyCNOTGenerator(
+            strategy.candidate_generator.n_stabs, fresh_filters
+        )
+    else:
+        fresh_candidate_generator = candidate_generator_cls(fresh_filters)
 
     return EliminationStrategy(
         termination_criterion=strategy.termination_criterion,

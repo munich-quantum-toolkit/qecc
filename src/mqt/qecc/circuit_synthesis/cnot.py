@@ -9,9 +9,11 @@
 
 from __future__ import annotations
 
+import logging
 import operator
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
 
@@ -31,19 +33,23 @@ if TYPE_CHECKING:
     from .operations import TableauOperation
     from .types import BinaryMatrix
 
+logger = logging.getLogger(__name__)
+
 
 class GreedyCNOTGenerator(CandidateGenerator):
     """Generates CNOT candidates using greedy heuristic for CSS codes."""
 
-    def __init__(self, filters: Sequence[OperationFilter] | None = None) -> None:
+    def __init__(self, n_stabs: int, filters: Sequence[OperationFilter] | None = None) -> None:
         """Initialize the greedy CNOT generator.
 
         Args:
+            n_stabs: The number of stabilizers in the code.
             filters: Optional list of filters to apply during candidate generation.
         """
         self.operation_history: list[TableauOperation] = []
         self.filters = list(filters) if filters else []
         self._cnot_cache: dict[int, list[CNOT]] = {}
+        self.n_stabs = n_stabs
 
     def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
         """Generate CNOT candidates sorted by heuristic score.
@@ -64,7 +70,51 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
         self._reset_filters()
         filtered_candidates = self._apply_filters(unscored_candidates)
-        return _score_cnots(filtered_candidates, tableau)
+        scored = _score_cnots(filtered_candidates, tableau)
+
+        if scored:
+            return scored
+
+        # If it wasn't the filters then at this point we are stuck in a local minimum. We have to escape by using stabilizer operations
+        return self.escape_local_minimum(tableau)
+
+    def escape_local_minimum(self, tableau: CheckMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
+        """Generate candidates to escape local minimum.
+
+        Args:
+            tableau: The current check matrix.
+
+        Returns:
+            List of (operation, score) tuples for escaping local minimum.
+        """
+        logger.info(
+            "No positive-scoring CNOT candidates found. Attempting to escape local minimum using stabilizer operations."
+        )
+        base_score = int(tableau.matrix.sum())
+        for i in range(self.n_stabs):
+            for j in range(tableau.num_rows()):
+                if i == j:
+                    continue
+                tableau.matrix[j] ^= tableau.matrix[i]
+                new_score = int(tableau.matrix.sum())
+                if new_score > base_score:
+                    tableau.matrix[j] ^= tableau.matrix[i]
+                    continue
+                scored = _score_cnots(self._generate_cnot_operations(tableau), tableau)
+                if scored:
+                    return scored
+
+        logger.info("Heuristic row reduction failed. Falling back to RREF.")
+        # if this still doesn't help, bring to rref
+        rref, _, _, pivots = mod2.row_echelon(tableau.matrix[: self.n_stabs], full=True)
+        tableau.matrix[: self.n_stabs] = rref
+
+        for i, _p in enumerate(pivots):
+            for j in range(self.n_stabs, tableau.num_rows()):
+                if tableau.matrix[i, j] == 1:
+                    tableau.matrix[j] ^= tableau.matrix[i]
+
+        return _score_cnots(self._generate_cnot_operations(tableau), tableau)
 
     def _reset_filters(self) -> None:
         """Reset all filters to their initial state."""

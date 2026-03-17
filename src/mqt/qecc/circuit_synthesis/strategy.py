@@ -127,7 +127,7 @@ def for_cnot_up_to_row_ops(
 
     return EliminationStrategy(
         termination_criterion=termination_criterion,
-        candidate_generator=GreedyCNOTGenerator(filters),
+        candidate_generator=GreedyCNOTGenerator(n_stabs, filters),
         filters=filters,
         callback=callback,
     )

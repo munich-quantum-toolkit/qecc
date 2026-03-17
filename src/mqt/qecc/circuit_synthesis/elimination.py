@@ -287,11 +287,6 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
 
-        if not candidate_ops:
-            pass
-
-        if not candidate_ops:
-            pass
         _validate_candidates([op for op, _score in candidate_ops])
 
         op = selection_strategy.select(candidate_ops)
