@@ -93,9 +93,9 @@ class TableauOperation(ABC):
             CheckMatrix: The resulting CSS check matrix after applying the operation.
         """
 
+    @abstractmethod
     def __hash__(self) -> int:
         """Return a hash of the operation."""
-        return hash((self.__class__, frozenset(self.qubits())))
 
 
 TV2 = tuple[int, int, int, int]
@@ -208,6 +208,10 @@ class Transvection(TableauOperation):
         """
         return {self.i, self.j}
 
+    def hash(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, self.v, self.i, self.j))
+
 
 def _matmul2(m1: npt.NDArray[np.int8], m2: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     return ((m1 @ m2) % 2).astype(np.int8)
@@ -273,6 +277,10 @@ class SingleQubitClifford(TableauOperation):
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
         return out
+
+    def __hash__(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, self.qubit, self.clifford))
 
     def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:
         """Apply the single-qubit Clifford operation to a CSS check matrix.
@@ -463,6 +471,10 @@ class PauliOperation(TableauOperation):
         """
         return {self.qubit}
 
+    def __hash__(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, self.qubit, self.pauli))
+
 
 class CNOT(TableauOperation):
     """Class representing a CNOT operation on a stabilizer tableau."""
@@ -532,6 +544,10 @@ class CNOT(TableauOperation):
         """
         return {self.control, self.target}
 
+    def __hash__(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, self.control, self.target))
+
 
 class Swap(TableauOperation):
     """Class representing a SWAP operation on a stabilizer tableau."""
@@ -597,6 +613,10 @@ class Swap(TableauOperation):
             set[int]: The set of qubit indices involved in the operation.
         """
         return {self.qubit_a, self.qubit_b}
+
+    def __hash__(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, frozenset({self.qubit_a, self.qubit_b})))
 
 
 @nb.jit(
