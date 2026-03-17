@@ -163,6 +163,35 @@ class EliminationSequence:
         """
         return EliminationSequence(self.operations.copy())
 
+    def __eq__(self, other: object) -> bool:
+        """Check equality of two elimination sequences based on their operations.
+
+        Args:
+            other: The other object to compare with.
+
+        Returns:
+            bool: True if the other object is an EliminationSequence with the same operations, False otherwise.
+        """
+        if not isinstance(other, EliminationSequence):
+            return NotImplemented
+        return self.operations == other.operations
+
+    def __len__(self) -> int:
+        """Return the number of operations in the elimination sequence.
+
+        Returns:
+            int: The number of operations.
+        """
+        return len(self.operations)
+
+    def __hash__(self) -> int:
+        """Compute a hash of the elimination sequence based on its operations.
+
+        Returns:
+            int: The hash value of the elimination sequence.
+        """
+        return hash(tuple(self.operations))
+
 
 @dataclass
 class EliminationStrategy:

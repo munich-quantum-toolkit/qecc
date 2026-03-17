@@ -93,6 +93,10 @@ class TableauOperation(ABC):
             CheckMatrix: The resulting CSS check matrix after applying the operation.
         """
 
+    def __hash__(self) -> int:
+        """Return a hash of the operation."""
+        return hash((self.__class__, frozenset(self.qubits())))
+
 
 TV2 = tuple[int, int, int, int]
 

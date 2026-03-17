@@ -9,17 +9,21 @@
 
 from __future__ import annotations
 
+import logging
 import operator
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
 
 from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, eliminate
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Hashable, Sequence
 
     from .elimination import OperationFilter
     from .operations import TableauOperation
     from .types import BinaryMatrix
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_rollout_candidates(num_candidates: int | list[int], rollout: int) -> list[int]:
@@ -77,6 +81,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
         enable_early_termination: bool = True,
         current_sequence: EliminationSequence | None = None,
+        cache_policy: CachePolicy | None = None,
     ) -> None:
         """Initialize the rollout candidate generator.
 
@@ -88,6 +93,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             track_best_solution: If True, tracks best complete solution found during exploration
             enable_early_termination: If True, allows early termination when no improving candidates found
             current_sequence: The elimination sequence built so far (used for depth calculation)
+            cache_policy: Policy for caching rollout results
         """
         self.base_strategy = base_strategy
         self.rollout = rollout
@@ -99,6 +105,15 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self._best_known_sequence: EliminationSequence | None = None
         self._best_known_tableau: BinaryMatrix | None = None
         self._should_terminate = False
+        self.cache_policy = cache_policy
+
+    @dataclass
+    class ScoredCandidate:
+        """Data class to hold scored candidate information."""
+
+        op: TableauOperation
+        score: tuple[int, ...]
+        completed_sequence: EliminationSequence
 
     def get_base_candidates(self, tableau: BinaryMatrix) -> Sequence[TableauOperation]:
         """Get base candidates from the underlying strategy without scoring.
@@ -113,7 +128,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             : self.num_rollout_candidates_per_layer[0]
         ]
 
-    def _update_best_scored_candidates(self, scored_candidates: list[tuple[TableauOperation, tuple[int, ...]]]) -> bool:
+    def _update_best_scored_candidates(self, scored_candidates: list[ScoredCandidate]) -> bool:
         """Update the best known complete solution based on scored candidates.
 
         Args:
@@ -123,18 +138,17 @@ class RolloutCandidateGenerator(CandidateGenerator):
             True if an improvement was found, False otherwise.
         """
         improvement_found = False
-        for op, score in scored_candidates:
+        for cand in scored_candidates:
+            score = cand.score
             if self._best_known_score is None or score < self._best_known_score:
                 self._best_known_score = score
-                new_sequence = self._current_sequence.copy()
-                new_sequence.add_operation(op)
-                self._best_known_sequence = new_sequence
+                self._best_known_sequence = cand.completed_sequence.copy()
                 improvement_found = True
         return improvement_found
 
     def score_rollout_candidates(
         self, tableau: BinaryMatrix, base_candidates: Sequence[TableauOperation]
-    ) -> list[tuple[TableauOperation, tuple[int, ...]]]:
+    ) -> list[ScoredCandidate]:
         """Score base candidates using rollout simulation.
 
         Args:
@@ -144,16 +158,37 @@ class RolloutCandidateGenerator(CandidateGenerator):
         Returns:
             List of (operation, score) tuples sorted by score.
         """
-        scored: list[tuple[TableauOperation, tuple[int, ...]]] = []
+        scored: list[self.ScoredCandidate] = []
         for op in base_candidates:
             new_tableau = op.apply(tableau)
-            lower_level_strategy = self._create_rollout_strategy(op, None)  # type: ignore[attr-defined]
-            seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
-            completed = EliminationSequence([*self._current_sequence.operations, op, *seq.operations])
-            score = self.score_fn(completed)
-            scored.append((op, score))
 
-        scored.sort(key=operator.itemgetter(1))
+            prefix = EliminationSequence([*self._current_sequence.operations, op])
+            cache_key = self.cache_policy.key(new_tableau, self.rollout - 1, prefix) if self.cache_policy else None
+            cached = cache.get(cache_key) if self.cache_policy else None
+
+            if cached is not None:
+                seq = cached.copy()
+            else:
+                lower_level_strategy = self._create_rollout_strategy(op, None)  # type: ignore[attr-defined]
+                seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
+
+                cache.set(cache_key, seq.copy())
+                for i, op_sequence in enumerate(seq.operations):
+                    new_tableau = op_sequence.apply(new_tableau)
+                    child_prefix = EliminationSequence([*prefix.operations, *seq.operations[: i + 1]])
+                    key = (
+                        self.cache_policy.key(new_tableau, self.rollout - 1, child_prefix)
+                        if self.cache_policy
+                        else None
+                    )
+                    child_suffix = EliminationSequence(seq.operations[i + 1 :])
+                    cache.set(key, EliminationSequence([*child_suffix.operations]))
+
+            completed = EliminationSequence([*prefix.operations, *seq.operations])
+            score = self.score_fn(completed)
+            scored.append(self.ScoredCandidate(op, score, completed))
+
+        scored.sort(key=operator.attrgetter("score"))
         return scored
 
     def get_candidates(self, tableau: BinaryMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
@@ -178,7 +213,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             self._should_terminate = True
             return []
 
-        return [(op, score) for op, score in scored_candidates]
+        return [(cand.op, cand.score) for cand in scored_candidates]
 
     def should_terminate_early(self) -> bool:
         """Check if elimination should terminate early.
@@ -252,83 +287,101 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self.base_strategy.candidate_generator.reset()
 
 
-class RolloutCache:
-    """Class to handle memoization for rollout synthesis."""
+class CachePolicy(Protocol):
+    def key(
+        self,
+        tableau: BinaryMatrix,
+        rollout: int,
+        current_sequence: EliminationSequence,
+    ) -> Hashable | None:
+        pass
 
-    def __init__(self) -> None:
-        """Initialize the memoization cache."""
-        self._cache: dict[tuple[int, int], list[TableauOperation]] = {}
-        self._hit_count = 0
-        self._miss_count = 0
+
+@dataclass(frozen=True)
+class AdditiveCachePolicy:
+    """Cache policy that ignores the current elimination sequence for key generation, i.e. the cached value is independent of the synthesis context."""
 
     @staticmethod
-    def generate_key(tableau: BinaryMatrix, rollout: int) -> tuple[int, int]:
-        """Generate a unique cache key based on the tableau state and rollout depth.
+    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:
+        """Generate a cache key based on the tableau and rollout depth, ignoring the current sequence.
 
-        Args:
-            tableau: The current tableau state.
-            rollout: The current rollout depth.
+        tableau: The current binary matrix.
+        rollout: The remaining rollout depth.
+        current_sequence: The current elimination sequence (ignored for this policy).
 
         Returns:
-            A tuple representing the unique cache key.
+            A hashable key for caching rollout results.
         """
         return (hash(tableau), rollout)
 
-    def get(self, tableau: BinaryMatrix, rollout: int) -> list[TableauOperation] | None:
-        """Retrieve a cached result if it exists.
 
-        Args:
-            tableau: The current tableau state.
-            rollout: The current rollout depth.
+@dataclass(frozen=True)
+class NonAdditiveCachePolicy:
+    """Cache policy that includes the current elimination sequence in the key, making cached values dependent on the synthesis context."""
+
+    @staticmethod
+    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:
+        """Generate a cache key based on the tableau, rollout depth, and current elimination sequence.
+
+        tableau: The current binary matrix.
+        rollout: The remaining rollout depth.
+        current_sequence: The current elimination sequence.
 
         Returns:
-            The cached result, or None if not found.
+            A hashable key for caching rollout results that includes the current sequence.
         """
-        key = self.generate_key(tableau, rollout)
-        if key in self._cache:
-            self._hit_count += 1
-        else:
-            self._miss_count += 1
-        return self._cache.get(key)
+        return (hash(tableau), rollout, current_sequence)
 
-    def set(self, tableau: BinaryMatrix, rollout: int, result: list[TableauOperation]) -> None:
-        """Store a result in the cache.
+
+class RolloutCache:
+    """Simple cache for storing rollout results based on a hashable key."""
+
+    def __init__(self) -> None:
+        """Initialize an empty cache."""
+        self._cache: dict[Hashable, tuple[tuple[int, ...], EliminationSequence]] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: Hashable | None) -> tuple[tuple[int, ...], EliminationSequence] | None:
+        """Retrieve a cached result for the given key.
 
         Args:
-            tableau: The current tableau state.
-            rollout: The current rollout depth.
-            result: The result to cache.
+            key: The cache key to look up.
+
+        Returns:
+            The cached (score, sequence) tuple if found, or None if not present.
         """
-        key = self.generate_key(tableau, rollout)
-        self._cache[key] = result
+        if key is None:
+            return None
+        value = self._cache.get(key, None)
+        if value is not None:
+            self.hits += 1
+            return value
+        self.misses += 1
+        return None
+
+    def set(self, key: Hashable | None, value: EliminationSequence) -> None:
+        """Store a result in the cache under the given key."""
+        if key is None:
+            return
+        self._cache[key] = value.copy()
 
     def clear(self) -> None:
-        """Clear the cache."""
+        """Clear all entries from the cache."""
         self._cache.clear()
-        self._hit_count = 0
-        self._miss_count = 0
-
-    def size(self) -> int:
-        """Get the current size of the cache.
-
-        Returns:
-            The number of entries in the cache.
-        """
-        return len(self._cache)
 
     def hit_rate(self) -> float:
-        """Calculate the cache hit rate.
+        """Calculate the cache hit rate."""
+        total = self.hits + self.misses
+        return self.hits / total if total > 0 else 0.0
 
-        Returns:
-            The hit rate as a percentage.
-        """
-        total = self._hit_count + self._miss_count
-        return (self._hit_count / total) * 100 if total > 0 else 0.0
+
+cache = RolloutCache()
 
 
 def clear_cache() -> None:
-    """Clear global search cache used for rollout synthesis."""
+    """Clear the global rollout cache."""
+    logger.info(
+        "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%", cache.hits, cache.misses, cache.hit_rate() * 100
+    )
     cache.clear()
-
-
-cache = RolloutCache()  # global cache instance for rollout synthesis

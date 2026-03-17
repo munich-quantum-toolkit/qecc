@@ -17,7 +17,7 @@ import numpy as np
 from ..codes.pauli import StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
-from .rollout import RolloutCandidateGenerator, clear_cache
+from .rollout import AdditiveCachePolicy, NonAdditiveCachePolicy, RolloutCandidateGenerator, clear_cache
 from .transvection import (
     GreedyTransvectionGenerator,
     is_terminal_transvection,
@@ -218,9 +218,18 @@ def for_non_css_with_rollout(
         filters=filters,
     )
 
-    def score_fn(ops: EliminationSequence) -> tuple[int, bool]:
-        n_transvections = ops.num_transvections()
-        return n_transvections, n_transvections <= 1
+    if optimization_criterion == "gates":
+
+        def score_fn(ops: EliminationSequence) -> tuple[int, int]:
+            return ops.num_transvections(), ops.depth()
+
+        policy = AdditiveCachePolicy()
+    else:
+
+        def score_fn(ops: EliminationSequence) -> tuple[int, int]:
+            return ops.depth(), ops.num_transvections()
+
+        policy = NonAdditiveCachePolicy()
 
     def post_process_fn(ops: EliminationSequence, tbl: BinaryMatrix) -> tuple[EliminationSequence, BinaryMatrix]:
         if not isinstance(tbl, StabilizerTableau):
@@ -235,6 +244,7 @@ def for_non_css_with_rollout(
             num_rollout_candidates,
             score_fn,
             enable_early_termination=enable_early_termination,
+            cache_policy=policy,
         ),
         filters=filters,
         callback=callback,
@@ -278,15 +288,17 @@ def for_cnot_with_rollout_up_to_row_ops(
 
     if optimization_criterion == "gates":
 
-        def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
-            n_cnots = ops.num_cnots()
-            return (n_cnots, ops.depth(), n_cnots <= 1)
+        def _score_fn(ops: EliminationSequence) -> tuple[int, int]:
+            return (ops.num_cnots(), ops.depth())
+
+        policy = AdditiveCachePolicy()
 
     else:
 
-        def _score_fn(ops: EliminationSequence) -> tuple[int, int, bool]:
-            depth = ops.depth()
-            return (depth, ops.num_cnots(), depth <= 1)
+        def _score_fn(ops: EliminationSequence) -> tuple[int, int]:
+            return (ops.depth(), ops.num_cnots())
+
+        policy = NonAdditiveCachePolicy()
 
     return EliminationStrategy(
         termination_criterion=base_strategy.termination_criterion,
@@ -296,6 +308,7 @@ def for_cnot_with_rollout_up_to_row_ops(
             num_rollout_candidates,
             _score_fn,
             enable_early_termination=enable_early_termination,
+            cache_policy=policy,
         ),
         filters=None,
         callback=callback,
