@@ -281,22 +281,12 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
     selection_strategy = strategy.selection_strategy or GreedySelection()
     iteration = 0
 
-    def escape_local_minimum(tableau: BinaryMatrix) -> None:
-        if hasattr(strategy.candidate_generator, "escape_local_minimum"):
-            breakout_ops = strategy.candidate_generator.escape_local_minimum(tableau)
-            if not breakout_ops:
-                msg = (
-                    "Candidate generator has no operations to escape local minimum, but termination criterion not met."
-                )
-                raise RuntimeError(msg)
-            for op in breakout_ops:
-                tableau = op.apply(tableau, inplace=True)
-                operations.add_operation(op)
-                _update_elimination_state(op, tableau, strategy)
-                _invoke_callback(iteration, op, tableau, strategy)
-        else:
-            msg = "No more candidate operations available, but termination criterion not met."
+    def local_minimum(tableau: BinaryMatrix) -> Sequence[TableauOperation]:
+        breakout_ops = strategy.candidate_generator.escape_local_minimum(tableau)
+        if not breakout_ops:
+            msg = "Candidate generator has no operations to escape local minimum, but termination criterion not met."
             raise RuntimeError(msg)
+        return breakout_ops
 
     ###############################################
     ############ Main elimination loop ############
@@ -307,13 +297,9 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
 
-        if not candidate_ops:
-            escape_local_minimum(tableau)
-        else:
-            _validate_candidates([op for op, _score in candidate_ops])
+        ops = local_minimum(tableau) if not candidate_ops else [selection_strategy.select(candidate_ops)]
 
-            op = selection_strategy.select(candidate_ops)
-
+        for op in ops:
             tableau = op.apply(tableau, inplace=True)
 
             operations.add_operation(op)
