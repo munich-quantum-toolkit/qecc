@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import operator
+from itertools import permutations
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -123,22 +124,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
         logger.info(
             "RREF reduction failed to yield positive-scoring candidates. Attempting multi-step CNOT sequences to escape local minimum."
         )
-        for i in range(tableau.num_qubits()):
-            for j in range(tableau.num_qubits()):
-                for k in range(tableau.num_qubits()):
-                    if i in {j, k} or j == k:
-                        continue
-                    op1 = CNOT(j, i)
-                    op2 = CNOT(k, i)
-                    op1.apply_check_matrix(tableau, inplace=True)
-                    op2.apply_check_matrix(tableau, inplace=True)
-                    new_score = int(tableau.matrix.sum())
-                    op2.apply_check_matrix(tableau, inplace=True)
-                    op1.apply_check_matrix(tableau, inplace=True)
-                    if new_score >= base_score:
-                        continue
-                    return [op1, op2]
-        return None
+        return find_multi_step_reduction(tableau)
 
     def _reset_filters(self) -> None:
         """Reset all filters to their initial state."""
@@ -221,6 +207,40 @@ def _compute_scores_numba(
             new_weight += mat[j, targets[i]] ^ mat[j, controls[i]]
         scores[i] = old_weight - new_weight
     return scores
+
+
+def find_multi_step_reduction(tableau: CheckMatrix) -> Sequence[TableauOperation] | None:
+    """Find a sequence of CNOT operations that reduces the weight of the tableau.
+
+    This is a brute-force search over all sequences of CNOTs up to a certain length. It is not efficient but should only be needed in very rare cases when we are stuck in a local minimum with no single-step improvements.
+    """
+    min_ops = 2
+    n = tableau.num_qubits()
+    base_score = int(tableau.matrix.sum())
+    max_ops = n - 1  # at most one target + all other qubits as controls
+
+    for num_ops in range(min_ops, max_ops + 1):
+        # one target + num_ops distinct controls
+        for inds in permutations(range(n), num_ops + 1):
+            target = inds[0]
+            controls = inds[1:]
+
+            ops = [CNOT(control, target) for control in controls]
+
+            # apply
+            for op in ops:
+                op.apply_check_matrix(tableau, inplace=True)
+
+            new_score = int(tableau.matrix.sum())
+
+            # undo
+            for op in reversed(ops):
+                op.apply_check_matrix(tableau, inplace=True)
+
+            if new_score < base_score:
+                return ops
+
+    return None
 
 
 def _score_cnots(
