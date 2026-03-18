@@ -70,15 +70,9 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
         self._reset_filters()
         filtered_candidates = self._apply_filters(unscored_candidates)
-        scored = _score_cnots(filtered_candidates, tableau)
+        return _score_cnots(filtered_candidates, tableau)
 
-        if scored:
-            return scored
-
-        # If it wasn't the filters then at this point we are stuck in a local minimum. We have to escape by using stabilizer operations
-        return self.escape_local_minimum(tableau)
-
-    def escape_local_minimum(self, tableau: CheckMatrix) -> Sequence[tuple[TableauOperation, int | tuple[int, ...]]]:
+    def escape_local_minimum(self, tableau: BinaryMatrix) -> Sequence[TableauOperation] | None:
         """Generate candidates to escape local minimum.
 
         Args:
@@ -90,6 +84,8 @@ class GreedyCNOTGenerator(CandidateGenerator):
         logger.info(
             "No positive-scoring CNOT candidates found. Attempting to escape local minimum using stabilizer operations."
         )
+        assert isinstance(tableau, CheckMatrix), "Input must be a CheckMatrix."
+
         base_score = int(tableau.matrix.sum())
         for i in range(self.n_stabs):
             for j in range(tableau.num_rows()):
@@ -100,9 +96,11 @@ class GreedyCNOTGenerator(CandidateGenerator):
                 if new_score > base_score:
                     tableau.matrix[j] ^= tableau.matrix[i]
                     continue
-                scored = _score_cnots(self._generate_cnot_operations(tableau), tableau)
+                scored = _score_cnots(
+                    self._generate_cnot_operations(tableau), tableau
+                )  # not efficient but this shouldn't happen often
                 if scored:
-                    return scored
+                    return [scored[0][0]]  # return the first candidate that offers an improvement
 
         logger.info("Heuristic row reduction failed. Falling back to RREF.")
         # if this still doesn't help, bring to rref
@@ -114,7 +112,33 @@ class GreedyCNOTGenerator(CandidateGenerator):
                 if tableau.matrix[j, p] == 1:
                     tableau.matrix[j] ^= tableau.matrix[i]
 
-        return _score_cnots(self._generate_cnot_operations(tableau), tableau)
+        scored = _score_cnots(self._generate_cnot_operations(tableau), tableau)
+
+        if scored:
+            return [scored[0][0]]
+
+        # If this still didn't work, no stabilizer operations can get us out of the local minimum
+        # We need to apply some column operations to escape, but no pair offers an improvement.
+        # We need to make multiple steps
+        logger.info(
+            "RREF reduction failed to yield positive-scoring candidates. Attempting multi-step CNOT sequences to escape local minimum."
+        )
+        for i in range(tableau.num_qubits()):
+            for j in range(tableau.num_qubits()):
+                for k in range(tableau.num_qubits()):
+                    if i in {j, k} or j == k:
+                        continue
+                    op1 = CNOT(j, i)
+                    op2 = CNOT(k, i)
+                    op1.apply_check_matrix(tableau, inplace=True)
+                    op2.apply_check_matrix(tableau, inplace=True)
+                    new_score = int(tableau.matrix.sum())
+                    op2.apply_check_matrix(tableau, inplace=True)
+                    op1.apply_check_matrix(tableau, inplace=True)
+                    if new_score >= base_score:
+                        continue
+                    return [op1, op2]
+        return None
 
     def _reset_filters(self) -> None:
         """Reset all filters to their initial state."""

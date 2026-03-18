@@ -316,6 +316,17 @@ class RolloutCandidateGenerator(CandidateGenerator):
 
         return initialized
 
+    def escape_local_minimum(self, tableau: BinaryMatrix) -> Sequence[TableauOperation] | None:
+        """Escape local minimum by applying a random operation.
+
+        Args:
+            tableau: The current binary matrix.
+
+        Returns:
+            A sequence of operations to escape the local minimum, or an empty sequence if no escape is possible.
+        """
+        return self.base_strategy.candidate_generator.escape_local_minimum(tableau)
+
 
 class CachePolicy(Protocol):
     """Protocol for defining cache policies for rollout candidate generation."""

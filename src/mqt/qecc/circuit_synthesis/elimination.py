@@ -281,22 +281,45 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
     selection_strategy = strategy.selection_strategy or GreedySelection()
     iteration = 0
 
+    def escape_local_minimum(tableau: BinaryMatrix) -> None:
+        if hasattr(strategy.candidate_generator, "escape_local_minimum"):
+            breakout_ops = strategy.candidate_generator.escape_local_minimum(tableau)
+            if not breakout_ops:
+                msg = (
+                    "Candidate generator has no operations to escape local minimum, but termination criterion not met."
+                )
+                raise RuntimeError(msg)
+            for op in breakout_ops:
+                tableau = op.apply(tableau, inplace=True)
+                operations.add_operation(op)
+                _update_elimination_state(op, tableau, strategy)
+                _invoke_callback(iteration, op, tableau, strategy)
+        else:
+            msg = "No more candidate operations available, but termination criterion not met."
+            raise RuntimeError(msg)
+
+    ###############################################
+    ############ Main elimination loop ############
+    ###############################################
     while not strategy.termination_criterion(tableau):
         candidate_ops = strategy.candidate_generator.get_candidates(tableau)
 
         if _should_terminate_early(strategy.candidate_generator):
             return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
 
-        _validate_candidates([op for op, _score in candidate_ops])
+        if not candidate_ops:
+            escape_local_minimum(tableau)
+        else:
+            _validate_candidates([op for op, _score in candidate_ops])
 
-        op = selection_strategy.select(candidate_ops)
+            op = selection_strategy.select(candidate_ops)
 
-        tableau = op.apply(tableau, inplace=True)
+            tableau = op.apply(tableau, inplace=True)
 
-        operations.add_operation(op)
+            operations.add_operation(op)
 
-        _update_elimination_state(op, tableau, strategy)
-        _invoke_callback(iteration, op, tableau, strategy)
+            _update_elimination_state(op, tableau, strategy)
+            _invoke_callback(iteration, op, tableau, strategy)
         iteration += 1
 
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
@@ -433,6 +456,17 @@ class CandidateGenerator(ABC):
 
         Returns:
             Tuple of (sequence, tableau) if a solution is available, None otherwise.
+        """
+        return None
+
+    def escape_local_minimum(self, tableau: BinaryMatrix) -> Sequence[TableauOperation] | None:  # noqa: ARG002, PLR6301
+        """Generate operations to escape a local minimum when no candidates are available.
+
+        Args:
+            tableau: The current tableau that is stuck in a local minimum.
+
+        Returns:
+            A list of operations to apply to escape the local minimum.
         """
         return None
 
