@@ -109,9 +109,9 @@ class GreedyCNOTGenerator(CandidateGenerator):
         rref, _, _, pivots = mod2.row_echelon(tableau.matrix[: self.n_stabs], full=True)
         tableau.matrix[: self.n_stabs] = rref
 
-        for i, _p in enumerate(pivots):
+        for i, p in enumerate(pivots):
             for j in range(self.n_stabs, tableau.num_rows()):
-                if tableau.matrix[i, j] == 1:
+                if tableau.matrix[j, p] == 1:
                     tableau.matrix[j] ^= tableau.matrix[i]
 
         return _score_cnots(self._generate_cnot_operations(tableau), tableau)
