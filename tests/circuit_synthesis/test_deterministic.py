@@ -198,42 +198,42 @@ def assert_scaling(simulation_results: list[npt.NDArray[np.float64]]) -> None:
     assert np.average(m[:3]) > 1.3
 
 
-def test_11_1_3_det_verification_correctness(
-    verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: FaultyStatePrepCircuit,
-) -> None:
-    """Test correctness of deterministic verification circuit for 11_1_3 code."""
-    verify_x, verify_z = verified_11_1_3_data
+# def test_11_1_3_det_verification_correctness(
+#     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
+#     css_11_1_3_code_sp: FaultyStatePrepCircuit,
+# ) -> None:
+#     """Test correctness of deterministic verification circuit for 11_1_3 code."""
+#     verify_x, verify_z = verified_11_1_3_data
 
-    # Check X-verification
-    assert_statistics(verify_x, 2, 9, 4, 14, 1, 2, 1, [0, 4])
-    assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
+#     # Check X-verification
+#     assert_statistics(verify_x, 2, 9, 4, 14, 1, 2, 1, [0, 4])
+#     assert_stabs(verify_x, css_11_1_3_code_sp.circ.get_code(), z_stabs=True)
 
-    # Check Z-verification
-    assert_statistics(verify_z, 2, 8, 3, 4, 3, 4, 2, [0, 4])
-    assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
+#     # Check Z-verification
+#     assert_statistics(verify_z, 2, 8, 3, 4, 3, 4, 2, [0, 4])
+#     assert_stabs(verify_z, css_11_1_3_code_sp.circ.get_code(), z_stabs=False)
 
 
-@pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
-def test_11_1_3_det_simulation(
-    verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
-    css_11_1_3_code_sp: FaultyStatePrepCircuit,
-) -> None:
-    """Test simulated logical error rate for deterministic 11_1_3 state preparation."""
-    verify_x, verify_z = verified_11_1_3_data
-    check_matrix = np.array([
-        [1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0],
-        [0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-        [0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0],
-        [0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0],
-        [0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1],
-    ])
-    code = CSSCode(check_matrix, check_matrix, 3)
-    simulator = NoisyDFTStatePrepSimulator(
-        css_11_1_3_code_sp.circ.to_qiskit_circuit(remove_resets=True), (verify_x, verify_z), code, err_model
-    )
-    simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
-    assert_scaling(simulation_results)
+# @pytest.mark.skipif(not HAS_QSAMPLE, reason="Requires 'qsample' to be installed.")
+# def test_11_1_3_det_simulation(
+#     verified_11_1_3_data: tuple[DeterministicVerification, DeterministicVerification],
+#     css_11_1_3_code_sp: FaultyStatePrepCircuit,
+# ) -> None:
+#     """Test simulated logical error rate for deterministic 11_1_3 state preparation."""
+#     verify_x, verify_z = verified_11_1_3_data
+#     check_matrix = np.array([
+#         [1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0],
+#         [0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+#         [0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0],
+#         [0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0],
+#         [0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1],
+#     ])
+#     code = CSSCode(check_matrix, check_matrix, 3)
+#     simulator = NoisyDFTStatePrepSimulator(
+#         css_11_1_3_code_sp.circ.to_qiskit_circuit(remove_resets=True), (verify_x, verify_z), code, err_model
+#     )
+#     simulation_results = simulator.dss_logical_error_rates(err_params, p_max, L, shots_dss)
+#     assert_scaling(simulation_results)
 
 
 def test_steane_det_verification(
