@@ -55,6 +55,7 @@ Pick the path that fits your time and interests:
 ## Guidelines
 
 Please adhere to the following guidelines to help the project grow sustainably.
+Contributions that do not comply with these guidelines or violate our {doc}`AI Usage Guidelines <ai_usage>` may be rejected without further review.
 
 ### Core Guidelines
 
@@ -73,6 +74,15 @@ Please adhere to the following guidelines to help the project grow sustainably.
 - Follow the project's coding standards and conventions.
 - Be open to feedback and willing to make necessary changes based on code reviews.
 
+### AI-assisted contributions
+
+We acknowledge the utility of AI-based coding assistants (e.g., GitHub Copilot, ChatGPT) in modern software development.
+However, their use requires a high degree of responsibility and transparency to maintain code quality and licensing compliance.
+
+Please carefully read and follow our dedicated {doc}`AI Usage Guidelines <ai_usage>` before submitting any AI-assisted contribution.
+In short: **You are responsible for every line of code you submit**, and a **human must always be in the loop**.
+We require disclosure of AI tool usage in your PR description.
+
 ### Pull Request Workflow
 
 - Create PRs early.
@@ -88,6 +98,12 @@ Please adhere to the following guidelines to help the project grow sustainably.
   Do not close and reopen a new PR.
   Respond to comments to signal that you have addressed the feedback.
   Do not resolve review comments yourself; the reviewer will do so once satisfied.
+- If the reviewer suggested changes with explicit code suggestions as part of the comments, apply these directly using the GitHub UI.
+  This attributes the changes to the reviewer and automatically resolves the respective comments (this is an exception to the rule above).
+  If there are multiple suggestions that you want to apply at once, you can batch them into a single commit.
+  Go to the "Files changed" tab of the PR, and then click "Add suggestion to batch" for each suggestion you want to include.
+  Once you are done selecting suggestions, click "Commit suggestions".
+  Only apply suggestions manually if using the GitHub UI is not feasible.
 - Re-request a review after pushing changes that address feedback.
 - Do not squash commits locally; maintainers typically squash on merge.
   Avoid rebasing or force-pushing before reviews; you may rebase after addressing feedback if desired.
@@ -95,8 +111,15 @@ Please adhere to the following guidelines to help the project grow sustainably.
 ### Working with CodeRabbit
 
 We use [CodeRabbit](https://www.coderabbit.ai/) for automated code review on pull requests.
+We use this tool to ease the workload on our maintainers and to counteract the trend of sloppy AI-assisted contributions.
+Note that having your PR reviewed by CodeRabbit does **not** count as an AI-assisted contribution for the purpose of the disclosure requirement mentioned above.
+
 To get the most out of it and help the project maintain its high ambitions for code quality, please follow these practices:
 
+- **Review the review**:
+  Do not take CodeRabbit's suggestions as absolute truth.
+  LLMs can be overly defensive and conservative, leading to overcomplicated code.
+  Treat its comments as suggestions: consider them, but feel free to disagree and explain why.
 - **Draft PRs**:
   CodeRabbit runs on every push to non-draft PRs.
   If you are still experimenting, mark your PR as a draft so that the automated review only runs when you are ready for feedback.
@@ -122,13 +145,6 @@ To get the most out of it and help the project maintain its high ambitions for c
   CodeRabbit has a default threshold for the number of reviews it performs on a PR before pausing further reviews to avoid spamming.
   If you want to resume reviews, you can ask CodeRabbit to resume by commenting with {code}`@coderabbitai resume`.
   Note that this will not trigger a review immediately; it will just allow CodeRabbit to perform reviews on the next push or manual trigger.
-
-### Use of AI and LLMs
-
-Contributions may be prepared with the help of AI or LLM tools.
-However, [AI Slop](https://en.wikipedia.org/wiki/AI_slop)—generic, low-value, or clearly machine-generated content that does not meet our standards for clarity, accuracy, or usefulness—is not acceptable.
-Ensure that all text, code, and documentation you submit are accurate, relevant, and consistent with the project's style and guidelines.
-Please be mindful of the maintainers' time and consider the impact of your contributions on the project's long-term success.
 
 ## Get Started 🎉
 

@@ -21,7 +21,7 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - uses: munich-quantum-toolkit/templates@a573dc1238219775b19d13b2394e94c783b2b207 # v1.1.13
+      - uses: munich-quantum-toolkit/templates@58aa931467691cea6d910016e1c75ab83780bc54 # v1.2.0
         with:
           token: ${{ steps.create-token.outputs.token }}
           name: QECC
