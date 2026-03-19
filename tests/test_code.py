@@ -986,3 +986,22 @@ def test_compute_logical_multiple_pairs():
     assert code.k == 2
     assert code.z_logicals.n_rows == 2
     assert code.x_logicals.n_rows == 2
+
+
+def test_set_logicals():
+    """Test that set_logicals correctly sets the logical operators."""
+    h = np.array([[1, 1, 1, 1]])
+    code = CSSCode(h, h)
+    assert code.k == 2
+
+    lxs = code.Lx.copy()
+    lzs = code.Lz.copy()
+
+    lxs[0] ^= lxs[1]
+    lzs[1] ^= lzs[0]
+
+    code.set_x_logicals(lxs)
+    code.set_z_logicals(lzs)
+
+    assert np.array_equal(code.Lx, lxs)
+    assert np.array_equal(code.Lz, lzs)

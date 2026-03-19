@@ -356,6 +356,34 @@ class CSSCode(StabilizerCode):
                     self.Lx[j] ^= xl
             self.Lz[[i, first]] = self.Lz[[first, i]]
 
+    def set_x_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
+        """Set all X logical operators."""
+        if logicals.shape[0] != self.k:
+            msg = f"Number of logicals {logicals.shape[0]} does not match k={self.k}"
+            raise InvalidCSSCodeError(msg)
+
+        commutes = (self.Hz @ logicals.T) % 2
+        if np.any(commutes != 0):
+            msg = "Logical operators must commute with the Z stabilizers"
+            raise InvalidCSSCodeError(msg)
+
+        self.Lx = logicals.copy()
+        self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
+
+    def set_z_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
+        """Set all Z logical operators."""
+        if logicals.shape[0] != self.k:
+            msg = f"Number of logicals {logicals.shape[0]} does not match k={self.k}"
+            raise InvalidCSSCodeError(msg)
+
+        commutes = (self.Hx @ logicals.T) % 2
+        if np.any(commutes != 0):
+            msg = "Logical operators must commute with the X stabilizers"
+            raise InvalidCSSCodeError(msg)
+
+        self.Lz = logicals.copy()
+        self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
+
 
 def _is_css_binary_matrix_format(content: str) -> bool:
     """Check if the content appears to be CSS binary matrix format.
