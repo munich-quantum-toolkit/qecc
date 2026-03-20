@@ -213,72 +213,108 @@ class EliminationStrategy:
         lambda ops, tbl: (ops, tbl)
     )
 
+    setup_fn: Callable[[], None] | None = None
+    cleanup_fn: Callable[[], None] | None = None
 
-def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tuple[EliminationSequence, BinaryMatrix]:
-    """Perform Gaussian elimination on the given stabilizer tableau.
+    def setup(self) -> None:
+        """Run setup function if provided."""
+        if self.setup_fn is not None:
+            self.setup_fn()
 
-    This is the main elimination engine that iteratively reduces a binary matrix or
-    stabilizer tableau by applying a sequence of operations (e.g., CNOTs, transvections,
-    single-qubit Cliffords) until a termination criterion is met. The function serves as
-    the workhorse for synthesizing quantum circuits from stabilizer codes and check matrices.
+    def cleanup(self) -> None:
+        """Run cleanup function if provided."""
+        if self.cleanup_fn is not None:
+            self.cleanup_fn()
+
+
+def eliminate(
+    target_tableau: BinaryMatrix,
+    strategy: EliminationStrategy,
+) -> tuple[EliminationSequence, BinaryMatrix]:
+    """Perform Gaussian elimination on a binary matrix or stabilizer tableau.
+
+    This function is the main elimination engine used for synthesizing encoding
+    circuits. It iteratively applies operations (e.g., CNOTs, transvections,
+    Clifford gates) to reduce the given tableau until a termination criterion
+    defined by the provided strategy is satisfied.
+
+    The elimination process is fully driven by the `EliminationStrategy`, which
+    specifies how candidates are generated, selected, filtered, and optionally
+    post-processed.
+
+    The function also manages the lifecycle of the strategy by invoking
+    `strategy.setup()` before the elimination loop and `strategy.cleanup()` after
+    completion. Cleanup is guaranteed to run even if an exception occurs.
 
     Args:
         target_tableau: The input binary matrix or stabilizer tableau to reduce.
-            Can be either a CheckMatrix (for CSS codes) or StabilizerTableau
-            (for general stabilizer codes).
-        strategy: Strategy object specifying:
-            - termination_criterion: Function that returns True when elimination is complete
-            - candidate_generator: Strategy for generating candidate operations from current tableau
-            - selection_strategy: Strategy for selecting from candidate operations (optional)
-            - filters: List of filters to constrain candidate operations (optional)
-            - callback: Function called after each operation for monitoring (optional)
-            - post_process_fn: Function to finalize the result (optional)
+            This is copied internally, so the input object is not modified.
+
+        strategy: Strategy object defining the elimination behavior, including:
+            - termination_criterion: Function that determines when elimination is complete
+            - candidate_generator: Generates candidate operations at each step
+            - selection_strategy: Chooses an operation from candidates (optional)
+            - filters: Optional constraints applied during candidate generation
+            - callback: Optional function invoked after each applied operation
+            - post_process_fn: Optional function to finalize the result
+            - setup_fn / cleanup_fn: Optional lifecycle hooks (e.g., for cache management)
 
     Returns:
         A tuple containing:
-        - EliminationSequence: The sequence of operations applied during elimination,
-          which can be converted to a quantum circuit.
-        - BinaryMatrix: The final reduced tableau after all operations are applied.
+        - EliminationSequence: The sequence of operations applied during elimination
+        - BinaryMatrix: The resulting reduced tableau
 
     Raises:
-        RuntimeError: If no candidate operations are available but the termination
-            criterion has not been met, indicating the elimination cannot proceed.
+        RuntimeError: If no valid operations are available but the termination
+            criterion has not been met, indicating that elimination cannot proceed.
+
+    Notes:
+        - Early termination may occur if the candidate generator signals it
+          (e.g., in rollout-based strategies). In this case, the best known
+          solution is returned.
+        - The behavior of this function depends entirely on the provided strategy;
+          different strategies may yield different circuits for the same input.
 
     Examples:
-        >>> # CSS code elimination with greedy selection
         >>> strategy = EliminationStrategy(
         ...     termination_criterion=lambda tbl: mod2.rank(tbl.matrix) == k,
         ...     candidate_generator=GreedyCNOTGenerator(),
         ... )
-        >>> operations, final_tableau = eliminate(check_matrix, strategy)
+        >>> ops, final_tbl = eliminate(check_matrix, strategy)
 
-        >>> # Non-CSS code elimination with depth optimization
-        >>> strategy = EliminationStrategy(
-        ...     termination_criterion=is_terminal_transvection,
-        ...     candidate_generator=GreedyTransvectionGenerator(),
-        ...     filters=[ParallelFilter()],
-        ... )
-        >>> operations, final_tableau = eliminate(stabilizer_tableau, strategy)
-
-        >>> # Lookahead-based elimination
-        >>> strategy = EliminationStrategy(
-        ...     termination_criterion=is_terminal_transvection,
-        ...     candidate_generator=LookaheadCandidateGenerator(...),
-        ...     post_process_fn=lambda ops, tbl: reduce_single_qubit_gates_and_swaps(tbl),
-        ... )
-        >>> operations, final_tableau = eliminate(tableau, strategy)
+        >>> # Rollout-based depth optimization
+        >>> strategy = make_rollout_strategy(config)
+        >>> ops, final_tbl = eliminate(tableau, strategy)
 
     See Also:
-        - eliminate_css: High-level function for CSS code elimination
-        - eliminate_non_css: High-level function for non-CSS code elimination
-        - eliminate_non_css_with_lookahead: Lookahead-based non-CSS elimination
-        - EliminationStrategy: Configuration dataclass for elimination parameters
-        - CandidateGenerator: Abstract base class for candidate generation strategies
-        - SelectionStrategy: Abstract base class for operation selection strategies
+        - EliminationStrategy: Configuration of elimination behavior
+        - CandidateGenerator: Base class for candidate generation
+        - RolloutCandidateGenerator: Lookahead-based candidate generation
     """
     tableau = target_tableau.copy()
     operations = EliminationSequence([])
     selection_strategy = strategy.selection_strategy or GreedySelection()
+
+    strategy.setup()
+    try:
+        return _run_elimination(
+            tableau,
+            strategy,
+            operations,
+            selection_strategy,
+            target_tableau,
+        )
+    finally:
+        strategy.cleanup()
+
+
+def _run_elimination(
+    tableau: BinaryMatrix,
+    strategy: EliminationStrategy,
+    operations: EliminationSequence,
+    selection_strategy: SelectionStrategy,
+    target_tableau: BinaryMatrix,
+) -> tuple[EliminationSequence, BinaryMatrix]:
     iteration = 0
 
     def local_minimum(tableau: BinaryMatrix) -> Sequence[TableauOperation]:
@@ -288,31 +324,35 @@ def eliminate(target_tableau: BinaryMatrix, strategy: EliminationStrategy) -> tu
             raise RuntimeError(msg)
         return breakout_ops
 
-    ###############################################
-    ############ Main elimination loop ############
-    ###############################################
     while not strategy.termination_criterion(tableau):
         candidate_ops = strategy.candidate_generator.get_candidates(tableau)
 
         if _should_terminate_early(strategy.candidate_generator):
-            return _get_early_termination_result(strategy.candidate_generator, strategy.post_process_fn, target_tableau)
+            return _get_early_termination_result(
+                strategy.candidate_generator,
+                strategy.post_process_fn,
+                target_tableau,
+            )
 
         ops = local_minimum(tableau) if not candidate_ops else [selection_strategy.select(candidate_ops)]
 
         for op in ops:
             tableau = op.apply(tableau, inplace=True)
-
             operations.add_operation(op)
 
             _update_elimination_state(op, tableau, strategy)
             _invoke_callback(iteration, op, tableau, strategy)
+
         iteration += 1
 
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
     if hasattr(strategy.candidate_generator, "use_best_if_better"):
         result_ops, result_tableau = _maybe_use_best_solution(
-            strategy.candidate_generator, result_ops, result_tableau, target_tableau
+            strategy.candidate_generator,
+            result_ops,
+            result_tableau,
+            target_tableau,
         )
 
     return result_ops, result_tableau

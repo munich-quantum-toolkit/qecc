@@ -17,7 +17,13 @@ import numpy as np
 from ..codes.pauli import StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
-from .rollout import AdditiveCachePolicy, NonAdditiveCachePolicy, RolloutCandidateGenerator, clear_cache
+from .rollout import (
+    AdditiveCachePolicy,
+    NonAdditiveCachePolicy,
+    RolloutCandidateGenerator,
+    close_rollout_cache_session,
+    open_rollout_cache_session,
+)
 from .transvection import (
     GreedyTransvectionGenerator,
     is_terminal_transvection,
@@ -184,6 +190,8 @@ def for_non_css_with_rollout(
     num_rollout_candidates: int | list[int] = 10,
     enable_early_termination: bool = True,
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    cache_max_weight: int = 1_000_000,
+    num_cached_rollout_subsequences: int = 10,
 ) -> EliminationStrategy:
     """Create strategy for non-CSS elimination with rollout.
 
@@ -195,6 +203,8 @@ def for_non_css_with_rollout(
             Can be a single int (same limit for all layers) or a list of ints (one per layer).
         enable_early_termination: If True, allows early termination when no improving candidates found.
         callback: Optional callback function invoked after each elimination step.
+        cache_max_weight: Maximum weight for cached subsequences in rollout.
+        num_cached_rollout_subsequences: Number of subsequences to cache for rollout.
 
     Returns:
         EliminationStrategy configured for non-CSS code elimination with rollout and post-processing.
@@ -246,10 +256,13 @@ def for_non_css_with_rollout(
             score_fn,
             enable_early_termination=enable_early_termination,
             cache_policy=policy,
+            num_cached_subsequences=num_cached_rollout_subsequences,
         ),
         filters=filters,
         callback=callback,
         post_process_fn=post_process_fn,
+        setup_fn=lambda: open_rollout_cache_session(cache_max_weight),
+        cleanup_fn=close_rollout_cache_session,
     )
 
 
@@ -261,6 +274,8 @@ def for_cnot_with_rollout_up_to_row_ops(
     optimization_criterion: str = "gates",
     enable_early_termination: bool = True,
     callback: Callable[[int, TableauOperation, BinaryMatrix], None] | None = None,
+    cache_max_weight: int = 1_000_000,
+    num_cached_rollout_subsequences: int = 10,
 ) -> EliminationStrategy:
     r"""Create strategy for CSS elimination with rollout.
 
@@ -273,6 +288,8 @@ def for_cnot_with_rollout_up_to_row_ops(
         optimization_criterion: Either "gates" or "depth" for optimization objective.
         enable_early_termination: If True, allows early termination when no improving candidates found.
         callback: Optional callback function invoked after each elimination step.
+        cache_max_weight: Maximum weight for cached subsequences in rollout.
+        num_cached_rollout_subsequences: Number of subsequences to cache for rollout.
 
     Returns:
         EliminationStrategy configured for CSS code elimination with rollout.
@@ -310,12 +327,10 @@ def for_cnot_with_rollout_up_to_row_ops(
             _score_fn,
             enable_early_termination=enable_early_termination,
             cache_policy=policy,
+            num_cached_subsequences=num_cached_rollout_subsequences,
         ),
         filters=None,
         callback=callback,
+        setup_fn=lambda: open_rollout_cache_session(cache_max_weight),
+        cleanup_fn=close_rollout_cache_session,
     )
-
-
-def cleanup() -> None:  # TODO: not a good idea to manage global state like this
-    """Clear up any used resources, caches, or temporary data after synthesis."""
-    clear_cache()

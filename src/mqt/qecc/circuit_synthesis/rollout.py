@@ -13,6 +13,7 @@ import logging
 import operator
 from collections import OrderedDict
 from dataclasses import dataclass
+from threading import RLock
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -88,6 +89,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         enable_early_termination: bool = True,
         current_sequence: EliminationSequence | None = None,
         cache_policy: CachePolicy | None = None,
+        num_cached_subsequences: int = 10,
     ) -> None:
         """Initialize the rollout candidate generator.
 
@@ -99,6 +101,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
             enable_early_termination: If True, allows early termination when no improving candidates found
             current_sequence: The elimination sequence built so far (used for depth calculation)
             cache_policy: Policy for caching rollout results
+            num_cached_subsequences: Number of subsequences of rollout continuations to cache for reuse
         """
         self.base_strategy = base_strategy
         self.rollout = rollout
@@ -112,6 +115,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         self._best_known_tableau: BinaryMatrix | None = None
         self._should_terminate = False
         self.cache_policy = cache_policy
+        self.num_cached_subsequences = num_cached_subsequences
 
     @dataclass
     class ScoredCandidate:
@@ -180,7 +184,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
 
                 cache.set(cache_key, seq.copy())
-                for i, op_sequence in enumerate(seq.operations[:10]):  # TODO make configurable
+                for i, op_sequence in enumerate(seq.operations[: self.num_cached_subsequences]):
                     new_tableau = op_sequence.apply(new_tableau)
                     child_prefix = EliminationSequence([*prefix.operations, *seq.operations[: i + 1]])
                     key = (
@@ -453,6 +457,16 @@ class RolloutCache:
         self.hits = 0
         self.misses = 0
 
+    def configure(self, max_weight: int) -> None:
+        """Configure the cache parameters.
+
+        Args:
+            max_weight: Maximum allowed total cache weight. The weight of one
+                cached entry is the number of operations in its stored
+                continuation.
+        """
+        self.max_weight = max_weight
+
     @staticmethod
     def _weight(value: EliminationSequence) -> int:
         """Return the cache weight of a stored continuation.
@@ -564,3 +578,51 @@ def clear_cache() -> None:
         cache.current_weight,
     )
     cache.clear()
+
+
+_cache_lock = RLock()
+_cache_session_depth = 0
+
+
+def open_rollout_cache_session(max_weight: int) -> None:
+    """Open a rollout cache session.
+
+    Nested calls are supported. The global rollout cache is shared across all
+    nested rollout evaluations within one synthesis run.
+    """
+    global _cache_session_depth  # noqa: PLW0603
+
+    with _cache_lock:
+        if _cache_session_depth == 0:
+            cache.configure(max_weight)
+
+        _cache_session_depth += 1
+
+
+def close_rollout_cache_session() -> None:
+    """Close a rollout cache session.
+
+    When the outermost session is closed, the global rollout cache is cleared.
+    """
+    global _cache_session_depth  # noqa: PLW0603
+
+    should_clear = False
+    with _cache_lock:
+        _cache_session_depth -= 1
+
+        if _cache_session_depth < 0:
+            _cache_session_depth = 0
+            msg = "Rollout cache session depth became negative."
+            raise RuntimeError(msg)
+
+        if _cache_session_depth == 0:
+            should_clear = True
+
+    if should_clear:
+        logger.info(
+            "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%",
+            cache.hits,
+            cache.misses,
+            cache.hit_rate() * 100,
+        )
+        cache.clear()
