@@ -128,6 +128,7 @@ class CatStatePreparationExperiment:
         comb = stim.Circuit()
         comb += circ1
         comb += relabel_qubits(circ2, w1)  # ancilla shifted to [w1..w1+w2-1]
+        comb = _add_qubit_initializations(comb)
         # Wiring
         pairs = build_transversal_pairs(controls, permutation, w1=w1, w2=w2)
         append_transversal_cnot_pairs(comb, pairs)
@@ -272,6 +273,22 @@ class CatStatePreparationExperiment:
         assert hists is not None
         assert hists_err is not None
         return ras, ra_errs, hists, hists_err
+
+
+def _add_qubit_initializations(circ: stim.Circuit) -> stim.Circuit:
+    """Add explicit initializations to the circuit for any qubits that are used but not initialized."""
+    with_inits = stim.Circuit()
+    hadamard_qubits: set[int] = set()
+    for gate in circ:
+        if gate.name != "H":
+            with_inits.append(gate)
+        else:
+            hadamard_qubits.update(t.value for t in gate.targets_copy())
+
+    with_inits = with_inits[::-1]
+    with_inits.append("RX", list(hadamard_qubits))
+    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits])
+    return with_inits[::-1]
 
 
 def append_transversal_cnot_pairs(circ: stim.Circuit, pairs: Sequence[tuple[int, int]]) -> None:
