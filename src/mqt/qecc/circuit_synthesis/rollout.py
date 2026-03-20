@@ -175,7 +175,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 seq, _final_tableau = eliminate(new_tableau, lower_level_strategy)
 
                 cache.set(cache_key, seq.copy())
-                for i, op_sequence in enumerate(seq.operations):
+                for i, op_sequence in enumerate(seq.operations[:10]):  # TODO make configurable
                     new_tableau = op_sequence.apply(new_tableau)
                     child_prefix = EliminationSequence([*prefix.operations, *seq.operations[: i + 1]])
                     key = (
