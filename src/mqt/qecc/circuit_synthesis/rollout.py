@@ -563,23 +563,6 @@ class RolloutCache:
 cache = RolloutCache()
 
 
-def clear_cache() -> None:
-    """Clear the global rollout cache.
-
-    This helper is intended for use between synthesis runs to free memory and
-    reset cache statistics.
-    """
-    logger.info(
-        "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%, entries %d, weight %d",
-        cache.hits,
-        cache.misses,
-        cache.hit_rate() * 100,
-        cache.size(),
-        cache.current_weight,
-    )
-    cache.clear()
-
-
 _cache_lock = RLock()
 _cache_session_depth = 0
 
