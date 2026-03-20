@@ -618,7 +618,7 @@ def simulate_recursive_cat_construction(
     anc_controls = _build_anc_controls(circ_base)  # for parity correction
     rx_qubits = _rx_prepared_qubits(circ_base)  # base-4 ancillas have RX
 
-    circ_base = CircuitLevelNoise(p, p, p, p).apply(circ_base)
+    circ_base = CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(circ_base)
     circ_run = stim.Circuit()
     circ_run += circ_base
     circ_run.append("TICK")
