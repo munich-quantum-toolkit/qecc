@@ -11,8 +11,13 @@ from __future__ import annotations
 
 import logging
 import operator
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from .types import BinaryMatrix
+
 
 from .cnot import GreedyCNOTGenerator
 from .elimination import CandidateGenerator, EliminationSequence, EliminationStrategy, ParallelFilter, eliminate
@@ -329,7 +334,14 @@ class RolloutCandidateGenerator(CandidateGenerator):
 
 
 class CachePolicy(Protocol):
-    """Protocol for defining cache policies for rollout candidate generation."""
+    """Protocol for rollout cache key generation.
+
+    Implementations define which parts of the current synthesis state are
+    relevant for cache reuse. For additive objectives, the key may depend only
+    on the tableau and remaining rollout depth. For non-additive objectives,
+    the key may also depend on a compact summary of the current synthesis
+    context.
+    """
 
     def key(
         self,
@@ -337,103 +349,218 @@ class CachePolicy(Protocol):
         rollout: int,
         current_sequence: EliminationSequence,
     ) -> Hashable | None:
-        """Generate a cache key based on the tableau, rollout depth, and current elimination sequence.
+        """Return a cache key for the given rollout subproblem.
 
         Args:
-            tableau: The current binary matrix.
-            rollout: The remaining rollout depth.
-            current_sequence: The current elimination sequence.
+            tableau: The current tableau or binary matrix describing the
+                remaining elimination problem.
+            rollout: The remaining rollout depth for the subproblem.
+            current_sequence: The elimination sequence built so far. Depending
+                on the cache policy, this may be ignored or used to derive a
+                compact synthesis context.
 
         Returns:
-            A hashable key for caching rollout results, or None if caching is disabled.
+            A hashable cache key, or ``None`` if caching should be disabled for
+            this subproblem.
         """
 
 
 @dataclass(frozen=True)
 class AdditiveCachePolicy:
-    """Cache policy that ignores the current elimination sequence for key generation, i.e. the cached value is independent of the synthesis context."""
+    """Cache policy for additive objectives.
+
+    This policy assumes that the best continuation depends only on the current
+    tableau and the remaining rollout depth, and not on the synthesis history.
+    This is appropriate for additive or prefix-independent objectives.
+    """
 
     @staticmethod
-    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:  # noqa: ARG004
-        """Generate a cache key based on the tableau and rollout depth, ignoring the current sequence.
+    def key(
+        tableau: BinaryMatrix,
+        rollout: int,
+        current_sequence: EliminationSequence,  # noqa: ARG004
+    ) -> Hashable:
+        """Return a cache key independent of the current sequence.
 
-        tableau: The current binary matrix.
-        rollout: The remaining rollout depth.
-        current_sequence: The current elimination sequence (ignored for this policy).
+        Args:
+            tableau: The current tableau or binary matrix.
+            rollout: The remaining rollout depth.
+            current_sequence: The elimination sequence built so far. It is
+                ignored by this policy.
 
         Returns:
-            A hashable key for caching rollout results.
+            A hashable key based only on the tableau and remaining rollout
+            depth.
         """
         return (hash(tableau), rollout)
 
 
 @dataclass(frozen=True)
 class NonAdditiveCachePolicy:
-    """Cache policy that includes the current elimination sequence in the key, making cached values dependent on the synthesis context."""
+    """Cache policy for depth-like non-additive objectives.
+
+    This policy includes a compact summary of the current synthesis context in
+    the cache key. Here, the context is represented by the set of qubits used
+    in the current last layer, which is sufficient for the current depth-guided
+    tail policy.
+    """
 
     @staticmethod
-    def key(tableau: BinaryMatrix, rollout: int, current_sequence: EliminationSequence) -> Hashable:
-        """Generate a cache key based on the tableau, rollout depth, and current elimination sequence.
+    def key(
+        tableau: BinaryMatrix,
+        rollout: int,
+        current_sequence: EliminationSequence,
+    ) -> Hashable:
+        """Return a cache key that includes the last-layer qubit context.
 
-        tableau: The current binary matrix.
-        rollout: The remaining rollout depth.
-        current_sequence: The current elimination sequence.
+        Args:
+            tableau: The current tableau or binary matrix.
+            rollout: The remaining rollout depth.
+            current_sequence: The elimination sequence built so far. The cache
+                key uses only the qubits occupied in its current last layer.
 
         Returns:
-            A hashable key for caching rollout results that includes the current sequence.
+            A hashable key based on the tableau, rollout depth, and the current
+            last-layer qubit occupancy.
         """
         return (hash(tableau), rollout, frozenset(current_sequence.last_layer_qubits()))
 
 
 class RolloutCache:
-    """Simple cache for storing rollout results based on a hashable key."""
+    """Weighted least-recently-used cache for rollout continuations.
 
-    def __init__(self) -> None:
-        """Initialize an empty cache."""
-        self._cache: dict[Hashable, EliminationSequence] = {}
+    Cache entries are evicted according to an LRU policy once the configured
+    maximum total weight is exceeded. The weight of an entry is defined as the
+    number of operations stored in its cached continuation.
+
+    This design is useful for rollout synthesis because cached continuations can
+    vary significantly in length. A weighted cache controls memory usage more
+    effectively than a cache limited only by the number of entries.
+    """
+
+    def __init__(self, max_weight: int = 200_000) -> None:
+        """Initialize an empty weighted LRU cache.
+
+        Args:
+            max_weight: Maximum allowed total cache weight. The weight of one
+                cached entry is the number of operations in its stored
+                continuation.
+        """
+        self._cache: OrderedDict[Hashable, EliminationSequence] = OrderedDict()
+        self._weights: dict[Hashable, int] = {}
+        self.max_weight = max_weight
+        self.current_weight = 0
         self.hits = 0
         self.misses = 0
 
-    def get(self, key: Hashable | None) -> EliminationSequence | None:
-        """Retrieve a cached result for the given key.
+    @staticmethod
+    def _weight(value: EliminationSequence) -> int:
+        """Return the cache weight of a stored continuation.
 
         Args:
-            key: The cache key to look up.
+            value: The continuation sequence to be stored.
 
         Returns:
-            The cached (score, sequence) tuple if found, or None if not present.
+            The weight of the cache entry, measured as the number of operations
+            in the sequence.
+        """
+        return len(value.operations)
+
+    def get(self, key: Hashable | None) -> EliminationSequence | None:
+        """Retrieve a cached continuation for the given key.
+
+        Accessing an entry marks it as recently used.
+
+        Args:
+            key: The cache key to look up. If ``None``, caching is treated as
+                disabled for this lookup.
+
+        Returns:
+            A copy of the cached continuation if present, otherwise ``None``.
         """
         if key is None:
             return None
-        value = self._cache.get(key, None)
-        if value is not None:
-            self.hits += 1
-            return value
-        self.misses += 1
-        return None
+
+        value = self._cache.get(key)
+        if value is None:
+            self.misses += 1
+            return None
+
+        self.hits += 1
+        self._cache.move_to_end(key)
+        return value.copy()
 
     def set(self, key: Hashable | None, value: EliminationSequence) -> None:
-        """Store a result in the cache under the given key."""
+        """Store a continuation under the given key.
+
+        If inserting the new value exceeds the configured cache budget, the
+        least recently used entries are evicted until the cache is within the
+        allowed weight bound again.
+
+        Args:
+            key: The cache key under which the continuation should be stored.
+                If ``None``, the value is not cached.
+            value: The continuation sequence to store.
+        """
         if key is None:
             return
-        self._cache[key] = value.copy()
+
+        stored = value.copy()
+        weight = self._weight(stored)
+
+        if key in self._cache:
+            self.current_weight -= self._weights[key]
+            self._cache.move_to_end(key)
+
+        self._cache[key] = stored
+        self._weights[key] = weight
+        self.current_weight += weight
+
+        while self.current_weight > self.max_weight and self._cache:
+            old_key, _old_value = self._cache.popitem(last=False)
+            self.current_weight -= self._weights.pop(old_key, 0)
 
     def clear(self) -> None:
-        """Clear all entries from the cache."""
+        """Remove all cache entries and reset cache statistics."""
         self._cache.clear()
+        self._weights.clear()
+        self.current_weight = 0
+        self.hits = 0
+        self.misses = 0
 
     def hit_rate(self) -> float:
-        """Calculate the cache hit rate."""
+        """Return the fraction of successful cache lookups.
+
+        Returns:
+            The cache hit rate in the interval ``[0.0, 1.0]``.
+        """
         total = self.hits + self.misses
         return self.hits / total if total > 0 else 0.0
+
+    def size(self) -> int:
+        """Return the number of currently stored cache entries.
+
+        Returns:
+            The number of entries currently held in the cache.
+        """
+        return len(self._cache)
 
 
 cache = RolloutCache()
 
 
 def clear_cache() -> None:
-    """Clear the global rollout cache."""
+    """Clear the global rollout cache.
+
+    This helper is intended for use between synthesis runs to free memory and
+    reset cache statistics.
+    """
     logger.info(
-        "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%", cache.hits, cache.misses, cache.hit_rate() * 100
+        "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%, entries %d, weight %d",
+        cache.hits,
+        cache.misses,
+        cache.hit_rate() * 100,
+        cache.size(),
+        cache.current_weight,
     )
     cache.clear()
