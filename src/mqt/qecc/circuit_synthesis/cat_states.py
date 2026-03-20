@@ -278,16 +278,19 @@ class CatStatePreparationExperiment:
 def _add_qubit_initializations(circ: stim.Circuit) -> stim.Circuit:
     """Add explicit initializations to the circuit for any qubits that are used but not initialized."""
     with_inits = stim.Circuit()
+    is_initialized: set[int] = set()
     hadamard_qubits: set[int] = set()
     for gate in circ:
         if gate.name != "H":
+            if gate.name in {"RX", "R"}:
+                is_initialized.update(t.value for t in gate.targets_copy())
             with_inits.append(gate)
         else:
             hadamard_qubits.update(t.value for t in gate.targets_copy())
 
     with_inits = with_inits[::-1]
-    with_inits.append("RX", list(hadamard_qubits))
-    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits])
+    with_inits.append("RX", list(hadamard_qubits - is_initialized))
+    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits and q not in is_initialized])
     return with_inits[::-1]
 
 
@@ -310,7 +313,7 @@ def build_transversal_pairs(
     w1: int,  # data size
     w2: int,  # ancilla size
 ) -> list[tuple[int, int]]:
-    """Returns list of (control, target) indices for a single parallel CX layer (controls[i], w1 + perm_targets[i])  for i=0..w2-1."""
+    """Return list of (control, target) indices for a single parallel CX layer (controls[i], w1 + perm_targets[i])  for i=0..w2-1."""
     if len(controls) != w2:
         msg = f"len(controls) must equal w2; got {len(controls)} vs {w2}"
         raise ValueError(msg)
