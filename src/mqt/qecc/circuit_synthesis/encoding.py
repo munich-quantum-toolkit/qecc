@@ -977,6 +977,24 @@ def combine_stabilizer_and_logical_tableau(
     return complete_stabilizer_tableau_with_destabilizers(combined_tableau, stab_rows)
 
 
+def _remove_redundant_stabilizers(checks: CheckMatrix) -> CheckMatrix:
+    """Remove redundant stabilizers from the check matrix without impacting stabilizer weight."""
+    rnk = mod2.rank(checks.matrix)
+    if rnk == checks.num_rows():
+        return checks
+    independent_checks = np.array([checks.matrix[0]])
+    prev_rnk = 1
+    for row in checks.matrix[1:]:
+        stacked = np.vstack((independent_checks, row))
+        new_rnk = mod2.rank(stacked)
+        if new_rnk > prev_rnk:
+            independent_checks = stacked
+            prev_rnk = new_rnk
+        if prev_rnk == rnk:
+            break
+    return CheckMatrix(independent_checks, pauli_type=checks.type)
+
+
 def cnot_encoding_circuit(
     checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: SynthesisConfig | None = None
 ) -> CNOTCircuit:
@@ -996,7 +1014,9 @@ def cnot_encoding_circuit(
     if config is None:
         config = SynthesisConfig()
 
+    checks = _remove_redundant_stabilizers(checks)
     n_stab = checks.num_rows()
+
     if balance_checks:
         reduce_checks_by_row_ops(checks, logicals)
 
