@@ -124,8 +124,7 @@ class StabilizerCode:
         if self.z_logicals is None:
             return
 
-        if self.x_logicals is None:
-            return
+        assert self.x_logicals is not None
 
         if self.z_logicals.n != self.n:
             msg = "Logical operators must have the same number of qubits as the stabilizer generators."
