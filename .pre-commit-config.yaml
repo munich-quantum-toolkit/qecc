@@ -30,14 +30,14 @@ repos:
 
   ## Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.03.15
+    rev: 2026.03.27
     hooks:
       - id: validate-pyproject
         priority: 0
 
   ## Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.0
+    rev: 0.37.1
     hooks:
       - id: check-github-workflows
         priority: 0
@@ -114,7 +114,7 @@ repos:
 
   ## Python linting using ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.7
+    rev: v0.15.8
     hooks:
       - id: ruff-format
         priority: 1
