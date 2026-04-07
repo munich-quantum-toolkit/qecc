@@ -623,8 +623,6 @@ class LutDecoder:
             total_combinations = math.comb(n_qubits, weight)
             if total_combinations == 0:
                 continue
-            if print_progress:
-                pass
 
             # Create a generator of all combinations for this weight.
             comb_iter = itertools.combinations(range(n_qubits), weight)
@@ -650,8 +648,6 @@ class LutDecoder:
             _merge_into(global_lut, weight_dict)
 
             if len(global_lut) == 2 ** checks.shape[0]:
-                if print_progress:
-                    pass
                 break
 
         return global_lut

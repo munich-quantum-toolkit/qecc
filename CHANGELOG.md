@@ -32,6 +32,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Refactored encoding circuit synthesis code to utilize the new `PureFaultSet` and `CNOTCircuit` classes. ([#443]) ([**@pehamtom**])
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
 - Changed the construction in `CatStatePreparationExperiment` to allow for ancillas with less qubits than the data cat state.
+- Added resets to Cat state preparation circuits in `CatStatePreparationExperiment`. ([#652]) ([**@pehamtom**])
 
 ### Removed
 
@@ -60,6 +61,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 [#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
 [#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 [#559]: https://github.com/munich-quantum-toolkit/qecc/pull/559
+[#652]: https://github.com/munich-quantum-toolkit/qecc/pull/652
 
 <!-- Contributor -->
 

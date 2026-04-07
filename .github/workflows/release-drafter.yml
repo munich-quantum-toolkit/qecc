@@ -4,20 +4,14 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, reopened, synchronize]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   update_release_draft:
     name: Run
     permissions:
       contents: write
-      pull-requests: write
     runs-on: ubuntu-slim
     steps:
-      - uses: release-drafter/release-drafter@6a93d829887aa2e0748befe2e808c66c0ec6e4c7 # v6.4.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - uses: release-drafter/release-drafter@139054aeaa9adc52ab36ddf67437541f039b88e2 # v7.1.1

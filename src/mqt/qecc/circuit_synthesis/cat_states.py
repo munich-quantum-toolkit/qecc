@@ -128,6 +128,7 @@ class CatStatePreparationExperiment:
         comb = stim.Circuit()
         comb += circ1
         comb += relabel_qubits(circ2, w1)  # ancilla shifted to [w1..w1+w2-1]
+        comb = _add_qubit_initializations(comb)
         # Wiring
         pairs = build_transversal_pairs(controls, permutation, w1=w1, w2=w2)
         append_transversal_cnot_pairs(comb, pairs)
@@ -138,7 +139,7 @@ class CatStatePreparationExperiment:
 
     def _get_noisy_circ(self, p: float) -> stim.Circuit:
         """Return a noisy version of the combined circuit."""
-        return CircuitLevelNoise(p, p, p, p).apply(self.circ)
+        return CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(self.circ)
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None
@@ -274,6 +275,25 @@ class CatStatePreparationExperiment:
         return ras, ra_errs, hists, hists_err
 
 
+def _add_qubit_initializations(circ: stim.Circuit) -> stim.Circuit:
+    """Add explicit initializations to the circuit for any qubits that are used but not initialized."""
+    with_inits = stim.Circuit()
+    is_initialized: set[int] = set()
+    hadamard_qubits: set[int] = set()
+    for gate in circ:
+        if gate.name != "H":
+            if gate.name in {"RX", "R"}:
+                is_initialized.update(t.value for t in gate.targets_copy())
+            with_inits.append(gate)
+        else:
+            hadamard_qubits.update(t.value for t in gate.targets_copy())
+
+    with_inits = with_inits[::-1]
+    with_inits.append("RX", list(hadamard_qubits - is_initialized))
+    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits and q not in is_initialized])
+    return with_inits[::-1]
+
+
 def append_transversal_cnot_pairs(circ: stim.Circuit, pairs: Sequence[tuple[int, int]]) -> None:
     """Append a layer of CX using disjoint pairs.
 
@@ -293,7 +313,7 @@ def build_transversal_pairs(
     w1: int,  # data size
     w2: int,  # ancilla size
 ) -> list[tuple[int, int]]:
-    """Returns list of (control, target) indices for a single parallel CX layer (controls[i], w1 + perm_targets[i])  for i=0..w2-1."""
+    """Return list of (control, target) indices for a single parallel CX layer (controls[i], w1 + perm_targets[i])  for i=0..w2-1."""
     if len(controls) != w2:
         msg = f"len(controls) must equal w2; got {len(controls)} vs {w2}"
         raise ValueError(msg)
@@ -598,7 +618,7 @@ def simulate_recursive_cat_construction(
     anc_controls = _build_anc_controls(circ_base)  # for parity correction
     rx_qubits = _rx_prepared_qubits(circ_base)  # base-4 ancillas have RX
 
-    circ_base = CircuitLevelNoise(p, p, p, p).apply(circ_base)
+    circ_base = CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(circ_base)
     circ_run = stim.Circuit()
     circ_run += circ_base
     circ_run.append("TICK")

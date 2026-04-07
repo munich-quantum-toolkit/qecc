@@ -97,10 +97,10 @@ def test_cat_state_experiment_ft() -> None:
 
     for i, p in enumerate(ps):
         assert errs_w2[i] > (2 / 3 * p) ** 2
-        assert errs_w2[i] < 10 * (2 / 3 * p) ** 2
+        assert errs_w2[i] < 20 * (2 / 3 * p) ** 2
 
         assert errs_w3[i] > (2 / 3 * p) ** 3
-        assert errs_w3[i] < 10 * (2 / 3 * p) ** 3
+        assert errs_w3[i] < 20 * (2 / 3 * p) ** 3
 
 
 def _cat_fault_gens(w: int) -> stim.Circuit:
