@@ -180,7 +180,7 @@ class StabilizerCode:
         stab_matrix = self.generators.tableau.matrix
 
         combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
-        
+
         x_log_phases = self.x_logicals.phase
         z_log_phases = self.z_logicals.phase
         stab_phases = self.generators.phase
