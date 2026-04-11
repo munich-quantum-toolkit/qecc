@@ -10,11 +10,11 @@ on:
 jobs:
   build-sdist:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@afe75175d32177a7291bbb7bd11b3276f60fc810 # v1.17.15
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@b59d15aa4f266e713afad51e132bde6e3a28a6b3 # v1.18.1
 
   build-wheel:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@afe75175d32177a7291bbb7bd11b3276f60fc810 # v1.17.15
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@b59d15aa4f266e713afad51e132bde6e3a28a6b3 # v1.18.1
 
   deploy:
     if: github.event_name == 'release' && github.event.action == 'published'
