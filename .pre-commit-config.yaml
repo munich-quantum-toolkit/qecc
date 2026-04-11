@@ -30,7 +30,7 @@ repos:
 
   ## Check the pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.03.29
+    rev: 2026.04.03
     hooks:
       - id: validate-pyproject
         priority: 0
@@ -56,14 +56,14 @@ repos:
 
   ## Check for spelling
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.44.0
+    rev: v1.45.0
     hooks:
       - id: typos
         priority: 0
 
   ## Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
-    rev: 2026.03.02
+    rev: 2026.04.04
     hooks:
       - id: sp-repo-review
         additional_dependencies: ["repo-review[cli]"]
@@ -147,7 +147,7 @@ repos:
 
   ## Static type checking using mypy (needs to run after lockfile update/ruff format, and ruff lint)
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+    rev: v1.20.0
     hooks:
       - id: mypy
         files: ^(src/mqt|tests|noxfile.py)
