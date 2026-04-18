@@ -33,6 +33,7 @@
     ".*\\.rst",
     "py\\.typed",
     ".*build.*",
-    ".*\\.pkl"
+    ".*\\.pkl",
+    "LICENSE"
   ]
 }
