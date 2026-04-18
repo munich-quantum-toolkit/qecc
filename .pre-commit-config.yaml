@@ -109,7 +109,7 @@ repos:
     rev: v3.8.2
     hooks:
       - id: prettier
-        types_or: [yaml, markdown, html, css, scss, javascript, json]
+        types_or: [yaml, markdown, html, css, scss, javascript, json, json5]
         priority: 1
 
   ## Python linting using ruff
@@ -117,6 +117,7 @@ repos:
     rev: v0.15.10
     hooks:
       - id: ruff-format
+        types_or: [python, pyi, jupyter, markdown]
         priority: 1
       - id: ruff-check
         require_serial: true
@@ -134,15 +135,6 @@ repos:
           - --preserve-cell-metadata
           - raw_mimetype
           - --
-        priority: 2
-
-  ## Also run Black on examples in the documentation (needs to run after ruff format)
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.20.0
-    hooks:
-      - id: blacken-docs
-        language: python
-        additional_dependencies: [black==26.*]
         priority: 2
 
   ## Static type checking using mypy (needs to run after lockfile update/ruff format, and ruff lint)
