@@ -15,8 +15,6 @@ ci:
   skip: [mypy]
 
 repos:
-  # Priority 0: Fast validation and independent fixers
-
   ## Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -26,14 +24,7 @@ repos:
       - id: end-of-file-fixer
         priority: 1
       - id: trailing-whitespace
-        priority: 1
-
-  ## Check the pyproject.toml file
-  - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.04.11
-    hooks:
-      - id: validate-pyproject
-        priority: 0
+        priority: 2
 
   ## Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
@@ -44,23 +35,6 @@ repos:
       - id: check-readthedocs
         priority: 0
 
-  ## Catch common capitalization mistakes
-  - repo: local
-    hooks:
-      - id: disallow-caps
-        name: Disallow improper capitalization
-        language: pygrep
-        entry: '\b(?:Numpy|Github|PyTest|Mqt|Tum)\b'
-        exclude: .pre-commit-config.yaml
-        priority: 0
-
-  ## Check for spelling
-  - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.45.0
-    hooks:
-      - id: typos
-        priority: 0
-
   ## Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
     rev: 2026.04.04
@@ -69,21 +43,45 @@ repos:
         additional_dependencies: ["repo-review[cli]"]
         priority: 0
 
-  ## Check for license headers
-  - repo: https://github.com/emzeat/mz-lictools
-    rev: v2.9.0
+  ## Check pyproject.toml file
+  - repo: https://github.com/henryiii/validate-pyproject-schema-store
+    rev: 2026.04.11
     hooks:
-      - id: license-tools
+      - id: validate-pyproject
         priority: 0
 
-  ## Ensure uv lock file is up-to-date
+  ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.11.6
     hooks:
       - id: uv-lock
         priority: 0
 
-  ## Tidy up BibTeX files
+  ## Check for common capitalization mistakes
+  - repo: local
+    hooks:
+      - id: disallow-caps
+        name: Disallow improper capitalization
+        language: pygrep
+        entry: \b(Numpy|Github|PyTest|Mqt|Tum)\b
+        exclude: ^(\.pre-commit-config\.yaml)$
+        priority: 0
+
+  ## Check for typos
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.45.1
+    hooks:
+      - id: typos
+        priority: 3
+
+  ## Check license headers
+  - repo: https://github.com/emzeat/mz-lictools
+    rev: v2.9.0
+    hooks:
+      - id: license-tools
+        priority: 4
+
+  ## Format BibTeX files with bibtex-tidy
   - repo: https://github.com/FlamingTempura/bibtex-tidy
     rev: v1.14.0
     hooks:
@@ -100,32 +98,28 @@ repos:
             "--trailing-commas",
             "--remove-empty-fields",
           ]
-        priority: 0
-
-  # Priority 1: Second-pass fixers
+        priority: 5
 
   ## Format configuration files with prettier
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.2
+    rev: v3.8.3
     hooks:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json, json5]
-        priority: 1
+        priority: 5
 
-  ## Python linting using ruff
+  ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.10
+    rev: v0.15.11
     hooks:
       - id: ruff-format
         types_or: [python, pyi, jupyter, markdown]
-        priority: 1
+        priority: 6
       - id: ruff-check
         require_serial: true
-        priority: 2
+        priority: 7
 
-  # Priority 2+: Final checks and fixers
-
-  ## Clean Jupyter notebooks
+  ## Clean Jupyter notebooks with nb-clean
   - repo: https://github.com/srstevenson/nb-clean
     rev: 4.0.1
     hooks:
@@ -135,9 +129,9 @@ repos:
           - --preserve-cell-metadata
           - raw_mimetype
           - --
-        priority: 2
+        priority: 8
 
-  ## Static type checking using mypy (needs to run after lockfile update/ruff format, and ruff lint)
+  ## Check Python types with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.20.0
     hooks:
@@ -149,4 +143,4 @@ repos:
           - numpy
           - pytest
           - pytest-mock
-        priority: 3
+        priority: 9
