@@ -45,14 +45,14 @@ repos:
 
   ## Check pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.04.11
+    rev: 2026.04.17
     hooks:
       - id: validate-pyproject
         priority: 0
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.6
+    rev: 0.11.7
     hooks:
       - id: uv-lock
         priority: 0
@@ -133,7 +133,7 @@ repos:
 
   ## Check Python types with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+    rev: v1.20.1
     hooks:
       - id: mypy
         files: ^(src/mqt|tests|noxfile.py)
