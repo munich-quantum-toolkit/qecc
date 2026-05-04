@@ -30,7 +30,7 @@ class Pauli:
         """Create a new Pauli operator.
 
         Args:
-            symplectic: A 2n x n binary matrix representing the symplectic form of the Pauli operator. The first n entries correspond to X operators, and the second n entries correspond to Z operators.
+            symplectic: A 2n x 1 binary matrix representing the symplectic form of the Pauli operator. The first n entries correspond to X operators, and the second n entries correspond to Z operators.
             phase: An integer 0 or 1 representing the phase of the Pauli operator (0 for +, 1 for -).
         """
         self.n = symplectic.n

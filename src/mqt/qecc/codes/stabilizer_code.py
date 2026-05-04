@@ -208,7 +208,7 @@ class StabilizerCode:
             raise InvalidStabilizerCodeError(msg)
 
         if not self.z_logicals.all_commute(self.generators):
-            msg = "Logical Z-operators must anti-commute with the stabilizer generators."
+            msg = "Logical Z-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
         if not self.x_logicals.all_commute(self.generators):
             msg = "Logical X-operators must commute with the stabilizer generators."
