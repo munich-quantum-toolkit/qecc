@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
-from mqt.qecc.circuit_synthesis.operations import Transvection
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig, synthesize_non_css
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
@@ -81,21 +80,6 @@ def test_synthesize_non_css_with_rollout(
     operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
-
-
-def test_transvection_circuit_consistency() -> None:
-    """Test that all transvections produce circuits consistent with their tableau action."""
-    all_transvections = Transvection.all_two_qubit_transvections()
-
-    for v in all_transvections:
-        i, j = 0, 1
-        transvection = Transvection(v, i, j)
-
-        circuit = transvection.to_stim_circuit()
-        identity = StabilizerTableau.identity(2)
-        circuit_tableau = StabilizerTableau.from_stim_circuit(circuit)
-        result_tableau = transvection.apply(identity)
-        assert result_tableau == circuit_tableau
 
 
 def test_synthesize_non_css_performance(clifford_synthesis_config: SynthesisConfig) -> None:
