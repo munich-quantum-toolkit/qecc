@@ -220,14 +220,19 @@ def _matmul2(m1: npt.NDArray[np.int8], m2: npt.NDArray[np.int8]) -> npt.NDArray[
 identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
 hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
 phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
+phase_dag = np.array([[1, 0], [1, 1]], dtype=np.int8)
 
 elems: dict[str, npt.NDArray[np.int8]] = {
     "I": identity,
     "H": hadamard,
     "S": phase,
+    "SDAG": phase_dag,
     "SH": _matmul2(hadamard, phase),
     "HS": _matmul2(phase, hadamard),
     "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
+    "SDAGH": _matmul2(hadamard, phase_dag),
+    "HSDAG": _matmul2(phase_dag, hadamard),
+    "HSDAGH": _matmul2(_matmul2(hadamard, phase_dag), hadamard),
 }
 
 
@@ -239,7 +244,7 @@ class SingleQubitClifford(TableauOperation):
 
         Args:
             qubit: The index of the qubit.
-            clifford: The Clifford operation to apply {H, S, HS, SH, HSH, I}.
+            clifford: The Clifford operation to apply {H, S, SDAG, HS, SH, HSH, SDAGH, HSDAG, HSDAGH, I}.
         """
         self.qubit = qubit
         self.clifford = clifford
@@ -261,6 +266,8 @@ class SingleQubitClifford(TableauOperation):
             out.apply_h(q)
         elif self.clifford == "S":
             out.apply_s(q)
+        elif self.clifford == "SDAG":
+            out.apply_sdg(q)
         elif self.clifford == "HS":
             out.apply_h(q)
             out.apply_s(q)
@@ -270,6 +277,16 @@ class SingleQubitClifford(TableauOperation):
         elif self.clifford == "HSH":
             out.apply_h(q)
             out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "SDAGH":
+            out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "HSDAG":
+            out.apply_h(q)
+            out.apply_sdg(q)
+        elif self.clifford == "HSDAGH":
+            out.apply_h(q)
+            out.apply_sdg(q)
             out.apply_h(q)
         elif self.clifford == "I":
             pass
@@ -315,6 +332,8 @@ class SingleQubitClifford(TableauOperation):
             out.apply_h(q)
         elif self.clifford == "S":
             out.apply_sdg(q)
+        elif self.clifford == "SDAG":
+            out.apply_s(q)
         elif self.clifford == "HS":
             out.apply_sdg(q)
             out.apply_h(q)
@@ -324,6 +343,16 @@ class SingleQubitClifford(TableauOperation):
         elif self.clifford == "HSH":
             out.apply_h(q)
             out.apply_sdg(q)
+            out.apply_h(q)
+        elif self.clifford == "SDAGH":
+            out.apply_h(q)
+            out.apply_s(q)
+        elif self.clifford == "HSDAG":
+            out.apply_s(q)
+            out.apply_h(q)
+        elif self.clifford == "HSDAGH":
+            out.apply_h(q)
+            out.apply_s(q)
             out.apply_h(q)
         elif self.clifford == "I":
             pass
@@ -340,10 +369,14 @@ class SingleQubitClifford(TableauOperation):
         """
         inverse_map = {
             "H": "H",
-            "S": "SH",
-            "HS": "SH",
-            "SH": "HS",
-            "HSH": "HSH",
+            "S": "SDAG",
+            "SDAG": "S",
+            "HS": "SDAGH",
+            "SH": "HSDAG",
+            "HSH": "HSDAGH",
+            "SDAGH": "HS",
+            "HSDAG": "SH",
+            "HSDAGH": "HSH",
             "I": "I",
         }
         if self.clifford not in inverse_map:
@@ -356,9 +389,9 @@ class SingleQubitClifford(TableauOperation):
         """Get the list of available single-qubit Clifford operations.
 
         Returns:
-            List of Clifford operation names: H, S, HS, SH, HSH, I.
+            List of Clifford operation names: H, S, SDAG, HS, SH, HSH, SDAGH, HSDAG, HSDAGH, I.
         """
-        return ["H", "S", "HS", "SH", "HSH", "I"]
+        return ["H", "S", "SDAG", "HS", "SH", "HSH", "SDAGH", "HSDAG", "HSDAGH", "I"]
 
     def append_to_circuit(self, circuit: stim.Circuit) -> None:
         """Append the operation to a Stim circuit.
@@ -368,6 +401,8 @@ class SingleQubitClifford(TableauOperation):
         """
         if self.clifford in {"H", "S", "I"}:
             circuit.append(self.clifford, [self.qubit])
+        elif self.clifford == "SDAG":
+            circuit.append("S_DAG", [self.qubit])
         elif self.clifford == "HS":
             circuit.append("H", [self.qubit])
             circuit.append("S", [self.qubit])
@@ -377,6 +412,16 @@ class SingleQubitClifford(TableauOperation):
         elif self.clifford == "HSH":
             circuit.append("H", [self.qubit])
             circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
+        elif self.clifford == "SDAGH":
+            circuit.append("S_DAG", [self.qubit])
+            circuit.append("H", [self.qubit])
+        elif self.clifford == "HSDAG":
+            circuit.append("H", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])
+        elif self.clifford == "HSDAGH":
+            circuit.append("H", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])
             circuit.append("H", [self.qubit])
         else:
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
