@@ -172,17 +172,6 @@ def _compute_r2_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]
     return det.astype(np.int8)
 
 
-def _compute_r0_matrix(symplectic: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
-    n = symplectic.shape[0] // 2
-    a_xx = symplectic[:n, :n]
-    a_xz = symplectic[:n, n:]
-    a_zx = symplectic[n:, :n]
-    a_zz = symplectic[n:, n:]
-    zero = (a_xx == 0) & (a_xz == 0) & (a_zx == 0) & (a_zz == 0)
-    result: npt.NDArray[np.int8] = zero.astype(np.int8)
-    return result
-
-
 @nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def r1_r2(symplectic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Compute R1 and R2 matrices from a symplectic matrix using Numba."""
@@ -225,39 +214,10 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
 
 
 @nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
-def _r1_r2_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
-    """Compute R1 and R2 matrices from a symplectic matrix using Numba."""
-    # Extract quadrants of the symplectic matrix
-    a_xx = symplectic[:n, :n]
-    a_xz = symplectic[:n, n:]
-    a_zx = symplectic[n:, :n]
-    a_zz = symplectic[n:, n:]
-
-    # Precompute intermediate results
-    and_xx_zz = np.bitwise_and(a_xx, a_zz)
-    and_xz_zx = np.bitwise_and(a_xz, a_zx)
-
-    # Compute R2
-    r2 = np.bitwise_xor(and_xx_zz, and_xz_zx)
-
-    # Compute R0 (zero matrix) using explicit element-wise OR
-    combined = np.zeros_like(a_xx, dtype=np.int8)
-    for i in range(combined.shape[0]):
-        for j in range(combined.shape[1]):
-            combined[i, j] = a_xx[i, j] | a_xz[i, j] | a_zx[i, j] | a_zz[i, j]
-    r0 = np.logical_not(combined).astype(np.int8)
-
-    # Compute R1
-    r1 = np.logical_not(np.bitwise_or(r2, r0)).astype(np.int8)
-
-    return r1, r2
-
-
-@nb.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def score_symplectic_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, int]:
     """Score the given symplectic matrix using the default symplectic heuristic with Numba."""
     # Compute R1 and R2 matrices using the Numba-optimized r1_r2_numba
-    r1, r2 = _r1_r2_numba(symplectic, n)
+    r1, r2 = r1_r2(symplectic, n)
 
     # Precompute sums for columns and rows
     r1_col_sum = r1.sum(axis=0)
