@@ -249,7 +249,6 @@ def test_single_qubit_clifford_apply_inverse_invalid_raises(small_tableau: Stabi
     [
         (np.array([[0, 1], [1, 0]], dtype=np.int8), "H"),
         (np.array([[1, 1], [0, 1]], dtype=np.int8), "S"),
-        (np.array([[1, 0], [1, 1]], dtype=np.int8), "SDAG"),
         (np.array([[1, 0], [0, 1]], dtype=np.int8), "I"),
         (np.array([[0, 1], [1, 1]], dtype=np.int8), "SH"),
         (np.array([[1, 1], [1, 0]], dtype=np.int8), "HS"),

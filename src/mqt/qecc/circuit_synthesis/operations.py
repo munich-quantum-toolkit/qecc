@@ -220,19 +220,14 @@ def _matmul2(m1: npt.NDArray[np.int8], m2: npt.NDArray[np.int8]) -> npt.NDArray[
 identity = np.array([[1, 0], [0, 1]], dtype=np.int8)
 hadamard = np.array([[0, 1], [1, 0]], dtype=np.int8)
 phase = np.array([[1, 1], [0, 1]], dtype=np.int8)
-phase_dag = np.array([[1, 0], [1, 1]], dtype=np.int8)
 
 elems: dict[str, npt.NDArray[np.int8]] = {
     "I": identity,
     "H": hadamard,
     "S": phase,
-    "SDAG": phase_dag,
     "SH": _matmul2(hadamard, phase),
     "HS": _matmul2(phase, hadamard),
     "HSH": _matmul2(_matmul2(hadamard, phase), hadamard),
-    "SDAGH": _matmul2(hadamard, phase_dag),
-    "HSDAG": _matmul2(phase_dag, hadamard),
-    "HSDAGH": _matmul2(_matmul2(hadamard, phase_dag), hadamard),
 }
 
 
