@@ -222,7 +222,7 @@ def test_gottesman_encoding_invalid() -> None:
 def test_depth_optimal_encoding_non_css_consistent(code_fixture: str, request) -> None:  # type: ignore[no-untyped-def]
     """Check that `depth_optimal_encoding_circuit_non_css` returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code_fixture)
-    result = depth_optimal_encoding_circuit_non_css(code, max_depth=10)
+    result = depth_optimal_encoding_circuit_non_css(code, max_depth=8)
     assert result != "UNSAT"
     assert not isinstance(result, str)
     encoder = result
