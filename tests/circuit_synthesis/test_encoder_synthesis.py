@@ -121,11 +121,22 @@ def clifford_synthesis_config() -> SynthesisConfig:
 @pytest.mark.parametrize(
     "code_fixture", ["steane_code", "css_4_2_2_code", "css_6_2_2_code", "tetrahedral", "surface_3", "hamming", "shor"]
 )
-def test_css_encoding_consistent(code_fixture: str, request: pytest.FixtureRequest) -> None:
+@pytest.mark.parametrize("optimization_criterion", ["gates", "depth"])
+@pytest.mark.parametrize("enable_early_termination", [True, False])
+def test_css_encoding_consistent(
+    code_fixture: str, optimization_criterion: str, enable_early_termination: bool, request: pytest.FixtureRequest
+) -> None:
     """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code_fixture)
 
-    encoder = synthesize_encoding_circuit(code)
+    config = SynthesisConfig(
+        optimization_criterion=optimization_criterion,
+        rollout=0,
+        num_rollout_candidates=10,
+        enable_early_termination=enable_early_termination,
+    )
+
+    encoder = synthesize_encoding_circuit(code, config=config)
     encoder.get_uninitialized()
     assert encoder.num_qubits() == code.n
 
@@ -135,11 +146,22 @@ def test_css_encoding_consistent(code_fixture: str, request: pytest.FixtureReque
 
 
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit", "non_css_8_qubit"])
-def test_css_encoding_non_css_consistent(code_fixture: str, request: pytest.FixtureRequest) -> None:
+@pytest.mark.parametrize("optimization_criterion", ["gates", "depth"])
+@pytest.mark.parametrize("enable_early_termination", [True, False])
+def test_css_encoding_non_css_consistent(
+    code_fixture: str, optimization_criterion: str, enable_early_termination: bool, request: pytest.FixtureRequest
+) -> None:
     """Check that heuristic_encoding_circuit returns a valid circuit with the correct stabilizers."""
     code = request.getfixturevalue(code_fixture)
 
-    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=False)
+    config = SynthesisConfig(
+        optimization_criterion=optimization_criterion,
+        rollout=0,
+        num_rollout_candidates=10,
+        enable_early_termination=enable_early_termination,
+    )
+
+    encoder = synthesize_encoding_circuit(code, config=config, use_cnots_if_css=False)
     encoder.get_uninitialized()
     assert encoder.num_qubits() == code.n
     assert isinstance(encoder, CliffordIsometry)

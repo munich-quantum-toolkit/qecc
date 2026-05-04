@@ -217,7 +217,7 @@ def is_terminal_transvection(tableau: StabilizerTableau) -> bool:
 def score_symplectic_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, int]:
     """Score the given symplectic matrix using the default symplectic heuristic with Numba."""
     # Compute R1 and R2 matrices using the Numba-optimized r1_r2_numba
-    r1, r2 = r1_r2(symplectic, n)
+    r1, r2 = r1_r2(symplectic)
 
     # Precompute sums for columns and rows
     r1_col_sum = r1.sum(axis=0)
@@ -241,7 +241,7 @@ def score_symplectic_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, 
 
 
 def score_symplectic(tableau: StabilizerTableau) -> tuple[np.ndarray, int]:
-    """Wrapper for the Numba-optimized score_symplectic function."""
+    """Numba-optimized score_symplectic function."""
     n = get_n(tableau)
     symplectic = tableau.tableau.matrix
     h_vec, h_scalar = score_symplectic_numba(symplectic, n)
