@@ -303,24 +303,6 @@ class StabilizerCode:
 
         logical_basis_arr = np.array(logical_basis, dtype=np.int8)
 
-        if logical_basis_arr.shape[0] != target:
-            rows = ns.shape[0]
-            extended_basis = base.copy()
-            extended_basis_rank = base_rank
-            for i in range(rows):
-                for j in range(i + 1, rows):
-                    v = (ns[i] ^ ns[j]) % 2
-                    if len(logical_basis_arr) == target:
-                        break
-                    test = np.vstack((extended_basis, v))
-                    if mod2_rank(test) > extended_basis_rank:
-                        logical_basis_arr = np.vstack((logical_basis_arr, v.copy))
-                        extended_basis = test
-                        extended_basis_rank += 1
-                if len(logical_basis_arr) == target:
-                    break
-            logical_basis_arr = np.array(logical_basis_arr, dtype=np.int8)
-
         def symp(u: np.ndarray, v: np.ndarray) -> int:
             return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
 
