@@ -142,7 +142,7 @@ def test_css_encoding_consistent(
 
     assert isinstance(encoder, CNOTCircuit)
 
-    assert encoder.get_code() == code
+    assert encoder.get_code().is_equivalent(code)
 
 
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit", "non_css_8_qubit"])
@@ -166,7 +166,7 @@ def test_css_encoding_non_css_consistent(
     assert encoder.num_qubits() == code.n
     assert isinstance(encoder, CliffordIsometry)
 
-    assert encoder.get_code() == code
+    assert encoder.get_code().is_equivalent(code)
 
 
 @pytest.mark.skipif(
@@ -180,7 +180,7 @@ def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # ty
 
     encoder = gate_optimal_encoding_circuit(code, max_timeout=1, min_gates=3, max_gates=10)
     assert encoder is not None
-    assert encoder.get_code() == code
+    assert encoder.get_code().is_equivalent(code)
 
 
 @pytest.mark.skipif(
@@ -194,7 +194,7 @@ def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # t
 
     encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
     assert encoder is not None
-    assert encoder.get_code() == code
+    assert encoder.get_code().is_equivalent(code)
 
 
 @pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit", "steane_code"])
@@ -228,7 +228,6 @@ def test_depth_optimal_encoding_non_css_consistent(code_fixture: str, request) -
     encoder = result
     assert encoder.to_stim_circuit().num_qubits == code.n
 
-    # Assert correct propagation of stabilizers and logicals
     circuit_code = encoder.get_code()
     assert circuit_code.equal_stabilizer_group(code)
 
@@ -238,7 +237,6 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
     """Check edge cases for `depth_optimal_encoding_circuit_non_css`."""
     code = request.getfixturevalue(code)
 
-    # Test with minimal depth
     result = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
     assert result == "UNSAT"
 
@@ -365,7 +363,7 @@ def test_cc_4_8_8():
     enc = synthesize_encoding_circuit(code, config=config)
     assert isinstance(enc, CNOTCircuit)
 
-    assert enc.get_code() == code
+    assert enc.get_code().is_equivalent(code)
 
 
 def test_logical_mapping_non_css() -> None:
@@ -377,10 +375,9 @@ def test_logical_mapping_non_css() -> None:
     encoder = synthesize_encoding_circuit(code)
     mapping = encoder.logical_to_input_mapping(code)
 
-    # non-CSS synthesis always encodes logicals sequentially in the first physical qubits
     assert mapping == [0, 1, 2], f"Expected logical mapping [0, 1, 2], got {mapping}"
 
-    code = StabilizerCode(  # swap logicals
+    code = StabilizerCode(
         stabilizers,
         z_logicals=x_logicals,
         x_logicals=z_logicals,
@@ -396,7 +393,7 @@ def test_logical_mapping_css() -> None:
     encoder = synthesize_encoding_circuit(code)
     mapping = encoder.logical_to_input_mapping(code)
 
-    assert encoder.get_code() == code, "Encoder code does not match original code."
+    assert encoder.get_code().is_equivalent(code), "Encoder code is not equivalent to original code."
 
     assert mapping is not None, "Expected a valid logical to input mapping, got None."
     for i, j in enumerate(mapping):
@@ -424,4 +421,4 @@ def test_local_minimum() -> None:
         rollout=1, num_rollout_candidates=[10], enable_early_termination=True, optimization_criterion="gates"
     )
     enc = synthesize_encoding_circuit(code, config=config)
-    assert enc.get_code() == code
+    assert enc.get_code().is_equivalent(code)

@@ -693,7 +693,7 @@ def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_c
 
     code = iso.get_code()
     assert code.n == 5
-    assert code == five_qubit_code
+    assert code.is_equivalent(five_qubit_code)
     x, z = iso.get_logical(0)
 
     expected_x = Pauli.from_pauli_string("XXXXX")

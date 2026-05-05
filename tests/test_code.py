@@ -391,7 +391,7 @@ def test_steane(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.i
 
     hx_reordered = hx[::-1, :]
     code_reordered = CSSCode(distance=3, Hx=hx_reordered, Hz=hz)
-    assert code == code_reordered
+    assert code.is_equivalent(code_reordered)
 
 
 @pytest.mark.parametrize("n", [72, 90, 108, 144, 288])
@@ -531,7 +531,7 @@ def test_code_equality() -> None:
         z_logicals=["ZZZZZ"],
         x_logicals=["XXXXX"],
     )
-    assert code1 == code2
+    assert code1 == code2  # literally the same code
 
     # different basis of stabilizers, logicals automatically computed
     code3 = StabilizerCode(
@@ -540,7 +540,7 @@ def test_code_equality() -> None:
         x_logicals=["XXXXX"],
     )
 
-    assert code1 == code3
+    assert code1.is_equivalent(code3)
 
     # Unequal codes (swapped logical operators)
     code4 = StabilizerCode(
