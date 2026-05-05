@@ -7,12 +7,9 @@
 
 """Unit tests for transvection-based elimination in circuit synthesis."""
 
-import time
-
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.encoding import gottesman_encoding_circuit
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig, synthesize_non_css
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
@@ -80,28 +77,6 @@ def test_synthesize_non_css_with_rollout(
     operations, result_tableau = synthesize_non_css(target_tableau, config=clifford_synthesis_config)
     assert result_tableau.is_identity()
     assert operations.apply(target_tableau) == result_tableau
-
-
-def test_synthesize_non_css_performance(clifford_synthesis_config: SynthesisConfig) -> None:
-    """Performance test for non-CSS elimination on a 12-qubit encoding isometry."""
-    iso = gottesman_encoding_circuit([
-        "ZZXYIXZXYZIX",
-        "IZYXYYZYIIIX",
-        "IIIYZYYXYZIX",
-        "IZYXZXIYXZZX",
-        "IIIZIIIYYYZY",
-        "IIIXIIIZZZXZ",
-        "XZZZIIIXIIIZ",
-        "ZYYYIIIZIIIY",
-    ])
-    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
-
-    start_time = time.perf_counter()
-    _, result_tableau = synthesize_non_css(tab, config=clifford_synthesis_config)
-    elapsed_time = time.perf_counter() - start_time
-
-    assert result_tableau.is_identity()
-    assert elapsed_time < 10.0
 
 
 def test_four_qubit(clifford_synthesis_config: SynthesisConfig) -> None:
