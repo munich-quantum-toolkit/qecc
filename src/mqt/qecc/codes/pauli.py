@@ -490,12 +490,19 @@ def complete_stabilizer_tableau_with_destabilizers(
     destabilizers, and logical operators.
 
     Args:
-        stabilizers: A tableau representing the stabilizers (and possibly some destabilizers) of the code.
+        stabilizers: A tableau representing the stabilizers (and possibly some logical operators) of the code.
         stab_rows: List of row indices that are stabilizers. If None, assumes all rows are stabilizers.
             Destabilizers will be added for each row specified in stab_rows.
 
     Returns:
-        A tableau ordered as: destabilizers, logical X, stabilizers, logical Z.
+        A tableau ordered as: logical X, destabilizers, logical Z, stabilizers.
+
+    Note:
+        This function assumes that all rows not specified in stab_rows are logical operators.
+        These rows are split by position: the first half are treated as logical X operators,
+        and the second half as logical Z operators. Any pre-existing destabilizers in the input
+        tableau that are not identified in stab_rows will be treated as logical operators and
+        may be reordered or reinterpreted according to this convention.
 
     Raises:
         ValueError: If any row index in stab_rows is out of bounds or if valid destabilizers cannot be found.
@@ -582,7 +589,7 @@ def complete_stabilizer_tableau_with_destabilizers(
 
     for destab in destabilizers:
         new_rows.append(destab)
-        new_phases.append(0)  # TODO: probably wrong, need to compute the correct phase for the destabilizer
+        new_phases.append(0)
 
     for _, row, phase in logical_z_rows:
         new_rows.append(row)
