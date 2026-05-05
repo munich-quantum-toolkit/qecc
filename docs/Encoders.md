@@ -144,6 +144,7 @@ For non-CSS codes, depth-optimal synthesis is also available:
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis import depth_optimal_encoding_circuit_non_css
 
+encoder = None
 for d in range(3, 9):
     result = depth_optimal_encoding_circuit_non_css(five_qubit_code, max_depth=d, exact_two_qubit_count=True, max_two_qubit_gates=6)
 
@@ -152,6 +153,11 @@ for d in range(3, 9):
     else:
         encoder = result
         break
+
+if encoder is None:
+    raise RuntimeError("No non-CSS encoder found in the tested depth range.")
+message_qubits = encoder.inputs()
+
 print(f"Message qubits (logical to physical mapping): {message_qubits}")
 print(f"Circuit has two-qubit depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_two_qubit_gates()} two-qubit gates.")
