@@ -461,7 +461,7 @@ class PauliOperation(TableauOperation):
         self.qubit = qubit
         self.pauli = pauli
 
-    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:  # noqa: ARG002, PLR6301
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:  # noqa: PLR6301
         """Apply the Pauli operation to a CSS check matrix.
 
         Args:
@@ -471,7 +471,7 @@ class PauliOperation(TableauOperation):
         Returns:
             CheckMatrix: The resulting CSS check matrix after applying the operation.
         """
-        return check_matrix  # Pauli operations do not change the check matrix
+        return check_matrix if inplace else check_matrix.copy()  # Pauli operations do not change the check matrix
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
         """Apply the Pauli operation to a stabilizer tableau.
