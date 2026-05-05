@@ -347,7 +347,7 @@ def _run_elimination(
 
     result_ops, result_tableau = strategy.post_process_fn(operations, tableau)
 
-    if hasattr(strategy.candidate_generator, "use_best_if_better"):
+    if hasattr(strategy.candidate_generator, "get_best_solution"):
         result_ops, result_tableau = _maybe_use_best_solution(
             strategy.candidate_generator,
             result_ops,
