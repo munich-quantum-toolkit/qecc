@@ -199,8 +199,9 @@ def _build_state_prep_circuit_from_back(
 
 def heuristic_prep_circuit(
     code: CSSCode,
-    zero_state: bool = True,
     optimize_depth: bool = True,
+    zero_state: bool = True,
+    *,
     rollout: int = 0,
     rollout_candidates: int = 10,
 ) -> FaultyStatePrepCircuit:
