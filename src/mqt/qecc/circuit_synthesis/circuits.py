@@ -160,7 +160,14 @@ class CliffordIsometry:
 
     def to_stim_circuit(self) -> stim.Circuit:
         """Get the stim Circuit implementing the isometry."""
-        return self._circ.copy()
+        result = stim.Circuit()
+
+        for qubit, basis in self._initializations.items():
+            result.append("R" + basis, [qubit])
+
+        result += self._circ
+
+        return result
 
     def outputs(self) -> list[int]:
         """Get output qubits."""
@@ -216,10 +223,10 @@ class CliffordIsometry:
             msg = "Initialization basis must be 'Z' or 'X'."
             raise ValueError(msg)
 
-        # remove from inputs
         if qubit in self._inputs:
             self._inputs.remove(qubit)
         self._initializations[qubit] = normalized_basis
+        self._ancillas.add(qubit)
 
     def initialize_qubits(self, qubits: Iterable[int], basis: str) -> None:
         """Initialize multiple qubits in the specified basis.
@@ -360,11 +367,9 @@ class CNOTCircuit(CliffordIsometry):
         """
         stim_circuit = stim.Circuit()
 
-        # Add initializations
         for qubit, basis in self._initializations.items():
             stim_circuit.append("R" + basis, [qubit])
 
-        # Add CNOT gates
         stim_circuit.append_operation("CX", [qubit for pair in self.cnots for qubit in pair])
 
         return stim_circuit
@@ -406,20 +411,17 @@ class CNOTCircuit(CliffordIsometry):
             for qubit in initialized_qubits:
                 cnot_circuit.initialize_qubit(qubit, "Z")
 
-        # Initialize all qubits if `init_all` is True
         if init_all:
             for qubit in range(circ.num_qubits):
                 cnot_circuit.initialize_qubit(qubit, "Z")
 
         initialized = [False for _ in range(circ.num_qubits)]
-        # Parse the circuit
         for instruction in circ.data:
             gate = instruction.operation
             qubits = [circ.find_bit(q)[0] for q in instruction.qubits]
 
             if gate.name == "h" and len(qubits) == 1:
                 qubit = qubits[0]
-                # Handle Hadamard gates for initialization
                 if initialized[qubit]:
                     msg = f"Hadamard gate on qubit that is already initialized: {qubit}."
                     raise ValueError(msg)
@@ -430,7 +432,6 @@ class CNOTCircuit(CliffordIsometry):
                     msg = f"Hadamard gate on uninitialized qubit {qubit}."
                     raise ValueError(msg)
             elif gate.name == "cx" and len(qubits) == 2:
-                # Handle CNOT gates
                 cnot_circuit.add_cnot(qubits[0], qubits[1])
                 initialized[qubits[0]] = True
                 initialized[qubits[1]] = True
@@ -452,7 +453,6 @@ class CNOTCircuit(CliffordIsometry):
         Returns:
             CNOTCircuit representation of the input circuit.
         """
-        # determine which qubits are initialized in what basis.
         cnot_circuit = cls()
         initialized = [False for _ in range(circ.num_qubits)]
         for gate in circ:
@@ -689,7 +689,6 @@ def compose_cnot_circuits(
     if wiring is None:
         wiring = {}
 
-    # make sure that wires are not connected to initialized qubits in circ2
     if any(q in circ2.get_initialized() for q in wiring.values()):
         msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
         raise ValueError(msg)
