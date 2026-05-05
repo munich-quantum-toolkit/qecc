@@ -79,7 +79,6 @@ def depth_optimal_encoding_circuit_non_css(
     n = code.n
     k = code.k
     m = n - k
-    row_count = 2 * k + m
 
     assert code.x_logicals is not None
     assert code.z_logicals is not None
@@ -88,14 +87,22 @@ def depth_optimal_encoding_circuit_non_css(
     x_logicals = code.x_logicals.tableau.matrix.astype(int)
     z_logicals = code.z_logicals.tableau.matrix.astype(int)
 
-    if stabilizers.shape[0] != m:
-        msg = f"Expected {m} independent stabilizer rows, got {stabilizers.shape[0]}."
-        raise ValueError(msg)
+    stabilizer_rank = mod2.rank(stabilizers)
+    if stabilizer_rank != m:
+        if stabilizer_rank < m:
+            msg = f"Expected {m} independent stabilizers, but rank is only {stabilizer_rank}."
+            raise ValueError(msg)
+        independent_stabilizers = np.empty((0, stabilizers.shape[1]), dtype=int)
+        for row in stabilizers:
+            candidate = np.vstack([independent_stabilizers, row])
+            if mod2.rank(candidate) > independent_stabilizers.shape[0]:
+                independent_stabilizers = candidate
+            if independent_stabilizers.shape[0] == m:
+                break
+        stabilizers = independent_stabilizers
 
-    # Internal row order:
-    #   0 .. k-1        logical X rows
-    #   k .. 2k-1       logical Z rows
-    #   2k .. 2k+m-1    stabilizer rows
+    row_count = 2 * k + m
+
     initial_x = np.vstack([
         x_logicals[:, :n],
         z_logicals[:, :n],
