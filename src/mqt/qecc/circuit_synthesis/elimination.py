@@ -116,12 +116,12 @@ class EliminationSequence:
             self._qubit_depths[q] = earliest_start
         self._depth = max(self._depth, earliest_start + 1)
 
-    def apply(self, tableau: BinaryMatrix, inplace: bool = False) -> BinaryMatrix:
+    def apply(self, tableau: BinaryMatrix, *, inplace: bool = False) -> BinaryMatrix:
         """Apply the elimination sequence to a stabilizer tableau.
 
         Args:
             tableau: The stabilizer tableau to apply the sequence to.
-            inplace (bool): If True, modifies the tableau in place. If False, returns a new tableau.
+            inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
             BinaryMatrix: The resulting stabilizer tableau after applying the sequence.
