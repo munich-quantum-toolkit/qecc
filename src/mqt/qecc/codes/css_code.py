@@ -492,9 +492,16 @@ def _load_css_from_list_notation(content: str) -> CSSCode:
                 else line_stripped.split()
             )
 
-            row = [int(t) for t in tokens if t in {"0", "1"}]
-            if row:
-                rows.append(row)
+            if not tokens:
+                continue
+
+            for token in tokens:
+                if token not in {"0", "1"}:
+                    msg = f"Invalid token '{token}' in binary matrix (expected '0' or '1'): {line.strip()}"
+                    raise InvalidCSSCodeError(msg)
+
+            row = [int(t) for t in tokens]
+            rows.append(row)
 
         if rows:
             matrices.append(np.array(rows, dtype=np.int8))
@@ -526,9 +533,16 @@ def _parse_binary_matrix_section(lines: list[str]) -> npt.NDArray[np.int8]:
     for line in lines:
         tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
 
-        row = [int(t) for t in tokens if t in {"0", "1"}]
-        if row:
-            rows.append(row)
+        if not tokens:
+            continue
+
+        for token in tokens:
+            if token not in {"0", "1"}:
+                msg = f"Invalid token '{token}' in binary matrix (expected '0' or '1'): {line.strip()}"
+                raise InvalidCSSCodeError(msg)
+
+        row = [int(t) for t in tokens]
+        rows.append(row)
 
     if not rows:
         msg = "No valid binary matrix data found in section"
