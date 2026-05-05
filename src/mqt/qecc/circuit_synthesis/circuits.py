@@ -158,8 +158,17 @@ class CliffordIsometry:
 
         return iso
 
-    def to_stim_circuit(self) -> stim.Circuit:
-        """Get the stim Circuit implementing the isometry."""
+    def to_stim_circuit(self, with_resets: bool = True) -> stim.Circuit:
+        """Get the stim Circuit implementing the isometry.
+
+        Args:
+            with_resets: If set to `True`, includes resets in the |0> and |+> states for initialized qubits in the stim circuit.
+
+        Returns:
+            A stim.Circuit representation of the isometry.
+        """
+        if not with_resets:
+            return self._circ.copy()
         result = stim.Circuit()
 
         for qubit, basis in self._initializations.items():
@@ -359,16 +368,20 @@ class CNOTCircuit(CliffordIsometry):
         for control, target in cnot_pairs:
             self.add_cnot(control, target)
 
-    def to_stim_circuit(self) -> stim.Circuit:
+    def to_stim_circuit(self, with_resets: bool = True) -> stim.Circuit:
         """Convert the CNOT circuit to a stim.Circuit.
+
+        Args:
+            with_resets: If set to `True`, includes resets in the |0> and |+> states for initialized qubits in the stim circuit.
 
         Returns:
             A stim.Circuit representation of the CNOT circuit.
         """
         stim_circuit = stim.Circuit()
 
-        for qubit, basis in self._initializations.items():
-            stim_circuit.append("R" + basis, [qubit])
+        if with_resets:
+            for qubit, basis in self._initializations.items():
+                stim_circuit.append("R" + basis, [qubit])
 
         stim_circuit.append_operation("CX", [qubit for pair in self.cnots for qubit in pair])
 

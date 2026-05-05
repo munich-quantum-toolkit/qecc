@@ -282,7 +282,7 @@ def test_encoder_from_stabilizers_and_logicals(clifford_synthesis_config: Synthe
     logicals = StabilizerTableau.from_pauli_strings(["XXII", "IXXI", "IZZI", "ZZII"])
 
     iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals, config=clifford_synthesis_config)
-    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+    tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit(with_resets=False))
     for stab in stabilizers:
         assert tab.is_row(Pauli.from_pauli_string(str(stab)))
     for logical in logicals:
@@ -297,9 +297,7 @@ def test_encoder_from_stabilizers_and_logicals_five_qubit(clifford_synthesis_con
     logicals = StabilizerTableau.from_pauli_strings(x_logicals + z_logicals)
 
     iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals, config=clifford_synthesis_config)
-    StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
 
-    StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
     code = iso.get_code()
     for stab in stabilizers:
         code.is_stabilizer(stab)
@@ -329,7 +327,7 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
     logicals_tab = StabilizerTableau.from_pauli_strings(x_logicals + z_logicals)
 
     iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals_tab)
-    StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
+
     code = iso.get_code()
     for stab in stabilizers:
         code.is_stabilizer(stab)
