@@ -131,13 +131,18 @@ class EliminationSequence:
             out = op.apply(out, inplace=True)
         return out
 
-    def extend(self, other: EliminationSequence) -> None:
+    def extend(self, other: EliminationSequence, ignore_depth_impact: bool = False) -> None:
         """Extend the elimination sequence with another sequence.
 
         Args:
             other: The other elimination sequence to append.
+            ignore_depth_impact: If True, do not update depth based on the new operations (useful for post-processing).
         """
-        self.operations.extend(other.operations)
+        if ignore_depth_impact:
+            self.operations.extend(other.operations)
+        else:
+            for op in other.operations:
+                self.add_operation(op)
 
     def __iter__(self) -> Iterator[TableauOperation]:
         """Return iterator over the tableau operations in the sequence."""

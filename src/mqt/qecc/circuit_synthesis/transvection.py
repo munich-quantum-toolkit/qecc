@@ -306,7 +306,9 @@ def reduce_single_qubit_gates_and_swaps(
 
     clifford_seq, final_tableau = reduce_with_single_qubit_cliffords(tableau_after_swaps)
 
-    operations.extend(EliminationSequence(list(swap_seq.operations) + list(clifford_seq.operations)))
+    operations.extend(
+        EliminationSequence(list(swap_seq.operations) + list(clifford_seq.operations)), ignore_depth_impact=True
+    )
 
     return operations, final_tableau
 
