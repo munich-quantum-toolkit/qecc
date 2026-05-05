@@ -64,7 +64,6 @@ dependencies = [
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
-  "ortools>=9.14.2151",
   "protobuf==6.31.1",
   "networkx>=3.4.2",
 ]
@@ -155,7 +154,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*", "ortools.*", "ortools.sat.python","networkx.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*","networkx.*"]
 ignore_missing_imports = true
 
 
