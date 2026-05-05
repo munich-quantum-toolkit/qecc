@@ -489,6 +489,35 @@ def _is_binary_matrix_format(content: str) -> bool:
     return all(token in {"0", "1"} for token in tokens[:5])
 
 
+def _parse_bracketed_rows(content: str) -> list[str]:
+    """Parse bracketed content into individual row strings.
+
+    Args:
+        content: The bracketed content (e.g., "[[1,0],[0,1]]" or nested format).
+
+    Returns:
+        List of row strings, each representing one row of the matrix.
+    """
+    depth = 0
+    current_row: list[str] = []
+    rows = []
+
+    for char in content:
+        if char == "[":
+            depth += 1
+            if depth == 2:
+                current_row = []
+        elif char == "]":
+            depth -= 1
+            if depth == 1 and current_row:
+                rows.append("".join(current_row))
+                current_row = []
+        elif depth == 2:
+            current_row.append(char)
+
+    return rows
+
+
 def _load_from_binary_matrix(content: str) -> StabilizerCode:
     """Load a stabilizer code from binary symplectic matrix format.
 
@@ -501,12 +530,12 @@ def _load_from_binary_matrix(content: str) -> StabilizerCode:
     content = content.strip()
 
     if content.startswith(("[[", "[")):
-        content = content.replace("[", "").replace("]", "")
-
-    lines = [line.strip() for line in content.split("\n") if line.strip()]
+        row_strings = _parse_bracketed_rows(content)
+    else:
+        row_strings = [line.strip() for line in content.split("\n") if line.strip()]
 
     rows = []
-    for line_idx, line in enumerate(lines):
+    for line_idx, line in enumerate(row_strings):
         tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
 
         for token in tokens:
