@@ -152,7 +152,7 @@ class CliffordIsometry:
                 for grp in gate.target_groups():
                     iso._ancillas.add(grp[0].qubit_value)
 
-        iso._inputs = list(set(iso._outputs) - iso._ancillas)
+        iso._inputs = [q for q in iso._outputs if q not in iso._ancillas]
 
         return iso
 
