@@ -46,9 +46,10 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         unscored_candidates = _generate_transvection_operations(tableau)
         filtered_candidates = self._apply_filters(unscored_candidates)
         scored = _score_transvections(filtered_candidates, tableau)
-        if not scored:
-            self._reset_filters()
+        if scored:
+            return scored
 
+        self._reset_filters()
         filtered_candidates = self._apply_filters(unscored_candidates)
         return _score_transvections(filtered_candidates, tableau)
 
