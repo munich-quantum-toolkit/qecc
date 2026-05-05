@@ -312,7 +312,7 @@ class CNOTCircuit(CliffordIsometry):
         """Initialize an empty CNOT circuit."""
         super().__init__()
         self.cnots: list[tuple[int, int]] = []
-        self._initializations: dict[int, str] = {}  # Dictionary mapping qubit index to initialization type ('Z' or 'X')
+        self._initializations: dict[int, str] = {}
 
     def _add_input(self, qubit: int) -> None:
         """Add a qubit to the inputs if it is not already initialized or an input.
@@ -514,6 +514,22 @@ class CNOTCircuit(CliffordIsometry):
         init_indices = list(self._initializations.keys())
         return max(cnot_indices + init_indices, default=0) + 1
 
+    def outputs(self) -> list[int]:
+        """Get output qubits.
+
+        Returns:
+            List of output qubit indices (all qubits used in the circuit).
+        """
+        return list(range(self.num_qubits()))
+
+    def num_outputs(self) -> int:
+        """Get number of physical outputs.
+
+        Returns:
+            Number of output qubits.
+        """
+        return self.num_qubits()
+
     def draw(self, *args, **kwargs):  # noqa: ANN003, ANN002, ANN201
         """Draw the circuit using Qiskit visualization tools.
 
@@ -612,6 +628,7 @@ class CNOTCircuit(CliffordIsometry):
         new_circuit = CNOTCircuit()
         new_circuit.cnots = self.cnots.copy()
         new_circuit._initializations = self._initializations.copy()
+        new_circuit._inputs = self._inputs.copy()
         return new_circuit
 
     def relabel_qubits(self, mapping: dict[int, int]) -> None:
@@ -622,6 +639,7 @@ class CNOTCircuit(CliffordIsometry):
         """
         self.cnots = [(mapping[control], mapping[target]) for control, target in self.cnots]
         self._initializations = {mapping[q]: basis for q, basis in self._initializations.items()}
+        self._inputs = [mapping[q] for q in self._inputs]
         self._check_valid()
 
     def _check_valid(self) -> None:
@@ -694,7 +712,7 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, in
         raise ValueError(msg)
 
     if wiring is None:
-        wiring = {out_: in_ for in_ in enc2.inputs() for out_ in enc1.outputs()}
+        wiring = dict(zip(enc1.outputs(), enc2.inputs(), strict=True))
 
     composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
     return CliffordIsometry.from_stim_circuit(composed)
