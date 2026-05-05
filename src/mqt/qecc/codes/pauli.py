@@ -423,6 +423,10 @@ class StabilizerTableau:
             A 2x2 NumPy array representing the symplectic submatrix for the given
             qubit.
         """
+        if self.n_rows != 2 * self.n:
+            msg = "symplectic_submatrix requires a full 2n x 2n tableau."
+            raise ValueError(msg)
+
         return np.array(
             [
                 [int(self.tableau[q, q]), int(self.tableau[q, q + self.n])],
