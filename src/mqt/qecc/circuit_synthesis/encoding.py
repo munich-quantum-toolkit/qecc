@@ -1039,6 +1039,14 @@ def cnot_encoding_circuit(
     if balance_checks:
         reduce_checks_by_row_ops(checks, logicals)
 
+    if checks.type != logicals.type:
+        msg = f"Check matrix and logical matrix must have the same Pauli type. Got checks.type={checks.type}, logicals.type={logicals.type}"
+        raise ValueError(msg)
+
+    if checks.num_qubits() != logicals.num_qubits():
+        msg = f"Check matrix and logical matrix must have the same number of qubits. Got checks: {checks.num_qubits()} qubits, logicals: {logicals.num_qubits()} qubits"
+        raise ValueError(msg)
+
     mat = CheckMatrix(np.vstack((checks.matrix, logicals.matrix)), pauli_type=checks.type)
 
     ops, reduced_checks = synthesize_cnot(mat, config=config, n_stabs=n_stab)

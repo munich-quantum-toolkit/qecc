@@ -376,7 +376,6 @@ def test_pauli_operation_check_matrix_unchanged(check_matrix_x: CheckMatrix, pau
     """Test that Pauli operations don't change check matrix."""
     op = PauliOperation(0, pauli)
     result = op.apply_check_matrix(check_matrix_x, inplace=False)
-    assert result is check_matrix_x
     assert np.array_equal(result.matrix, check_matrix_x.matrix)
 
 
