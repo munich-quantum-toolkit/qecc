@@ -150,7 +150,9 @@ class CliffordIsometry:
             name = gate.name
             if name in {"R", "RX", "RZ"}:
                 for grp in gate.target_groups():
-                    iso._ancillas.add(grp[0].qubit_value)
+                    q = grp[0].qubit_value
+                    iso._ancillas.add(q)
+                    iso._initializations[q] = "X" if name == "RX" else "Z"
 
         iso._inputs = [q for q in iso._outputs if q not in iso._ancillas]
 
