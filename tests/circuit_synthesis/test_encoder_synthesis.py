@@ -286,7 +286,7 @@ def test_encoder_from_stabilizers_and_logicals(clifford_synthesis_config: Synthe
     iso = encoder_from_stabilizers_and_logicals(stabilizers, logicals, config=clifford_synthesis_config)
     tab = StabilizerTableau.from_stim_circuit(iso.to_stim_circuit())
     for stab in stabilizers:
-        tab.is_row(Pauli.from_pauli_string(str(stab)))
+        assert tab.is_row(Pauli.from_pauli_string(str(stab)))
     for logical in logicals:
         assert tab.is_row(Pauli.from_pauli_string(str(logical)))
 
