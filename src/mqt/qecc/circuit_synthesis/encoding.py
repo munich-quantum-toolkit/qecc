@@ -789,7 +789,10 @@ def synthesize_clifford(
         config: Configuration options for the synthesis process.
 
     Returns:
-        A stim.Circuit that implements the same operation as the input tableau but with potentially fewer two
+        A CliffordIsometry representing the synthesized Clifford operation that implements
+        the same operation as the input tableau. The synthesis aims to minimize the two-qubit
+        gate count. If the tableau is CSS and use_cnots_if_css is True, the circuit uses only
+        CNOT gates; otherwise, a general Clifford synthesis is performed.
     """
     if tableau.is_css() and use_cnots_if_css:
         x_checks, z_checks = tableau.to_css()
