@@ -64,10 +64,12 @@ def _run_tests(
     install_args: Sequence[str] = (),
     run_args: Sequence[str] = (),
 ) -> None:
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    env = {
+        "UV_PROJECT_ENVIRONMENT": session.virtualenv.location,
+    }
 
     if "--cov" in session.posargs:
-        # try to use the lighter-weight `sys.monitoring` coverage core
+        env["NUMBA_DISABLE_JIT"] = "1"
         env["COVERAGE_CORE"] = "sysmon"
 
     session.run(

@@ -128,7 +128,7 @@ run.source = ["mqt.qecc"]
 run.disable_warnings = [
   "no-sysmon",
 ]
-run.setenv = { NUMBA_DISABLE_JIT = "1" }
+
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
