@@ -79,14 +79,8 @@ class CSSCode(StabilizerCode):
             msg = "The x and z distances must be greater than or equal to the distance"
             raise InvalidCSSCodeError(msg)
 
-        if Lx is not None:
-            self.Lx = Lx
-        else:
-            self.Lx = CSSCode._compute_logical(self.Hz, self.Hx)
-        if Lz is not None:
-            self.Lz = Lz
-        else:
-            self.Lz = CSSCode._compute_logical(self.Hx, self.Hz)
+        self.Lx = Lx if Lx is not None else CSSCode._compute_logical(self.Hz, self.Hx)
+        self.Lz = Lz if Lz is not None else CSSCode._compute_logical(self.Hx, self.Hz)
 
         if Lx is None and Lz is None:
             self._normalize_logicals()
@@ -96,8 +90,9 @@ class CSSCode(StabilizerCode):
         if len(self.Lz) == 0:
             self.Lz = np.zeros((0, self.n), dtype=np.int8)
 
-        self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
-        self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
+        self.set_x_logicals(self.Lx)
+        self.set_z_logicals(self.Lz)
+        self._check_code_correct()
 
     def x_checks_as_pauli_strings(self) -> list[str]:
         """Return the x checks as Pauli strings."""
