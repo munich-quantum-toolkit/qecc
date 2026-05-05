@@ -90,7 +90,6 @@ def surface_code_sp_zero() -> FaultyStatePrepCircuit:
         surface_code.z_distance // 2,
     )
     sp_circ.compute_fault_sets()
-    sp_circ.circ.to_stim_circuit().to_file("surface_code_sp_zero.stim")
     return sp_circ
 
 
@@ -128,7 +127,6 @@ def css_11_1_3_code_sp() -> FaultyStatePrepCircuit:
         code.z_distance // 2,
     )
     sp_circ.compute_fault_sets()
-    sp_circ.circ.to_stim_circuit().to_file("11_1_3_code_sp.stim")
     return sp_circ
 
 
