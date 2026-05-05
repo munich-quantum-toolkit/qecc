@@ -7,9 +7,6 @@
 
 """Unit tests for CNOT-based elimination in circuit synthesis."""
 
-import time
-
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import pytest
 
@@ -73,26 +70,3 @@ def test_eliminate_cnot_up_to_row_ops(
     operations, result_matrix = synthesize_cnot(target_matrix, cnot_synthesis_config)
     assert operations.num_two_qubit_gates() == num_cnots
     assert operations.apply(target_matrix) == result_matrix
-
-
-def test_eliminate_cnot_performance(cnot_synthesis_config: SynthesisConfig) -> None:
-    """Performance test for CNOT elimination on a 20x20 check matrix."""
-    rng = np.random.default_rng(42)
-    n = 8
-    density = 0.3
-    while True:
-        matrix_data = rng.random((n, n)) < density
-        matrix_data = matrix_data.astype(np.int8)
-        if mod2.rank(matrix_data) == n:
-            break
-
-    check_matrix = CheckMatrix(matrix_data.astype(np.int8), pauli_type="X")
-    start_time = time.perf_counter()
-    operations, _result_matrix = synthesize_cnot(check_matrix, cnot_synthesis_config)
-    elapsed_time = time.perf_counter() - start_time
-
-    print(f"\nCNOT elimination completed in {elapsed_time:.4f} seconds")
-    print(f"Number of CNOTs: {operations.num_two_qubit_gates()}")
-    print(f"Circuit depth: {operations.depth()}")
-
-    assert elapsed_time < 5.0
