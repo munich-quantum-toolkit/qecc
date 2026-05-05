@@ -108,9 +108,7 @@ addopts = [
   "--dist=loadgroup", # Ensure that certain tests are run on the same worker
 ]
 log_level = "INFO"
-env = [
-  "NUMBA_DISABLE_JIT=1",
-]
+
 filterwarnings = [
   "error",
   "ignore:pkg_resources is deprecated:UserWarning", # Due to qsample, do not remove!
@@ -130,6 +128,7 @@ run.source = ["mqt.qecc"]
 run.disable_warnings = [
   "no-sysmon",
 ]
+run.setenv = { NUMBA_DISABLE_JIT = "1" }
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
@@ -303,7 +302,6 @@ test = [
   "pytest>=9.0.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.0.0",
-  "pytest-env>=1.1.5",
   "pytest-mock>=3.14.0",
   "pytest-sugar>=1.1.1",
   "pytest-xdist>=3.8.0",
