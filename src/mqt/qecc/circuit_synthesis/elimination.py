@@ -574,7 +574,7 @@ class ParallelFilter(OperationFilter):
         """Initialize the parallel filter.
 
         Args:
-            n_qubits: Total number of qubits in the circuit. If None, will be inferred from operations.
+            n_qubits: Total number of qubits in the circuit.
         """
         self.blocked_qubits: list[bool] = [False] * n_qubits
         self._n_blocked = 0
