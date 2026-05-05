@@ -241,7 +241,8 @@ class RolloutCandidateGenerator(CandidateGenerator):
         """Get the best complete solution found during rollout exploration.
 
         Returns:
-            Tuple of (sequence, tableau) if a solution is available, None otherwise.
+            The best `EliminationSequence` found during rollout, or `None` if no
+            improving candidate was scored.
         """
         if self._best_known_sequence is not None:
             return self._best_known_sequence

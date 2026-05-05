@@ -412,7 +412,7 @@ def test_logical_mapping_css() -> None:
 def test_local_minimum() -> None:
     """Test that local minimum escape is triggered when no positive-scoring candidates are found.
 
-    Rollout in the hamming code typically results in local minime due to the relatively low number of stabilizers.
+    Rollout in the hamming code typically results in local minima due to the relatively low number of stabilizers.
     """
     code = construct_quantum_hamming_code(5)
     config = SynthesisConfig(
