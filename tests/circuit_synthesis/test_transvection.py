@@ -123,7 +123,7 @@ def test_reduce_with_swaps() -> None:
             else:
                 assert val == 0
         for j, val in enumerate(destab):
-            if i == j or j == i + reduced_tab.n:
+            if (i == j or j == i + reduced_tab.n) and val == 1:
                 has_diagonal = True
             else:
                 assert val == 0
