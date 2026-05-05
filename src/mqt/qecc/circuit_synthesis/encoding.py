@@ -42,18 +42,39 @@ def depth_optimal_encoding_circuit_non_css(
     *,
     exact_two_qubit_count: bool = False,
 ) -> CliffordIsometry | str:
-    """Synthesize an encoding circuit for a stabilizer code using Z3.
+    """Synthesize an encoding circuit for a stabilizer code using Z3 SMT solver.
 
-    Gate set, at each depth layer:
-        {I, H, S, SQRT_X, CX, CZ}
+    This function searches for a reduction circuit that maps the target code tableau
+    to a terminal identity-isometry tableau, allowing stabilizer row additions, physical
+    qubit permutation, and X- or Z-type terminal ancilla pivots. The returned circuit
+    is the inverse reduction with resets on ancilla qubits.
 
-    The solver searches for a reduction circuit that maps the target code tableau
-    to a terminal identity-isometry tableau up to:
-        - stabilizer row additions,
-        - physical qubit permutation,
-        - X- or Z-type terminal ancilla pivots.
+    The solver enforces the following constraints:
+    - Each depth layer uses gates from {I, H, S, SQRT_X, CX, CZ}
+    - Every qubit has exactly one gate role per layer
+    - Terminal condition: stabilizers have exactly m pivot half-columns
+    - Logical qubits map to non-pivot physical qubits with canonical X/Z pairs
+    - Optional two-qubit gate budget (equality or inequality depending on exact_two_qubit_count)
 
-    The returned circuit is the inverse reduction, with resets on ancillas.
+    Args:
+        code: The stabilizer code to synthesize an encoding circuit for.
+        max_depth: Maximum circuit depth to search within.
+        max_two_qubit_gates: Optional constraint on the total number of two-qubit gates.
+            If None, no gate count constraint is applied.
+        exact_two_qubit_count: If True and max_two_qubit_gates is set, the solver enforces
+            exactly max_two_qubit_gates two-qubit gates. If False, the solver enforces at
+            most max_two_qubit_gates.
+
+    Returns:
+        A CliffordIsometry representing the synthesized encoding circuit if a solution is found.
+        Returns a string error message if the solver fails:
+        - "UNSAT": No solution exists within the given constraints
+        - "UNKNOWN: <reason>": Solver could not determine satisfiability
+        - "MODEL_ERROR: <detail>": Solution found but model extraction failed
+
+    Raises:
+        ValueError: If the code has an incorrect number of independent stabilizers or if
+            the stabilizer tableau is malformed.
     """
     n = code.n
     k = code.k
