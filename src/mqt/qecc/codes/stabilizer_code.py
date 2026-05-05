@@ -270,7 +270,7 @@ class StabilizerCode:
 
         n = self.n
         mat = self.generators.tableau.matrix
-        r = mat.shape[0]
+        int(rank(mat))
 
         identity = np.eye(n, dtype=np.int8)
         z0 = np.zeros((n, n), dtype=np.int8)
@@ -289,7 +289,7 @@ class StabilizerCode:
 
         base = mat.copy()
         base_rank = mod2_rank(base)
-        target = 2 * (n - r)
+        target = 2 * self.k
 
         logical_basis: list[np.ndarray] = []
         for v in ns:
@@ -321,7 +321,7 @@ class StabilizerCode:
             return a
 
         used: set[int] = set()
-        k = n - r
+        k = self.k
         i = 0
         while len(zs) < k and i < len(vecs):
             if i in used:
