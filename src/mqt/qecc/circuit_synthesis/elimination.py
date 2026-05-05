@@ -444,7 +444,7 @@ class CandidateGenerator(ABC):
 
     @abstractmethod
     def __init__(self, filters: Sequence[OperationFilter] | None = None) -> None:
-        """Initialize the greedy CNOT generator.
+        """Initialize the candidate generator.
 
         Args:
             filters: Optional list of filters to apply during candidate generation.
