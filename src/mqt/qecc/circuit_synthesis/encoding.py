@@ -799,9 +799,10 @@ def synthesize_clifford(
         assert isinstance(config, SynthesisConfig) or config is None, (
             "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
         )
+        logicals = x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks
         return cnot_encoding_circuit(
-            CheckMatrix(np.empty((0, tableau.n), dtype=np.int8), pauli_type="X"),
-            x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks,
+            CheckMatrix(np.empty((0, tableau.n), dtype=np.int8), pauli_type=logicals.type),
+            logicals,
             config=config,
         )
 
