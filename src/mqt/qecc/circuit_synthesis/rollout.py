@@ -597,6 +597,9 @@ def close_rollout_cache_session() -> None:
     global _cache_session_depth  # noqa: PLW0603
 
     should_clear = False
+    hits = 0
+    misses = 0
+    hit_rate = 0.0
     with _cache_lock:
         _cache_session_depth -= 1
 
@@ -606,13 +609,16 @@ def close_rollout_cache_session() -> None:
             raise RuntimeError(msg)
 
         if _cache_session_depth == 0:
+            hits = cache.hits
+            misses = cache.misses
+            hit_rate = cache.hit_rate()
+            cache.clear()
             should_clear = True
 
     if should_clear:
         logger.info(
             "Clearing rollout cache: %d hits, %d misses, hit rate %.2f%%",
-            cache.hits,
-            cache.misses,
-            cache.hit_rate() * 100,
+            hits,
+            misses,
+            hit_rate * 100,
         )
-        cache.clear()
