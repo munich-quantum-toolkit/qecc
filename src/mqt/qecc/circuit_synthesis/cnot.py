@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import operator
-from itertools import combinations
+from itertools import permutations
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -35,8 +35,6 @@ if TYPE_CHECKING:
     from .types import BinaryMatrix
 
 logger = logging.getLogger(__name__)
-
-MAX_MULTI_STEP = 4
 
 
 class GreedyCNOTGenerator(CandidateGenerator):
@@ -220,26 +218,28 @@ def find_multi_step_reduction(tableau: CheckMatrix) -> Sequence[TableauOperation
     min_ops = 2
     n = tableau.num_qubits()
     base_score = int(tableau.matrix.sum())
-    max_ops = min(n - 1, MAX_MULTI_STEP)
+    max_ops = n - 1  # at most one target + all other qubits as controls
 
     for num_ops in range(min_ops, max_ops + 1):
-        for target in range(n):
-            for controls in combinations(range(n), num_ops):
-                if target in controls:
-                    continue
+        # one target + num_ops distinct controls
+        for inds in permutations(range(n), num_ops + 1):
+            target = inds[0]
+            controls = inds[1:]
 
-                ops = [CNOT(control, target) for control in controls]
+            ops = [CNOT(control, target) for control in controls]
 
-                for op in ops:
-                    op.apply_check_matrix(tableau, inplace=True)
+            # apply
+            for op in ops:
+                op.apply_check_matrix(tableau, inplace=True)
 
-                new_score = int(tableau.matrix.sum())
+            new_score = int(tableau.matrix.sum())
 
-                for op in reversed(ops):
-                    op.apply_check_matrix(tableau, inplace=True)
+            # undo
+            for op in reversed(ops):
+                op.apply_check_matrix(tableau, inplace=True)
 
-                if new_score < base_score:
-                    return ops
+            if new_score < base_score:
+                return ops
 
     return None
 
