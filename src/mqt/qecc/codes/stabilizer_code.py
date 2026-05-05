@@ -73,6 +73,22 @@ class StabilizerCode:
         """Compute a hash for the stabilizer code."""
         return hash((self.generators, tuple(self.z_logicals), tuple(self.x_logicals)))
 
+    def __eq__(self, other: object) -> bool:
+        """Check if two stabilizer codes are equal.
+
+        Two codes are equal if their generator matrices, logical X matrices,
+        and logical Z matrices are identical (element-wise comparison).
+        For semantic equivalence (same stabilizer group and logical basis),
+        use the is_equivalent method instead.
+        """
+        if not isinstance(other, StabilizerCode):
+            return NotImplemented
+        return (
+            np.array_equal(self.generators.as_matrix(), other.generators.as_matrix())
+            and np.array_equal(self.x_logicals.as_matrix(), other.x_logicals.as_matrix())
+            and np.array_equal(self.z_logicals.as_matrix(), other.z_logicals.as_matrix())
+        )
+
     def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
         """Check if two stabilizer codes have the same stabilizer group."""
         self_matrix = self.generators.as_matrix()
@@ -92,10 +108,14 @@ class StabilizerCode:
 
         return all(self.is_x_logical(lx_other) for lx_other in other.x_logicals)
 
-    def __eq__(self, other: object) -> bool:
-        """Check if two stabilizer codes are equal."""
-        if not isinstance(other, StabilizerCode):
-            return NotImplemented
+    def is_equivalent(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes are equivalent.
+
+        Two codes are equivalent if they have the same stabilizer group
+        and the same logical basis (up to stabilizer equivalence).
+        This is a semantic comparison, unlike __eq__ which checks
+        for exact matrix equality.
+        """
         return self.equal_stabilizer_group(other) and self.equal_logical_basis(other)
 
     def is_z_logical(self, p: Pauli | str) -> bool:
