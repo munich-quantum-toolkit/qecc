@@ -143,7 +143,7 @@ def _score_transvections(
         h_vec, _ = score_symplectic(tableau)
 
         if lexicographical_compare_np(h_vec, base_score):
-            score_value = np.sum(h_vec)
+            score_value = tuple(int(v) for v in h_vec.tolist())
             scored.append((op, score_value))
 
         tableau.tableau.matrix[:] = original_state
