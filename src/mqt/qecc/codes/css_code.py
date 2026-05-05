@@ -82,7 +82,7 @@ class CSSCode(StabilizerCode):
         self.Lx = Lx if Lx is not None else CSSCode._compute_logical(self.Hz, self.Hx)
         self.Lz = Lz if Lz is not None else CSSCode._compute_logical(self.Hx, self.Hz)
 
-        if Lx is None and Lz is None:
+        if Lx is None or Lz is None:
             self._normalize_logicals()
 
         if len(self.Lx) == 0:
