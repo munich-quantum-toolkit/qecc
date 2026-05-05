@@ -452,6 +452,7 @@ class RolloutCache:
         """
         self._cache: OrderedDict[Hashable, EliminationSequence] = OrderedDict()
         self._weights: dict[Hashable, int] = {}
+        self._lock = RLock()
         self.max_weight = max_weight
         self.current_weight = 0
         self.hits = 0
@@ -465,7 +466,8 @@ class RolloutCache:
                 cached entry is the number of operations in its stored
                 continuation.
         """
-        self.max_weight = max_weight
+        with self._lock:
+            self.max_weight = max_weight
 
     @staticmethod
     def _weight(value: EliminationSequence) -> int:
@@ -495,14 +497,15 @@ class RolloutCache:
         if key is None:
             return None
 
-        value = self._cache.get(key)
-        if value is None:
-            self.misses += 1
-            return None
+        with self._lock:
+            value = self._cache.get(key)
+            if value is None:
+                self.misses += 1
+                return None
 
-        self.hits += 1
-        self._cache.move_to_end(key)
-        return value.copy()
+            self.hits += 1
+            self._cache.move_to_end(key)
+            return value.copy()
 
     def set(self, key: Hashable | None, value: EliminationSequence) -> None:
         """Store a continuation under the given key.
@@ -519,28 +522,30 @@ class RolloutCache:
         if key is None:
             return
 
-        stored = value.copy()
-        weight = self._weight(stored)
+        with self._lock:
+            stored = value.copy()
+            weight = self._weight(stored)
 
-        if key in self._cache:
-            self.current_weight -= self._weights[key]
-            self._cache.move_to_end(key)
+            if key in self._cache:
+                self.current_weight -= self._weights[key]
+                self._cache.move_to_end(key)
 
-        self._cache[key] = stored
-        self._weights[key] = weight
-        self.current_weight += weight
+            self._cache[key] = stored
+            self._weights[key] = weight
+            self.current_weight += weight
 
-        while self.current_weight > self.max_weight and self._cache:
-            old_key, _old_value = self._cache.popitem(last=False)
-            self.current_weight -= self._weights.pop(old_key, 0)
+            while self.current_weight > self.max_weight and self._cache:
+                old_key, _old_value = self._cache.popitem(last=False)
+                self.current_weight -= self._weights.pop(old_key, 0)
 
     def clear(self) -> None:
         """Remove all cache entries and reset cache statistics."""
-        self._cache.clear()
-        self._weights.clear()
-        self.current_weight = 0
-        self.hits = 0
-        self.misses = 0
+        with self._lock:
+            self._cache.clear()
+            self._weights.clear()
+            self.current_weight = 0
+            self.hits = 0
+            self.misses = 0
 
     def hit_rate(self) -> float:
         """Return the fraction of successful cache lookups.
@@ -548,8 +553,9 @@ class RolloutCache:
         Returns:
             The cache hit rate in the interval ``[0.0, 1.0]``.
         """
-        total = self.hits + self.misses
-        return self.hits / total if total > 0 else 0.0
+        with self._lock:
+            total = self.hits + self.misses
+            return self.hits / total if total > 0 else 0.0
 
     def size(self) -> int:
         """Return the number of currently stored cache entries.
@@ -557,7 +563,8 @@ class RolloutCache:
         Returns:
             The number of entries currently held in the cache.
         """
-        return len(self._cache)
+        with self._lock:
+            return len(self._cache)
 
 
 cache = RolloutCache()
