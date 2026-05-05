@@ -209,14 +209,15 @@ class CliffordIsometry:
         if qubit < 0:
             msg = "Qubit index must be non-negative."
             raise ValueError(msg)
-        if basis.capitalize() not in {"Z", "X"}:
+        normalized_basis = basis.upper()
+        if normalized_basis not in {"Z", "X"}:
             msg = "Initialization basis must be 'Z' or 'X'."
             raise ValueError(msg)
 
         # remove from inputs
         if qubit in self._inputs:
             self._inputs.remove(qubit)
-        self._initializations[qubit] = basis
+        self._initializations[qubit] = normalized_basis
 
     def initialize_qubits(self, qubits: Iterable[int], basis: str) -> None:
         """Initialize multiple qubits in the specified basis.
