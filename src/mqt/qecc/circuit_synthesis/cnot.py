@@ -102,6 +102,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
                 )  # not efficient but this shouldn't happen often
                 if scored:
                     return [scored[0][0]]  # return the first candidate that offers an improvement
+                tableau.matrix[j] ^= tableau.matrix[i]
 
         logger.info("Heuristic row reduction failed. Falling back to RREF.")
         # if this still doesn't help, bring to rref
