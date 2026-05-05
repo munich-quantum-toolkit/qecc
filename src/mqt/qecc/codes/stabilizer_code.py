@@ -506,10 +506,15 @@ def _load_from_binary_matrix(content: str) -> StabilizerCode:
     lines = [line.strip() for line in content.split("\n") if line.strip()]
 
     rows = []
-    for line in lines:
+    for line_idx, line in enumerate(lines):
         tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
 
-        row = [int(t) for t in tokens if t in {"0", "1"}]
+        for token in tokens:
+            if token not in {"0", "1"}:
+                msg = f"Invalid token '{token}' in binary matrix at line {line_idx + 1}: expected '0' or '1'"
+                raise InvalidStabilizerCodeError(msg)
+
+        row = [int(t) for t in tokens]
         if row:
             rows.append(row)
 
