@@ -636,20 +636,6 @@ class ParallelFilter(OperationFilter):
         return new_filter
 
 
-def _validate_candidates(candidates: list[TableauOperation]) -> None:
-    """Ensure at least one candidate is available.
-
-    Args:
-        candidates: List of candidate operations.
-
-    Raises:
-        RuntimeError: If no candidates are available.
-    """
-    if not candidates:
-        msg = "No more candidate operations available, but termination criterion not met."
-        raise RuntimeError(msg)
-
-
 def _update_elimination_state(op: TableauOperation, tableau: BinaryMatrix, strategy: EliminationStrategy) -> None:
     """Update generator and filter state after applying an operation.
 
