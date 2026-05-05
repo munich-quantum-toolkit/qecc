@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Methods for performing Gaussian elimination on GUI2 and symplectic matrices."""
+"""Methods for performing Gaussian elimination on GF(2) and symplectic matrices."""
 
 from __future__ import annotations
 
