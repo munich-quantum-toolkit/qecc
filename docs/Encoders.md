@@ -88,7 +88,7 @@ from mqt.qecc.circuit_synthesis import (
 )
 
 config = SynthesisConfig(optimization_criterion="depth")
-heuristic_circ = synthesize_encoding_circuit(steane_code)
+heuristic_circ = synthesize_encoding_circuit(steane_code, config=config)
 q_enc = heuristic_circ.inputs()
 
 print(f"Messaging (logical input) qubits: {q_enc}")
