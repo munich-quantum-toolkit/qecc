@@ -709,12 +709,29 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, in
     Returns:
         Composed isometry.
     """
-    if enc1.num_outputs() != enc2.num_inputs():
-        msg = "Cannot compose isometries with incompatible numbers of inputs and outputs."
-        raise ValueError(msg)
-
     if wiring is None:
+        if enc1.num_outputs() != enc2.num_inputs():
+            msg = "Cannot compose isometries with incompatible numbers of inputs and outputs."
+            raise ValueError(msg)
         wiring = dict(zip(enc1.outputs(), enc2.inputs(), strict=True))
+    else:
+        enc1_outputs_set = set(enc1.outputs())
+        enc2_inputs_set = set(enc2.inputs())
+
+        invalid_keys = [k for k in wiring if k not in enc1_outputs_set]
+        if invalid_keys:
+            msg = f"Wiring keys {invalid_keys} are not valid outputs of enc1."
+            raise ValueError(msg)
+
+        invalid_values = [v for v in wiring.values() if v not in enc2_inputs_set]
+        if invalid_values:
+            msg = f"Wiring values {invalid_values} are not valid inputs of enc2."
+            raise ValueError(msg)
+
+        wiring_values = list(wiring.values())
+        if len(wiring_values) != len(set(wiring_values)):
+            msg = "Wiring cannot map multiple outputs to the same input."
+            raise ValueError(msg)
 
     composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
     return CliffordIsometry.from_stim_circuit(composed)
