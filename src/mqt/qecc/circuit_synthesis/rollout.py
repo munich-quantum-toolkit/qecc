@@ -86,6 +86,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         rollout: int,
         num_rollout_candidates: int | list[int],
         score_fn: Callable[[EliminationSequence], tuple[int, ...]],
+        *,
         enable_early_termination: bool = True,
         current_sequence: EliminationSequence | None = None,
         cache_policy: CachePolicy | None = None,
