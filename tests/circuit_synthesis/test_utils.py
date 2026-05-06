@@ -682,19 +682,33 @@ def test_compose_circuits(
 
 
 @pytest.mark.parametrize(
-    ("circuit", "expected_count"),
+    ("circuit", "count_swaps", "expected_count"),
     [
-        (stim.Circuit(), 0),  # Empty circuit
-        (stim.Circuit("H 0"), 0),  # Single-qubit gate
-        (stim.Circuit("CX 0 1"), 1),  # Single two-qubit gate
-        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), 2),  # Two two-qubit gates
-        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), 2),  # Two two-qubit gates with single-qubit gates
-        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), 3),  # Three two-qubit gates
+        (stim.Circuit(), False, 0),
+        (stim.Circuit(), True, 0),
+        (stim.Circuit("H 0"), False, 0),
+        (stim.Circuit("H 0"), True, 0),
+        (stim.Circuit("CX 0 1"), False, 1),
+        (stim.Circuit("CX 0 1"), True, 1),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), False, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), True, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), False, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), True, 2),
+        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), False, 3),
+        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), True, 3),
+        (stim.Circuit("SWAP 0 1"), False, 0),
+        (stim.Circuit("SWAP 0 1"), True, 1),
+        (stim.Circuit("H 0\nSWAP 0 1\nH 2"), False, 0),
+        (stim.Circuit("H 0\nSWAP 0 1\nH 2"), True, 1),
+        (stim.Circuit("CX 0 1\nSWAP 1 2"), False, 1),
+        (stim.Circuit("CX 0 1\nSWAP 1 2"), True, 2),
+        (stim.Circuit("SWAP 0 1\nSWAP 1 2"), False, 0),
+        (stim.Circuit("SWAP 0 1\nSWAP 1 2"), True, 2),
     ],
 )
-def test_num_two_qubit_gates(circuit: stim.Circuit, expected_count: int) -> None:
+def test_num_two_qubit_gates(circuit: stim.Circuit, count_swaps: bool, expected_count: int) -> None:
     """Test the num_two_qubit_gates function."""
-    assert num_two_qubit_gates(circuit) == expected_count
+    assert num_two_qubit_gates(circuit, count_swaps=count_swaps) == expected_count
 
 
 @pytest.mark.parametrize(
