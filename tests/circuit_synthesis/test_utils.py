@@ -738,7 +738,7 @@ def test_remove_single_qubit_gates(circuit_ops, expected_ops):
     ],
 )
 def test_remove_swap_gates(circuit_ops, expected_ops):
-    """Parameterized test for _remove_swap_gates."""
+    """Parameterized test for remove_swap_gates."""
     circ = stim.Circuit()
     for op, targets in circuit_ops:
         circ.append_operation(op, targets)
