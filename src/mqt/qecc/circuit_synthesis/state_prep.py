@@ -19,10 +19,11 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
+from ..codes.css_code import InvalidCSSCodeError
 from .circuits import CNOTCircuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis_utils import (
-    heuristic_gaussian_elimination,
+    EliminationCNOTSynthesizer,
     iterative_search_with_timeout,
     measure_flagged,
     odd_overlap,
@@ -57,7 +58,7 @@ class FaultyStatePrepCircuit:
             raise ValueError(msg)
 
         self.circ = circ
-        code = circ.get_code()
+        self.code = circ.get_code()
         self.num_qubits = circ.num_qubits()
         self.max_x_errors = max_x_errors
         self.max_z_errors = max_z_errors
@@ -70,8 +71,8 @@ class FaultyStatePrepCircuit:
                 stacklevel=2,
             )
 
-        self.x_checks = code.Hx
-        self.z_checks = code.Hz
+        self.x_checks = self.code.Hx
+        self.z_checks = self.code.Hz
         self.x_fault_sets: list[PureFaultSet] = []
         self.z_fault_sets: list[PureFaultSet] = []
         self.x_fault_sets_unreduced: list[PureFaultSet] = []
@@ -209,9 +210,60 @@ def heuristic_prep_circuit(
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
+    ge = EliminationCNOTSynthesizer(matrix=checks, code=code, parallel_elimination=optimize_depth)
+    ge.greedy_synthesis()
 
-    circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
+    circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+
+
+def heuristic_reference_prep_circuit(
+    code: CSSCode,
+    optimize_depth: bool = True,
+    zero_state: bool = True,
+    penalty_cnots: list[tuple[int, int]] | None = None,
+    guide_by_x: bool = True,
+    ref_x_fs: npt.NDArray[np.int8] | None = None,
+    ref_z_fs: npt.NDArray[np.int8] | None = None,
+    ref_x_1fs: npt.NDArray[np.int8] | None = None,
+    ref_z_1fs: npt.NDArray[np.int8] | None = None,
+) -> FaultyStatePrepCircuit:
+    """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis and based on (a) reference fault set(s).
+
+    Args:
+        code: The CSS code to prepare the state for.
+        optimize_depth: If True, optimize the depth of the circuit. This may lead to a higher number of CNOTs.
+        zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+        penalty_cnots: tuples of CNOTs (control, target) which are initially added to the failed_cnots list and hence can only be applied once the control qubit has been used elsewhere
+        guide_by_x: Flag that decides whether dismissed CNOTs are free to placement again after either the control (x guided) or the target (z guided) has been used elsewhere
+        ref_x_fs: (Optional) reference x fault set which influences the construction of the circuit
+        ref_z_fs: (Optional) reference z fault set which influences the construction of the circuit
+        ref_x_1fs: (Optional) reference one error x fault set which ensures that no two error event of the newly constructed circuit cancels a one error event of the reference circuit
+        ref_z_1fs: (Optional) reference one error z fault set which ensures that no two error event of the newly constructed circuit cancels a one error event of the reference circuit
+    """
+    if penalty_cnots is None:
+        penalty_cnots = []
+    logger.info("Starting heuristic state preparation.")
+    if code.Hx is None or code.Hz is None:  # type: ignore[redundant-expr]
+        msg = "The code must have both X and Z stabilizers defined."  # type: ignore[unreachable]
+        raise InvalidCSSCodeError(msg)
+
+    checks = code.Hx if zero_state else code.Hz
+    assert checks is not None
+    ge = EliminationCNOTSynthesizer(
+        matrix=checks,
+        parallel_elimination=optimize_depth,
+        code=code,
+    )
+    ge.fault_set_guided_synthesis(
+        ref_x_fs=ref_x_fs,
+        ref_z_fs=ref_z_fs,
+        ref_x_1fs=ref_x_1fs,
+        ref_z_1fs=ref_z_1fs,
+        penalty_cnots=penalty_cnots,
+        guide_by_x=guide_by_x,
+    )
+    circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
     return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 

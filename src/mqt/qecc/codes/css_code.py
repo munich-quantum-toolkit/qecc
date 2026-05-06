@@ -148,11 +148,30 @@ class CSSCode(StabilizerCode):
         m3 = np.vstack([self.Hz, error_1, error_2])
         return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
 
+    def stabilizer_eq_z_error_with_logical(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
+        """Check if two Z errors are in the same coset."""
+        z_checks = np.vstack((self.Lz.copy(), self.Hz.copy()))
+        if self.Hz.shape[0] == 0:
+            return bool(np.array_equal(error_1, error_2))
+        m1 = np.vstack([z_checks, error_1])
+        m2 = np.vstack([z_checks, error_2])
+        m3 = np.vstack([z_checks, error_1, error_2])
+        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""
         return bool(
             self.Hx.shape[0] == self.Hz.shape[0] and mod2.rank(self.Hx) == mod2.rank(np.vstack([self.Hx, self.Hz]))
         )
+
+    def check_fs_overlap(self, fs_1: npt.NDArray[np.int8], fs_2: npt.NDArray[np.int8], x_error: bool = True) -> bool:
+        """Returns True if there is an overlap between both fault sets."""
+        # TODO: add method docstring and argument descriptions
+        # check if one of the fault sets is empty. If so, default is no overlap
+        if not fs_1.size or not fs_2.size:
+            return False
+        check_fn = self.stabilizer_eq_x_error if x_error else self.stabilizer_eq_z_error_with_logical
+        return any(check_fn(f1, f2) for f1 in fs_1 for f2 in fs_2)
 
     @staticmethod
     def _check_valid_check_matrices(Hx: npt.NDArray[np.int8] | None, Hz: npt.NDArray[np.int8] | None) -> None:  # noqa: N803

@@ -30,9 +30,9 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
 )
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
+    EliminationCNOTSynthesizer,
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
-    heuristic_gaussian_elimination,
     measure_flagged,
     measure_stab_unflagged,
     odd_overlap,
@@ -41,6 +41,7 @@ from mqt.qecc.circuit_synthesis.synthesis_utils import (
     symbolic_vector_eq,
     vars_to_stab,
 )
+from mqt.qecc.codes.css_code import CSSCode
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -181,8 +182,13 @@ def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:
     """Test heuristic Gaussian elimination method."""
     fixture = request.getfixturevalue(test_vals)
     matrix = fixture.matrix
-    res_seq = heuristic_gaussian_elimination(matrix, parallel_elimination=False)
-    res_parallel = heuristic_gaussian_elimination(matrix, parallel_elimination=True)
+    unused_code = CSSCode(n=1)
+    ge_false = EliminationCNOTSynthesizer(matrix, code=unused_code, parallel_elimination=False)
+    ge_true = EliminationCNOTSynthesizer(matrix, code=unused_code)
+    ge_false.greedy_synthesis()
+    ge_true.greedy_synthesis()
+    res_seq = (ge_false.matrix, ge_false.eliminations)
+    res_parallel = (ge_true.matrix, ge_true.eliminations)
 
     assert res_seq is not None
     reduced_seq, ops_seq = res_seq

@@ -260,7 +260,7 @@ def _add_idling_noise_to_layers_alap(
         uninitialized_qubits -= non_idling_non_resets
         initialized_qubits = initialized_qubits.union(non_idling_non_resets)
 
-        for q in idling:
+        for q in idling - noise.ideal_qubits:
             noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
 
         noisy_circ += noisy_layer
@@ -282,7 +282,7 @@ def _add_idling_noise_to_layers_asap(
 
         uninitialized_qubits -= non_idling
 
-        for q in idling:
+        for q in idling - noise.ideal_qubits:
             noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
 
         noisy_circ += noisy_layer

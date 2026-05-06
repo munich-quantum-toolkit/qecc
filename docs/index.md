@@ -28,6 +28,7 @@ self
 installation
 LightsOutDecoder
 StatePrep
+SteaneFTSP
 CatStates
 CodeSwitching
 Encoders

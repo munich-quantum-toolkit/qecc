@@ -21,7 +21,10 @@ import z3
 
 from ..codes.pauli import StabilizerTableau
 from .circuits import CNOTCircuit
-from .synthesis_utils import heuristic_gaussian_elimination, optimal_elimination
+from .synthesis_utils import (
+    EliminationCNOTSynthesizer,
+    optimal_elimination,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -51,10 +54,11 @@ def heuristic_encoding_circuit(code: CSSCode, optimize_depth: bool = True, balan
     if balance_checks:
         _balance_matrix(logicals)
 
-    checks, cnots = heuristic_gaussian_elimination(
-        np.vstack((checks, logicals)),
-        parallel_elimination=optimize_depth,
+    ge = EliminationCNOTSynthesizer(
+        matrix=np.vstack((checks, logicals)), code=code, parallel_elimination=optimize_depth
     )
+    ge.greedy_synthesis()
+    checks, cnots = ge.matrix, ge.eliminations
 
     # after reduction there still might be some overlap between initialized qubits and encoding qubits, we simply perform CNOTs to correct this
     encoding_qubits = np.where(checks[n_checks:, :].sum(axis=0) != 0)[0]
