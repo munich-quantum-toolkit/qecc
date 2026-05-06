@@ -27,6 +27,9 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
     measured_qubits,
     num_two_qubit_gates,
     qiskit_to_stim_circuit,
+    remove_single_qubit_gates,
+    remove_swap_gates,
+    two_qubit_gate_depth,
     unmeasured_qubits,
 )
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
@@ -692,3 +695,91 @@ def test_compose_circuits(
 def test_num_two_qubit_gates(circuit: stim.Circuit, expected_count: int) -> None:
     """Test the num_two_qubit_gates function."""
     assert num_two_qubit_gates(circuit) == expected_count
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "expected_ops"),
+    [
+        ([], []),
+        ([("H", [0])], []),
+        ([("H", [0]), ("X", [1])], []),
+        ([("CX", [0, 1])], [("CX", [0, 1])]),
+        ([("H", [0]), ("CX", [0, 1]), ("X", [2])], [("CX", [0, 1])]),
+        ([("CX", [0, 1]), ("H", [0]), ("CX", [1, 2])], [("CX", [0, 1]), ("CX", [1, 2])]),
+        ([("SWAP", [0, 1])], [("SWAP", [0, 1])]),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], [("SWAP", [0, 1])]),
+    ],
+)
+def test_remove_single_qubit_gates(circuit_ops, expected_ops):
+    """Parameterized test for remove_single_qubit_gates."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = remove_single_qubit_gates(circ)
+
+    expected = stim.Circuit()
+    for op, targets in expected_ops:
+        expected.append_operation(op, targets)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "expected_ops"),
+    [
+        ([], []),
+        ([("SWAP", [0, 1])], []),
+        ([("H", [0]), ("SWAP", [0, 1])], [("H", [0])]),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], [("CX", [0, 1])]),
+        ([("SWAP", [0, 1]), ("CX", [0, 1]), ("SWAP", [1, 2])], [("CX", [0, 1])]),
+        ([("H", [0]), ("CX", [0, 1])], [("H", [0]), ("CX", [0, 1])]),
+        ([("SWAP", [0, 1]), ("SWAP", [1, 2]), ("SWAP", [2, 3])], []),
+    ],
+)
+def test_remove_swap_gates(circuit_ops, expected_ops):
+    """Parameterized test for _remove_swap_gates."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = remove_swap_gates(circ)
+
+    expected = stim.Circuit()
+    for op, targets in expected_ops:
+        expected.append_operation(op, targets)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "count_swaps", "expected_depth"),
+    [
+        ([], False, 0),
+        ([], True, 0),
+        ([("H", [0])], False, 0),
+        ([("H", [0])], True, 0),
+        ([("CX", [0, 1])], False, 1),
+        ([("CX", [0, 1])], True, 1),
+        ([("H", [0]), ("CX", [0, 1]), ("H", [2])], False, 1),
+        ([("CX", [0, 1]), ("CX", [1, 2])], False, 2),
+        ([("CX", [0, 1]), ("CX", [2, 3])], False, 1),
+        ([("SWAP", [0, 1])], False, 0),
+        ([("SWAP", [0, 1])], True, 1),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], False, 0),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], True, 1),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], False, 1),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], True, 2),
+        ([("CX", [0, 1]), ("H", [0]), ("CX", [0, 2])], False, 2),
+        ([("CX", [0, 1]), ("H", [2]), ("CX", [2, 3])], False, 1),
+    ],
+)
+def test_two_qubit_gate_depth(circuit_ops, count_swaps, expected_depth):
+    """Parameterized test for two_qubit_gate_depth."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = two_qubit_gate_depth(circ, count_swaps=count_swaps)
+
+    assert result == expected_depth

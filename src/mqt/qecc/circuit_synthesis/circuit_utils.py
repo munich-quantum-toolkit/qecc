@@ -197,7 +197,7 @@ def depth(circ: Circuit) -> int:
     return len(collect_circuit_layers(circ, scheduling_method="asap"))
 
 
-def _remove_single_qubit_gates(circ: Circuit) -> Circuit:
+def remove_single_qubit_gates(circ: Circuit) -> Circuit:
     """Remove all single-qubit gates from a stim circuit."""
     new_circ = Circuit()
     for op in circ:
@@ -207,7 +207,7 @@ def _remove_single_qubit_gates(circ: Circuit) -> Circuit:
     return new_circ
 
 
-def _remove_swap_gates(circ: Circuit) -> Circuit:
+def remove_swap_gates(circ: Circuit) -> Circuit:
     """Remove all SWAP gates from a stim circuit."""
     new_circ = Circuit()
     for op in circ:
@@ -219,9 +219,9 @@ def _remove_swap_gates(circ: Circuit) -> Circuit:
 
 def two_qubit_gate_depth(circ: Circuit, count_swaps: bool = False) -> int:
     """Calculate the two-qubit depth of a stim circuit."""
-    circ = _remove_single_qubit_gates(circ)
+    circ = remove_single_qubit_gates(circ)
     if not count_swaps:
-        circ = _remove_swap_gates(circ)
+        circ = remove_swap_gates(circ)
     return depth(circ)
 
 
