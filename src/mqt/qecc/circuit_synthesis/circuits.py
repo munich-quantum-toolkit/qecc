@@ -144,7 +144,7 @@ class CliffordIsometry:
         iso = CliffordIsometry()
         n = circ.num_qubits
         iso._outputs = list(range(n))
-        iso._circ = circ.copy()
+        stripped = stim.Circuit()
 
         for gate in circ:
             name = gate.name
@@ -153,7 +153,10 @@ class CliffordIsometry:
                     q = grp[0].qubit_value
                     iso._ancillas.add(q)
                     iso._initializations[q] = "X" if name == "RX" else "Z"
+            else:
+                stripped.append(gate)
 
+        iso._circ = stripped
         iso._inputs = [q for q in iso._outputs if q not in iso._ancillas]
 
         return iso
