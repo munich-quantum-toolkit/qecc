@@ -285,7 +285,7 @@ def test_encoder_from_stabilizers_and_logicals_five_qubit(clifford_synthesis_con
 
     code = iso.get_code()
     for stab in stabilizers:
-        code.is_stabilizer(stab)
+        assert code.is_stabilizer(stab), f"Expected {stab} to be a stabilizer of the code"
 
     for expected_log in x_logicals:
         is_expected_logical = False
@@ -315,7 +315,7 @@ def test_encoder_from_stabilizers_and_logicals_gottesman() -> None:
 
     code = iso.get_code()
     for stab in stabilizers:
-        code.is_stabilizer(stab)
+        assert code.is_stabilizer(stab), f"Expected {stab} to be a stabilizer of the code"
 
     for expected_log in x_logicals:
         is_expected_logical = False
