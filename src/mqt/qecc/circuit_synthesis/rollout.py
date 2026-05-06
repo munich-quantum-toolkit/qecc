@@ -279,6 +279,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 enable_early_termination=self.enable_early_termination,
                 current_sequence=child_eval_prefix,
                 cache_policy=self.cache_policy,
+                num_cached_subsequences=self.num_cached_subsequences,
             ),
         )
 
