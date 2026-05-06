@@ -763,5 +763,10 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, in
             msg = "Wiring cannot map multiple outputs to the same input."
             raise ValueError(msg)
 
+        initialized_targets = [q for q in wiring_values if enc2.is_initialized(q)]
+        if initialized_targets:
+            msg = "Cannot compose isometries with wiring that connects to initialized qubits in enc2."
+            raise ValueError(msg)
+
     composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
     return CliffordIsometry.from_stim_circuit(composed)
