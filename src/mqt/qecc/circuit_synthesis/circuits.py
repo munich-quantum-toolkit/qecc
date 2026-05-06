@@ -529,6 +529,9 @@ class CNOTCircuit(CliffordIsometry):
         cnot_circuit.add_cnots(cnots)
         if inputs is not None:
             for q in inputs:
+                if q < 0:
+                    msg = "Input qubits must have non-negative indices."
+                    raise ValueError(msg)
                 if q not in cnot_circuit._initializations and q not in cnot_circuit._inputs:
                     cnot_circuit._inputs.append(q)
         cnot_circuit._check_valid()
