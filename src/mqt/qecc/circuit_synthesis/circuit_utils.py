@@ -193,12 +193,26 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
 
 
 def depth(circ: Circuit) -> int:
-    """Calculate the depth of a stim circuit."""
+    """Calculate the depth of a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyze.
+
+    Returns:
+        The depth of the circuit.
+    """
     return len(collect_circuit_layers(circ, scheduling_method="asap"))
 
 
 def remove_single_qubit_gates(circ: Circuit) -> Circuit:
-    """Remove all single-qubit gates from a stim circuit."""
+    """Remove all single-qubit gates from a stim circuit.
+
+    Args:
+        circ: The stim circuit to filter.
+
+    Returns:
+        A new stim circuit with single-qubit gates removed.
+    """
     new_circ = Circuit()
     for op in circ:
         if all(len(grp) == 1 for grp in op.target_groups()):
@@ -208,7 +222,14 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
 
 
 def remove_swap_gates(circ: Circuit) -> Circuit:
-    """Remove all SWAP gates from a stim circuit."""
+    """Remove all SWAP gates from a stim circuit.
+
+    Args:
+        circ: The stim circuit to filter.
+
+    Returns:
+        A new stim circuit with SWAP gates removed.
+    """
     new_circ = Circuit()
     for op in circ:
         if op.name == "SWAP":
