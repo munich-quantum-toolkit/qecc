@@ -385,9 +385,8 @@ class StabilizerCode:
             i += 1
 
         if len(zs) != k or len(xs) != k:
-            self.z_logicals = StabilizerTableau.empty(n)
-            self.x_logicals = StabilizerTableau.empty(n)
-            return
+            msg = f"Failed to derive {k} logical X/Z pairs from the stabilizer generators."
+            raise InvalidStabilizerCodeError(msg)
 
         z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
