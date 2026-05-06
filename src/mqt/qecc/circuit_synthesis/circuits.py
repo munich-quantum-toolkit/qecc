@@ -616,6 +616,8 @@ class CNOTCircuit(CliffordIsometry):
         Returns:
             The depth of the circuit.
         """
+        if self.num_qubits() == 0:
+            return 0
         path_lengths = np.zeros(self.num_qubits(), dtype=int)
         for control, target in self.cnots:
             new_path_length = max(path_lengths[control], path_lengths[target]) + 1
