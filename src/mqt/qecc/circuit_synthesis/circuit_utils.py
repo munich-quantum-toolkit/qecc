@@ -217,8 +217,17 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     return new_circ
 
 
-def two_qubit_gate_depth(circ: Circuit, count_swaps: bool = False) -> int:
-    """Calculate the two-qubit depth of a stim circuit."""
+def two_qubit_gate_depth(circ: Circuit, *, count_swaps: bool = False) -> int:
+    """Calculate the two-qubit gate depth of a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyse.
+        count_swaps: If ``True``, SWAP gates are included in the depth
+            calculation. Defaults to ``False``.
+
+    Returns:
+        The two-qubit gate depth of the circuit.
+    """
     circ = remove_single_qubit_gates(circ)
     if not count_swaps:
         circ = remove_swap_gates(circ)
@@ -296,8 +305,17 @@ def compose_circuits(
     return composed, mapping1, mapping2
 
 
-def num_two_qubit_gates(circ: Circuit, count_swaps: bool = False) -> int:
-    """Return the number of two-qubit gates in the circuit."""
+def num_two_qubit_gates(circ: Circuit, *, count_swaps: bool = False) -> int:
+    """Return the number of two-qubit gates in a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyse.
+        count_swaps: If ``True``, SWAP gates are counted as two-qubit gates.
+            Defaults to ``False``.
+
+    Returns:
+        The number of two-qubit gates.
+    """
     num_tqg = 0
     for op in circ:
         if op.name == "SWAP" and not count_swaps:
