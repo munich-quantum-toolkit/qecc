@@ -231,7 +231,6 @@ def heuristic_prep_circuit(
     circ = cnot_encoding_circuit(
         CheckMatrix(checks, pauli_type=type_),
         CheckMatrix(np.empty((0, code.n), dtype=np.int8), pauli_type=type_),
-        balance_checks=False,
         config=config,
     )
 

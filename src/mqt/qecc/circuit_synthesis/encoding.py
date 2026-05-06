@@ -23,7 +23,7 @@ from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_ta
 from .circuits import CliffordIsometry, CNOTCircuit
 from .operations import CNOT
 from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
-from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination, reduce_checks_by_row_ops
+from .synthesis_utils import build_css_encoder_from_cnot_list, optimal_elimination
 from .transvection import lexicographical_compare_np, score_symplectic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -850,7 +850,7 @@ def synthesize_encoding_circuit(
         assert isinstance(config, SynthesisConfig) or config is None, (
             "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
         )
-        return cnot_encoding_circuit(checks, logicals, balance_checks=False, config=config)
+        return cnot_encoding_circuit(checks, logicals, config=config)
 
     assert isinstance(config, SynthesisConfig) or config is None, (
         "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
@@ -1026,14 +1026,13 @@ def _remove_redundant_stabilizers(checks: CheckMatrix) -> CheckMatrix:
 
 
 def cnot_encoding_circuit(
-    checks: CheckMatrix, logicals: CheckMatrix, balance_checks: bool = False, config: SynthesisConfig | None = None
+    checks: CheckMatrix, logicals: CheckMatrix, config: SynthesisConfig | None = None
 ) -> CNOTCircuit:
     """Synthesize an encoding circuit for the given CSS code using a heuristic greedy search.
 
     Args:
         checks: The stabilizer check matrix of the CSS code.
         logicals: The logical operator matrix of the CSS code.
-        balance_checks: Whether to balance the entries of the stabilizer matrix via row operations.
         config: The configuration for the CNOT synthesis process.
 
     Returns:
@@ -1046,9 +1045,6 @@ def cnot_encoding_circuit(
 
     checks = _remove_redundant_stabilizers(checks)
     n_stab = checks.num_rows()
-
-    if balance_checks:
-        reduce_checks_by_row_ops(checks, logicals)
 
     if checks.type != logicals.type:
         msg = f"Check matrix and logical matrix must have the same Pauli type. Got checks.type={checks.type}, logicals.type={logicals.type}"
