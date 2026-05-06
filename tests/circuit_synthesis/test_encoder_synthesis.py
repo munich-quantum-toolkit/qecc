@@ -267,10 +267,6 @@ def test_resynthesize_stim_circuit(
     resynthesized_tableau = resynthesized_circuit.to_tableau()
     resynthesized_two_qubit_gates = num_two_qubit_gates(resynthesized_circuit)
 
-    curr = circuit.copy()
-    for gate in resynthesized_circuit.inverse():
-        curr.append(gate)
-
     assert original_tableau == resynthesized_tableau
 
     assert resynthesized_two_qubit_gates <= original_two_qubit_gates
