@@ -91,6 +91,9 @@ class StabilizerCode:
 
     def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
         """Check if two stabilizer codes have the same stabilizer group."""
+        if self.n != other.n:
+            return False
+
         self_matrix = self.generators.as_matrix()
         other_matrix = other.generators.as_matrix()
         stabs_rnk = rank(self_matrix)
