@@ -545,7 +545,7 @@ class CNOTCircuit(CliffordIsometry):
         cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
         init_indices = list(self._initializations.keys())
         input_indices = self._inputs
-        return max(cnot_indices + init_indices + input_indices, default=0) + 1
+        return max(cnot_indices + init_indices + input_indices, default=-1) + 1
 
     def outputs(self) -> list[int]:
         """Get output qubits.
