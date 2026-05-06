@@ -97,17 +97,6 @@ def non_css_8_qubit() -> StabilizerCode:  # from https://arxiv.org/abs/quant-ph/
 
 
 @pytest.fixture
-def cnot_synthesis_config() -> SynthesisConfig:
-    """Fixture to create a CNOT synthesis configuration."""
-    return SynthesisConfig(
-        optimization_criterion="gates",
-        rollout=0,
-        num_rollout_candidates=10,
-        enable_early_termination=False,
-    )
-
-
-@pytest.fixture
 def clifford_synthesis_config() -> SynthesisConfig:
     """Fixture to create a Clifford synthesis configuration."""
     return SynthesisConfig(
