@@ -550,6 +550,11 @@ def _load_from_binary_matrix(content: str) -> StabilizerCode:
         msg = "No valid binary matrix data found in file"
         raise InvalidStabilizerCodeError(msg)
 
+    row_lengths = {len(row) for row in rows}
+    if len(row_lengths) != 1:
+        msg = "Binary matrix rows must all have the same length."
+        raise InvalidStabilizerCodeError(msg)
+
     matrix = np.array(rows, dtype=np.int8)
 
     if matrix.shape[1] % 2 != 0:
