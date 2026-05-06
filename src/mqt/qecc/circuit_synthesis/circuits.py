@@ -386,7 +386,8 @@ class CNOTCircuit(CliffordIsometry):
             for qubit, basis in self._initializations.items():
                 stim_circuit.append("R" + basis, [qubit])
 
-        stim_circuit.append_operation("CX", [qubit for pair in self.cnots for qubit in pair])
+        if self.cnots:
+            stim_circuit.append_operation("CX", [qubit for pair in self.cnots for qubit in pair])
 
         return stim_circuit
 
