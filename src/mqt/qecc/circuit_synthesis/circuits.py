@@ -503,7 +503,11 @@ class CNOTCircuit(CliffordIsometry):
 
     @classmethod
     def from_cnot_list(
-        cls, cnots: Iterable[tuple[int, int]], initialize_z: Iterable[int], initialize_x: Iterable[int]
+        cls,
+        cnots: Iterable[tuple[int, int]],
+        initialize_z: Iterable[int],
+        initialize_x: Iterable[int],
+        inputs: Iterable[int] | None = None,
     ) -> CNOTCircuit:
         """Construct CNOT circuit from list of CNOTs.
 
@@ -511,6 +515,8 @@ class CNOTCircuit(CliffordIsometry):
             cnots: Control, target pairs defining CNOT interactions.
             initialize_z: Qubits that should be initialized in the Z-basis
             initialize_x: Qubits that should be initialized in the X-basis
+            inputs: Explicit list of input qubits. If provided, these qubits will be marked as inputs
+                   even if they don't appear in any CNOT gate.
 
         Returns:
             CNOT circuit
@@ -521,6 +527,10 @@ class CNOTCircuit(CliffordIsometry):
         for q in initialize_x:
             cnot_circuit.initialize_qubit(q, "X")
         cnot_circuit.add_cnots(cnots)
+        if inputs is not None:
+            for q in inputs:
+                if q not in cnot_circuit._initializations and q not in cnot_circuit._inputs:
+                    cnot_circuit._inputs.append(q)
         cnot_circuit._check_valid()
         return cnot_circuit
 
@@ -531,7 +541,8 @@ class CNOTCircuit(CliffordIsometry):
         """
         cnot_indices = [qubit for control, target in self.cnots for qubit in (control, target)]
         init_indices = list(self._initializations.keys())
-        return max(cnot_indices + init_indices, default=0) + 1
+        input_indices = self._inputs
+        return max(cnot_indices + init_indices + input_indices, default=0) + 1
 
     def outputs(self) -> list[int]:
         """Get output qubits.

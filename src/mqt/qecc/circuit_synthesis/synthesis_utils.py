@@ -115,7 +115,7 @@ def build_css_encoder_from_cnot_list(
     check_matrix = checks.matrix
     logical_matrix = logicals.matrix
     n = checks.num_qubits()
-    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0]
+    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0].tolist()
     if checks.type == "X":
         hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
     else:
@@ -123,7 +123,7 @@ def build_css_encoder_from_cnot_list(
 
     hadamards = np.setdiff1d(hadamards, encoding_qubits)
     non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
-    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards, inputs=encoding_qubits)
 
 
 def gaussian_elimination_min_column_ops(
