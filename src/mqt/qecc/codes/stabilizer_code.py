@@ -293,7 +293,10 @@ class StabilizerCode:
 
         n = self.n
         mat = self.generators.tableau.matrix
-        int(rank(mat))
+        n = self.n
+        mat = self.generators.tableau.matrix
+
+        identity = np.eye(n, dtype=np.int8)
 
         identity = np.eye(n, dtype=np.int8)
         z0 = np.zeros((n, n), dtype=np.int8)
