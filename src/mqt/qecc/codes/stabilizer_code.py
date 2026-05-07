@@ -475,20 +475,31 @@ def _is_binary_matrix_format(content: str) -> bool:
         return True
 
     lines = content.split("\n")
-    if not lines:
+    non_empty_lines = [line.strip() for line in lines if line.strip()]
+
+    if not non_empty_lines:
         return False
 
-    first_line = lines[0].strip()
+    first_line = non_empty_lines[0]
+    first_tokens = [t.strip() for t in first_line.split(",")] if "," in first_line else first_line.split()
 
-    if not first_line:
+    if len(first_tokens) < 2:
         return False
 
-    tokens = [t.strip() for t in first_line.split(",")] if "," in first_line else first_line.split()
-
-    if len(tokens) < 2:
+    if not all(token in {"0", "1"} for token in first_tokens):
         return False
 
-    return all(token in {"0", "1"} for token in tokens[:5])
+    if len(non_empty_lines) > 1:
+        second_line = non_empty_lines[1]
+        second_tokens = [t.strip() for t in second_line.split(",")] if "," in second_line else second_line.split()
+
+        if len(second_tokens) != len(first_tokens):
+            return False
+
+        if not all(token in {"0", "1"} for token in second_tokens):
+            return False
+
+    return True
 
 
 def _parse_bracketed_rows(content: str) -> list[str]:
