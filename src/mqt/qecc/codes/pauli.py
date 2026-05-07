@@ -232,7 +232,6 @@ class StabilizerTableau:
             msg = f"Expected a square 2nx2n symplectic matrix, got shape {matrix.shape}."
             raise ValueError(msg)
 
-        matrix.shape[0] // 2
         symplectic_matrix = SymplecticMatrix(matrix)
         return cls(symplectic_matrix)
 
