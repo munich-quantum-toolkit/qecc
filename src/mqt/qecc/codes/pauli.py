@@ -675,7 +675,9 @@ class CheckMatrix:
             matrix: The binary check matrix.
             pauli_type: The type of the check matrix, either 'X' or 'Z'.
         """
-        assert pauli_type in {"X", "Z"}, "Check matrix type must be either 'X' or 'Z'."
+        if pauli_type not in {"X", "Z"}:
+            msg = f"Check matrix type must be either 'X' or 'Z', got {pauli_type!r}."
+            raise ValueError(msg)
         self.matrix = matrix.copy()
         self.type = pauli_type
 
@@ -705,7 +707,7 @@ class CheckMatrix:
 
     def __hash__(self) -> int:
         """Compute the hash of the check matrix."""
-        return hash((self.matrix.tobytes(), self.type))
+        return hash((self.matrix.shape, self.matrix.tobytes(), self.type))
 
     def num_qubits(self) -> int:
         """Get the number of qubits represented by the check matrix."""
