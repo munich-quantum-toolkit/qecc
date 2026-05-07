@@ -643,16 +643,6 @@ def _initialize_destabilizer_from_nullspace(
         if candidate @ stab_i == 1:
             return candidate
 
-    if null.shape[0] <= 12:
-        for mask in range(1, 2 ** null.shape[0]):
-            candidate_vec = np.zeros(2 * n, dtype=np.int8)
-            for i in range(null.shape[0]):
-                if mask & (1 << i):
-                    candidate_vec = (candidate_vec + null[i]) % 2
-            candidate = SymplecticVector(candidate_vec)
-            if candidate @ stab_i == 1:
-                return candidate
-
     return None
 
 
