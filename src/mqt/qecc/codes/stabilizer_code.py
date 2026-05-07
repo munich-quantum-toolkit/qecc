@@ -147,16 +147,22 @@ class StabilizerCode:
         if not self.equal_logical_basis(other):
             return None
 
+        available_indices = set(range(len(other.z_logicals)))
         mapping = []
+
         for lz_self, lx_self in zip(self.z_logicals, self.x_logicals, strict=False):
             found_match = False
-            for idx, (lz_other, lx_other) in enumerate(zip(other.z_logicals, other.x_logicals, strict=False)):
+            for idx in available_indices.copy():
+                lz_other = other.z_logicals[idx]
+                lx_other = other.x_logicals[idx]
                 if self.stabilizer_equivalent(lz_self, lz_other) and self.stabilizer_equivalent(lx_self, lx_other):
                     mapping.append(idx)
+                    available_indices.remove(idx)
                     found_match = True
                     break
             if not found_match:
                 return None
+
         return mapping
 
     def is_logical(self, p: Pauli | str) -> bool:
@@ -303,6 +309,9 @@ class StabilizerCode:
         ns = nullspace(mat_times_lamb).astype(np.int8)
 
         if ns.size == 0:
+            if self.k > 0:
+                msg = f"Cannot compute logical operators: nullspace is empty (ns.size=0) but code has k={self.k} logical qubits. This would result in empty z_logicals and x_logicals, creating an inconsistent code state."
+                raise InvalidStabilizerCodeError(msg)
             self.z_logicals = StabilizerTableau.empty(n)
             self.x_logicals = StabilizerTableau.empty(n)
             return
