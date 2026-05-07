@@ -24,13 +24,21 @@ from mqt.qecc.circuit_synthesis import (
     gate_optimal_encoding_circuit
 )
 
+def print_code_operators(code, label="Code"):
+    """Helper function to print stabilizers and logical operators of a code."""
+    print(f"{label} Stabilizers:")
+    for stab in code.stabs_as_pauli_strings():
+        print(f"  {stab}")
+    print(f"\n{label} X Logicals:")
+    for x_log in code.x_logicals_as_pauli_strings():
+        print(f"  {x_log}")
+    print(f"{label} Z Logicals:")
+    for z_log in code.z_logicals_as_pauli_strings():
+        print(f"  {z_log}")
+
 steane_code = CSSCode.from_code_name("steane")
 
-print("Stabilizers:\n")
-print(steane_code.stabs_as_pauli_strings())
-print("\nLogicals:\n")
-print(steane_code.x_logicals_as_pauli_strings())
-print(steane_code.z_logicals_as_pauli_strings())
+print_code_operators(steane_code, "Steane Code")
 ```
 
 There is not a unique encoding circuit but usually we would like to obtain an encoding circuit that is optimal with respect to some metric. QECC has functionality for synthesizing gate- or depth-optimal encoding circuits.
@@ -63,7 +71,7 @@ QECC obtains optimal solutions for circuits by iteratively trying out different 
 
 In addition to the circuit, the synthesis methods also return the encoding qubits. All other qubits are assumed to be initialized in the $|0\rangle$ state.
 
-For larger codes, synthesizing optimal circuits is not feasible. In this case, QECC provides a heuristic synthesis method that tries to use as few CNOTs with the lowest depth as possible.
+For larger codes, synthesizing optimal circuits is not feasible. For this case, QECC provides more scalable heuristic synthesis methods that can target the optimization of two-qubit gates or depth.
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis import (
@@ -99,6 +107,93 @@ heuristic_circ.draw('mpl')
 ```
 
 The `inputs()` method returns a list of physical qubit indices representing the encoded logical information. All other qubits are ancillas initialized in the $|0\rangle$ or $|+\rangle$ state.
+
+## Extracting the Code from an Encoding Circuit
+
+Given an encoding circuit, we can extract the stabilizer code it implements using the `get_code()` method. This is useful for verifying that a synthesized circuit correctly implements the desired code.
+
+```{code-cell} ipython3
+encoder = synthesize_encoding_circuit(steane_code)
+circuit_code = encoder.get_code()
+
+print(f"Original code: n={steane_code.n}, k={steane_code.k}, d={steane_code.distance}")
+print(f"Circuit code: n={circuit_code.n}, k={circuit_code.k}, d={circuit_code.distance}")
+print(f"\nCodes are equivalent: {steane_code.is_equivalent(circuit_code)}")
+
+print("\n" + "="*60)
+print_code_operators(steane_code, "Original Steane Code")
+print("\n" + "="*60)
+print_code_operators(circuit_code, "Circuit-Extracted Code")
+```
+
+The `is_equivalent` method checks whether two codes have the same stabilizer group and logical basis (up to stabilizer equivalence).
+
+## Mapping Logical Qubits to Physical Inputs
+
+For codes with multiple logical qubits ($k > 1$), it's important to understand which physical input qubit corresponds to which logical qubit of the code. The synthesized encoding circuit may permute the logical qubits, so the order of physical inputs returned by `inputs()` may not directly correspond to the order of logical operators in the code definition.
+
+Let's demonstrate this with the $[[15, 7, 3]]$ quantum Hamming code, which encodes 7 logical qubits.
+
+```{code-cell} ipython3
+from mqt.qecc.codes import construct_quantum_hamming_code
+hamming_code = construct_quantum_hamming_code(4) # [[15,7,3]] quantum Hamming code
+
+print(f"Code parameters: n={hamming_code.n}, k={hamming_code.k}, d={hamming_code.distance}")
+print_code_operators(hamming_code, "Hamming Code")
+
+encoder = synthesize_encoding_circuit(hamming_code)
+physical_inputs = encoder.inputs()
+
+print(f"\nPhysical input qubits: {physical_inputs}")
+print(f"Number of physical inputs: {len(physical_inputs)}")
+```
+
+The `logical_to_input_mapping` method returns a list where the $i$-th element is the physical input qubit corresponding to the $i$-th logical qubit of the code.
+
+```{code-cell} ipython3
+mapping = encoder.logical_to_input_mapping(hamming_code)
+
+if mapping is not None:
+    print("Logical to Physical Input Mapping:")
+    for logical_idx, physical_qubit in enumerate(mapping):
+        print(f"  Logical qubit {logical_idx} -> Physical input qubit {physical_qubit}")
+else:
+    print("The encoder does not implement the given code.")
+```
+
+This mapping tells us that to encode logical qubit $i$, we should prepare the state on physical qubit `mapping[i]`.
+
+# Tweaking Parameters for Heuristic Synthesis
+
+Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
+
+```{code-cell} ipython3
+code = CSSCode.from_code_name("golay")
+
+encoder = synthesize_encoding_circuit(code)
+print(f"Messaging (logical input) qubits: {encoder.inputs()}")
+print(f"Circuit has depth {encoder.depth()}.")
+print(f"Circuit has {encoder.num_cnots()} CNOTs.")
+
+encoder.draw(output='mpl', fold=False, scale=0.5)
+```
+
+The way the greedy synthesis works in QECC is by trying to reduce the check matrix (or stabilizer tableau) of the code in question using as few elementary matrix operations (gates) as possible. The synthesis is greedily guided by some metric computed on the check matrix - the number of remaining entries in the check matrix, for example. Since the synthesis algorithm makes local choices, the search might go down branches of the search-tree leading to sub-optimal solution. QECC also provides a costlier search procedure which tries to look ahead which candidates in the search will lead to good results by completing the entire greedy synthesis for these candidates and making a choice based on the resulting circuits (as opposed to using the check matrix as a proxy for estimating).
+
+This search is generally costlier, but can lead to significantly better results. We can tell the synthesis to perform rollout-based synthesis by setting the appropriate flags in the config. `rollout` is an int parameter that determines for how many layers the search should perform the rollout. If it is set to `0`, no rollout is performed (default). If it is set to `1`, the `num_rollout_candidates` parameter determines for how many candidates per gate in the search the rollout is performed. This determines how many complete circuits are synthesized before the single gate is chosen leading to the locally best circuit. If `enable_early_termination` is set to `True`, rollout is only performed until no better solutions are found. In that case, the search returns whatever the current best circuit is. If it is set to `False`, rollout will be performed until the last gate of the search is placed. This will take longer but leads to better results in general:
+
+```{code-cell} ipython3
+from mqt.qecc.circuit_synthesis import SynthesisConfig
+
+config = SynthesisConfig(rollout=1, num_rollout_candidates=5, optimization_criterion="gates", enable_early_termination=False)
+
+encoder = synthesize_encoding_circuit(code, config=config)
+print(f"Messaging (logical input) qubits: {encoder.inputs()}")
+print(f"Circuit has depth {encoder.depth()}.")
+print(f"Circuit has {encoder.num_cnots()} CNOTs.")
+
+encoder.draw(output='mpl', fold=False, scale=0.5)
+```
 
 # Encoder Circuit Synthesis for non-CSS Stabilizer Codes
 
@@ -166,35 +261,3 @@ encoder.draw(output='mpl', fold=False)
 ```
 
 This method uses SMT-based synthesis to find a depth-optimal encoding circuit, similar to the CSS case. The `max_depth` parameter limits the search depth. If no solution is found, it returns `"UNSAT"`.
-
-## Tweaking Parameters for Heuristic Synthesis
-
-Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
-
-```{code-cell} ipython3
-code = CSSCode.from_code_name("golay")
-
-encoder = synthesize_encoding_circuit(code)
-print(f"Messaging (logical input) qubits: {encoder.inputs()}")
-print(f"Circuit has depth {encoder.depth()}.")
-print(f"Circuit has {encoder.num_cnots()} CNOTs.")
-
-encoder.draw(output='mpl', fold=False, scale=0.5)
-```
-
-The way the greedy synthesis works in QECC is by trying to reduce the check matrix (or stabilizer tableau) of the code in question using as few elementary matrix operations (gates) as possible. The synthesis is greedily guided by some metric computed on the check matrix - the number of remaining entries in the check matrix, for example. Since the synthesis algorithm makes local choices, the search might go down branches of the search-tree leading to sub-optimal solution. QECC also provides a costlier search procedure which tries to look ahead which candidates in the search will lead to good results by completing the entire greedy synthesis for these candidates and making a choice based on the resulting circuits (as opposed to using the check matrix as a proxy for estimating).
-
-This search is generally costlier, but can lead to significantly better results. We can tell the synthesis to perform rollout-based synthesis by setting the appropriate flags in the config. `rollout` is an int parameter that determines for how many layers the search should perform the rollout. If it is set to `0`, no rollout is performed (default). If it is set to `1`, the `num_rollout_candidates` parameter determines for how many candidates per gate in the search the rollout is performed. This determines how many complete circuits are synthesized before the single gate is chosen leading to the locally best circuit. If `enable_early_termination` is set to `True`, rollout is only performed until no better solutions are found. In that case, the search returns whatever the current best circuit is. If it is set to `False`, rollout will be performed until the last gate of the search is placed. This will take longer but leads to better results in general:
-
-```{code-cell} ipython3
-from mqt.qecc.circuit_synthesis import SynthesisConfig
-
-config = SynthesisConfig(rollout=1, num_rollout_candidates=5, optimization_criterion="gates", enable_early_termination=False)
-
-encoder = synthesize_encoding_circuit(code, config=config)
-print(f"Messaging (logical input) qubits: {encoder.inputs()}")
-print(f"Circuit has depth {encoder.depth()}.")
-print(f"Circuit has {encoder.num_cnots()} CNOTs.")
-
-encoder.draw(output='mpl', fold=False, scale=0.5)
-```
