@@ -116,8 +116,8 @@ Given an encoding circuit, we can extract the stabilizer code it implements usin
 encoder = synthesize_encoding_circuit(steane_code)
 circuit_code = encoder.get_code()
 
-print(f"Original code: n={steane_code.n}, k={steane_code.k}, d={steane_code.distance}")
-print(f"Circuit code: n={circuit_code.n}, k={circuit_code.k}, d={circuit_code.distance}")
+print(f"Original code: n={steane_code.n}, k={steane_code.k}")
+print(f"Circuit code: n={circuit_code.n}, k={circuit_code.k}")
 print(f"\nCodes are equivalent: {steane_code.is_equivalent(circuit_code)}")
 
 print("\n" + "="*60)
