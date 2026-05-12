@@ -49,7 +49,7 @@ Under the hood, this uses the SMT solver [z3](https://github.com/Z3Prover/z3). O
 
 ```{code-cell} ipython3
 depth_opt = depth_optimal_encoding_circuit(steane_code, max_timeout=2)
-q_enc = depth_opt.get_uninitialized()
+q_enc = depth_opt.inputs()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {depth_opt.depth()}.")
@@ -60,7 +60,7 @@ depth_opt.draw('mpl')
 
 ```{code-cell} ipython3
 gate_opt = gate_optimal_encoding_circuit(steane_code, max_timeout=2)
-q_enc = gate_opt.get_uninitialized()
+q_enc = gate_opt.inputs()
 
 print(f"Encoding qubits are qubits {q_enc}.")
 print(f"Circuit has depth {gate_opt.depth()}.")
@@ -71,7 +71,7 @@ gate_opt.draw('mpl')
 
 QECC obtains optimal solutions for circuits by iteratively trying out different parameters to close in on the optimum. Each run will only be run until the number of seconds specified by `max_timeout`. If a solution is found in this time it is returned. Otherwise, `None` will be returned.
 
-In addition to the circuit, the synthesis methods also return the encoding qubits. All other qubits are assumed to be initialized in the $|0\rangle$ state.
+In addition to the circuit, the synthesis methods also return the encoding qubits. All other qubits are assumed to be initialized in the $|0\rangle$ or $|+\rangle$ states.
 
 For larger codes, synthesizing optimal circuits is not feasible. For this case, QECC provides more scalable heuristic synthesis methods that can target the optimization of two-qubit gates or depth.
 
@@ -83,7 +83,7 @@ from mqt.qecc.circuit_synthesis import (
 heuristic_circ = synthesize_encoding_circuit(steane_code)
 q_enc = heuristic_circ.inputs()
 
-print(f"Messaging (logical input) qubits: {q_enc}")
+print(f"Encoding (logical input) qubits: {q_enc}")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
 print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
@@ -101,7 +101,7 @@ config = SynthesisConfig(optimization_criterion="depth")
 heuristic_circ = synthesize_encoding_circuit(steane_code, config=config)
 q_enc = heuristic_circ.inputs()
 
-print(f"Messaging (logical input) qubits: {q_enc}")
+print(f"Encoding (logical input) qubits: {q_enc}")
 print(f"Circuit has depth {heuristic_circ.depth()}.")
 print(f"Circuit has {heuristic_circ.num_cnots()} CNOTs.")
 
@@ -173,7 +173,7 @@ Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://
 code = CSSCode.from_code_name("golay")
 
 encoder = synthesize_encoding_circuit(code)
-print(f"Messaging (logical input) qubits: {encoder.inputs()}")
+print(f"Encoding (logical input) qubits: {encoder.inputs()}")
 print(f"Circuit has depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
@@ -190,7 +190,7 @@ from mqt.qecc.circuit_synthesis import SynthesisConfig
 config = SynthesisConfig(rollout=1, num_rollout_candidates=5, optimization_criterion="gates", enable_early_termination=False)
 
 encoder = synthesize_encoding_circuit(code, config=config)
-print(f"Messaging (logical input) qubits: {encoder.inputs()}")
+print(f"Encoding (logical input) qubits: {encoder.inputs()}")
 print(f"Circuit has depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 
@@ -225,9 +225,9 @@ The same `synthesize_encoding_circuit` function works for non-CSS codes. This me
 
 ```{code-cell} ipython3
 encoder = synthesize_encoding_circuit(five_qubit_code)
-message_qubits = encoder.inputs()
+encoding_qubits = encoder.inputs()
 
-print(f"Message qubits (logical to physical mapping): {message_qubits}")
+print(f"Encoding qubits (logical to physical mapping): {encoding_qubits}")
 print(f"Circuit has two-qubit depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_two_qubit_gates()} two-qubit gates.")
 
@@ -253,9 +253,9 @@ for d in range(3, 9):
 
 if encoder is None:
     raise RuntimeError("No non-CSS encoder found in the tested depth range.")
-message_qubits = encoder.inputs()
+encoding_qubits = encoder.inputs()
 
-print(f"Message qubits (logical to physical mapping): {message_qubits}")
+print(f"Encoding qubits (logical to physical mapping): {encoding_qubits}")
 print(f"Circuit has two-qubit depth {encoder.depth()}.")
 print(f"Circuit has {encoder.num_two_qubit_gates()} two-qubit gates.")
 
