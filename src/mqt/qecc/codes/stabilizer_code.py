@@ -301,8 +301,6 @@ class StabilizerCode:
         mat = self.generators.tableau.matrix
 
         identity = np.eye(n, dtype=np.int8)
-
-        identity = np.eye(n, dtype=np.int8)
         z0 = np.zeros((n, n), dtype=np.int8)
         lamb = np.block([[z0, identity], [identity, z0]])
 
