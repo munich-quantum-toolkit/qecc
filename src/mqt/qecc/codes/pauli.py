@@ -531,6 +531,13 @@ def complete_stabilizer_tableau_with_destabilizers(
         (i, stabilizers.tableau[i].copy(), stabilizers.phase[i]) for i in range(m_total) if i not in stab_row_set
     ]
 
+    if len(other_rows) % 2 != 0:
+        msg = (
+            "complete_stabilizer_tableau_with_destabilizers requires non-stabilizer rows "
+            f"to come in matched logical X/Z pairs; got {len(other_rows)} rows."
+        )
+        raise ValueError(msg)
+
     k = len(other_rows) // 2
     logical_x_rows = other_rows[:k]
     logical_z_rows = other_rows[k:]
