@@ -105,9 +105,12 @@ def s_gate_circuit() -> stim.Circuit:
 
 @pytest.fixture
 def cnot_tableau() -> StabilizerTableau:
-    """2-qubit CNOT unitary."""
-    # CNOT(0,1): X0 -> X0X1, Z0 -> Z0, X1 -> X1, Z1 -> Z0Z1
-    return StabilizerTableau.from_pauli_strings(["XX", "ZI", "IX", "ZZ"])
+    """2-qubit CNOT unitary.
+
+    CNOT(0,1): X0 -> X0X1, Z0 -> Z0, X1 -> X1, Z1 -> Z0Z1
+    Tableau rows: [logical X0, logical X1, logical Z0, logical Z1]
+    """
+    return StabilizerTableau.from_pauli_strings(["XX", "IX", "ZI", "ZZ"])
 
 
 @pytest.fixture
