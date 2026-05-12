@@ -299,8 +299,6 @@ class StabilizerCode:
 
         n = self.n
         mat = self.generators.tableau.matrix
-        n = self.n
-        mat = self.generators.tableau.matrix
 
         identity = np.eye(n, dtype=np.int8)
 
