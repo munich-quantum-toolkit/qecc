@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from ...codes.pauli import CheckMatrix, StabilizerTableau
 from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
 from .extraction import extract_clifford_gate_count_circuit, extract_cnot_gate_count_circuit
 from .types import GateFamily, Objective, SynthesisResult, SynthesisStatus, TargetKind
@@ -27,7 +28,6 @@ from .verification import (
 if TYPE_CHECKING:
     import z3
 
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
 
 
 def synthesize_exact(
@@ -38,19 +38,23 @@ def synthesize_exact(
     lower_bound: int = 0,
     upper_bound: int = 10,
     k: int | None = None,
+    x_logicals: StabilizerTableau | None = None,
+    z_logicals: StabilizerTableau | None = None,
     verify: bool = True,
     allow_qubit_permutation: bool = True,
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
 
     Args:
-        target: Target tableau or check matrix.
+        target: Target stabilizer generators (for states/isometries) or check matrix (for CSS).
         target_kind: Kind of synthesis problem.
         gate_family: Gate family to use.
         objective: Optimization objective.
         lower_bound: Lower bound on resource count.
         upper_bound: Upper bound on resource count.
         k: Number of logical qubits (required for isometry).
+        x_logicals: Logical X operators (required for isometry).
+        z_logicals: Logical Z operators (required for isometry).
         verify: Whether to verify synthesized circuit.
         allow_qubit_permutation: Allow qubit permutation in unitaries.
 
@@ -73,6 +77,9 @@ def synthesize_exact(
             raise ValueError(msg)
         if k < 0:
             msg = f"k must be non-negative, got {k}"
+            raise ValueError(msg)
+        if x_logicals is None or z_logicals is None:
+            msg = "x_logicals and z_logicals must be provided for isometry synthesis"
             raise ValueError(msg)
 
     if objective == Objective.DEPTH:
@@ -102,6 +109,8 @@ def synthesize_exact(
             lower_bound,
             upper_bound,
             k,
+            x_logicals,
+            z_logicals,
             verify,
             allow_qubit_permutation,
         )
@@ -112,17 +121,64 @@ def synthesize_exact(
         lower_bound,
         upper_bound,
         k,
+        x_logicals,
+        z_logicals,
         verify,
     )
 
 
+def _combine_stabilizers_and_logicals(
+    stabilizers: StabilizerTableau,
+    k: int,
+    x_logicals: StabilizerTableau | None = None,
+    z_logicals: StabilizerTableau | None = None,
+) -> StabilizerTableau:
+    """Combine stabilizers and logicals into a single tableau for synthesis.
+
+    Args:
+        stabilizers: Stabilizer generators.
+        k: Number of logical qubits.
+        x_logicals: Logical X operators.
+        z_logicals: Logical Z operators.
+
+    Returns:
+        Combined tableau with rows ordered as [X_logicals, Z_logicals, stabilizers].
+    """
+    if k == 0:
+        return stabilizers
+
+    if x_logicals is None or z_logicals is None:
+        msg = "x_logicals and z_logicals must be provided when k > 0"
+        raise ValueError(msg)
+
+    if x_logicals.num_rows() != k or z_logicals.num_rows() != k:
+        msg = f"Expected {k} logical X and Z operators, got {x_logicals.num_rows()} X and {z_logicals.num_rows()} Z"
+        raise ValueError(msg)
+
+    combined_matrix = np.vstack([
+        x_logicals.tableau.matrix,
+        z_logicals.tableau.matrix,
+        stabilizers.tableau.matrix,
+    ])
+
+    combined_phase = np.concatenate([
+        x_logicals.phase,
+        z_logicals.phase,
+        stabilizers.phase,
+    ])
+
+    return StabilizerTableau(combined_matrix, combined_phase)
+
+
 def _synthesize_clifford(
-    target: StabilizerTableau,
+    stabilizers: StabilizerTableau,
     target_kind: TargetKind,
     objective: Objective,
     lower_bound: int,
     upper_bound: int,
     k: int | None,
+    x_logicals: StabilizerTableau | None,
+    z_logicals: StabilizerTableau | None,
     verify: bool,
     allow_qubit_permutation: bool,
 ) -> SynthesisResult:
@@ -131,11 +187,20 @@ def _synthesize_clifford(
 
     if k is None:
         if target_kind == TargetKind.CLIFFORD_UNITARY:
-            k = target.n
+            k = stabilizers.n
+            x_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "X" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
+            ])
+            z_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "Z" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
+            ])
         elif target_kind == TargetKind.STABILIZER_STATE:
             k = 0
         else:
-            k = (target.n_rows - target.n) // 2
+            msg = "k must be provided for isometry synthesis"
+            raise ValueError(msg)
+
+    target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
 
     for bound in range(lower_bound, upper_bound + 1):
         solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
@@ -160,6 +225,7 @@ def _synthesize_clifford(
                 c_vars,
                 alpha_vars,
                 beta_vars,
+                k,
             )
 
             actual_count = sum(
@@ -173,7 +239,7 @@ def _synthesize_clifford(
                 if target_kind == TargetKind.CLIFFORD_UNITARY:
                     verified = verify_clifford_unitary(circuit, target)
                 elif target_kind == TargetKind.STABILIZER_STATE:
-                    verified = verify_stabilizer_state(circuit, target)
+                    verified = verify_stabilizer_state(circuit, stabilizers)
                 else:
                     verified = verify_clifford_isometry(circuit, target, k)
 
@@ -269,35 +335,50 @@ def _determine_css_initializations(
             return list(range(k, n)), []
         return [], list(range(k, n))
 
+    logical_part = final_matrix[:k]
     stabilizer_part = final_matrix[k:]
-    pivot_cols = _row_echelon_pivot_cols(stabilizer_part)
+
+    stabilizer_pivot_cols = _row_echelon_pivot_cols(stabilizer_part)
+
+    input_qubits = []
+    for col in range(n):
+        if col in stabilizer_pivot_cols:
+            continue
+        for row in range(k):
+            if logical_part[row, col] == 1:
+                input_qubits.append(col)
+                break
+
+    ancilla_qubits = [q for q in range(n) if q not in input_qubits]
 
     init_x: list[int] = []
     init_z: list[int] = []
 
     if is_x_type:
-        init_x = pivot_cols
-        init_z = [q for q in range(n) if q not in pivot_cols and q >= k]
+        init_x = [q for q in stabilizer_pivot_cols if q in ancilla_qubits]
+        init_z = [q for q in ancilla_qubits if q not in init_x]
     else:
-        init_z = pivot_cols
-        init_x = [q for q in range(n) if q not in pivot_cols and q >= k]
+        init_z = [q for q in stabilizer_pivot_cols if q in ancilla_qubits]
+        init_x = [q for q in ancilla_qubits if q not in init_z]
 
     return init_x, init_z
 
 
 def _synthesize_css(
-    target: CheckMatrix,
+    checks: CheckMatrix,
     target_kind: TargetKind,
     objective: Objective,
     lower_bound: int,
     upper_bound: int,
     k: int | None,
+    x_logicals: StabilizerTableau | None,
+    z_logicals: StabilizerTableau | None,
     verify: bool,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
     import z3
 
-    n = target.num_qubits()
+    n = checks.num_qubits()
 
     if k is None:
         if target_kind == TargetKind.CSS_STATE:
@@ -305,6 +386,20 @@ def _synthesize_css(
         else:
             msg = "k must be provided for CSS isometry synthesis"
             raise ValueError(msg)
+
+    if k > 0 and (x_logicals is None or z_logicals is None):
+        msg = "x_logicals and z_logicals must be provided for CSS isometry synthesis"
+        raise ValueError(msg)
+
+    if k > 0:
+        logicals = x_logicals if checks.is_x_type() else z_logicals
+        assert logicals is not None
+        target = CheckMatrix(
+            np.vstack([logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part(), checks.matrix]),
+            pauli_type=checks.type,
+        )
+    else:
+        target = checks
 
     m_x = target.num_rows() - k
 
@@ -350,9 +445,9 @@ def _synthesize_css(
             verified = False
             if verify:
                 if target_kind == TargetKind.CSS_STATE:
-                    verified = verify_css_state(circuit, target)
+                    verified = verify_css_state(circuit, checks)
                 else:
-                    verified = verify_css_isometry(circuit, target, k)
+                    verified = verify_css_isometry(circuit, checks, x_logicals, z_logicals, k)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,

@@ -26,6 +26,7 @@ def extract_clifford_gate_count_circuit(
     c_vars: list[z3.BoolRef],
     alpha_vars: list[z3.BitVecRef],
     beta_vars: list[z3.BitVecRef],
+    k: int,
 ) -> CliffordIsometry:
     """Extract Clifford circuit from gate-count SAT model.
 
@@ -41,6 +42,7 @@ def extract_clifford_gate_count_circuit(
         c_vars: CNOT gate selection variables.
         alpha_vars: First qubit index variables.
         beta_vars: Second qubit index variables.
+        k: Number of logical qubits.
 
     Returns:
         Extracted CliffordIsometry circuit.
@@ -67,8 +69,10 @@ def extract_clifford_gate_count_circuit(
             gates.append(("CX", alpha, beta))
 
     stim_circuit = stim.Circuit()
-    for qubit in range(n):
-        stim_circuit.append("R", [qubit])
+
+    m = n - k
+    if m > 0:
+        stim_circuit.append("R", list(range(k, n)))
 
     for gate in reversed(gates):
         if gate[0] == "H":

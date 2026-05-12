@@ -11,114 +11,98 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import stim
 
 from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.fixture
-def identity_2q_tableau() -> StabilizerTableau:
-    """2-qubit identity tableau."""
-    return StabilizerTableau.identity(2)
-
-
-@pytest.fixture
-def identity_3q_tableau() -> StabilizerTableau:
-    """3-qubit identity tableau."""
-    return StabilizerTableau.identity(3)
-
-
-@pytest.fixture
-def bell_state_tableau() -> StabilizerTableau:
+def bell_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
     """Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2 with stabilizers XX and ZZ."""
-    return StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
+    x_logicals = StabilizerTableau.empty(2)
+    z_logicals = StabilizerTableau.empty(2)
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def bell_state_circuit() -> stim.Circuit:
-    """Known optimal circuit for Bell state: H on qubit 0, then CNOT(0,1)."""
-    circuit = stim.Circuit()
-    circuit.append("H", [0])
-    circuit.append("CX", [0, 1])
-    return circuit
-
-
-@pytest.fixture
-def plus_state_tableau() -> StabilizerTableau:
+def plus_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
     """|+⟩ state with stabilizer X."""
-    return StabilizerTableau.from_pauli_strings(["X"])
+    stabilizers = StabilizerTableau.from_pauli_strings(["X"])
+    x_logicals = StabilizerTableau.empty(1)
+    z_logicals = StabilizerTableau.empty(1)
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def plus_state_circuit() -> stim.Circuit:
-    """Known optimal circuit for |+⟩ state: H on qubit 0."""
-    circuit = stim.Circuit()
-    circuit.append("H", [0])
-    return circuit
+def zero_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """|0⟩ state with stabilizer Z."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["Z"])
+    x_logicals = StabilizerTableau.empty(1)
+    z_logicals = StabilizerTableau.empty(1)
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def ghz_state_tableau() -> StabilizerTableau:
+def two_qubit_zero_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """|00⟩ state with stabilizers ZI and IZ."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["ZI", "IZ"])
+    x_logicals = StabilizerTableau.empty(2)
+    z_logicals = StabilizerTableau.empty(2)
+    return stabilizers, x_logicals, z_logicals
+
+
+@pytest.fixture
+def ghz_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
     """3-qubit GHZ state (|000⟩ + |111⟩)/√2 with stabilizers XXX, ZZI, IZZ."""
-    return StabilizerTableau.from_pauli_strings(["XXX", "ZZI", "IZZ"])
+    stabilizers = StabilizerTableau.from_pauli_strings(["XXX", "ZZI", "IZZ"])
+    x_logicals = StabilizerTableau.empty(3)
+    z_logicals = StabilizerTableau.empty(3)
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def ghz_state_circuit() -> stim.Circuit:
-    """Known optimal circuit for GHZ state: H on 0, CNOT(0,1), CNOT(1,2)."""
-    circuit = stim.Circuit()
-    circuit.append("H", [0])
-    circuit.append("CX", [0, 1])
-    circuit.append("CX", [1, 2])
-    return circuit
+def hadamard_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """Single-qubit Hadamard unitary (swaps X and Z)."""
+    stabilizers = StabilizerTableau.empty(1)
+    x_logicals = StabilizerTableau.from_pauli_strings(["Z"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["X"])
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def hadamard_tableau() -> StabilizerTableau:
-    """Single-qubit Hadamard unitary."""
-    # H swaps X and Z
-    return StabilizerTableau.from_pauli_strings(["Z", "X"])
+def s_gate_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """Single-qubit S gate unitary (X -> Y, Z -> Z)."""
+    stabilizers = StabilizerTableau.empty(1)
+    x_logicals = StabilizerTableau.from_pauli_strings(["Y"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["Z"])
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def hadamard_circuit() -> stim.Circuit:
-    """Known circuit for Hadamard: H gate."""
-    circuit = stim.Circuit()
-    circuit.append("H", [0])
-    return circuit
+def cnot_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """2-qubit CNOT unitary."""
+    stabilizers = StabilizerTableau.empty(2)
+    x_logicals = StabilizerTableau.from_pauli_strings(["XI", "XX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZZ", "IZ"])
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def s_gate_tableau() -> StabilizerTableau:
-    """Single-qubit S gate unitary."""
-    # S: X -> Y, Z -> Z
-    return StabilizerTableau.from_pauli_strings(["Y", "Z"])
+def swap_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """2-qubit SWAP unitary."""
+    stabilizers = StabilizerTableau.empty(2)
+    x_logicals = StabilizerTableau.from_pauli_strings(["IX", "XI"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["IZ", "ZI"])
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
-def s_gate_circuit() -> stim.Circuit:
-    """Known circuit for S gate: S gate."""
-    circuit = stim.Circuit()
-    circuit.append("S", [0])
-    return circuit
-
-
-@pytest.fixture
-def cnot_tableau() -> StabilizerTableau:
-    """2-qubit CNOT unitary.
-
-    CNOT(0,1): X0 -> X0X1, Z0 -> Z0, X1 -> X1, Z1 -> Z0Z1
-    Tableau rows: [logical X0, logical X1, logical Z0, logical Z1]
-    """
-    return StabilizerTableau.from_pauli_strings(["XX", "IX", "ZI", "ZZ"])
-
-
-@pytest.fixture
-def cnot_circuit() -> stim.Circuit:
-    """Known circuit for CNOT: CNOT(0,1)."""
-    circuit = stim.Circuit()
-    circuit.append("CX", [0, 1])
-    return circuit
+def identity_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """2-qubit identity unitary."""
+    stabilizers = StabilizerTableau.empty(2)
+    x_logicals = StabilizerTableau.from_pauli_strings(["XI", "IX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZI", "IZ"])
+    return stabilizers, x_logicals, z_logicals
 
 
 @pytest.fixture
@@ -129,21 +113,14 @@ def repetition_code_check_matrix() -> CheckMatrix:
 
 
 @pytest.fixture
-def simple_css_encoder_circuit() -> stim.Circuit:
-    """Simple CSS encoder circuit for testing.
-
-    This is a placeholder - actual optimal circuit depends on the code.
-    """
-    # TODO: Determine exact optimal circuit
-    return stim.Circuit()
-
-
-@pytest.fixture
-def five_qubit_code_tableau() -> StabilizerTableau:
-    """[[5,1,3]] five-qubit perfect code stabilizers."""
-    return StabilizerTableau.from_pauli_strings([
+def five_qubit_code() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """[[5,1,3]] five-qubit perfect code encoder."""
+    stabilizers = StabilizerTableau.from_pauli_strings([
         "XZZXI",
         "IXZZX",
         "XIXZZ",
         "ZXIXZ",
     ])
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXXXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZZZZZ"])
+    return stabilizers, x_logicals, z_logicals

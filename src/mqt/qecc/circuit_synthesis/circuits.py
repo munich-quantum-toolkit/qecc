@@ -127,8 +127,11 @@ class CliffordIsometry:
                 pauli_stim = tab_no_reset.z_output(q) if basis.get(q, "Z") == "Z" else tab_no_reset.x_output(q)
                 stabilizers.append(Pauli.from_stim(pauli_stim))
         logicals = self.get_all_logicals()
+
         return StabilizerCode(
-            stabilizers, z_logicals=[log[1] for log in logicals], x_logicals=[log[0] for log in logicals]
+            stabilizers,
+            z_logicals=[log[1] for log in logicals] if logicals else None,
+            x_logicals=[log[0] for log in logicals] if logicals else None,
         )
 
     @classmethod

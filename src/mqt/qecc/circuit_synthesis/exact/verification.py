@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 if TYPE_CHECKING:
     from ...codes.pauli import CheckMatrix, StabilizerTableau
     from ..circuits import CliffordIsometry, CNOTCircuit
@@ -38,150 +36,131 @@ def verify_clifford_unitary(circuit: CliffordIsometry, target: StabilizerTableau
     return actual == target
 
 
-def verify_stabilizer_state(circuit: CliffordIsometry, target: StabilizerTableau) -> bool:
+def verify_stabilizer_state(circuit: CliffordIsometry, stabilizers: StabilizerTableau) -> bool:
     """Verify that circuit prepares the target stabilizer state.
 
     Args:
         circuit: Synthesized circuit.
-        target: Target stabilizer generators (n x 2n).
+        stabilizers: Target stabilizer generators.
 
     Returns:
         True if circuit prepares target state.
     """
-    from ...codes.pauli import StabilizerTableau
+    from ...codes import StabilizerCode
 
-    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
-
-    if actual.n != target.n:
+    if not circuit.is_state():
         return False
 
-    actual_stabs = actual.tableau.matrix[actual.n :]
-    target_stabs = target.tableau.matrix
+    circuit_code = circuit.get_code()
+    target_code = StabilizerCode(stabilizers)
 
-    if actual_stabs.shape[0] != target_stabs.shape[0]:
-        return False
-
-    return _check_stabilizer_equivalence(actual_stabs, target_stabs)
+    return circuit_code.equal_stabilizer_group(target_code)
 
 
-def verify_clifford_isometry(circuit: CliffordIsometry, target: StabilizerTableau, k: int) -> bool:
+def verify_clifford_isometry(
+    circuit: CliffordIsometry,
+    stabilizers: StabilizerTableau,
+    x_logicals: StabilizerTableau | None,
+    z_logicals: StabilizerTableau | None,
+    k: int,
+) -> bool:
     """Verify that circuit implements the target Clifford isometry.
 
     Args:
         circuit: Synthesized circuit.
-        target: Target tableau with k logical qubits.
+        stabilizers: Target stabilizer generators.
+        x_logicals: Target X logical operators.
+        z_logicals: Target Z logical operators.
         k: Number of logical qubits.
 
     Returns:
         True if circuit implements target isometry.
     """
-    from ...codes.pauli import StabilizerTableau
+    from ...codes import StabilizerCode
 
-    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
-
-    if actual.n != target.n:
+    if circuit.num_inputs() != k:
         return False
 
-    n = actual.n
-    m = target.n_rows - 2 * k
+    if x_logicals is None or z_logicals is None:
+        msg = "x_logicals and z_logicals must be provided for isometry verification"
+        raise ValueError(msg)
 
-    actual_logicals_x = actual.tableau.matrix[:k]
-    actual_logicals_z = actual.tableau.matrix[k : 2 * k]
-    actual_stabs = actual.tableau.matrix[2 * k :]
+    circuit_code = circuit.get_code()
+    target_code = StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals)
 
-    target_logicals_x = target.tableau.matrix[:k]
-    target_logicals_z = target.tableau.matrix[k : 2 * k]
-    target_stabs = target.tableau.matrix[2 * k :]
-
-    if actual_stabs.shape[0] != m or target_stabs.shape[0] != m:
-        return False
-
-    if not _check_stabilizer_equivalence(actual_stabs, target_stabs):
-        return False
-
-    return _check_logical_equivalence(actual_logicals_x, actual_logicals_z, target_logicals_x, target_logicals_z, n)
+    return circuit_code.is_equivalent(target_code)
 
 
-def verify_css_state(circuit: CNOTCircuit, target: CheckMatrix) -> bool:
+def verify_css_state(circuit: CNOTCircuit, checks: CheckMatrix) -> bool:
     """Verify that CNOT circuit prepares the target CSS state.
 
     Args:
         circuit: Synthesized CNOT circuit.
-        target: Target CSS check matrix.
+        checks: Target CSS check matrix.
 
     Returns:
         True if circuit prepares target CSS state.
     """
-    code = circuit.get_code()
+    from ...codes import CSSCode
 
-    import ldpc.mod2.mod2_numpy as mod2
+    if not circuit.is_state():
+        return False
 
-    actual = code.Hx if target.is_x_type() else code.Hz
+    circuit_code = circuit.get_code()
 
-    return bool(mod2.rank(target.matrix) == mod2.rank(actual) == mod2.rank(np.vstack([target.matrix, actual])))
+    if not isinstance(circuit_code, CSSCode):
+        return False
+
+    target_code = CSSCode(
+        checks.matrix if checks.is_x_type() else checks.matrix * 0,
+        checks.matrix * 0 if checks.is_x_type() else checks.matrix,
+    )
+
+    return circuit_code.equal_stabilizer_group(target_code)
 
 
-def verify_css_isometry(circuit: CNOTCircuit, target: CheckMatrix, k: int) -> bool:
+def verify_css_isometry(
+    circuit: CNOTCircuit,
+    checks: CheckMatrix,
+    x_logicals: StabilizerTableau | None,
+    z_logicals: StabilizerTableau | None,
+    k: int,
+) -> bool:
     """Verify that CNOT circuit implements the target CSS isometry.
 
     Args:
         circuit: Synthesized CNOT circuit.
-        target: Target CSS check matrix.
+        checks: Target CSS check matrix.
+        x_logicals: Target X logical operators.
+        z_logicals: Target Z logical operators.
         k: Number of logical qubits.
 
     Returns:
         True if circuit implements target CSS isometry.
     """
-    code = circuit.get_code()
+    from ...codes import CSSCode
 
-    import ldpc.mod2.mod2_numpy as mod2
-
-    actual = code.Hx if target.is_x_type() else code.Hz
-
-    target.num_qubits()
-    m = target.num_rows() - k
-
-    if actual.shape[0] != m:
+    if circuit.num_inputs() != k:
         return False
 
-    return bool(mod2.rank(target.matrix[k:]) == mod2.rank(actual) == mod2.rank(np.vstack([target.matrix[k:], actual])))
+    if x_logicals is None or z_logicals is None:
+        msg = "x_logicals and z_logicals must be provided for CSS isometry verification"
+        raise ValueError(msg)
 
+    circuit_code = circuit.get_code()
 
-def _check_stabilizer_equivalence(actual: np.ndarray, target: np.ndarray) -> bool:
-    """Check if two sets of stabilizers generate the same stabilizer group."""
-    import ldpc.mod2.mod2_numpy as mod2
-
-    if actual.shape != target.shape:
+    if not isinstance(circuit_code, CSSCode):
         return False
 
-    rank_actual = mod2.rank(actual)
-    rank_target = mod2.rank(target)
+    lx = x_logicals.get_x_part() if checks.is_x_type() else x_logicals.get_z_part()
+    lz = z_logicals.get_z_part() if checks.is_x_type() else z_logicals.get_x_part()
 
-    if rank_actual != rank_target:
-        return False
+    target_code = CSSCode(
+        checks.matrix if checks.is_x_type() else checks.matrix * 0,
+        checks.matrix * 0 if checks.is_x_type() else checks.matrix,
+        Lx=lx,
+        Lz=lz,
+        distance=1,
+    )
 
-    combined = np.vstack([actual, target])
-    rank_combined = mod2.rank(combined)
-
-    return rank_combined == rank_actual
-
-
-def _check_logical_equivalence(
-    actual_x: np.ndarray, actual_z: np.ndarray, target_x: np.ndarray, target_z: np.ndarray, n: int
-) -> bool:
-    """Check if logical operators are equivalent up to qubit permutation and stabilizers."""
-    import ldpc.mod2.mod2_numpy as mod2
-
-    k = actual_x.shape[0]
-
-    if target_x.shape[0] != k or actual_z.shape[0] != k or target_z.shape[0] != k:
-        return False
-
-    actual_logical = np.hstack([actual_x, actual_z])
-    target_logical = np.hstack([target_x, target_z])
-
-    if mod2.rank(actual_logical) != k or mod2.rank(target_logical) != k:
-        return False
-
-    combined = np.vstack([actual_logical, target_logical])
-    return mod2.rank(combined) == k
+    return circuit_code.is_equivalent(target_code)
