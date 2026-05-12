@@ -11,7 +11,9 @@ mystnb:
 %config InlineBackend.figure_formats = ['svg']
 ```
 
-# Encoder Circuit Synthesis for CSS Codes
+# Encoding Circuit Synthesis
+
+## Encoder Circuit Synthesis for CSS Codes
 
 QECC provides functionality for synthesizing encoding circuits of arbitrary Stabilizer codes. An encoder for an $[[n,k,d]]$ code is an isometry that encodes $k$ logical qubits into $n$ physical qubits.
 
@@ -108,7 +110,7 @@ heuristic_circ.draw('mpl')
 
 The `inputs()` method returns a list of physical qubit indices representing the encoded logical information. All other qubits are ancillas initialized in the $|0\rangle$ or $|+\rangle$ state.
 
-## Extracting the Code from an Encoding Circuit
+### Extracting the Code from an Encoding Circuit
 
 Given an encoding circuit, we can extract the stabilizer code it implements using the `get_code()` method. This is useful for verifying that a synthesized circuit correctly implements the desired code.
 
@@ -128,7 +130,7 @@ print_code_operators(circuit_code, "Circuit-Extracted Code")
 
 The `is_equivalent` method checks whether two codes have the same stabilizer group and logical basis (up to stabilizer equivalence).
 
-## Mapping Logical Qubits to Physical Inputs
+### Mapping Logical Qubits to Physical Inputs
 
 For codes with multiple logical qubits ($k > 1$), it's important to understand which physical input qubit corresponds to which logical qubit of the code. The synthesized encoding circuit may permute the logical qubits, so the order of physical inputs returned by `inputs()` may not directly correspond to the order of logical operators in the code definition.
 
@@ -163,7 +165,7 @@ else:
 
 This mapping tells us that to encode logical qubit $i$, we should prepare the state on physical qubit `mapping[i]`.
 
-# Tweaking Parameters for Heuristic Synthesis
+## Tweaking Parameters for Heuristic Synthesis
 
 Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
 
@@ -195,7 +197,7 @@ print(f"Circuit has {encoder.num_cnots()} CNOTs.")
 encoder.draw(output='mpl', fold=False, scale=0.5)
 ```
 
-# Encoder Circuit Synthesis for non-CSS Stabilizer Codes
+## Encoder Circuit Synthesis for non-CSS Stabilizer Codes
 
 QECC also supports encoding circuit synthesis for non-CSS stabilizer codes. For these codes, encoding circuits are built from two-qubit transvections (see arXiv:2503.14660 for details).
 
