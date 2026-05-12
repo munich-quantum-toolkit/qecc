@@ -333,7 +333,6 @@ class CNOTCircuit(CliffordIsometry):
         """Initialize an empty CNOT circuit."""
         super().__init__()
         self.cnots: list[tuple[int, int]] = []
-        self._initializations: dict[int, str] = {}
 
     def _add_input(self, qubit: int) -> None:
         """Add a qubit to the inputs if it is not already initialized or an input.
