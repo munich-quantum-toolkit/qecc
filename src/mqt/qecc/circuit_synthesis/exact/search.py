@@ -9,181 +9,147 @@
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
+import numpy as np
 
 from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
 from .extraction import extract_clifford_gate_count_circuit, extract_cnot_gate_count_circuit
-from .types import (
-    ExactSynthesisOptions,
-    ExactSynthesisResult,
-    GateFamily,
-    Objective,
-    SynthesisStatus,
-    TargetKind,
-)
+from .types import GateFamily, Objective, SynthesisResult, SynthesisStatus, TargetKind
 from .verification import (
     verify_clifford_isometry,
     verify_clifford_unitary,
     verify_css_isometry,
+    verify_css_state,
     verify_stabilizer_state,
 )
 
 if TYPE_CHECKING:
+    import z3
+
     from ...codes.pauli import CheckMatrix, StabilizerTableau
-    from ..circuits import CliffordIsometry, CNOTCircuit
 
 
 def synthesize_exact(
-    target: StabilizerTableau | CheckMatrix | CliffordIsometry | CNOTCircuit,
+    target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
     gate_family: GateFamily,
     objective: Objective,
-    options: ExactSynthesisOptions | None = None,
-) -> ExactSynthesisResult:
-    """Synthesize an optimal circuit for the given target.
-
-    This is the main entry point for exact synthesis. It searches over resource
-    bounds to find an optimal circuit according to the specified objective.
+    lower_bound: int = 0,
+    upper_bound: int = 10,
+    k: int | None = None,
+    verify: bool = True,
+    allow_qubit_permutation: bool = True,
+) -> SynthesisResult:
+    """Synthesize optimal circuit for given target using exact methods.
 
     Args:
-        target: The synthesis target (tableau, check matrix, or circuit).
-        target_kind: The kind of synthesis problem.
-        gate_family: The gate set to use.
-        objective: The optimization objective.
-        options: Synthesis options (uses defaults if None).
+        target: Target tableau or check matrix.
+        target_kind: Kind of synthesis problem.
+        gate_family: Gate family to use.
+        objective: Optimization objective.
+        lower_bound: Lower bound on resource count.
+        upper_bound: Upper bound on resource count.
+        k: Number of logical qubits (required for isometry).
+        verify: Whether to verify synthesized circuit.
+        allow_qubit_permutation: Allow qubit permutation in unitaries.
 
     Returns:
-        ExactSynthesisResult containing the synthesized circuit and metadata.
+        SynthesisResult with circuit and metadata.
 
-    Examples:
-        >>> from mqt.qecc.codes.pauli import StabilizerTableau
-        >>> from mqt.qecc.circuit_synthesis.exact import (
-        ...     synthesize_exact,
-        ...     TargetKind,
-        ...     GateFamily,
-        ...     Objective,
-        ...     ExactSynthesisOptions,
-        ... )
-        >>> # Synthesize Bell state preparation
-        >>> target = StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
-        >>> result = synthesize_exact(
-        ...     target,
-        ...     TargetKind.STABILIZER_STATE,
-        ...     GateFamily.CLIFFORD,
-        ...     Objective.GATE_COUNT,
-        ...     ExactSynthesisOptions(max_bound=10),
-        ... )
-        >>> print(result.status)
-        SynthesisStatus.SAT
+    Raises:
+        ValueError: If parameters are invalid.
+        NotImplementedError: If objective not yet implemented.
     """
-    if options is None:
-        options = ExactSynthesisOptions(max_bound=10)
+    from ...codes.pauli import CheckMatrix, StabilizerTableau
 
-    # Validate target and target_kind compatibility
-    _validate_target(target, target_kind, gate_family)
-
-    # Convert target to appropriate representation
-    tableau, check_matrix, k, m_x = _prepare_target(target, target_kind, gate_family)
-
-    start_time = time.time()
-
-    # Dispatch to appropriate encoding
-    if objective == Objective.GATE_COUNT:
-        result = _synthesize_gate_count(
-            tableau,
-            check_matrix,
-            target_kind,
-            gate_family,
-            k,
-            m_x,
-            options,
-        )
-    elif objective == Objective.DEPTH:
-        # Placeholder for depth optimization
-        solver_time = time.time() - start_time
-        return ExactSynthesisResult(
-            status=SynthesisStatus.UNSAT,
-            optimal=False,
-            objective_value=None,
-            circuit=None,
-            bound_used=options.max_bound,
-            solver_time=solver_time,
-            verified=False,
-            error_message="Depth optimization not yet implemented.",
-        )
-    elif objective == Objective.DEPTH_THEN_TWO_QUBIT_COUNT:
-        # Placeholder for lexicographic optimization
-        solver_time = time.time() - start_time
-        return ExactSynthesisResult(
-            status=SynthesisStatus.UNSAT,
-            optimal=False,
-            objective_value=None,
-            circuit=None,
-            bound_used=options.max_bound,
-            solver_time=solver_time,
-            verified=False,
-            error_message="Lexicographic depth-then-gate-count optimization not yet implemented.",
-        )
-    else:
-        msg = f"Unsupported objective: {objective}"
+    if lower_bound < 0 or upper_bound < lower_bound:
+        msg = f"Invalid bounds: lower_bound={lower_bound}, upper_bound={upper_bound}"
         raise ValueError(msg)
 
-    result.solver_time = time.time() - start_time
-    return result
+    if target_kind in {TargetKind.CLIFFORD_ISOMETRY, TargetKind.CSS_ISOMETRY}:
+        if k is None:
+            msg = "k must be provided for isometry synthesis"
+            raise ValueError(msg)
+        if k < 0:
+            msg = f"k must be non-negative, got {k}"
+            raise ValueError(msg)
 
+    if objective == Objective.DEPTH:
+        msg = "Depth optimization not yet implemented"
+        raise NotImplementedError(msg)
 
-def _synthesize_gate_count(
-    tableau: StabilizerTableau | None,
-    check_matrix: CheckMatrix | None,
-    target_kind: TargetKind,
-    gate_family: GateFamily,
-    k: int,
-    m_x: int,
-    options: ExactSynthesisOptions,
-) -> ExactSynthesisResult:
-    """Synthesize with gate-count objective."""
     if gate_family == GateFamily.CLIFFORD:
-        assert tableau is not None
-        return _synthesize_clifford_gate_count(tableau, k, options, target_kind)
-    assert check_matrix is not None
-    return _synthesize_css_gate_count(check_matrix, k, m_x, options, target_kind)
+        if not isinstance(target, StabilizerTableau):
+            msg = f"CLIFFORD gate family requires StabilizerTableau, got {type(target).__name__}"
+            raise ValueError(msg)
+        if target_kind in {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}:
+            msg = f"CLIFFORD gate family incompatible with {target_kind.value}"
+            raise ValueError(msg)
+    elif gate_family == GateFamily.CSS_CNOT:
+        if not isinstance(target, CheckMatrix):
+            msg = f"CSS_CNOT gate family requires CheckMatrix, got {type(target).__name__}"
+            raise ValueError(msg)
+        if target_kind not in {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}:
+            msg = f"CSS_CNOT gate family requires CSS_STATE or CSS_ISOMETRY, got {target_kind.value}"
+            raise ValueError(msg)
+
+    if gate_family == GateFamily.CLIFFORD:
+        return _synthesize_clifford(
+            target,
+            target_kind,
+            objective,
+            lower_bound,
+            upper_bound,
+            k,
+            verify,
+            allow_qubit_permutation,
+        )
+    return _synthesize_css(
+        target,
+        target_kind,
+        objective,
+        lower_bound,
+        upper_bound,
+        k,
+        verify,
+    )
 
 
-def _synthesize_clifford_gate_count(
-    tableau: StabilizerTableau,
-    k: int,
-    options: ExactSynthesisOptions,
+def _synthesize_clifford(
+    target: StabilizerTableau,
     target_kind: TargetKind,
-) -> ExactSynthesisResult:
-    """Synthesize Clifford circuit with gate-count objective."""
+    objective: Objective,
+    lower_bound: int,
+    upper_bound: int,
+    k: int | None,
+    verify: bool,
+    allow_qubit_permutation: bool,
+) -> SynthesisResult:
+    """Synthesize Clifford circuit."""
     import z3
 
-    # Linear search over gate counts
-    for bound in range(options.lower_bound, options.max_bound + 1):
+    if k is None:
+        if target_kind == TargetKind.CLIFFORD_UNITARY:
+            k = target.n
+        elif target_kind == TargetKind.STABILIZER_STATE:
+            k = 0
+        else:
+            k = (target.n_rows - target.n) // 2
+
+    for bound in range(lower_bound, upper_bound + 1):
         solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
-            tableau,
+            target,
             k,
             bound,
-            options.allow_qubit_permutation,
+            allow_qubit_permutation,
         )
 
-        # Set timeout if specified
-        if options.timeout_per_bound is not None:
-            solver.set("timeout", options.timeout_per_bound * 1000)  # Z3 uses milliseconds
+        result = solver.check()
 
-        # Apply additional solver parameters
-        for param, value in options.solver_params.items():
-            solver.set(param, value)
-
-        check_result = solver.check()
-
-        if check_result == z3.sat:
-            # Extract circuit
+        if result == z3.sat:
             model = solver.model()
-            n = tableau.n
+            n = target.n
 
             circuit = extract_clifford_gate_count_circuit(
                 model,
@@ -196,107 +162,178 @@ def _synthesize_clifford_gate_count(
                 beta_vars,
             )
 
-            # Verify if requested
+            actual_count = sum(
+                1
+                for slot in range(bound)
+                if model.eval(z3.Or(h_vars[slot], s_vars[slot], c_vars[slot]), model_completion=True)
+            )
+
             verified = False
-            if options.verify_result:
+            if verify:
                 if target_kind == TargetKind.CLIFFORD_UNITARY:
-                    verified = verify_clifford_unitary(circuit, tableau)
+                    verified = verify_clifford_unitary(circuit, target)
                 elif target_kind == TargetKind.STABILIZER_STATE:
-                    verified = verify_stabilizer_state(circuit, tableau)
-                else:  # CLIFFORD_ISOMETRY
-                    verified = verify_clifford_isometry(circuit, tableau, k)
+                    verified = verify_stabilizer_state(circuit, target)
+                else:
+                    verified = verify_clifford_isometry(circuit, target, k)
 
-            # Count two-qubit gates
-            two_qubit_count = sum(1 for slot in range(bound) if model.eval(c_vars[slot], model_completion=True))
-
-            return ExactSynthesisResult(
-                status=SynthesisStatus.SAT,
-                optimal=True,  # Linear search from lower bound guarantees optimality
-                objective_value=bound,
+            return SynthesisResult(
+                status=SynthesisStatus.SUCCESS,
                 circuit=circuit,
-                bound_used=bound,
-                solver_time=0.0,  # Will be filled by caller
+                gate_count=actual_count,
                 verified=verified,
-                two_qubit_gate_count=two_qubit_count,
-            )
-        if check_result == z3.unknown:
-            return ExactSynthesisResult(
-                status=SynthesisStatus.UNKNOWN,
-                optimal=False,
-                objective_value=None,
-                circuit=None,
-                bound_used=bound,
-                solver_time=0.0,
-                verified=False,
-                error_message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+                message=f"Found solution with {actual_count} gates",
             )
 
-    # All bounds exhausted without finding solution
-    return ExactSynthesisResult(
+        if result == z3.unknown:
+            return SynthesisResult(
+                status=SynthesisStatus.ERROR,
+                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+            )
+
+    return SynthesisResult(
         status=SynthesisStatus.UNSAT,
-        optimal=True,
-        objective_value=None,
-        circuit=None,
-        bound_used=options.max_bound,
-        solver_time=0.0,
-        verified=False,
-        error_message=f"No solution found within max_bound={options.max_bound}",
+        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
     )
 
 
-def _synthesize_css_gate_count(
-    check_matrix: CheckMatrix,
+def _row_echelon_pivot_cols(matrix: np.ndarray) -> list[int]:
+    """Compute row echelon form and return pivot column indices.
+
+    Args:
+        matrix: Binary matrix (m x n) with dtype np.int8.
+
+    Returns:
+        List of column indices that contain pivots in row echelon form.
+    """
+    mat = matrix.copy()
+    m, n = mat.shape
+    pivot_cols = []
+    current_row = 0
+
+    for col in range(n):
+        pivot_found = False
+        for row in range(current_row, m):
+            if mat[row, col] == 1:
+                if row != current_row:
+                    mat[[current_row, row]] = mat[[row, current_row]]
+                pivot_found = True
+                break
+
+        if not pivot_found:
+            continue
+
+        pivot_cols.append(col)
+
+        for row in range(m):
+            if row != current_row and mat[row, col] == 1:
+                mat[row] ^= mat[current_row]
+
+        current_row += 1
+        if current_row >= m:
+            break
+
+    return pivot_cols
+
+
+def _determine_css_initializations(
+    model: z3.ModelRef,
+    n: int,
+    num_rows: int,
     k: int,
-    m_x: int,
-    options: ExactSynthesisOptions,
+    matrix_vars: np.ndarray,
+    is_x_type: bool,
+) -> tuple[list[int], list[int]]:
+    """Determine which qubits to initialize based on terminal tableau.
+
+    Args:
+        model: Z3 model from satisfiable formula.
+        n: Number of qubits.
+        num_rows: Number of rows in check matrix.
+        k: Number of logical qubits.
+        matrix_vars: Boolean matrix variables from encoding.
+        is_x_type: Whether target is X-type check matrix.
+
+    Returns:
+        Tuple of (init_x, init_z) lists.
+    """
+    final_matrix = np.array(
+        [[bool(model.eval(matrix_vars[row, q], model_completion=True)) for q in range(n)] for row in range(num_rows)],
+        dtype=np.int8,
+    )
+
+    m = num_rows - k
+
+    if m == 0:
+        if is_x_type:
+            return list(range(k, n)), []
+        return [], list(range(k, n))
+
+    stabilizer_part = final_matrix[k:]
+    pivot_cols = _row_echelon_pivot_cols(stabilizer_part)
+
+    init_x: list[int] = []
+    init_z: list[int] = []
+
+    if is_x_type:
+        init_x = pivot_cols
+        init_z = [q for q in range(n) if q not in pivot_cols and q >= k]
+    else:
+        init_z = pivot_cols
+        init_x = [q for q in range(n) if q not in pivot_cols and q >= k]
+
+    return init_x, init_z
+
+
+def _synthesize_css(
+    target: CheckMatrix,
     target_kind: TargetKind,
-) -> ExactSynthesisResult:
-    """Synthesize CSS CNOT circuit with gate-count objective."""
+    objective: Objective,
+    lower_bound: int,
+    upper_bound: int,
+    k: int | None,
+    verify: bool,
+) -> SynthesisResult:
+    """Synthesize CSS CNOT circuit."""
     import z3
 
-    n = check_matrix.num_qubits()
+    n = target.num_qubits()
 
-    # Determine which qubits are initialized
-    # For CSS state prep: k=0, all qubits initialized
-    # For CSS isometry: k>0, need to determine from final matrix
+    if k is None:
+        if target_kind == TargetKind.CSS_STATE:
+            k = 0
+        else:
+            msg = "k must be provided for CSS isometry synthesis"
+            raise ValueError(msg)
 
-    # Linear search over gate counts
-    for bound in range(options.lower_bound, options.max_bound + 1):
+    m_x = target.num_rows() - k
+
+    for bound in range(lower_bound, upper_bound + 1):
         solver, alpha_vars, beta_vars = encode_css_gate_count(
-            check_matrix,
+            target,
             k,
             m_x,
             bound,
         )
 
-        # Set timeout if specified
-        if options.timeout_per_bound is not None:
-            solver.set("timeout", options.timeout_per_bound * 1000)
+        result = solver.check()
 
-        # Apply additional solver parameters
-        for param, value in options.solver_params.items():
-            solver.set(param, value)
-
-        check_result = solver.check()
-
-        if check_result == z3.sat:
-            # Extract circuit
+        if result == z3.sat:
             model = solver.model()
 
-            # Determine initialized qubits from final matrix structure
-            # This is a simplification; full implementation would extract from model
-            init_x: list[int] = []
-            init_z: list[int] = []
-            if target_kind == TargetKind.CSS_STATE_PREP:
-                # For state prep, determine from check matrix type
-                if check_matrix.is_x_type():
-                    init_x = list(range(n))
-                else:
-                    init_z = list(range(n))
-            else:
-                # For isometry, would need to extract from terminal condition
-                # Placeholder: initialize based on check matrix structure
-                pass
+            num_rows = target.num_rows()
+            matrix_vars_final = np.array(
+                [[z3.Bool(f"m_{bound}_{row}_{q}") for q in range(n)] for row in range(num_rows)], dtype=object
+            )
+
+            init_x, init_z = _determine_css_initializations(
+                model,
+                n,
+                num_rows,
+                k,
+                matrix_vars_final,
+                target.is_x_type(),
+            )
 
             circuit = extract_cnot_gate_count_circuit(
                 model,
@@ -308,155 +345,30 @@ def _synthesize_css_gate_count(
                 init_z,
             )
 
-            # Verify if requested
+            actual_count = bound
+
             verified = False
-            if options.verify_result:
-                if target_kind == TargetKind.CSS_STATE_PREP:
-                    verified = verify_css_isometry(circuit, check_matrix, k)
-                else:  # CSS_ISOMETRY
-                    verified = verify_css_isometry(circuit, check_matrix, k)
+            if verify:
+                if target_kind == TargetKind.CSS_STATE:
+                    verified = verify_css_state(circuit, target)
+                else:
+                    verified = verify_css_isometry(circuit, target, k)
 
-            return ExactSynthesisResult(
-                status=SynthesisStatus.SAT,
-                optimal=True,
-                objective_value=bound,
+            return SynthesisResult(
+                status=SynthesisStatus.SUCCESS,
                 circuit=circuit,
-                bound_used=bound,
-                solver_time=0.0,
+                gate_count=actual_count,
                 verified=verified,
-                two_qubit_gate_count=bound,  # All gates are CNOTs
-            )
-        if check_result == z3.unknown:
-            return ExactSynthesisResult(
-                status=SynthesisStatus.UNKNOWN,
-                optimal=False,
-                objective_value=None,
-                circuit=None,
-                bound_used=bound,
-                solver_time=0.0,
-                verified=False,
-                error_message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+                message=f"Found solution with {actual_count} CNOTs",
             )
 
-    # All bounds exhausted
-    return ExactSynthesisResult(
+        if result == z3.unknown:
+            return SynthesisResult(
+                status=SynthesisStatus.ERROR,
+                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+            )
+
+    return SynthesisResult(
         status=SynthesisStatus.UNSAT,
-        optimal=True,
-        objective_value=None,
-        circuit=None,
-        bound_used=options.max_bound,
-        solver_time=0.0,
-        verified=False,
-        error_message=f"No solution found within max_bound={options.max_bound}",
+        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
     )
-
-
-def _prepare_target(
-    target: StabilizerTableau | CheckMatrix | CliffordIsometry | CNOTCircuit,
-    target_kind: TargetKind,
-    gate_family: GateFamily,
-) -> tuple[StabilizerTableau | None, CheckMatrix | None, int, int]:
-    """Prepare target in appropriate representation.
-
-    Returns:
-        Tuple of (tableau, check_matrix, k, m_x) where:
-        - tableau: For Clifford synthesis, None for CSS
-        - check_matrix: For CSS synthesis, None for Clifford
-        - k: Number of logical qubits
-        - m_x: Number of X-stabilizers (CSS only)
-    """
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
-    from ..circuits import CliffordIsometry, CNOTCircuit
-
-    if gate_family == GateFamily.CLIFFORD:
-        # Convert to StabilizerTableau
-        if isinstance(target, StabilizerTableau):
-            tableau = target
-        elif isinstance(target, CliffordIsometry):
-            tableau = StabilizerTableau.from_stim_circuit(target.to_stim_circuit(with_resets=False))
-        else:
-            msg = f"Invalid target type for Clifford synthesis: {type(target)}"
-            raise TypeError(msg)
-
-        # Determine k
-        if target_kind == TargetKind.CLIFFORD_UNITARY:
-            k = tableau.n
-        elif target_kind == TargetKind.STABILIZER_STATE:
-            k = 0
-        else:  # CLIFFORD_ISOMETRY
-            # k = (total_rows - n_stabilizers) / 2
-            k = (tableau.n_rows - tableau.n) // 2
-
-        return tableau, None, k, 0
-
-    # GateFamily.CNOT
-    # Convert to CheckMatrix
-    if isinstance(target, CheckMatrix):
-        check_matrix = target
-    elif isinstance(target, CNOTCircuit):
-        code = target.get_code()
-        # Use the check matrix with fewer rows
-        if code.Hx.shape[0] <= code.Hz.shape[0]:
-            check_matrix = CheckMatrix(code.Hx, pauli_type="X")
-        else:
-            check_matrix = CheckMatrix(code.Hz, pauli_type="Z")
-    else:
-        msg = f"Invalid target type for CSS synthesis: {type(target)}"
-        raise TypeError(msg)
-
-    # Determine k and m_x
-    if target_kind == TargetKind.CSS_STATE_PREP:
-        k = 0
-        m_x = mod2.rank(check_matrix.matrix)
-    else:  # CSS_ISOMETRY
-        # Would need to extract k from target
-        # Placeholder: assume it's encoded in the matrix structure
-        m_x = mod2.rank(check_matrix.matrix)
-        k = check_matrix.num_qubits() - m_x  # Simplified
-
-    return None, check_matrix, k, m_x
-
-
-def _validate_target(
-    target: StabilizerTableau | CheckMatrix | CliffordIsometry | CNOTCircuit,
-    target_kind: TargetKind,
-    gate_family: GateFamily,
-) -> None:
-    """Validate that target type matches target_kind and gate_family.
-
-    Args:
-        target: The synthesis target.
-        target_kind: The declared target kind.
-        gate_family: The gate family.
-
-    Raises:
-        ValueError: If target type is incompatible with target_kind or gate_family.
-    """
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
-    from ..circuits import CliffordIsometry, CNOTCircuit
-
-    if gate_family == GateFamily.CNOT:
-        if target_kind not in {TargetKind.CSS_STATE_PREP, TargetKind.CSS_ISOMETRY}:
-            msg = f"GateFamily.CNOT requires target_kind to be CSS_STATE_PREP or CSS_ISOMETRY, got {target_kind}"
-            raise ValueError(msg)
-        if not isinstance(target, (CheckMatrix, CNOTCircuit)):
-            msg = f"GateFamily.CNOT requires target to be CheckMatrix or CNOTCircuit, got {type(target).__name__}"
-            raise ValueError(msg)
-
-    if gate_family == GateFamily.CLIFFORD:
-        if target_kind in {TargetKind.CSS_STATE_PREP, TargetKind.CSS_ISOMETRY}:
-            msg = f"GateFamily.CLIFFORD cannot be used with {target_kind}. Use GateFamily.CNOT for CSS problems."
-            raise ValueError(msg)
-        if not isinstance(target, (StabilizerTableau, CliffordIsometry)):
-            msg = f"GateFamily.CLIFFORD with {target_kind} requires StabilizerTableau or CliffordIsometry, got {type(target).__name__}"
-            raise ValueError(msg)
-
-    if target_kind == TargetKind.CLIFFORD_UNITARY and isinstance(target, StabilizerTableau):
-        if target.n_rows != 2 * target.n:
-            msg = f"Clifford unitary requires a full 2n x 2n tableau, got {target.n_rows} x {target.n * 2}"
-            raise ValueError(msg)
-
-    if target_kind == TargetKind.STABILIZER_STATE and isinstance(target, StabilizerTableau):
-        if target.n_rows != target.n:
-            msg = f"Stabilizer state preparation requires n x 2n tableau, got {target.n_rows} x {target.n * 2}"
-            raise ValueError(msg)

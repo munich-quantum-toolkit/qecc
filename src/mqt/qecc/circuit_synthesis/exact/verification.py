@@ -50,7 +50,7 @@ def verify_stabilizer_state(circuit: CliffordIsometry, target: StabilizerTableau
     """
     from ...codes.pauli import StabilizerTableau
 
-    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=True))
+    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
 
     if actual.n != target.n:
         return False
@@ -77,7 +77,7 @@ def verify_clifford_isometry(circuit: CliffordIsometry, target: StabilizerTablea
     """
     from ...codes.pauli import StabilizerTableau
 
-    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=True))
+    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
 
     if actual.n != target.n:
         return False
@@ -138,7 +138,7 @@ def verify_css_isometry(circuit: CNOTCircuit, target: CheckMatrix, k: int) -> bo
 
     actual = code.Hx if target.is_x_type() else code.Hz
 
-    n = target.num_qubits()
+    target.num_qubits()
     m = target.num_rows() - k
 
     if actual.shape[0] != m:

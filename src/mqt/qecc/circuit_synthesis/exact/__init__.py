@@ -5,38 +5,23 @@
 #
 # Licensed under the MIT License
 
-"""Unified exact synthesis framework for Clifford circuits.
-
-This module provides optimal synthesis for:
-- Clifford unitaries
-- Stabilizer-state preparation
-- Clifford encoding isometries
-- CSS state preparation
-- CSS encoding isometries
-
-The framework supports gate-count optimization, depth optimization,
-and optional lexicographic depth-then-two-qubit-count optimization.
-"""
+"""Exact synthesis module for Clifford circuits."""
 
 from __future__ import annotations
 
 from .search import synthesize_exact
 from .types import (
-    ExactSynthesisOptions,
-    ExactSynthesisResult,
     GateFamily,
     Objective,
-    SearchStrategy,
+    SynthesisResult,
     SynthesisStatus,
     TargetKind,
 )
 
 __all__ = [
-    "ExactSynthesisOptions",
-    "ExactSynthesisResult",
     "GateFamily",
     "Objective",
-    "SearchStrategy",
+    "SynthesisResult",
     "SynthesisStatus",
     "TargetKind",
     "synthesize_exact",
