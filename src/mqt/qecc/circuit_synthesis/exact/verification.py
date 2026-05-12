@@ -52,21 +52,16 @@ def verify_stabilizer_state(circuit: CliffordIsometry, target: StabilizerTableau
 
     actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=True))
 
-    # Get stabilizers from actual circuit
-    n = actual.n
-    stab_actual = actual.tableau.matrix[n:, :]
-
-    # Check that X-part is zero
-    if not np.all(stab_actual[:, :n] == 0):
+    if actual.n != target.n:
         return False
 
-    # Check Z-part matches target up to row operations
-    import ldpc.mod2.mod2_numpy as mod2
+    actual_stabs = actual.tableau.matrix[actual.n :]
+    target_stabs = target.tableau.matrix
 
-    target_z = target.tableau.matrix[:, n:]
-    actual_z = stab_actual[:, n:]
+    if actual_stabs.shape[0] != target_stabs.shape[0]:
+        return False
 
-    return bool(mod2.rank(target_z) == mod2.rank(actual_z) == mod2.rank(np.vstack([target_z, actual_z])))
+    return _check_stabilizer_equivalence(actual_stabs, target_stabs)
 
 
 def verify_clifford_isometry(circuit: CliffordIsometry, target: StabilizerTableau, k: int) -> bool:
@@ -80,9 +75,31 @@ def verify_clifford_isometry(circuit: CliffordIsometry, target: StabilizerTablea
     Returns:
         True if circuit implements target isometry.
     """
-    # Placeholder: full verification requires checking logical operators match
-    # and stabilizers are correct up to row operations and qubit permutation
-    return True
+    from ...codes.pauli import StabilizerTableau
+
+    actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=True))
+
+    if actual.n != target.n:
+        return False
+
+    n = actual.n
+    m = target.n_rows - 2 * k
+
+    actual_logicals_x = actual.tableau.matrix[:k]
+    actual_logicals_z = actual.tableau.matrix[k : 2 * k]
+    actual_stabs = actual.tableau.matrix[2 * k :]
+
+    target_logicals_x = target.tableau.matrix[:k]
+    target_logicals_z = target.tableau.matrix[k : 2 * k]
+    target_stabs = target.tableau.matrix[2 * k :]
+
+    if actual_stabs.shape[0] != m or target_stabs.shape[0] != m:
+        return False
+
+    if not _check_stabilizer_equivalence(actual_stabs, target_stabs):
+        return False
+
+    return _check_logical_equivalence(actual_logicals_x, actual_logicals_z, target_logicals_x, target_logicals_z, n)
 
 
 def verify_css_state(circuit: CNOTCircuit, target: CheckMatrix) -> bool:
@@ -95,10 +112,8 @@ def verify_css_state(circuit: CNOTCircuit, target: CheckMatrix) -> bool:
     Returns:
         True if circuit prepares target CSS state.
     """
-    # Get code from circuit
     code = circuit.get_code()
 
-    # Check that stabilizers match target
     import ldpc.mod2.mod2_numpy as mod2
 
     actual = code.Hx if target.is_x_type() else code.Hz
@@ -117,5 +132,56 @@ def verify_css_isometry(circuit: CNOTCircuit, target: CheckMatrix, k: int) -> bo
     Returns:
         True if circuit implements target CSS isometry.
     """
-    # Placeholder: full verification requires checking logical operators
-    return True
+    code = circuit.get_code()
+
+    import ldpc.mod2.mod2_numpy as mod2
+
+    actual = code.Hx if target.is_x_type() else code.Hz
+
+    n = target.num_qubits()
+    m = target.num_rows() - k
+
+    if actual.shape[0] != m:
+        return False
+
+    return bool(mod2.rank(target.matrix[k:]) == mod2.rank(actual) == mod2.rank(np.vstack([target.matrix[k:], actual])))
+
+
+def _check_stabilizer_equivalence(actual: np.ndarray, target: np.ndarray) -> bool:
+    """Check if two sets of stabilizers generate the same stabilizer group."""
+    import ldpc.mod2.mod2_numpy as mod2
+
+    if actual.shape != target.shape:
+        return False
+
+    rank_actual = mod2.rank(actual)
+    rank_target = mod2.rank(target)
+
+    if rank_actual != rank_target:
+        return False
+
+    combined = np.vstack([actual, target])
+    rank_combined = mod2.rank(combined)
+
+    return rank_combined == rank_actual
+
+
+def _check_logical_equivalence(
+    actual_x: np.ndarray, actual_z: np.ndarray, target_x: np.ndarray, target_z: np.ndarray, n: int
+) -> bool:
+    """Check if logical operators are equivalent up to qubit permutation and stabilizers."""
+    import ldpc.mod2.mod2_numpy as mod2
+
+    k = actual_x.shape[0]
+
+    if target_x.shape[0] != k or actual_z.shape[0] != k or target_z.shape[0] != k:
+        return False
+
+    actual_logical = np.hstack([actual_x, actual_z])
+    target_logical = np.hstack([target_x, target_z])
+
+    if mod2.rank(actual_logical) != k or mod2.rank(target_logical) != k:
+        return False
+
+    combined = np.vstack([actual_logical, target_logical])
+    return mod2.rank(combined) == k
