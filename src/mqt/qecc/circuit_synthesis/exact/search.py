@@ -183,6 +183,39 @@ def _combine_stabilizers_and_logicals(
     return StabilizerTableau(combined_matrix, combined_phase)
 
 
+def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
+    """Ensure all qubits from 0 to n-1 are present in the circuit.
+
+    Stim silently removes unused qubits, which can cause issues with verification.
+    This function adds identity operations on any missing qubits to ensure they exist.
+
+    Args:
+        circuit: The stim circuit.
+        n: The number of qubits that should be present.
+
+    Returns:
+        A circuit with all qubits from 0 to n-1 present.
+    """
+    if n == 0:
+        return circuit
+
+    used_qubits = set()
+    for instruction in circuit:
+        for target_group in instruction.target_groups():
+            used_qubits.update(target.qubit_value for target in target_group)
+
+    missing_qubits = [q for q in range(n) if q not in used_qubits]
+
+    if not missing_qubits:
+        return circuit
+
+    result = stim.Circuit()
+    result.append("I", missing_qubits)
+    result += circuit
+
+    return result
+
+
 def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
     """Apply Pauli sign correction to a circuit to match target phases.
 
@@ -193,6 +226,8 @@ def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
     Returns:
         Circuit with Pauli correction prepended if needed.
     """
+    circuit = _ensure_all_qubits_present(circuit, n)
+
     stim_tableau = circuit.to_tableau().to_numpy()
 
     x_part = np.vstack((stim_tableau[0].astype(np.int8), stim_tableau[2].astype(np.int8)))
