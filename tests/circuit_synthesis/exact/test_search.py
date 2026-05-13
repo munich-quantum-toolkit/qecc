@@ -9,8 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
@@ -20,9 +19,7 @@ from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_state,
     verify_stabilizer_state,
 )
-
-if TYPE_CHECKING:
-    from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.mark.parametrize(
@@ -304,6 +301,23 @@ def test_lower_bound_respected(bell_state: tuple[StabilizerTableau, StabilizerTa
     assert result.gate_count == 2
 
 
+def test_exact_bound_match(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test when optimal solution exactly matches bound."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.GATE_COUNT,
+        lower_bound=2,
+        upper_bound=2,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.gate_count == 2
+
+
 def test_qubit_permutation_disabled(
     swap_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
 ) -> None:
@@ -328,6 +342,125 @@ def test_qubit_permutation_disabled(
     assert result.gate_count == 3
 
 
+def test_zero_bound_with_identity_state(
+    two_qubit_zero_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test that identity state can be prepared with bound 0."""
+    stabilizers, _x_logicals, _z_logicals = two_qubit_zero_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=0,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.gate_count == 0
+
+
+def test_zero_bound_with_nontrivial_state(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test that non-trivial state cannot be prepared with bound 0."""
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=0,
+    )
+
+    assert result.status == SynthesisStatus.UNSAT
+
+
+def test_state_with_minus_sign() -> None:
+    """Test synthesis handles phases correctly for |-⟩ state."""
+    target = StabilizerTableau.from_pauli_strings(["-X"])
+
+    result = synthesize_exact(
+        target,
+        TargetKind.STABILIZER_STATE,
+        GateFamily.CLIFFORD,
+        Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+
+
+def test_state_with_imaginary_phase() -> None:
+    """Test synthesis handles imaginary phases for |i⟩ state."""
+    target = StabilizerTableau.from_pauli_strings(["iY"])
+
+    result = synthesize_exact(
+        target,
+        TargetKind.STABILIZER_STATE,
+        GateFamily.CLIFFORD,
+        Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+
+
+def test_css_single_check() -> None:
+    """Test CSS state with single check."""
+    check_matrix = CheckMatrix(np.array([[1, 1]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_exact(
+        check_matrix,
+        TargetKind.CSS_STATE,
+        GateFamily.CSS_CNOT,
+        Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+
+
+def test_css_fully_connected_check() -> None:
+    """Test CSS state with all-ones check (GHZ-like state)."""
+    check_matrix = CheckMatrix(np.array([[1, 1, 1, 1]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_exact(
+        check_matrix,
+        TargetKind.CSS_STATE,
+        GateFamily.CSS_CNOT,
+        Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=10,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+
+
+def test_four_qubit_ghz_state() -> None:
+    """Test synthesis on 4-qubit system."""
+    target = StabilizerTableau.from_pauli_strings(["XXXX", "ZZII", "IZZI", "IIZZ"])
+
+    result = synthesize_exact(
+        target,
+        TargetKind.STABILIZER_STATE,
+        GateFamily.CLIFFORD,
+        Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=10,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+
+
 def test_invalid_bounds(plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
     """Test that invalid bounds are rejected."""
     stabilizers, _x_logicals, _z_logicals = plus_state
@@ -339,6 +472,22 @@ def test_invalid_bounds(plus_state: tuple[StabilizerTableau, StabilizerTableau, 
             gate_family=GateFamily.CLIFFORD,
             objective=Objective.GATE_COUNT,
             lower_bound=10,
+            upper_bound=5,
+        )
+
+
+def test_negative_k_rejected(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test that negative k is rejected."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    with pytest.raises(ValueError, match="k must be non-negative"):
+        synthesize_exact(
+            target=stabilizers,
+            target_kind=TargetKind.CLIFFORD_ISOMETRY,
+            gate_family=GateFamily.CLIFFORD,
+            objective=Objective.GATE_COUNT,
+            k=-1,
+            lower_bound=0,
             upper_bound=5,
         )
 
@@ -373,6 +522,26 @@ def test_clifford_isometry_missing_logicals(
             gate_family=GateFamily.CLIFFORD,
             objective=Objective.GATE_COUNT,
             k=1,
+            lower_bound=0,
+            upper_bound=5,
+        )
+
+
+def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test that mismatched logical operator counts are rejected."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+    x_logicals = StabilizerTableau.from_pauli_strings(["XI", "IX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZI"])
+
+    with pytest.raises(ValueError):
+        synthesize_exact(
+            target=stabilizers,
+            target_kind=TargetKind.CLIFFORD_ISOMETRY,
+            gate_family=GateFamily.CLIFFORD,
+            objective=Objective.GATE_COUNT,
+            k=2,
+            x_logicals=x_logicals,
+            z_logicals=z_logicals,
             lower_bound=0,
             upper_bound=5,
         )
