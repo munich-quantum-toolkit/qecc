@@ -352,6 +352,7 @@ def _apply_pauli_correction_to_clifford(
     circuit: CliffordIsometry,
     n: int,
     target_kind: TargetKind,
+    target_tableau: StabilizerTableau,
 ) -> CliffordIsometry:
     """Apply Pauli sign correction and initialize ancillas.
 
@@ -359,12 +360,13 @@ def _apply_pauli_correction_to_clifford(
         circuit: Extracted circuit from SAT model.
         n: Number of qubits.
         target_kind: Kind of synthesis problem.
+        target_tableau: Target tableau with correct phases.
 
     Returns:
         Corrected circuit with proper initialization.
     """
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
-    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
+    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau)
     corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
     if target_kind == TargetKind.STABILIZER_STATE:
@@ -404,28 +406,39 @@ def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
     return result
 
 
-def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
+def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int, target_tableau: StabilizerTableau) -> stim.Circuit:
     """Apply Pauli sign correction to a circuit to match target phases.
 
     Args:
         circuit: The synthesized circuit (may have incorrect signs).
         n: Number of qubits.
+        target_tableau: Target tableau with correct phases.
 
     Returns:
         Circuit with Pauli correction prepended if needed.
     """
     circuit = _ensure_all_qubits_present(circuit, n)
 
-    stim_tableau = circuit.to_tableau().to_numpy()
+    stim_tableau_data = circuit.to_tableau().to_numpy()
 
-    x_part = np.vstack((stim_tableau[0].astype(np.int8), stim_tableau[2].astype(np.int8)))
-    z_part = np.vstack((stim_tableau[1].astype(np.int8), stim_tableau[3].astype(np.int8)))
-    signs = np.concatenate((stim_tableau[-2].astype(int), stim_tableau[-1].astype(int)))
+    num_target_rows = target_tableau.num_rows()
 
-    signed_tableau = np.hstack((x_part, z_part, np.array([signs]).T))
+    synth_x = np.vstack((stim_tableau_data[0].astype(np.int8), stim_tableau_data[2].astype(np.int8)))
+    synth_z = np.vstack((stim_tableau_data[1].astype(np.int8), stim_tableau_data[3].astype(np.int8)))
+    synth_signs = np.concatenate((stim_tableau_data[-2].astype(np.int8), stim_tableau_data[-1].astype(np.int8)))
 
-    if np.all(signed_tableau[:, -1] == 0):
+    target_x = synth_x[:num_target_rows, :]
+    target_z = synth_z[:num_target_rows, :]
+    target_synth_signs = synth_signs[:num_target_rows]
+
+    target_signs = target_tableau.phase.astype(np.int8)
+
+    sign_difference = target_synth_signs ^ target_signs
+
+    if np.all(sign_difference == 0):
         return circuit
+
+    signed_tableau = np.hstack((target_x, target_z, np.array([sign_difference]).T))
 
     kernel = mod2.nullspace(signed_tableau)
 
@@ -482,7 +495,7 @@ def _synthesize_clifford(
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
         if not isinstance(circuit, CliffordIsometry):
             return False
-        corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
+        corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind, target)
         if target_kind == TargetKind.CLIFFORD_UNITARY:
             return verify_clifford_unitary(corrected, target)
         if target_kind == TargetKind.STABILIZER_STATE:
@@ -504,7 +517,7 @@ def _synthesize_clifford(
     )
 
     if result.circuit is not None and isinstance(result.circuit, CliffordIsometry):
-        result.circuit = _apply_pauli_correction_to_clifford(result.circuit, n, target_kind)
+        result.circuit = _apply_pauli_correction_to_clifford(result.circuit, n, target_kind, target)
 
     return result
 
