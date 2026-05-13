@@ -12,10 +12,21 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    import z3
+import numpy as np
+import z3
 
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
+from ...codes.pauli import CheckMatrix, StabilizerTableau
+from .css_utils import determine_css_initializations
+from .encoding_depth import encode_clifford_depth, encode_css_depth
+from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
+from .extraction import (
+    extract_clifford_depth_circuit,
+    extract_clifford_gate_count_circuit,
+    extract_cnot_depth_circuit,
+    extract_cnot_gate_count_circuit,
+)
+
+if TYPE_CHECKING:
     from ..circuits import CliffordIsometry, CNOTCircuit
 
 
@@ -96,9 +107,6 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         **options: Any,
     ) -> tuple[z3.Solver, dict[str, Any]]:
         """Build gate-count encoding for Clifford circuit."""
-        from ...codes.pauli import StabilizerTableau
-        from .encoding_gate_count import encode_clifford_gate_count
-
         if not isinstance(target, StabilizerTableau):
             msg = "CliffordGateCountEncoding requires StabilizerTableau"
             raise TypeError(msg)
@@ -131,8 +139,6 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         k: int,
     ) -> CliffordIsometry | CNOTCircuit:
         """Extract Clifford circuit from gate-count model."""
-        from .extraction import extract_clifford_gate_count_circuit
-
         return extract_clifford_gate_count_circuit(
             model,
             n,
@@ -153,8 +159,6 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         n: int,
     ) -> int:
         """Compute actual gate count."""
-        import z3
-
         return sum(
             1
             for slot in range(bound)
@@ -176,9 +180,6 @@ class CliffordDepthEncoding(SynthesisEncoding):
         **options: Any,
     ) -> tuple[z3.Solver, dict[str, Any]]:
         """Build depth encoding for Clifford circuit."""
-        from ...codes.pauli import StabilizerTableau
-        from .encoding_depth import encode_clifford_depth
-
         if not isinstance(target, StabilizerTableau):
             msg = "CliffordDepthEncoding requires StabilizerTableau"
             raise TypeError(msg)
@@ -210,8 +211,6 @@ class CliffordDepthEncoding(SynthesisEncoding):
         k: int,
     ) -> CliffordIsometry | CNOTCircuit:
         """Extract Clifford circuit from depth model."""
-        from .extraction import extract_clifford_depth_circuit
-
         return extract_clifford_depth_circuit(
             model,
             n,
@@ -260,9 +259,6 @@ class CSSGateCountEncoding(SynthesisEncoding):
         **options: Any,
     ) -> tuple[z3.Solver, dict[str, Any]]:
         """Build gate-count encoding for CSS circuit."""
-        from ...codes.pauli import CheckMatrix
-        from .encoding_gate_count import encode_css_gate_count
-
         if not isinstance(target, CheckMatrix):
             msg = "CSSGateCountEncoding requires CheckMatrix"
             raise TypeError(msg)
@@ -298,19 +294,12 @@ class CSSGateCountEncoding(SynthesisEncoding):
         k: int,
     ) -> CliffordIsometry | CNOTCircuit:
         """Extract CSS circuit from gate-count model."""
-        import numpy as np
-        import z3
-
-        from .extraction import extract_cnot_gate_count_circuit
-
         num_rows = variables["num_rows"]
         matrix_vars_final = np.array(
             [[z3.Bool(f"m_{bound}_{row}_{q}") for q in range(n)] for row in range(num_rows)], dtype=object
         )
 
-        from .search import _determine_css_initializations
-
-        init_x, init_z = _determine_css_initializations(
+        init_x, init_z = determine_css_initializations(
             model,
             n,
             num_rows,
@@ -351,9 +340,6 @@ class CSSDepthEncoding(SynthesisEncoding):
         **options: Any,
     ) -> tuple[z3.Solver, dict[str, Any]]:
         """Build depth encoding for CSS circuit."""
-        from ...codes.pauli import CheckMatrix
-        from .encoding_depth import encode_css_depth
-
         if not isinstance(target, CheckMatrix):
             msg = "CSSDepthEncoding requires CheckMatrix"
             raise TypeError(msg)
@@ -389,19 +375,12 @@ class CSSDepthEncoding(SynthesisEncoding):
         k: int,
     ) -> CliffordIsometry | CNOTCircuit:
         """Extract CSS circuit from depth model."""
-        import numpy as np
-        import z3
-
-        from .extraction import extract_cnot_depth_circuit
-
         num_rows = variables["num_rows"]
         matrix_vars_final = np.array(
             [[z3.Bool(f"m_{bound}_{row}_{q}") for q in range(n)] for row in range(num_rows)], dtype=object
         )
 
-        from .search import _determine_css_initializations
-
-        init_x, init_z = _determine_css_initializations(
+        init_x, init_z = determine_css_initializations(
             model,
             n,
             num_rows,

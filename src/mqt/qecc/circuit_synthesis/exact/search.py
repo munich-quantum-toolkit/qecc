@@ -17,7 +17,7 @@ import stim
 import z3
 
 from ...codes.pauli import CheckMatrix, StabilizerTableau
-from ..circuits import CliffordIsometry
+from ..circuits import CliffordIsometry, CNOTCircuit
 from .encoding_interface import (
     CliffordDepthEncoding,
     CliffordGateCountEncoding,
@@ -34,7 +34,8 @@ from .verification import (
 )
 
 if TYPE_CHECKING:
-    from ..circuits import CNOTCircuit
+    from collections.abc import Callable
+
     from .encoding_interface import (
         SynthesisEncoding,
     )
@@ -178,7 +179,7 @@ def _search_with_encoding(
     lower_bound: int,
     upper_bound: int,
     k: int,
-    verify_fn: callable,
+    verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
     is_depth: bool,
     **encoding_options: dict,
 ) -> SynthesisResult:
@@ -454,7 +455,9 @@ def _synthesize_clifford(
         encoding = CliffordDepthEncoding()
         is_depth = True
 
-    def verify_fn(circuit: CliffordIsometry) -> bool:
+    def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
+        if not isinstance(circuit, CliffordIsometry):
+            return False
         corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
         if target_kind == TargetKind.CLIFFORD_UNITARY:
             return verify_clifford_unitary(corrected, target)
@@ -521,107 +524,6 @@ def _prepare_css_target(
     return target, m_x
 
 
-def _row_echelon_pivot_cols(matrix: np.ndarray) -> list[int]:
-    """Compute row echelon form and return pivot column indices.
-
-    Args:
-        matrix: Binary matrix (m x n) with dtype np.int8.
-
-    Returns:
-        List of column indices that contain pivots in row echelon form.
-    """
-    mat = matrix.copy()
-    m, n = mat.shape
-    pivot_cols = []
-    current_row = 0
-
-    for col in range(n):
-        pivot_found = False
-        for row in range(current_row, m):
-            if mat[row, col] == 1:
-                if row != current_row:
-                    mat[[current_row, row]] = mat[[row, current_row]]
-                pivot_found = True
-                break
-
-        if not pivot_found:
-            continue
-
-        pivot_cols.append(col)
-
-        for row in range(m):
-            if row != current_row and mat[row, col] == 1:
-                mat[row] ^= mat[current_row]
-
-        current_row += 1
-        if current_row >= m:
-            break
-
-    return pivot_cols
-
-
-def _determine_css_initializations(
-    model: z3.ModelRef,
-    n: int,
-    num_rows: int,
-    k: int,
-    matrix_vars: np.ndarray,
-    is_x_type: bool,
-) -> tuple[list[int], list[int]]:
-    """Determine which qubits to initialize based on terminal tableau.
-
-    Args:
-        model: Z3 model from satisfiable formula.
-        n: Number of qubits.
-        num_rows: Number of rows in check matrix.
-        k: Number of logical qubits.
-        matrix_vars: Boolean matrix variables from encoding.
-        is_x_type: Whether target is X-type check matrix.
-
-    Returns:
-        Tuple of (init_x, init_z) lists.
-    """
-    final_matrix = np.array(
-        [[bool(model.eval(matrix_vars[row, q], model_completion=True)) for q in range(n)] for row in range(num_rows)],
-        dtype=np.int8,
-    )
-
-    m = num_rows - k
-
-    if m == 0:
-        if is_x_type:
-            return list(range(k, n)), []
-        return [], list(range(k, n))
-
-    logical_part = final_matrix[:k]
-    stabilizer_part = final_matrix[k:]
-
-    stabilizer_pivot_cols = _row_echelon_pivot_cols(stabilizer_part)
-
-    input_qubits = []
-    for col in range(n):
-        if col in stabilizer_pivot_cols:
-            continue
-        for row in range(k):
-            if logical_part[row, col] == 1:
-                input_qubits.append(col)
-                break
-
-    ancilla_qubits = [q for q in range(n) if q not in input_qubits]
-
-    init_x: list[int] = []
-    init_z: list[int] = []
-
-    if is_x_type:
-        init_x = [q for q in stabilizer_pivot_cols if q in ancilla_qubits]
-        init_z = [q for q in ancilla_qubits if q not in init_x]
-    else:
-        init_z = [q for q in stabilizer_pivot_cols if q in ancilla_qubits]
-        init_x = [q for q in ancilla_qubits if q not in init_z]
-
-    return init_x, init_z
-
-
 def _synthesize_css(
     checks: CheckMatrix,
     target_kind: TargetKind,
@@ -650,7 +552,9 @@ def _synthesize_css(
         encoding = CSSDepthEncoding()
         is_depth = True
 
-    def verify_fn(circuit: CNOTCircuit) -> bool:
+    def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
+        if not isinstance(circuit, CNOTCircuit):
+            return False
         if target_kind == TargetKind.CSS_STATE:
             return verify_css_state(circuit, checks)
         return verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
