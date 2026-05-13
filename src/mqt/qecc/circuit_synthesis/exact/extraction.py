@@ -87,6 +87,80 @@ def extract_clifford_gate_count_circuit(
     return CliffordIsometry.from_stim_circuit(stim_circuit)
 
 
+def extract_clifford_depth_circuit(
+    model: z3.ModelRef,
+    n: int,
+    max_depth: int,
+    h_vars: list[list[z3.BoolRef]],
+    s_vars: list[list[z3.BoolRef]],
+    cx_vars: list[list[z3.BoolRef]],
+    k: int,
+) -> CliffordIsometry:
+    """Extract Clifford circuit from depth SAT model.
+
+    The synthesis builds the circuit in reverse (reducing target to identity),
+    so we need to invert and reverse the layer sequence.
+
+    Args:
+        model: Z3 model from satisfiable formula.
+        n: Number of qubits.
+        max_depth: Maximum depth.
+        h_vars: Hadamard gate variables [layer][qubit].
+        s_vars: S gate variables [layer][qubit].
+        cx_vars: CNOT gate variables [layer][cx_idx].
+        k: Number of logical qubits.
+
+    Returns:
+        Extracted CliffordIsometry circuit.
+    """
+    import stim
+
+    layers = []
+    for layer in range(max_depth):
+        layer_gates = []
+
+        for q in range(n):
+            h = model.eval(h_vars[layer][q], model_completion=True)
+            s = model.eval(s_vars[layer][q], model_completion=True)
+
+            if h:
+                layer_gates.append(("H", q))
+            elif s:
+                layer_gates.append(("S", q))
+
+        cx_idx = 0
+        for ctrl in range(n):
+            for tgt in range(n):
+                if ctrl == tgt:
+                    continue
+                cx = model.eval(cx_vars[layer][cx_idx], model_completion=True)
+                if cx:
+                    layer_gates.append(("CX", ctrl, tgt))
+                cx_idx += 1
+
+        if layer_gates:
+            layers.append(layer_gates)
+
+    stim_circuit = stim.Circuit()
+
+    m = n - k
+    if m > 0:
+        stim_circuit.append("R", list(range(k, n)))
+
+    for layer_gates in reversed(layers):
+        for gate in layer_gates:
+            if gate[0] == "H":
+                stim_circuit.append("H", [gate[1]])
+            elif gate[0] == "S":
+                stim_circuit.append("S_DAG", [gate[1]])
+            elif gate[0] == "CX":
+                stim_circuit.append("CX", [gate[1], gate[2]])
+
+    from ..circuits import CliffordIsometry
+
+    return CliffordIsometry.from_stim_circuit(stim_circuit)
+
+
 def extract_cnot_gate_count_circuit(
     model: z3.ModelRef,
     n: int,
@@ -120,6 +194,56 @@ def extract_cnot_gate_count_circuit(
         alpha = model.eval(alpha_vars[slot], model_completion=True).as_long()
         beta = model.eval(beta_vars[slot], model_completion=True).as_long()
         cnots.append((alpha, beta))
+
+    reversed_cnots = list(reversed(cnots))
+
+    inputs = [i for i in range(n) if i not in init_x and i not in init_z]
+
+    return CNOTCircuit.from_cnot_list(
+        reversed_cnots,
+        initialize_z=init_z,
+        initialize_x=init_x,
+        inputs=inputs,
+    )
+
+
+def extract_cnot_depth_circuit(
+    model: z3.ModelRef,
+    n: int,
+    max_depth: int,
+    cx_vars: list[list[z3.BoolRef]],
+    init_x: list[int],
+    init_z: list[int],
+) -> CNOTCircuit:
+    """Extract CNOT circuit from depth SAT model.
+
+    The synthesis builds the circuit in reverse (reducing target to identity),
+    so we need to reverse the layer sequence.
+
+    Args:
+        model: Z3 model from satisfiable formula.
+        n: Number of qubits.
+        max_depth: Maximum depth.
+        cx_vars: CNOT gate variables [layer][cx_idx].
+        init_x: Qubits initialized in |+⟩ state.
+        init_z: Qubits initialized in |0⟩ state.
+
+    Returns:
+        Extracted CNOTCircuit.
+    """
+    from ..circuits import CNOTCircuit
+
+    cnots = []
+    for layer in range(max_depth):
+        cx_idx = 0
+        for ctrl in range(n):
+            for tgt in range(n):
+                if ctrl == tgt:
+                    continue
+                cx = model.eval(cx_vars[layer][cx_idx], model_completion=True)
+                if cx:
+                    cnots.append((ctrl, tgt))
+                cx_idx += 1
 
     reversed_cnots = list(reversed(cnots))
 
