@@ -64,7 +64,7 @@ dependencies = [
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
-  "protobuf==6.31.1",
+  "protobuf==6.33.5",
   "networkx>=3.4.2",
 ]
 dynamic = ["version"]
