@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
+from .gate_operations import CNOTGate, HGate, SGate
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 
 if TYPE_CHECKING:
-
     from ...codes.pauli import CheckMatrix, StabilizerTableau
 
 
@@ -88,11 +88,13 @@ def encode_clifford_gate_count(
         next_z = tableau_z[slot + 1]
 
         for i in range(n):
+            HGate(i)
             h_condition = z3.And(h_vars[slot], alpha_vars[slot] == i)
             for row in range(num_rows):
                 solver.add(z3.Implies(h_condition, next_x[row, i] == curr_z[row, i]))
                 solver.add(z3.Implies(h_condition, next_z[row, i] == curr_x[row, i]))
 
+            SGate(i)
             s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
             for row in range(num_rows):
                 solver.add(z3.Implies(s_condition, next_x[row, i] == curr_x[row, i]))
@@ -102,6 +104,7 @@ def encode_clifford_gate_count(
                 if i == j:
                     continue
 
+                CNOTGate(i, j)
                 cx_condition = z3.And(c_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
                 for row in range(num_rows):
                     solver.add(z3.Implies(cx_condition, next_x[row, i] == curr_x[row, i]))
@@ -201,6 +204,7 @@ def encode_css_gate_count(
                 if i == j:
                     continue
 
+                CNOTGate(i, j)
                 cx_condition = z3.And(alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):

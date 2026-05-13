@@ -18,13 +18,11 @@ import z3
 
 from ...codes.pauli import CheckMatrix, StabilizerTableau
 from ..circuits import CliffordIsometry
-from .encoding_depth import encode_clifford_depth, encode_css_depth
-from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
-from .extraction import (
-    extract_clifford_depth_circuit,
-    extract_clifford_gate_count_circuit,
-    extract_cnot_depth_circuit,
-    extract_cnot_gate_count_circuit,
+from .encoding_interface import (
+    CliffordDepthEncoding,
+    CliffordGateCountEncoding,
+    CSSDepthEncoding,
+    CSSGateCountEncoding,
 )
 from .types import GateFamily, Objective, SynthesisResult, SynthesisStatus, TargetKind
 from .verification import (
@@ -37,6 +35,9 @@ from .verification import (
 
 if TYPE_CHECKING:
     from ..circuits import CNOTCircuit
+    from .encoding_interface import (
+        SynthesisEncoding,
+    )
 
 
 def synthesize_exact(
@@ -168,6 +169,74 @@ def _validate_synthesis_parameters(
         if target_kind not in {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}:
             msg = f"CSS_CNOT gate family requires CSS_STATE or CSS_ISOMETRY, got {target_kind.value}"
             raise ValueError(msg)
+
+
+def _search_with_encoding(
+    encoding: SynthesisEncoding,
+    target: StabilizerTableau | CheckMatrix,
+    target_kind: TargetKind,
+    lower_bound: int,
+    upper_bound: int,
+    k: int,
+    verify_fn: callable,
+    is_depth: bool,
+    **encoding_options: dict,
+) -> SynthesisResult:
+    """Generic search loop using an encoding.
+
+    Args:
+        encoding: Encoding strategy to use.
+        target: Combined target (tableau or check matrix).
+        target_kind: Kind of synthesis problem.
+        lower_bound: Lower bound on resources.
+        upper_bound: Upper bound on resources.
+        k: Number of logical qubits.
+        verify_fn: Verification function to call.
+        is_depth: Whether optimizing depth (vs gate count).
+        **encoding_options: Additional options for encoding.
+
+    Returns:
+        SynthesisResult.
+    """
+    n = target.n if isinstance(target, StabilizerTableau) else target.num_qubits()
+
+    for bound in range(lower_bound, upper_bound + 1):
+        solver, variables = encoding.encode(target, k, bound, **encoding_options)
+
+        result = solver.check()
+
+        if result == z3.sat:
+            model = solver.model()
+
+            circuit = encoding.extract_circuit(model, n, bound, variables, k)
+
+            actual_resources = encoding.compute_actual_resources(model, bound, variables, n)
+
+            verified = False
+            if encoding_options.get("verify"):
+                verified = verify_fn(circuit)
+
+            resource_key = "depth" if is_depth else "gate_count"
+            resource_name = "depth" if is_depth else "gates"
+
+            return SynthesisResult(
+                status=SynthesisStatus.SUCCESS,
+                circuit=circuit,
+                **{resource_key: actual_resources},
+                verified=verified,
+                message=f"Found solution with {actual_resources} {resource_name}",
+            )
+
+        if result == z3.unknown:
+            return SynthesisResult(
+                status=SynthesisStatus.ERROR,
+                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+            )
+
+    return SynthesisResult(
+        status=SynthesisStatus.UNSAT,
+        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
+    )
 
 
 def _prepare_clifford_target(
@@ -362,123 +431,6 @@ def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
     return corrected_circuit
 
 
-def _verify_clifford_result(
-    circuit: CliffordIsometry,
-    target: StabilizerTableau,
-    target_kind: TargetKind,
-    k: int,
-    stabilizers: StabilizerTableau,
-) -> bool:
-    """Verify Clifford synthesis result.
-
-    Args:
-        circuit: Synthesized circuit.
-        target: Combined target tableau.
-        target_kind: Kind of synthesis problem.
-        k: Number of logical qubits.
-        stabilizers: Original stabilizer generators.
-
-    Returns:
-        True if verification succeeds.
-    """
-    if target_kind == TargetKind.CLIFFORD_UNITARY:
-        return verify_clifford_unitary(circuit, target)
-    if target_kind == TargetKind.STABILIZER_STATE:
-        return verify_stabilizer_state(circuit, stabilizers)
-    return verify_clifford_isometry(circuit, target, k)
-
-
-def _compute_actual_gate_count(
-    model: z3.ModelRef,
-    bound: int,
-    h_vars: list[z3.BoolRef],
-    s_vars: list[z3.BoolRef],
-    c_vars: list[z3.BoolRef],
-) -> int:
-    """Compute actual gate count from SAT model.
-
-    Args:
-        model: Z3 model.
-        bound: Maximum number of gates.
-        h_vars: Hadamard variables.
-        s_vars: S gate variables.
-        c_vars: CNOT variables.
-
-    Returns:
-        Actual number of gates used.
-    """
-    return sum(
-        1 for slot in range(bound) if model.eval(z3.Or(h_vars[slot], s_vars[slot], c_vars[slot]), model_completion=True)
-    )
-
-
-def _compute_actual_depth_clifford(
-    model: z3.ModelRef,
-    bound: int,
-    n: int,
-    h_vars: list[list[z3.BoolRef]],
-    s_vars: list[list[z3.BoolRef]],
-    cx_vars: list[list[z3.BoolRef]],
-) -> int:
-    """Compute actual circuit depth from SAT model for Clifford circuits.
-
-    Args:
-        model: Z3 model.
-        bound: Maximum depth.
-        n: Number of qubits.
-        h_vars: Hadamard variables [layer][qubit].
-        s_vars: S gate variables [layer][qubit].
-        cx_vars: CNOT variables [layer][cx_idx].
-
-    Returns:
-        Actual circuit depth.
-    """
-    actual_depth = 0
-    for layer in range(bound):
-        layer_has_gate = False
-        for q in range(n):
-            if model.eval(h_vars[layer][q], model_completion=True) or model.eval(
-                s_vars[layer][q], model_completion=True
-            ):
-                layer_has_gate = True
-                break
-        if not layer_has_gate:
-            for cx_idx in range(len(cx_vars[layer])):
-                if model.eval(cx_vars[layer][cx_idx], model_completion=True):
-                    layer_has_gate = True
-                    break
-        if layer_has_gate:
-            actual_depth += 1
-    return actual_depth
-
-
-def _compute_actual_depth_css(
-    model: z3.ModelRef,
-    bound: int,
-    cx_vars: list[list[z3.BoolRef]],
-) -> int:
-    """Compute actual circuit depth from SAT model for CSS circuits.
-
-    Args:
-        model: Z3 model.
-        bound: Maximum depth.
-        cx_vars: CNOT variables [layer][cx_idx].
-
-    Returns:
-        Actual circuit depth.
-    """
-    actual_depth = 0
-    for layer in range(bound):
-        layer_has_gate = False
-        for cx_idx in range(len(cx_vars[layer])):
-            if model.eval(cx_vars[layer][cx_idx], model_completion=True):
-                layer_has_gate = True
-                break
-        if layer_has_gate:
-            actual_depth += 1
-    return actual_depth
-
-
 def _synthesize_clifford(
     stabilizers: StabilizerTableau,
     target_kind: TargetKind,
@@ -493,156 +445,40 @@ def _synthesize_clifford(
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
     target, k = _prepare_clifford_target(stabilizers, target_kind, k, x_logicals, z_logicals)
+    n = target.n
 
     if objective == Objective.GATE_COUNT:
-        return _synthesize_clifford_gate_count(
-            target,
-            target_kind,
-            lower_bound,
-            upper_bound,
-            k,
-            stabilizers,
-            verify,
-            allow_qubit_permutation,
-        )
-    return _synthesize_clifford_depth(
+        encoding = CliffordGateCountEncoding()
+        is_depth = False
+    else:
+        encoding = CliffordDepthEncoding()
+        is_depth = True
+
+    def verify_fn(circuit: CliffordIsometry) -> bool:
+        corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
+        if target_kind == TargetKind.CLIFFORD_UNITARY:
+            return verify_clifford_unitary(corrected, target)
+        if target_kind == TargetKind.STABILIZER_STATE:
+            return verify_stabilizer_state(corrected, stabilizers)
+        return verify_clifford_isometry(corrected, target, k)
+
+    result = _search_with_encoding(
+        encoding,
         target,
         target_kind,
         lower_bound,
         upper_bound,
         k,
-        stabilizers,
-        verify,
-        allow_qubit_permutation,
+        verify_fn,
+        is_depth,
+        allow_qubit_permutation=allow_qubit_permutation,
+        verify=verify,
     )
 
+    if result.circuit is not None and isinstance(result.circuit, CliffordIsometry):
+        result.circuit = _apply_pauli_correction_to_clifford(result.circuit, n, target_kind)
 
-def _synthesize_clifford_gate_count(
-    target: StabilizerTableau,
-    target_kind: TargetKind,
-    lower_bound: int,
-    upper_bound: int,
-    k: int,
-    stabilizers: StabilizerTableau,
-    verify: bool,
-    allow_qubit_permutation: bool,
-) -> SynthesisResult:
-    """Synthesize Clifford circuit with gate-count optimization."""
-    for bound in range(lower_bound, upper_bound + 1):
-        solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
-            target,
-            k,
-            bound,
-            allow_qubit_permutation,
-        )
-
-        result = solver.check()
-
-        if result == z3.sat:
-            model = solver.model()
-            n = target.n
-
-            circuit = extract_clifford_gate_count_circuit(
-                model,
-                n,
-                bound,
-                h_vars,
-                s_vars,
-                c_vars,
-                alpha_vars,
-                beta_vars,
-                k,
-            )
-
-            actual_count = _compute_actual_gate_count(model, bound, h_vars, s_vars, c_vars)
-
-            corrected_circuit = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
-
-            verified = False
-            if verify:
-                verified = _verify_clifford_result(corrected_circuit, target, target_kind, k, stabilizers)
-
-            return SynthesisResult(
-                status=SynthesisStatus.SUCCESS,
-                circuit=corrected_circuit,
-                gate_count=actual_count,
-                verified=verified,
-                message=f"Found solution with {actual_count} gates",
-            )
-
-        if result == z3.unknown:
-            return SynthesisResult(
-                status=SynthesisStatus.ERROR,
-                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
-            )
-
-    return SynthesisResult(
-        status=SynthesisStatus.UNSAT,
-        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
-    )
-
-
-def _synthesize_clifford_depth(
-    target: StabilizerTableau,
-    target_kind: TargetKind,
-    lower_bound: int,
-    upper_bound: int,
-    k: int,
-    stabilizers: StabilizerTableau,
-    verify: bool,
-    allow_qubit_permutation: bool,
-) -> SynthesisResult:
-    """Synthesize Clifford circuit with depth optimization."""
-    for bound in range(lower_bound, upper_bound + 1):
-        solver, h_vars, s_vars, cx_vars, _id_vars = encode_clifford_depth(
-            target,
-            k,
-            bound,
-            allow_qubit_permutation,
-        )
-
-        result = solver.check()
-
-        if result == z3.sat:
-            model = solver.model()
-            n = target.n
-
-            circuit = extract_clifford_depth_circuit(
-                model,
-                n,
-                bound,
-                h_vars,
-                s_vars,
-                cx_vars,
-                k,
-            )
-
-            actual_depth = _compute_actual_depth_clifford(model, bound, n, h_vars, s_vars, cx_vars)
-
-            corrected_circuit = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
-
-            verified = False
-            if verify:
-                verified = _verify_clifford_result(corrected_circuit, target, target_kind, k, stabilizers)
-
-            return SynthesisResult(
-                status=SynthesisStatus.SUCCESS,
-                circuit=corrected_circuit,
-                depth=actual_depth,
-                verified=verified,
-                message=f"Found solution with depth {actual_depth}",
-            )
-
-        if result == z3.unknown:
-            return SynthesisResult(
-                status=SynthesisStatus.ERROR,
-                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
-            )
-
-    return SynthesisResult(
-        status=SynthesisStatus.UNSAT,
-        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
-    )
+    return result
 
 
 def _prepare_css_target(
@@ -786,32 +622,6 @@ def _determine_css_initializations(
     return init_x, init_z
 
 
-def _verify_css_result(
-    circuit: CNOTCircuit,
-    target_kind: TargetKind,
-    checks: CheckMatrix,
-    x_logicals: StabilizerTableau | CheckMatrix | None,
-    z_logicals: StabilizerTableau | CheckMatrix | None,
-    k: int,
-) -> bool:
-    """Verify CSS synthesis result.
-
-    Args:
-        circuit: Synthesized circuit.
-        target_kind: Kind of synthesis problem.
-        checks: CSS check matrix.
-        x_logicals: Logical X operators.
-        z_logicals: Logical Z operators.
-        k: Number of logical qubits.
-
-    Returns:
-        True if verification succeeds.
-    """
-    if target_kind == TargetKind.CSS_STATE:
-        return verify_css_state(circuit, checks)
-    return verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
-
-
 def _synthesize_css(
     checks: CheckMatrix,
     target_kind: TargetKind,
@@ -824,8 +634,6 @@ def _synthesize_css(
     verify: bool,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
-    n = checks.num_qubits()
-
     if k is None:
         if target_kind == TargetKind.CSS_STATE:
             k = 0
@@ -836,182 +644,26 @@ def _synthesize_css(
     target, m_x = _prepare_css_target(checks, k, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
-        return _synthesize_css_gate_count(
-            target,
-            target_kind,
-            lower_bound,
-            upper_bound,
-            k,
-            m_x,
-            n,
-            checks,
-            x_logicals,
-            z_logicals,
-            verify,
-        )
-    return _synthesize_css_depth(
+        encoding = CSSGateCountEncoding()
+        is_depth = False
+    else:
+        encoding = CSSDepthEncoding()
+        is_depth = True
+
+    def verify_fn(circuit: CNOTCircuit) -> bool:
+        if target_kind == TargetKind.CSS_STATE:
+            return verify_css_state(circuit, checks)
+        return verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
+
+    return _search_with_encoding(
+        encoding,
         target,
         target_kind,
         lower_bound,
         upper_bound,
         k,
-        m_x,
-        n,
-        checks,
-        x_logicals,
-        z_logicals,
-        verify,
-    )
-
-
-def _synthesize_css_gate_count(
-    target: CheckMatrix,
-    target_kind: TargetKind,
-    lower_bound: int,
-    upper_bound: int,
-    k: int,
-    m_x: int,
-    n: int,
-    checks: CheckMatrix,
-    x_logicals: StabilizerTableau | CheckMatrix | None,
-    z_logicals: StabilizerTableau | CheckMatrix | None,
-    verify: bool,
-) -> SynthesisResult:
-    """Synthesize CSS CNOT circuit with gate-count optimization."""
-    for bound in range(lower_bound, upper_bound + 1):
-        solver, alpha_vars, beta_vars = encode_css_gate_count(
-            target,
-            k,
-            m_x,
-            bound,
-        )
-
-        result = solver.check()
-
-        if result == z3.sat:
-            model = solver.model()
-
-            num_rows = target.num_rows()
-            matrix_vars_final = np.array(
-                [[z3.Bool(f"m_{bound}_{row}_{q}") for q in range(n)] for row in range(num_rows)], dtype=object
-            )
-
-            init_x, init_z = _determine_css_initializations(
-                model,
-                n,
-                num_rows,
-                k,
-                matrix_vars_final,
-                target.is_x_type(),
-            )
-
-            circuit = extract_cnot_gate_count_circuit(
-                model,
-                n,
-                bound,
-                alpha_vars,
-                beta_vars,
-                init_x,
-                init_z,
-            )
-
-            actual_count = bound
-
-            verified = False
-            if verify:
-                verified = _verify_css_result(circuit, target_kind, checks, x_logicals, z_logicals, k)
-
-            return SynthesisResult(
-                status=SynthesisStatus.SUCCESS,
-                circuit=circuit,
-                gate_count=actual_count,
-                verified=verified,
-                message=f"Found solution with {actual_count} CNOTs",
-            )
-
-        if result == z3.unknown:
-            return SynthesisResult(
-                status=SynthesisStatus.ERROR,
-                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
-            )
-
-    return SynthesisResult(
-        status=SynthesisStatus.UNSAT,
-        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
-    )
-
-
-def _synthesize_css_depth(
-    target: CheckMatrix,
-    target_kind: TargetKind,
-    lower_bound: int,
-    upper_bound: int,
-    k: int,
-    m_x: int,
-    n: int,
-    checks: CheckMatrix,
-    x_logicals: StabilizerTableau | CheckMatrix | None,
-    z_logicals: StabilizerTableau | CheckMatrix | None,
-    verify: bool,
-) -> SynthesisResult:
-    """Synthesize CSS CNOT circuit with depth optimization."""
-    for bound in range(lower_bound, upper_bound + 1):
-        solver, cx_vars, _id_vars = encode_css_depth(
-            target,
-            k,
-            m_x,
-            bound,
-        )
-
-        result = solver.check()
-
-        if result == z3.sat:
-            model = solver.model()
-
-            num_rows = target.num_rows()
-            matrix_vars_final = np.array(
-                [[z3.Bool(f"m_{bound}_{row}_{q}") for q in range(n)] for row in range(num_rows)], dtype=object
-            )
-
-            init_x, init_z = _determine_css_initializations(
-                model,
-                n,
-                num_rows,
-                k,
-                matrix_vars_final,
-                target.is_x_type(),
-            )
-
-            circuit = extract_cnot_depth_circuit(
-                model,
-                n,
-                bound,
-                cx_vars,
-                init_x,
-                init_z,
-            )
-
-            actual_depth = _compute_actual_depth_css(model, bound, cx_vars)
-
-            verified = False
-            if verify:
-                verified = _verify_css_result(circuit, target_kind, checks, x_logicals, z_logicals, k)
-
-            return SynthesisResult(
-                status=SynthesisStatus.SUCCESS,
-                circuit=circuit,
-                depth=actual_depth,
-                verified=verified,
-                message=f"Found solution with depth {actual_depth}",
-            )
-
-        if result == z3.unknown:
-            return SynthesisResult(
-                status=SynthesisStatus.ERROR,
-                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
-            )
-
-    return SynthesisResult(
-        status=SynthesisStatus.UNSAT,
-        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
+        verify_fn,
+        is_depth,
+        m_x=m_x,
+        verify=verify,
     )
