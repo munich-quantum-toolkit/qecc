@@ -106,7 +106,7 @@ def test_extract_empty_circuit() -> None:
     circuit = extract_clifford_gate_count_circuit(model, 1, 0, h_vars, s_vars, c_vars, alpha_vars, beta_vars, k=0)
 
     assert circuit is not None
-    stim_circuit = circuit.to_stim_circuit(with_resets=False)
+    stim_circuit = circuit.to_stim_circuit(with_resets=True)
     assert stim_circuit.num_qubits == 1
 
 
