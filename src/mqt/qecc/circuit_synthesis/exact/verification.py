@@ -59,18 +59,14 @@ def verify_stabilizer_state(circuit: CliffordIsometry, stabilizers: StabilizerTa
 
 def verify_clifford_isometry(
     circuit: CliffordIsometry,
-    stabilizers: StabilizerTableau,
-    x_logicals: StabilizerTableau | None,
-    z_logicals: StabilizerTableau | None,
+    target: StabilizerTableau,
     k: int,
 ) -> bool:
     """Verify that circuit implements the target Clifford isometry.
 
     Args:
         circuit: Synthesized circuit.
-        stabilizers: Target stabilizer generators.
-        x_logicals: Target X logical operators.
-        z_logicals: Target Z logical operators.
+        target: Combined target tableau with logicals and stabilizers.
         k: Number of logical qubits.
 
     Returns:
@@ -81,9 +77,17 @@ def verify_clifford_isometry(
     if circuit.num_inputs() != k:
         return False
 
-    if x_logicals is None or z_logicals is None:
-        msg = "x_logicals and z_logicals must be provided for isometry verification"
-        raise ValueError(msg)
+    num_rows = target.n_rows
+    expected_rows = 2 * k + (target.n - k)
+
+    if num_rows != expected_rows:
+        return False
+
+    from ...codes.pauli import StabilizerTableau
+
+    x_logicals = StabilizerTableau(target.tableau.matrix[:k, :], target.phase[:k])
+    z_logicals = StabilizerTableau(target.tableau.matrix[k : 2 * k, :], target.phase[k : 2 * k])
+    stabilizers = StabilizerTableau(target.tableau.matrix[2 * k :, :], target.phase[2 * k :])
 
     circuit_code = circuit.get_code()
     target_code = StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals)
