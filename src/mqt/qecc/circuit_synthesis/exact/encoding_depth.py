@@ -14,11 +14,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from .gate_operations import get_gate_registry
+from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 
 if TYPE_CHECKING:
     from ...codes.pauli import CheckMatrix, StabilizerTableau
+    from .gate_operations import SymbolicGateOperation
 
 
 def encode_clifford_depth(
@@ -26,27 +27,30 @@ def encode_clifford_depth(
     k: int,
     max_depth: int,
     allow_qubit_permutation: bool = True,
+    gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
 ) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
     """Encode Clifford isometry synthesis with depth optimization.
 
-    Uses the gate registry to dynamically support all registered Clifford gates.
-    Each layer allows H, S, or CX on each qubit (with mutual exclusion).
+    Uses the provided gate set to dynamically support registered Clifford gates.
+    Defaults to {H, S, CX, ID} if no gate set is provided.
 
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
         k: Number of logical qubits.
         max_depth: Maximum circuit depth.
         allow_qubit_permutation: Allow final qubit permutation.
+        gate_set: Optional custom gate set. If None, uses standard {H, S, CX, ID}.
 
     Returns:
         Tuple of (solver, h_vars, s_vars, cx_vars, id_vars).
     """
+    if gate_set is None:
+        gate_set = get_standard_clifford_gate_set()
+
     n = target.n
     num_rows = target.n_rows
 
     solver = z3.Solver()
-    registry = get_gate_registry()
-    clifford_gates = registry.get_clifford_gates()
 
     h_vars = [[z3.Bool(f"h_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
     s_vars = [[z3.Bool(f"s_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
@@ -108,7 +112,7 @@ def encode_clifford_depth(
 
         for q in range(n):
             for row in range(num_rows):
-                clifford_gates["H"](q)
+                gate_set["H"](q)
                 h_effect = z3.If(
                     h_vars[layer][q],
                     z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
@@ -116,7 +120,7 @@ def encode_clifford_depth(
                 )
                 solver.add(h_effect)
 
-                clifford_gates["S"](q)
+                gate_set["S"](q)
                 s_effect = z3.If(
                     s_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q])),
@@ -124,7 +128,7 @@ def encode_clifford_depth(
                 )
                 solver.add(s_effect)
 
-                clifford_gates["ID"](q)
+                gate_set["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
@@ -138,7 +142,7 @@ def encode_clifford_depth(
                 if ctrl == tgt:
                     continue
 
-                clifford_gates["CX"](ctrl, tgt)
+                gate_set["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(
@@ -172,27 +176,30 @@ def encode_css_depth(
     k: int,
     m_x: int,
     max_depth: int,
+    gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
 ) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
     """Encode CSS CNOT isometry synthesis with depth optimization.
 
-    Uses the gate registry to dynamically support all registered CSS gates.
-    Currently only CNOT and ID (identity) are registered for CSS.
+    Uses the provided gate set to dynamically support registered CSS gates.
+    Defaults to {CX, ID} if no gate set is provided.
 
     Args:
         target: Target CSS matrix [L; H].
         k: Number of logical qubits.
         m_x: Number of X-stabilizers.
         max_depth: Maximum circuit depth.
+        gate_set: Optional custom gate set. If None, uses standard {CX, ID}.
 
     Returns:
         Tuple of (solver, cx_vars, id_vars).
     """
+    if gate_set is None:
+        gate_set = get_standard_css_gate_set()
+
     n = target.num_qubits()
     num_rows = target.num_rows()
 
     solver = z3.Solver()
-    registry = get_gate_registry()
-    css_gates = registry.get_css_gates()
 
     id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
 
@@ -235,7 +242,7 @@ def encode_css_depth(
 
         for q in range(n):
             for row in range(num_rows):
-                css_gates["ID"](q)
+                gate_set["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     next_m[row, q] == curr[row, q],
@@ -249,7 +256,7 @@ def encode_css_depth(
                 if ctrl == tgt:
                     continue
 
-                css_gates["CX"](ctrl, tgt)
+                gate_set["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(

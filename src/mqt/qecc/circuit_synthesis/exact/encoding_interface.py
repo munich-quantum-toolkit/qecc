@@ -112,12 +112,14 @@ class CliffordGateCountEncoding(SynthesisEncoding):
             raise TypeError(msg)
 
         allow_qubit_permutation = options.get("allow_qubit_permutation", True)
+        gate_set = options.get("gate_set")
 
         solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
             target,
             k,
             bound,
             allow_qubit_permutation,
+            gate_set,
         )
 
         variables = {
@@ -185,12 +187,14 @@ class CliffordDepthEncoding(SynthesisEncoding):
             raise TypeError(msg)
 
         allow_qubit_permutation = options.get("allow_qubit_permutation", True)
+        gate_set = options.get("gate_set")
 
         solver, h_vars, s_vars, cx_vars, id_vars = encode_clifford_depth(
             target,
             k,
             bound,
             allow_qubit_permutation,
+            gate_set,
         )
 
         variables = {
@@ -268,11 +272,14 @@ class CSSGateCountEncoding(SynthesisEncoding):
             msg = "m_x must be provided for CSS encoding"
             raise ValueError(msg)
 
+        gate_set = options.get("gate_set")
+
         solver, alpha_vars, beta_vars = encode_css_gate_count(
             target,
             k,
             m_x,
             bound,
+            gate_set,
         )
 
         variables = {
@@ -349,11 +356,14 @@ class CSSDepthEncoding(SynthesisEncoding):
             msg = "m_x must be provided for CSS encoding"
             raise ValueError(msg)
 
+        gate_set = options.get("gate_set")
+
         solver, cx_vars, id_vars = encode_css_depth(
             target,
             k,
             m_x,
             bound,
+            gate_set,
         )
 
         variables = {

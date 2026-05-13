@@ -24,7 +24,14 @@ from .encoding_interface import (
     CSSDepthEncoding,
     CSSGateCountEncoding,
 )
-from .types import GateFamily, Objective, SynthesisResult, SynthesisStatus, TargetKind
+from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
+from .types import (
+    GateFamily,
+    Objective,
+    SynthesisResult,
+    SynthesisStatus,
+    TargetKind,
+)
 from .verification import (
     verify_clifford_isometry,
     verify_clifford_unitary,
@@ -39,6 +46,7 @@ if TYPE_CHECKING:
     from .encoding_interface import (
         SynthesisEncoding,
     )
+    from .gate_operations import SymbolicGateOperation
 
 
 def synthesize_exact(
@@ -53,6 +61,7 @@ def synthesize_exact(
     z_logicals: StabilizerTableau | CheckMatrix | None = None,
     verify: bool = True,
     allow_qubit_permutation: bool = True,
+    gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
 
@@ -68,6 +77,7 @@ def synthesize_exact(
         z_logicals: Logical Z operators (StabilizerTableau for Clifford, CheckMatrix or StabilizerTableau for CSS).
         verify: Whether to verify synthesized circuit.
         allow_qubit_permutation: Allow qubit permutation in unitaries.
+        gate_set: Custom gate set to use. If None, uses default gate set for gate_family.
 
     Returns:
         SynthesisResult with circuit and metadata.
@@ -75,6 +85,12 @@ def synthesize_exact(
     Raises:
         ValueError: If parameters are invalid.
     """
+    if gate_set is None:
+        if gate_family == GateFamily.CLIFFORD:
+            gate_set = get_standard_clifford_gate_set()
+        else:
+            gate_set = get_standard_css_gate_set()
+
     _validate_synthesis_parameters(
         target,
         target_kind,
@@ -99,6 +115,7 @@ def synthesize_exact(
             z_logicals,
             verify,
             allow_qubit_permutation,
+            gate_set,
         )
     return _synthesize_css(
         target,
@@ -110,6 +127,7 @@ def synthesize_exact(
         x_logicals,
         z_logicals,
         verify,
+        gate_set,
     )
 
 
@@ -181,6 +199,7 @@ def _search_with_encoding(
     k: int,
     verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
     is_depth: bool,
+    gate_set: dict[str, type[SymbolicGateOperation]],
     **encoding_options: dict,
 ) -> SynthesisResult:
     """Generic search loop using an encoding.
@@ -194,6 +213,7 @@ def _search_with_encoding(
         k: Number of logical qubits.
         verify_fn: Verification function to call.
         is_depth: Whether optimizing depth (vs gate count).
+        gate_set: Gate set to use for synthesis.
         **encoding_options: Additional options for encoding.
 
     Returns:
@@ -202,7 +222,7 @@ def _search_with_encoding(
     n = target.n if isinstance(target, StabilizerTableau) else target.num_qubits()
 
     for bound in range(lower_bound, upper_bound + 1):
-        solver, variables = encoding.encode(target, k, bound, **encoding_options)
+        solver, variables = encoding.encode(target, k, bound, gate_set=gate_set, **encoding_options)
 
         result = solver.check()
 
@@ -226,17 +246,20 @@ def _search_with_encoding(
                 **{resource_key: actual_resources},
                 verified=verified,
                 message=f"Found solution with {actual_resources} {resource_name}",
+                gate_set=gate_set,
             )
 
         if result == z3.unknown:
             return SynthesisResult(
                 status=SynthesisStatus.ERROR,
                 message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+                gate_set=gate_set,
             )
 
     return SynthesisResult(
         status=SynthesisStatus.UNSAT,
         message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
+        gate_set=gate_set,
     )
 
 
@@ -443,6 +466,7 @@ def _synthesize_clifford(
     z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
     allow_qubit_permutation: bool,
+    gate_set: dict[str, type[SymbolicGateOperation]],
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
     target, k = _prepare_clifford_target(stabilizers, target_kind, k, x_logicals, z_logicals)
@@ -474,6 +498,7 @@ def _synthesize_clifford(
         k,
         verify_fn,
         is_depth,
+        gate_set,
         allow_qubit_permutation=allow_qubit_permutation,
         verify=verify,
     )
@@ -534,6 +559,7 @@ def _synthesize_css(
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
+    gate_set: dict[str, type[SymbolicGateOperation]],
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
     if k is None:
@@ -568,6 +594,7 @@ def _synthesize_css(
         k,
         verify_fn,
         is_depth,
+        gate_set,
         m_x=m_x,
         verify=verify,
     )

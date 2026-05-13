@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..circuits import CliffordIsometry, CNOTCircuit
+    from .gate_operations import SymbolicGateOperation
 
 
 class TargetKind(Enum):
@@ -60,6 +61,7 @@ class SynthesisResult:
         depth: int | None = None,
         verified: bool = False,
         message: str = "",
+        gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
     ) -> None:
         """Initialize synthesis result.
 
@@ -70,6 +72,7 @@ class SynthesisResult:
             depth: Circuit depth.
             verified: Whether circuit was verified.
             message: Additional information or error message.
+            gate_set: Gate set used for synthesis.
         """
         self.status = status
         self.circuit = circuit
@@ -77,3 +80,4 @@ class SynthesisResult:
         self.depth = depth
         self.verified = verified
         self.message = message
+        self.gate_set = gate_set

@@ -356,24 +356,27 @@ class GateRegistry:
         return gates[name](*args)
 
 
-# Global registry instance
-_global_registry = GateRegistry()
-
-# Register standard Clifford gates
-_global_registry.register_clifford_gate("H", HGate)
-_global_registry.register_clifford_gate("S", SGate)
-_global_registry.register_clifford_gate("CX", CNOTGate)
-_global_registry.register_clifford_gate("ID", IdentityGate)
-
-# Register CSS gates
-_global_registry.register_css_gate("CX", CNOTGate)
-_global_registry.register_css_gate("ID", IdentityGate)
-
-
-def get_gate_registry() -> GateRegistry:
-    """Get the global gate registry.
+def get_standard_clifford_gate_set() -> dict[str, type[SymbolicGateOperation]]:
+    """Get the standard Clifford gate set {H, S, CX, ID}.
 
     Returns:
-        Global GateRegistry instance.
+        Dictionary mapping gate names to gate classes.
     """
-    return _global_registry
+    return {
+        "H": HGate,
+        "S": SGate,
+        "CX": CNOTGate,
+        "ID": IdentityGate,
+    }
+
+
+def get_standard_css_gate_set() -> dict[str, type[SymbolicGateOperation]]:
+    """Get the standard CSS gate set {CX, ID}.
+
+    Returns:
+        Dictionary mapping gate names to gate classes.
+    """
+    return {
+        "CX": CNOTGate,
+        "ID": IdentityGate,
+    }

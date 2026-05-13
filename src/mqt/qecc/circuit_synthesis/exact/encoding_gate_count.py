@@ -14,11 +14,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from .gate_operations import get_gate_registry
+from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 
 if TYPE_CHECKING:
     from ...codes.pauli import CheckMatrix, StabilizerTableau
+    from .gate_operations import SymbolicGateOperation
 
 
 def encode_clifford_gate_count(
@@ -26,27 +27,30 @@ def encode_clifford_gate_count(
     k: int,
     max_gates: int,
     allow_qubit_permutation: bool = True,
+    gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
 ) -> tuple[z3.Solver, list, list, list, list, list]:
     """Encode Clifford isometry synthesis with gate-count optimization.
 
-    Uses the gate registry to dynamically support all registered Clifford gates.
-    Gates are selected using one-hot encoding with bitvector qubit indices.
+    Uses the provided gate set to dynamically support registered Clifford gates.
+    Defaults to {H, S, CX} if no gate set is provided.
 
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
         k: Number of logical qubits.
         max_gates: Maximum number of gates.
         allow_qubit_permutation: Allow final qubit permutation.
+        gate_set: Optional custom gate set. If None, uses standard {H, S, CX, ID}.
 
     Returns:
         Tuple of (solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars).
     """
+    if gate_set is None:
+        gate_set = get_standard_clifford_gate_set()
+
     n = target.n
     num_rows = target.n_rows
 
     solver = z3.Solver()
-    registry = get_gate_registry()
-    clifford_gates = registry.get_clifford_gates()
 
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
@@ -93,14 +97,14 @@ def encode_clifford_gate_count(
         next_z = tableau_z[slot + 1]
 
         for i in range(n):
-            clifford_gates["H"](i)
+            gate_set["H"](i)
             h_condition = z3.And(h_vars[slot], alpha_vars[slot] == i)
 
             for row in range(num_rows):
                 solver.add(z3.Implies(h_condition, next_x[row, i] == curr_z[row, i]))
                 solver.add(z3.Implies(h_condition, next_z[row, i] == curr_x[row, i]))
 
-            clifford_gates["S"](i)
+            gate_set["S"](i)
             s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
 
             for row in range(num_rows):
@@ -111,7 +115,7 @@ def encode_clifford_gate_count(
                 if i == j:
                     continue
 
-                clifford_gates["CX"](i, j)
+                gate_set["CX"](i, j)
                 cx_condition = z3.And(c_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):
@@ -163,27 +167,30 @@ def encode_css_gate_count(
     k: int,
     m_x: int,
     max_gates: int,
+    gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
 ) -> tuple[z3.Solver, list, list]:
     """Encode CSS CNOT isometry synthesis with gate-count optimization.
 
-    Uses the gate registry to dynamically support all registered CSS gates.
-    Currently only CNOT is registered for CSS.
+    Uses the provided gate set to dynamically support registered CSS gates.
+    Defaults to {CX} if no gate set is provided.
 
     Args:
         target: Target CSS matrix [L; H].
         k: Number of logical qubits.
         m_x: Number of X-stabilizers.
         max_gates: Maximum number of gates.
+        gate_set: Optional custom gate set. If None, uses standard {CX, ID}.
 
     Returns:
         Tuple of (solver, alpha_vars, beta_vars).
     """
+    if gate_set is None:
+        gate_set = get_standard_css_gate_set()
+
     n = target.num_qubits()
     num_rows = target.num_rows()
 
     solver = z3.Solver()
-    registry = get_gate_registry()
-    css_gates = registry.get_css_gates()
 
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
@@ -217,7 +224,7 @@ def encode_css_gate_count(
                 if i == j:
                     continue
 
-                css_gates["CX"](i, j)
+                gate_set["CX"](i, j)
                 cx_condition = z3.And(alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):

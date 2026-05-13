@@ -11,19 +11,25 @@ This example shows how to add a CZ (controlled-Z) gate to the framework.
 The process is:
 1. Create a new gate class inheriting from SymbolicGateOperation
 2. Implement the symbolic tableau transformations
-3. Register the gate with the global registry
-4. (Optional) Update encoding functions to use the new gate
+3. Create a custom gate set dictionary including your new gate
+4. Pass the gate set to the encoding function
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import z3
 
+from mqt.qecc.circuit_synthesis.exact.encoding_gate_count import encode_clifford_gate_count
 from mqt.qecc.circuit_synthesis.exact.gate_operations import (
+    CNOTGate,
+    HGate,
+    IdentityGate,
     SymbolicGateOperation,
-    get_gate_registry,
+    get_standard_clifford_gate_set,
 )
+from mqt.qecc.codes.pauli import StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy as np
@@ -98,20 +104,29 @@ class CZGate(SymbolicGateOperation):
         return {self.control, self.target}
 
 
-# Register the new gate
-registry = get_gate_registry()
-registry.register_clifford_gate("CZ", CZGate)
-
-
 def example_usage() -> None:
-    """Show how to use the new CZ gate in synthesis."""
-    # Now CZ is available for synthesis!
-    # You can create instances:
-    registry.create_gate("CZ", 0, 1, for_css=False)
+    """Show how to use a custom gate set in synthesis."""
+    # Option 1: Start from standard gate set and add your gate
+    custom_gate_set = get_standard_clifford_gate_set()
+    custom_gate_set["CZ"] = CZGate
 
+    # Option 2: Build a completely custom gate set
+    minimal_gate_set = {
+        "H": HGate,
+        "CX": CNOTGate,
+        "CZ": CZGate,
+        "ID": IdentityGate,
+    }
 
-    # The gate can now be used in encoding functions by updating
-    # the gate selection logic to include CZ as an option
+    # Now use the custom gate set in encoding
+    target = StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
+    k = 0
+    max_gates = 5
+
+    # Pass the custom gate set to the encoding function
+    _solver, _h_vars, _s_vars, _c_vars, _alpha_vars, _beta_vars = encode_clifford_gate_count(
+        target, k, max_gates, allow_qubit_permutation=True, gate_set=minimal_gate_set
+    )
 
 
 if __name__ == "__main__":
