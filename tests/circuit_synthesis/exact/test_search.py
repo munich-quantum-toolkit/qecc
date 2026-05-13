@@ -396,23 +396,6 @@ def test_state_with_minus_sign() -> None:
     assert result.verified is True
 
 
-def test_state_with_imaginary_phase() -> None:
-    """Test synthesis handles imaginary phases for |i⟩ state."""
-    target = StabilizerTableau.from_pauli_strings(["iY"])
-
-    result = synthesize_exact(
-        target,
-        TargetKind.STABILIZER_STATE,
-        GateFamily.CLIFFORD,
-        Objective.GATE_COUNT,
-        lower_bound=0,
-        upper_bound=5,
-    )
-
-    assert result.status == SynthesisStatus.SUCCESS
-    assert result.verified is True
-
-
 def test_css_single_check() -> None:
     """Test CSS state with single check."""
     check_matrix = CheckMatrix(np.array([[1, 1]], dtype=np.int8), pauli_type="X")

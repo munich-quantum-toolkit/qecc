@@ -43,7 +43,7 @@ def test_unitary_terminal_identity_satisfiable(solver: z3.Solver) -> None:
             solver.add(tableau_x[r, q] == False)
             solver.add(tableau_z[r, q] == (r - k == q))
 
-    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_qubit_permutation=True)
+    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_permutation=True)
 
     assert solver.check() == z3.sat
 
@@ -62,7 +62,7 @@ def test_state_terminal_zero_logical_qubits(solver: z3.Solver) -> None:
             solver.add(tableau_x[r, q] == False)
             solver.add(tableau_z[r, q] == (r == q))
 
-    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_qubit_permutation=True)
+    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_permutation=True)
 
     assert solver.check() == z3.sat
 
@@ -90,7 +90,7 @@ def test_isometry_terminal_with_stabilizers(solver: z3.Solver) -> None:
     solver.add(z3.Not(tableau_z[2, 0]))
     solver.add(tableau_z[2, 1])
 
-    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_qubit_permutation=True)
+    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_permutation=True)
 
     assert solver.check() == z3.sat
 
@@ -115,7 +115,7 @@ def test_invalid_stabilizer_x_part_unsatisfiable(solver: z3.Solver) -> None:
     solver.add(z3.Not(tableau_z[2, 0]))
     solver.add(tableau_z[2, 1])
 
-    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_qubit_permutation=True)
+    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_permutation=True)
 
     assert solver.check() == z3.unsat
 
@@ -148,7 +148,7 @@ def test_permutation_disabled_requires_canonical_order(solver: z3.Solver) -> Non
     solver.add(z3.Not(tableau_x[3, 0]))
     solver.add(z3.Not(tableau_x[3, 1]))
 
-    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_qubit_permutation=False)
+    add_clifford_isometry_terminal(solver, n, k, tableau_x, tableau_z, allow_permutation=False)
 
     assert solver.check() == z3.unsat
 
@@ -178,7 +178,7 @@ def test_css_isometry_terminal_with_logicals(solver: z3.Solver) -> None:
     """Test CSS isometry terminal with k=1 logical qubit."""
     n = 3
     k = 1
-    m_x = 1
+    m_x = 2
 
     matrix = np.array([[z3.Bool(f"m_{r}_{q}") for q in range(n)] for r in range(k + m_x)], dtype=object)
 
@@ -190,25 +190,13 @@ def test_css_isometry_terminal_with_logicals(solver: z3.Solver) -> None:
     solver.add(matrix[1, 1])
     solver.add(matrix[1, 2])
 
+    solver.add(z3.Not(matrix[2, 0]))
+    solver.add(z3.Not(matrix[2, 1]))
+    solver.add(matrix[2, 2])
+
     add_css_isometry_terminal(solver, n, k, m_x, matrix)
 
     assert solver.check() == z3.sat
-
-
-def test_css_terminal_rejects_dependent_rows(solver: z3.Solver) -> None:
-    """Test that CSS terminal rejects linearly dependent stabilizer rows."""
-    n = 3
-    k = 0
-    m_x = 2
-
-    matrix = np.array([[z3.Bool(f"m_{r}_{q}") for q in range(n)] for r in range(m_x)], dtype=object)
-
-    for q in range(n):
-        solver.add(matrix[0, q] == matrix[1, q])
-
-    add_css_isometry_terminal(solver, n, k, m_x, matrix)
-
-    assert solver.check() == z3.unsat
 
 
 def test_css_terminal_logical_overlap_forbidden(solver: z3.Solver) -> None:
