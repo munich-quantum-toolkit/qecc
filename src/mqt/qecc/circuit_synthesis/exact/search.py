@@ -211,7 +211,7 @@ def _synthesize_clifford(
             msg = "k must be provided for isometry synthesis"
             raise ValueError(msg)
 
-    if not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau):
+    if k > 0 and (not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau)):
         msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
         raise ValueError(msg)
 
