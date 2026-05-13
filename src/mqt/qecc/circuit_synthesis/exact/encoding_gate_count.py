@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from .gate_operations import CNOTGate, HGate, SGate
+from .gate_operations import get_gate_registry
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 
 if TYPE_CHECKING:
@@ -29,6 +29,9 @@ def encode_clifford_gate_count(
 ) -> tuple[z3.Solver, list, list, list, list, list]:
     """Encode Clifford isometry synthesis with gate-count optimization.
 
+    Uses the gate registry to dynamically support all registered Clifford gates.
+    Gates are selected using one-hot encoding with bitvector qubit indices.
+
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
         k: Number of logical qubits.
@@ -42,6 +45,8 @@ def encode_clifford_gate_count(
     num_rows = target.n_rows
 
     solver = z3.Solver()
+    registry = get_gate_registry()
+    clifford_gates = registry.get_clifford_gates()
 
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
@@ -88,14 +93,16 @@ def encode_clifford_gate_count(
         next_z = tableau_z[slot + 1]
 
         for i in range(n):
-            HGate(i)
+            clifford_gates["H"](i)
             h_condition = z3.And(h_vars[slot], alpha_vars[slot] == i)
+
             for row in range(num_rows):
                 solver.add(z3.Implies(h_condition, next_x[row, i] == curr_z[row, i]))
                 solver.add(z3.Implies(h_condition, next_z[row, i] == curr_x[row, i]))
 
-            SGate(i)
+            clifford_gates["S"](i)
             s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
+
             for row in range(num_rows):
                 solver.add(z3.Implies(s_condition, next_x[row, i] == curr_x[row, i]))
                 solver.add(z3.Implies(s_condition, next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, i])))
@@ -104,8 +111,9 @@ def encode_clifford_gate_count(
                 if i == j:
                     continue
 
-                CNOTGate(i, j)
+                clifford_gates["CX"](i, j)
                 cx_condition = z3.And(c_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
+
                 for row in range(num_rows):
                     solver.add(z3.Implies(cx_condition, next_x[row, i] == curr_x[row, i]))
                     solver.add(z3.Implies(cx_condition, next_x[row, j] == z3.Xor(curr_x[row, j], curr_x[row, i])))
@@ -158,6 +166,9 @@ def encode_css_gate_count(
 ) -> tuple[z3.Solver, list, list]:
     """Encode CSS CNOT isometry synthesis with gate-count optimization.
 
+    Uses the gate registry to dynamically support all registered CSS gates.
+    Currently only CNOT is registered for CSS.
+
     Args:
         target: Target CSS matrix [L; H].
         k: Number of logical qubits.
@@ -171,6 +182,8 @@ def encode_css_gate_count(
     num_rows = target.num_rows()
 
     solver = z3.Solver()
+    registry = get_gate_registry()
+    css_gates = registry.get_css_gates()
 
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
@@ -204,7 +217,7 @@ def encode_css_gate_count(
                 if i == j:
                     continue
 
-                CNOTGate(i, j)
+                css_gates["CX"](i, j)
                 cx_condition = z3.And(alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):

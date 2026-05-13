@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
+from .gate_operations import get_gate_registry
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 
 if TYPE_CHECKING:
@@ -28,6 +29,9 @@ def encode_clifford_depth(
 ) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
     """Encode Clifford isometry synthesis with depth optimization.
 
+    Uses the gate registry to dynamically support all registered Clifford gates.
+    Each layer allows H, S, or CX on each qubit (with mutual exclusion).
+
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
         k: Number of logical qubits.
@@ -41,6 +45,8 @@ def encode_clifford_depth(
     num_rows = target.n_rows
 
     solver = z3.Solver()
+    registry = get_gate_registry()
+    clifford_gates = registry.get_clifford_gates()
 
     h_vars = [[z3.Bool(f"h_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
     s_vars = [[z3.Bool(f"s_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
@@ -102,6 +108,7 @@ def encode_clifford_depth(
 
         for q in range(n):
             for row in range(num_rows):
+                clifford_gates["H"](q)
                 h_effect = z3.If(
                     h_vars[layer][q],
                     z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
@@ -109,6 +116,7 @@ def encode_clifford_depth(
                 )
                 solver.add(h_effect)
 
+                clifford_gates["S"](q)
                 s_effect = z3.If(
                     s_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q])),
@@ -116,6 +124,7 @@ def encode_clifford_depth(
                 )
                 solver.add(s_effect)
 
+                clifford_gates["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
@@ -128,6 +137,8 @@ def encode_clifford_depth(
             for tgt in range(n):
                 if ctrl == tgt:
                     continue
+
+                clifford_gates["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(
@@ -164,6 +175,9 @@ def encode_css_depth(
 ) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
     """Encode CSS CNOT isometry synthesis with depth optimization.
 
+    Uses the gate registry to dynamically support all registered CSS gates.
+    Currently only CNOT and ID (identity) are registered for CSS.
+
     Args:
         target: Target CSS matrix [L; H].
         k: Number of logical qubits.
@@ -177,6 +191,8 @@ def encode_css_depth(
     num_rows = target.num_rows()
 
     solver = z3.Solver()
+    registry = get_gate_registry()
+    css_gates = registry.get_css_gates()
 
     id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
 
@@ -219,6 +235,7 @@ def encode_css_depth(
 
         for q in range(n):
             for row in range(num_rows):
+                css_gates["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     next_m[row, q] == curr[row, q],
@@ -231,6 +248,8 @@ def encode_css_depth(
             for tgt in range(n):
                 if ctrl == tgt:
                     continue
+
+                css_gates["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(
