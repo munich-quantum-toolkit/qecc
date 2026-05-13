@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import stim
+
+from ..circuits import CliffordIsometry, CNOTCircuit
+
 if TYPE_CHECKING:
     import z3
-
-    from ..circuits import CliffordIsometry, CNOTCircuit
 
 
 def extract_clifford_gate_count_circuit(
@@ -47,8 +49,6 @@ def extract_clifford_gate_count_circuit(
     Returns:
         Extracted CliffordIsometry circuit.
     """
-    import stim
-
     gates = []
     for slot in range(max_gates):
         h = model.eval(h_vars[slot], model_completion=True)
@@ -82,8 +82,6 @@ def extract_clifford_gate_count_circuit(
         elif gate[0] == "CX":
             stim_circuit.append("CX", [gate[1], gate[2]])
 
-    from ..circuits import CliffordIsometry
-
     return CliffordIsometry.from_stim_circuit(stim_circuit)
 
 
@@ -113,8 +111,6 @@ def extract_clifford_depth_circuit(
     Returns:
         Extracted CliffordIsometry circuit.
     """
-    import stim
-
     layers = []
     for layer in range(max_depth):
         layer_gates = []
@@ -156,8 +152,6 @@ def extract_clifford_depth_circuit(
             elif gate[0] == "CX":
                 stim_circuit.append("CX", [gate[1], gate[2]])
 
-    from ..circuits import CliffordIsometry
-
     return CliffordIsometry.from_stim_circuit(stim_circuit)
 
 
@@ -187,8 +181,6 @@ def extract_cnot_gate_count_circuit(
     Returns:
         Extracted CNOTCircuit.
     """
-    from ..circuits import CNOTCircuit
-
     cnots = []
     for slot in range(max_gates):
         alpha = model.eval(alpha_vars[slot], model_completion=True).as_long()
@@ -231,8 +223,6 @@ def extract_cnot_depth_circuit(
     Returns:
         Extracted CNOTCircuit.
     """
-    from ..circuits import CNOTCircuit
-
     cnots = []
     for layer in range(max_depth):
         cx_idx = 0

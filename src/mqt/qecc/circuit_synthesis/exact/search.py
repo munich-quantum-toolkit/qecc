@@ -9,13 +9,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
+import z3
 
 from ...codes.pauli import CheckMatrix, StabilizerTableau
+from ..circuits import CliffordIsometry
 from .encoding_depth import encode_clifford_depth, encode_css_depth
 from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
 from .extraction import (
@@ -32,9 +32,6 @@ from .verification import (
     verify_css_state,
     verify_stabilizer_state,
 )
-
-if TYPE_CHECKING:
-    import z3
 
 
 def synthesize_exact(
@@ -71,8 +68,6 @@ def synthesize_exact(
     Raises:
         ValueError: If parameters are invalid.
     """
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
-
     if lower_bound < 0 or upper_bound < lower_bound:
         msg = f"Invalid bounds: lower_bound={lower_bound}, upper_bound={upper_bound}"
         raise ValueError(msg)
@@ -336,8 +331,6 @@ def _synthesize_clifford_gate_count(
     allow_qubit_permutation: bool,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit with gate-count optimization."""
-    import z3
-
     for bound in range(lower_bound, upper_bound + 1):
         solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
             target,
@@ -372,8 +365,6 @@ def _synthesize_clifford_gate_count(
 
             stim_circuit = circuit.to_stim_circuit(with_resets=False)
             corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
-
-            from ..circuits import CliffordIsometry
 
             corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
@@ -422,8 +413,6 @@ def _synthesize_clifford_depth(
     allow_qubit_permutation: bool,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit with depth optimization."""
-    import z3
-
     for bound in range(lower_bound, upper_bound + 1):
         solver, h_vars, s_vars, cx_vars, _id_vars = encode_clifford_depth(
             target,
@@ -467,8 +456,6 @@ def _synthesize_clifford_depth(
 
             stim_circuit = circuit.to_stim_circuit(with_resets=False)
             corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
-
-            from ..circuits import CliffordIsometry
 
             corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
@@ -692,8 +679,6 @@ def _synthesize_css_gate_count(
     verify: bool,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit with gate-count optimization."""
-    import z3
-
     for bound in range(lower_bound, upper_bound + 1):
         solver, alpha_vars, beta_vars = encode_css_gate_count(
             target,
@@ -774,8 +759,6 @@ def _synthesize_css_depth(
     verify: bool,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit with depth optimization."""
-    import z3
-
     for bound in range(lower_bound, upper_bound + 1):
         solver, cx_vars, _id_vars = encode_css_depth(
             target,
