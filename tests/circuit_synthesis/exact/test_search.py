@@ -159,7 +159,6 @@ def test_s_gate_unitary(s_gate_unitary: tuple[StabilizerTableau, StabilizerTable
         upper_bound=3,
     )
 
-    print(result.circuit.to_stim_circuit(with_resets=False))
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
     assert result.gate_count == 1
@@ -295,23 +294,6 @@ def test_invalid_target_kind() -> None:
         )
 
 
-def test_depth_optimization_not_implemented(
-    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
-) -> None:
-    """Test that depth optimization raises NotImplementedError."""
-    stabilizers, _x_logicals, _z_logicals = plus_state
-
-    with pytest.raises(NotImplementedError, match="Depth optimization not yet implemented"):
-        synthesize_exact(
-            target=stabilizers,
-            target_kind=TargetKind.STABILIZER_STATE,
-            gate_family=GateFamily.CLIFFORD,
-            objective=Objective.DEPTH,
-            lower_bound=1,
-            upper_bound=3,
-        )
-
-
 def test_qubit_permutation_disabled(
     hadamard_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
 ) -> None:
@@ -395,3 +377,265 @@ def test_two_qubit_state(two_qubit_zero_state: tuple[StabilizerTableau, Stabiliz
     assert result.gate_count == 0
     assert result.verified is True
     assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+def test_depth_plus_state(plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of |+⟩ state."""
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=1,
+        upper_bound=3,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 1
+    assert result.verified is True
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+def test_depth_bell_state(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of Bell state."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=1,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 2
+    assert result.verified is True
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+def test_depth_ghz_state(ghz_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of GHZ state."""
+    stabilizers, _x_logicals, _z_logicals = ghz_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=1,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 3
+    assert result.verified is True
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+def test_depth_hadamard_unitary(
+    hadamard_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test depth-optimal synthesis of Hadamard gate."""
+    stabilizers, x_logicals, z_logicals = hadamard_unitary
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.CLIFFORD_UNITARY,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        k=1,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=1,
+        upper_bound=3,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 1
+    assert result.verified is True
+
+
+def test_depth_cnot_unitary(cnot_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of CNOT gate."""
+    stabilizers, x_logicals, z_logicals = cnot_unitary
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.CLIFFORD_UNITARY,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        k=2,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=1,
+        upper_bound=3,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 1
+    assert result.verified is True
+
+
+def test_depth_s_gate_unitary(s_gate_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of S gate."""
+    stabilizers, x_logicals, z_logicals = s_gate_unitary
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.CLIFFORD_UNITARY,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        k=1,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=1,
+        upper_bound=3,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 1
+    assert result.verified is True
+
+
+def test_depth_identity_state(zero_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of |0⟩ state."""
+    stabilizers, _x_logicals, _z_logicals = zero_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=0,
+        upper_bound=2,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 0
+    assert result.verified is True
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+def test_depth_css_state(repetition_code_check_matrix: CheckMatrix) -> None:
+    """Test depth-optimal CSS state synthesis."""
+    result = synthesize_exact(
+        target=repetition_code_check_matrix,
+        target_kind=TargetKind.CSS_STATE,
+        gate_family=GateFamily.CSS_CNOT,
+        objective=Objective.DEPTH,
+        lower_bound=1,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 2
+    assert result.verified is True
+    assert verify_css_state(result.circuit, repetition_code_check_matrix)
+
+
+def test_depth_css_isometry() -> None:
+    """Test depth-optimal CSS isometry synthesis."""
+    checks = CheckMatrix(
+        np.array([[1, 1, 1, 1]], dtype=np.int8),
+        "X",
+    )
+    x_logicals = CheckMatrix(
+        np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=np.int8),
+        "X",
+    )
+    z_logicals = CheckMatrix(
+        np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.int8),
+        "Z",
+    )
+
+    result = synthesize_exact(
+        target=checks,
+        target_kind=TargetKind.CSS_ISOMETRY,
+        gate_family=GateFamily.CSS_CNOT,
+        objective=Objective.DEPTH,
+        k=2,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=1,
+        upper_bound=5,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 2
+    assert result.verified is True
+    assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
+
+
+def test_depth_unsat(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test that Bell state cannot be prepared with depth 0."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=0,
+        upper_bound=0,
+    )
+
+    assert result.status == SynthesisStatus.UNSAT
+    assert result.circuit is None
+
+
+def test_depth_verification_disabled(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test depth optimization with verification disabled."""
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        lower_bound=1,
+        upper_bound=3,
+        verify=False,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is False
+    assert result.circuit is not None
+    assert result.depth is not None
+
+
+def test_depth_swap_unitary(swap_unitary: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
+    """Test depth-optimal synthesis of SWAP gate."""
+    stabilizers, x_logicals, z_logicals = swap_unitary
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.CLIFFORD_UNITARY,
+        gate_family=GateFamily.CLIFFORD,
+        objective=Objective.DEPTH,
+        k=2,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=0,
+        upper_bound=5,
+        allow_qubit_permutation=False,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.circuit is not None
+    assert result.depth == 3
+    assert result.verified is True
