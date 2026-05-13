@@ -16,11 +16,11 @@ from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.fixture
-def bell_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
-    """Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2 with stabilizers XX and ZZ."""
-    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
-    x_logicals = StabilizerTableau.empty(2)
-    z_logicals = StabilizerTableau.empty(2)
+def zero_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """|0⟩ state with stabilizer Z."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["Z"])
+    x_logicals = StabilizerTableau.empty(1)
+    z_logicals = StabilizerTableau.empty(1)
     return stabilizers, x_logicals, z_logicals
 
 
@@ -28,15 +28,6 @@ def bell_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTablea
 def plus_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
     """|+⟩ state with stabilizer X."""
     stabilizers = StabilizerTableau.from_pauli_strings(["X"])
-    x_logicals = StabilizerTableau.empty(1)
-    z_logicals = StabilizerTableau.empty(1)
-    return stabilizers, x_logicals, z_logicals
-
-
-@pytest.fixture
-def zero_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
-    """|0⟩ state with stabilizer Z."""
-    stabilizers = StabilizerTableau.from_pauli_strings(["Z"])
     x_logicals = StabilizerTableau.empty(1)
     z_logicals = StabilizerTableau.empty(1)
     return stabilizers, x_logicals, z_logicals
@@ -52,11 +43,29 @@ def two_qubit_zero_state() -> tuple[StabilizerTableau, StabilizerTableau, Stabil
 
 
 @pytest.fixture
+def bell_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2 with stabilizers XX and ZZ."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ"])
+    x_logicals = StabilizerTableau.empty(2)
+    z_logicals = StabilizerTableau.empty(2)
+    return stabilizers, x_logicals, z_logicals
+
+
+@pytest.fixture
 def ghz_state() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
     """3-qubit GHZ state (|000⟩ + |111⟩)/√2 with stabilizers XXX, ZZI, IZZ."""
     stabilizers = StabilizerTableau.from_pauli_strings(["XXX", "ZZI", "IZZ"])
     x_logicals = StabilizerTableau.empty(3)
     z_logicals = StabilizerTableau.empty(3)
+    return stabilizers, x_logicals, z_logicals
+
+
+@pytest.fixture
+def identity_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """2-qubit identity unitary."""
+    stabilizers = StabilizerTableau.empty(2)
+    x_logicals = StabilizerTableau.from_pauli_strings(["XI", "IX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZI", "IZ"])
     return stabilizers, x_logicals, z_logicals
 
 
@@ -97,15 +106,6 @@ def swap_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTabl
 
 
 @pytest.fixture
-def identity_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
-    """2-qubit identity unitary."""
-    stabilizers = StabilizerTableau.empty(2)
-    x_logicals = StabilizerTableau.from_pauli_strings(["XI", "IX"])
-    z_logicals = StabilizerTableau.from_pauli_strings(["ZI", "IZ"])
-    return stabilizers, x_logicals, z_logicals
-
-
-@pytest.fixture
 def repetition_code_check_matrix() -> CheckMatrix:
     """3-qubit repetition code check matrix (2 X-type checks)."""
     hx = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
@@ -113,14 +113,9 @@ def repetition_code_check_matrix() -> CheckMatrix:
 
 
 @pytest.fixture
-def five_qubit_code() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
-    """[[5,1,3]] five-qubit perfect code encoder."""
-    stabilizers = StabilizerTableau.from_pauli_strings([
-        "XZZXI",
-        "IXZZX",
-        "XIXZZ",
-        "ZXIXZ",
-    ])
-    x_logicals = StabilizerTableau.from_pauli_strings(["XXXXX"])
-    z_logicals = StabilizerTableau.from_pauli_strings(["ZZZZZ"])
-    return stabilizers, x_logicals, z_logicals
+def css_isometry_4q() -> tuple[CheckMatrix, CheckMatrix, CheckMatrix]:
+    """4-qubit CSS isometry with 1 check and 2 logical qubits."""
+    checks = CheckMatrix(np.array([[1, 1, 1, 1]], dtype=np.int8), "X")
+    x_logicals = CheckMatrix(np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=np.int8), "X")
+    z_logicals = CheckMatrix(np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.int8), "Z")
+    return checks, x_logicals, z_logicals
