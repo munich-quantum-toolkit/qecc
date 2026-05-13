@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
@@ -32,6 +34,9 @@ from .verification import (
     verify_css_state,
     verify_stabilizer_state,
 )
+
+if TYPE_CHECKING:
+    from ..circuits import CNOTCircuit
 
 
 def synthesize_exact(
@@ -64,6 +69,60 @@ def synthesize_exact(
 
     Returns:
         SynthesisResult with circuit and metadata.
+
+    Raises:
+        ValueError: If parameters are invalid.
+    """
+    _validate_synthesis_parameters(
+        target,
+        target_kind,
+        gate_family,
+        objective,
+        lower_bound,
+        upper_bound,
+        k,
+        x_logicals,
+        z_logicals,
+    )
+
+    if gate_family == GateFamily.CLIFFORD:
+        return _synthesize_clifford(
+            target,
+            target_kind,
+            objective,
+            lower_bound,
+            upper_bound,
+            k,
+            x_logicals,
+            z_logicals,
+            verify,
+            allow_qubit_permutation,
+        )
+    return _synthesize_css(
+        target,
+        target_kind,
+        objective,
+        lower_bound,
+        upper_bound,
+        k,
+        x_logicals,
+        z_logicals,
+        verify,
+    )
+
+
+def _validate_synthesis_parameters(
+    target: StabilizerTableau | CheckMatrix,
+    target_kind: TargetKind,
+    gate_family: GateFamily,
+    objective: Objective,
+    lower_bound: int,
+    upper_bound: int,
+    k: int | None,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
+) -> None:
+    """Validate synthesis parameters.
 
     Raises:
         ValueError: If parameters are invalid.
@@ -110,30 +169,47 @@ def synthesize_exact(
             msg = f"CSS_CNOT gate family requires CSS_STATE or CSS_ISOMETRY, got {target_kind.value}"
             raise ValueError(msg)
 
-    if gate_family == GateFamily.CLIFFORD:
-        return _synthesize_clifford(
-            target,
-            target_kind,
-            objective,
-            lower_bound,
-            upper_bound,
-            k,
-            x_logicals,
-            z_logicals,
-            verify,
-            allow_qubit_permutation,
-        )
-    return _synthesize_css(
-        target,
-        target_kind,
-        objective,
-        lower_bound,
-        upper_bound,
-        k,
-        x_logicals,
-        z_logicals,
-        verify,
-    )
+
+def _prepare_clifford_target(
+    stabilizers: StabilizerTableau,
+    target_kind: TargetKind,
+    k: int | None,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
+) -> tuple[StabilizerTableau, int]:
+    """Prepare combined target tableau for Clifford synthesis.
+
+    Args:
+        stabilizers: Stabilizer generators.
+        target_kind: Kind of synthesis problem.
+        k: Number of logical qubits.
+        x_logicals: Logical X operators.
+        z_logicals: Logical Z operators.
+
+    Returns:
+        Tuple of (combined_target, k).
+    """
+    if k is None:
+        if target_kind == TargetKind.CLIFFORD_UNITARY:
+            k = stabilizers.n
+            x_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "X" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
+            ])
+            z_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "Z" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
+            ])
+        elif target_kind == TargetKind.STABILIZER_STATE:
+            k = 0
+        else:
+            msg = "k must be provided for isometry synthesis"
+            raise ValueError(msg)
+
+    if k > 0 and (not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau)):
+        msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
+        raise ValueError(msg)
+
+    target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
+    return target, k
 
 
 def _combine_stabilizers_and_logicals(
@@ -179,11 +255,34 @@ def _combine_stabilizers_and_logicals(
     return StabilizerTableau(combined_matrix, combined_phase)
 
 
+def _apply_pauli_correction_to_clifford(
+    circuit: CliffordIsometry,
+    n: int,
+    target_kind: TargetKind,
+) -> CliffordIsometry:
+    """Apply Pauli sign correction and initialize ancillas.
+
+    Args:
+        circuit: Extracted circuit from SAT model.
+        n: Number of qubits.
+        target_kind: Kind of synthesis problem.
+
+    Returns:
+        Corrected circuit with proper initialization.
+    """
+    stim_circuit = circuit.to_stim_circuit(with_resets=False)
+    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
+    corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
+
+    if target_kind == TargetKind.STABILIZER_STATE:
+        for q in circuit.get_zero_initialized():
+            corrected_circuit.initialize_qubit(q, basis="Z")
+
+    return corrected_circuit
+
+
 def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
     """Ensure all qubits from 0 to n-1 are present in the circuit.
-
-    Stim silently removes unused qubits, which can cause issues with verification.
-    This function adds identity operations on any missing qubits to ensure they exist.
 
     Args:
         circuit: The stim circuit.
@@ -263,6 +362,123 @@ def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
     return corrected_circuit
 
 
+def _verify_clifford_result(
+    circuit: CliffordIsometry,
+    target: StabilizerTableau,
+    target_kind: TargetKind,
+    k: int,
+    stabilizers: StabilizerTableau,
+) -> bool:
+    """Verify Clifford synthesis result.
+
+    Args:
+        circuit: Synthesized circuit.
+        target: Combined target tableau.
+        target_kind: Kind of synthesis problem.
+        k: Number of logical qubits.
+        stabilizers: Original stabilizer generators.
+
+    Returns:
+        True if verification succeeds.
+    """
+    if target_kind == TargetKind.CLIFFORD_UNITARY:
+        return verify_clifford_unitary(circuit, target)
+    if target_kind == TargetKind.STABILIZER_STATE:
+        return verify_stabilizer_state(circuit, stabilizers)
+    return verify_clifford_isometry(circuit, target, k)
+
+
+def _compute_actual_gate_count(
+    model: z3.ModelRef,
+    bound: int,
+    h_vars: list[z3.BoolRef],
+    s_vars: list[z3.BoolRef],
+    c_vars: list[z3.BoolRef],
+) -> int:
+    """Compute actual gate count from SAT model.
+
+    Args:
+        model: Z3 model.
+        bound: Maximum number of gates.
+        h_vars: Hadamard variables.
+        s_vars: S gate variables.
+        c_vars: CNOT variables.
+
+    Returns:
+        Actual number of gates used.
+    """
+    return sum(
+        1 for slot in range(bound) if model.eval(z3.Or(h_vars[slot], s_vars[slot], c_vars[slot]), model_completion=True)
+    )
+
+
+def _compute_actual_depth_clifford(
+    model: z3.ModelRef,
+    bound: int,
+    n: int,
+    h_vars: list[list[z3.BoolRef]],
+    s_vars: list[list[z3.BoolRef]],
+    cx_vars: list[list[z3.BoolRef]],
+) -> int:
+    """Compute actual circuit depth from SAT model for Clifford circuits.
+
+    Args:
+        model: Z3 model.
+        bound: Maximum depth.
+        n: Number of qubits.
+        h_vars: Hadamard variables [layer][qubit].
+        s_vars: S gate variables [layer][qubit].
+        cx_vars: CNOT variables [layer][cx_idx].
+
+    Returns:
+        Actual circuit depth.
+    """
+    actual_depth = 0
+    for layer in range(bound):
+        layer_has_gate = False
+        for q in range(n):
+            if model.eval(h_vars[layer][q], model_completion=True) or model.eval(
+                s_vars[layer][q], model_completion=True
+            ):
+                layer_has_gate = True
+                break
+        if not layer_has_gate:
+            for cx_idx in range(len(cx_vars[layer])):
+                if model.eval(cx_vars[layer][cx_idx], model_completion=True):
+                    layer_has_gate = True
+                    break
+        if layer_has_gate:
+            actual_depth += 1
+    return actual_depth
+
+
+def _compute_actual_depth_css(
+    model: z3.ModelRef,
+    bound: int,
+    cx_vars: list[list[z3.BoolRef]],
+) -> int:
+    """Compute actual circuit depth from SAT model for CSS circuits.
+
+    Args:
+        model: Z3 model.
+        bound: Maximum depth.
+        cx_vars: CNOT variables [layer][cx_idx].
+
+    Returns:
+        Actual circuit depth.
+    """
+    actual_depth = 0
+    for layer in range(bound):
+        layer_has_gate = False
+        for cx_idx in range(len(cx_vars[layer])):
+            if model.eval(cx_vars[layer][cx_idx], model_completion=True):
+                layer_has_gate = True
+                break
+        if layer_has_gate:
+            actual_depth += 1
+    return actual_depth
+
+
 def _synthesize_clifford(
     stabilizers: StabilizerTableau,
     target_kind: TargetKind,
@@ -276,26 +492,7 @@ def _synthesize_clifford(
     allow_qubit_permutation: bool,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
-    if k is None:
-        if target_kind == TargetKind.CLIFFORD_UNITARY:
-            k = stabilizers.n
-            x_logicals = StabilizerTableau.from_pauli_strings([
-                "I" * i + "X" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
-            ])
-            z_logicals = StabilizerTableau.from_pauli_strings([
-                "I" * i + "Z" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
-            ])
-        elif target_kind == TargetKind.STABILIZER_STATE:
-            k = 0
-        else:
-            msg = "k must be provided for isometry synthesis"
-            raise ValueError(msg)
-
-    if k > 0 and (not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau)):
-        msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
-        raise ValueError(msg)
-
-    target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
+    target, k = _prepare_clifford_target(stabilizers, target_kind, k, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
         return _synthesize_clifford_gate_count(
@@ -357,30 +554,13 @@ def _synthesize_clifford_gate_count(
                 k,
             )
 
-            actual_count = sum(
-                1
-                for slot in range(bound)
-                if model.eval(z3.Or(h_vars[slot], s_vars[slot], c_vars[slot]), model_completion=True)
-            )
+            actual_count = _compute_actual_gate_count(model, bound, h_vars, s_vars, c_vars)
 
-            stim_circuit = circuit.to_stim_circuit(with_resets=False)
-            corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
-
-            corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
-
-            target_kind_value = target_kind
-            if target_kind_value == TargetKind.STABILIZER_STATE:
-                for q in circuit.get_zero_initialized():
-                    corrected_circuit.initialize_qubit(q, basis="Z")
+            corrected_circuit = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
 
             verified = False
             if verify:
-                if target_kind_value == TargetKind.CLIFFORD_UNITARY:
-                    verified = verify_clifford_unitary(corrected_circuit, target)
-                elif target_kind_value == TargetKind.STABILIZER_STATE:
-                    verified = verify_stabilizer_state(corrected_circuit, stabilizers)
-                else:
-                    verified = verify_clifford_isometry(corrected_circuit, target, k)
+                verified = _verify_clifford_result(corrected_circuit, target, target_kind, k, stabilizers)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
@@ -437,41 +617,13 @@ def _synthesize_clifford_depth(
                 k,
             )
 
-            actual_depth = 0
-            for layer in range(bound):
-                layer_has_gate = False
-                for q in range(n):
-                    if model.eval(h_vars[layer][q], model_completion=True) or model.eval(
-                        s_vars[layer][q], model_completion=True
-                    ):
-                        layer_has_gate = True
-                        break
-                if not layer_has_gate:
-                    for cx_idx in range(len(cx_vars[layer])):
-                        if model.eval(cx_vars[layer][cx_idx], model_completion=True):
-                            layer_has_gate = True
-                            break
-                if layer_has_gate:
-                    actual_depth += 1
+            actual_depth = _compute_actual_depth_clifford(model, bound, n, h_vars, s_vars, cx_vars)
 
-            stim_circuit = circuit.to_stim_circuit(with_resets=False)
-            corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
-
-            corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
-
-            target_kind_value = target_kind
-            if target_kind_value == TargetKind.STABILIZER_STATE:
-                for q in circuit.get_zero_initialized():
-                    corrected_circuit.initialize_qubit(q, basis="Z")
+            corrected_circuit = _apply_pauli_correction_to_clifford(circuit, n, target_kind)
 
             verified = False
             if verify:
-                if target_kind_value == TargetKind.CLIFFORD_UNITARY:
-                    verified = verify_clifford_unitary(corrected_circuit, target)
-                elif target_kind_value == TargetKind.STABILIZER_STATE:
-                    verified = verify_stabilizer_state(corrected_circuit, stabilizers)
-                else:
-                    verified = verify_clifford_isometry(corrected_circuit, target, k)
+                verified = _verify_clifford_result(corrected_circuit, target, target_kind, k, stabilizers)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
@@ -491,6 +643,46 @@ def _synthesize_clifford_depth(
         status=SynthesisStatus.UNSAT,
         message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
     )
+
+
+def _prepare_css_target(
+    checks: CheckMatrix,
+    k: int,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
+) -> tuple[CheckMatrix, int]:
+    """Prepare combined CSS target matrix for synthesis.
+
+    Args:
+        checks: CSS check matrix.
+        k: Number of logical qubits.
+        x_logicals: Logical X operators.
+        z_logicals: Logical Z operators.
+
+    Returns:
+        Tuple of (combined_target, m_x) where m_x is number of stabilizers.
+    """
+    if k > 0:
+        logicals = x_logicals if checks.is_x_type() else z_logicals
+        if logicals is None:
+            check_type = "X" if checks.is_x_type() else "Z"
+            msg = f"{check_type.lower()}_logicals must be provided for CSS isometry with {check_type}-type checks"
+            raise ValueError(msg)
+
+        if isinstance(logicals, CheckMatrix):
+            logical_matrix = logicals.matrix
+        else:
+            logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
+
+        target = CheckMatrix(
+            np.vstack([logical_matrix, checks.matrix]),
+            pauli_type=checks.type,
+        )
+    else:
+        target = checks
+
+    m_x = target.num_rows() - k
+    return target, m_x
 
 
 def _row_echelon_pivot_cols(matrix: np.ndarray) -> list[int]:
@@ -594,6 +786,32 @@ def _determine_css_initializations(
     return init_x, init_z
 
 
+def _verify_css_result(
+    circuit: CNOTCircuit,
+    target_kind: TargetKind,
+    checks: CheckMatrix,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
+    k: int,
+) -> bool:
+    """Verify CSS synthesis result.
+
+    Args:
+        circuit: Synthesized circuit.
+        target_kind: Kind of synthesis problem.
+        checks: CSS check matrix.
+        x_logicals: Logical X operators.
+        z_logicals: Logical Z operators.
+        k: Number of logical qubits.
+
+    Returns:
+        True if verification succeeds.
+    """
+    if target_kind == TargetKind.CSS_STATE:
+        return verify_css_state(circuit, checks)
+    return verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
+
+
 def _synthesize_css(
     checks: CheckMatrix,
     target_kind: TargetKind,
@@ -615,26 +833,7 @@ def _synthesize_css(
             msg = "k must be provided for CSS isometry synthesis"
             raise ValueError(msg)
 
-    if k > 0:
-        logicals = x_logicals if checks.is_x_type() else z_logicals
-        if logicals is None:
-            check_type = "X" if checks.is_x_type() else "Z"
-            msg = f"{check_type.lower()}_logicals must be provided for CSS isometry with {check_type}-type checks"
-            raise ValueError(msg)
-
-        if isinstance(logicals, CheckMatrix):
-            logical_matrix = logicals.matrix
-        else:
-            logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
-
-        target = CheckMatrix(
-            np.vstack([logical_matrix, checks.matrix]),
-            pauli_type=checks.type,
-        )
-    else:
-        target = checks
-
-    m_x = target.num_rows() - k
+    target, m_x = _prepare_css_target(checks, k, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
         return _synthesize_css_gate_count(
@@ -720,10 +919,7 @@ def _synthesize_css_gate_count(
 
             verified = False
             if verify:
-                if target_kind == TargetKind.CSS_STATE:
-                    verified = verify_css_state(circuit, checks)
-                else:
-                    verified = verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
+                verified = _verify_css_result(circuit, target_kind, checks, x_logicals, z_logicals, k)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
@@ -795,22 +991,11 @@ def _synthesize_css_depth(
                 init_z,
             )
 
-            actual_depth = 0
-            for layer in range(bound):
-                layer_has_gate = False
-                for cx_idx in range(len(cx_vars[layer])):
-                    if model.eval(cx_vars[layer][cx_idx], model_completion=True):
-                        layer_has_gate = True
-                        break
-                if layer_has_gate:
-                    actual_depth += 1
+            actual_depth = _compute_actual_depth_css(model, bound, cx_vars)
 
             verified = False
             if verify:
-                if target_kind == TargetKind.CSS_STATE:
-                    verified = verify_css_state(circuit, checks)
-                else:
-                    verified = verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
+                verified = _verify_css_result(circuit, target_kind, checks, x_logicals, z_logicals, k)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
