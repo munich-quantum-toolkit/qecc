@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     import z3
 
 
-
 def synthesize_exact(
     target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
@@ -38,8 +37,8 @@ def synthesize_exact(
     lower_bound: int = 0,
     upper_bound: int = 10,
     k: int | None = None,
-    x_logicals: StabilizerTableau | None = None,
-    z_logicals: StabilizerTableau | None = None,
+    x_logicals: StabilizerTableau | CheckMatrix | None = None,
+    z_logicals: StabilizerTableau | CheckMatrix | None = None,
     verify: bool = True,
     allow_qubit_permutation: bool = True,
 ) -> SynthesisResult:
@@ -53,8 +52,8 @@ def synthesize_exact(
         lower_bound: Lower bound on resource count.
         upper_bound: Upper bound on resource count.
         k: Number of logical qubits (required for isometry).
-        x_logicals: Logical X operators (required for isometry).
-        z_logicals: Logical Z operators (required for isometry).
+        x_logicals: Logical X operators (StabilizerTableau for Clifford, CheckMatrix or StabilizerTableau for CSS).
+        z_logicals: Logical Z operators (StabilizerTableau for Clifford, CheckMatrix or StabilizerTableau for CSS).
         verify: Whether to verify synthesized circuit.
         allow_qubit_permutation: Allow qubit permutation in unitaries.
 
@@ -78,8 +77,20 @@ def synthesize_exact(
         if k < 0:
             msg = f"k must be non-negative, got {k}"
             raise ValueError(msg)
-        if x_logicals is None or z_logicals is None:
-            msg = "x_logicals and z_logicals must be provided for isometry synthesis"
+
+    if target_kind == TargetKind.CLIFFORD_ISOMETRY and (x_logicals is None or z_logicals is None):
+        msg = "x_logicals and z_logicals must be provided for Clifford isometry synthesis"
+        raise ValueError(msg)
+
+    if target_kind == TargetKind.CSS_ISOMETRY:
+        if not isinstance(target, CheckMatrix):
+            msg = f"CSS_ISOMETRY requires CheckMatrix, got {type(target).__name__}"
+            raise ValueError(msg)
+        if target.is_x_type() and x_logicals is None:
+            msg = "x_logicals must be provided for CSS isometry with X-type checks"
+            raise ValueError(msg)
+        if target.is_z_type() and z_logicals is None:
+            msg = "z_logicals must be provided for CSS isometry with Z-type checks"
             raise ValueError(msg)
 
     if objective == Objective.DEPTH:
@@ -177,8 +188,8 @@ def _synthesize_clifford(
     lower_bound: int,
     upper_bound: int,
     k: int | None,
-    x_logicals: StabilizerTableau | None,
-    z_logicals: StabilizerTableau | None,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
     allow_qubit_permutation: bool,
 ) -> SynthesisResult:
@@ -199,6 +210,10 @@ def _synthesize_clifford(
         else:
             msg = "k must be provided for isometry synthesis"
             raise ValueError(msg)
+
+    if not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau):
+        msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
+        raise ValueError(msg)
 
     target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
 
@@ -371,8 +386,8 @@ def _synthesize_css(
     lower_bound: int,
     upper_bound: int,
     k: int | None,
-    x_logicals: StabilizerTableau | None,
-    z_logicals: StabilizerTableau | None,
+    x_logicals: StabilizerTableau | CheckMatrix | None,
+    z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
@@ -387,15 +402,20 @@ def _synthesize_css(
             msg = "k must be provided for CSS isometry synthesis"
             raise ValueError(msg)
 
-    if k > 0 and (x_logicals is None or z_logicals is None):
-        msg = "x_logicals and z_logicals must be provided for CSS isometry synthesis"
-        raise ValueError(msg)
-
     if k > 0:
         logicals = x_logicals if checks.is_x_type() else z_logicals
-        assert logicals is not None
+        if logicals is None:
+            check_type = "X" if checks.is_x_type() else "Z"
+            msg = f"{check_type.lower()}_logicals must be provided for CSS isometry with {check_type}-type checks"
+            raise ValueError(msg)
+
+        if isinstance(logicals, CheckMatrix):
+            logical_matrix = logicals.matrix
+        else:
+            logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
+
         target = CheckMatrix(
-            np.vstack([logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part(), checks.matrix]),
+            np.vstack([logical_matrix, checks.matrix]),
             pauli_type=checks.type,
         )
     else:
@@ -447,7 +467,7 @@ def _synthesize_css(
                 if target_kind == TargetKind.CSS_STATE:
                     verified = verify_css_state(circuit, checks)
                 else:
-                    verified = verify_css_isometry(circuit, checks, x_logicals, z_logicals, k)
+                    verified = verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,

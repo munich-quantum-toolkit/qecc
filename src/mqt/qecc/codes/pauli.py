@@ -727,3 +727,16 @@ class CheckMatrix:
     def __repr__(self) -> str:
         """Return a string representation of the check matrix."""
         return f"CheckMatrix(type={self.type}, matrix=\n{self.matrix})"
+
+    def equ_span(self, other: CheckMatrix | npt.NDArray[np.int8]) -> bool:
+        """Check if the row spans of this check matrix and another check matrix are equal."""
+        if not isinstance(other, CheckMatrix) and not isinstance(other, np.ndarray):
+            msg = f"Expected other to be a CheckMatrix or a numpy array, got {type(other)}."
+            raise ValueError(msg)
+
+        other_mat = other.matrix if isinstance(other, CheckMatrix) else other
+        combined = np.vstack((self.matrix, other_mat))
+        rank_combined = mod2.rank(combined)
+        rank_self = mod2.rank(self.matrix)
+        rank_other = mod2.rank(other_mat)
+        return rank_combined == rank_self == rank_other

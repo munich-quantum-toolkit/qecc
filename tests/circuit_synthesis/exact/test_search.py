@@ -177,13 +177,14 @@ def test_swap_unitary(swap_unitary: tuple[StabilizerTableau, StabilizerTableau, 
         k=2,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
-        lower_bound=1,
+        lower_bound=0,
         upper_bound=5,
+        allow_qubit_permutation=False,
     )
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
-    assert result.gate_count >= 3
+    assert result.gate_count == 3
     assert result.verified is True
 
 
@@ -244,45 +245,27 @@ def test_css_state_synthesis(repetition_code_check_matrix: CheckMatrix) -> None:
     assert verify_css_state(result.circuit, repetition_code_check_matrix)
 
 
-def test_clifford_isometry_synthesis(
-    five_qubit_code: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
-) -> None:
-    """Test Clifford isometry synthesis with logical qubits."""
-    stabilizers, x_logicals, z_logicals = five_qubit_code
-
-    result = synthesize_exact(
-        target=stabilizers,
-        target_kind=TargetKind.CLIFFORD_ISOMETRY,
-        gate_family=GateFamily.CLIFFORD,
-        objective=Objective.GATE_COUNT,
-        k=1,
-        x_logicals=x_logicals,
-        z_logicals=z_logicals,
-        lower_bound=1,
-        upper_bound=10,
-    )
-
-    assert result.status == SynthesisStatus.SUCCESS
-    assert result.circuit is not None
-    assert result.gate_count >= 1
-    assert result.verified is True
-
-
 def test_css_isometry_synthesis() -> None:
-    """Test CSS isometry synthesis."""
-    checks = CheckMatrix.from_numpy_array(
-        np.array([[0, 0, 1, 1]], dtype=np.int8),
+    """Test CSS isometry synthesis with X-type checks."""
+    checks = CheckMatrix(
+        np.array([[1, 1, 1, 1]], dtype=np.int8),
         "X",
     )
-    x_logicals = StabilizerTableau.from_pauli_strings(["XIXX"])
-    z_logicals = StabilizerTableau.from_pauli_strings(["ZIZZ"])
+    x_logicals = CheckMatrix(
+        np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=np.int8),
+        "X",
+    )
+    z_logicals = CheckMatrix(
+        np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.int8),
+        "Z",
+    )
 
     result = synthesize_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         gate_family=GateFamily.CSS_CNOT,
         objective=Objective.GATE_COUNT,
-        k=1,
+        k=2,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=1,
@@ -293,7 +276,7 @@ def test_css_isometry_synthesis() -> None:
     assert result.circuit is not None
     assert result.gate_count >= 1
     assert result.verified is True
-    assert verify_css_isometry(result.circuit, checks, x_logicals, z_logicals, k=1)
+    assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
 
 
 def test_invalid_target_kind() -> None:

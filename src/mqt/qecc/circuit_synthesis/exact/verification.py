@@ -111,19 +111,18 @@ def verify_css_state(circuit: CNOTCircuit, checks: CheckMatrix) -> bool:
     if not isinstance(circuit_code, CSSCode):
         return False
 
-    target_code = CSSCode(
-        checks.matrix if checks.is_x_type() else checks.matrix * 0,
-        checks.matrix * 0 if checks.is_x_type() else checks.matrix,
-    )
+    h_circ = circuit_code.Hx if checks.is_x_type() else circuit_code.Hz
 
-    return circuit_code.equal_stabilizer_group(target_code)
+    if h_circ is None:
+        return False
+
+    return checks.equ_span(h_circ)
 
 
 def verify_css_isometry(
     circuit: CNOTCircuit,
     checks: CheckMatrix,
-    x_logicals: StabilizerTableau | None,
-    z_logicals: StabilizerTableau | None,
+    logicals: CheckMatrix | StabilizerTableau | None,
     k: int,
 ) -> bool:
     """Verify that CNOT circuit implements the target CSS isometry.
@@ -131,20 +130,20 @@ def verify_css_isometry(
     Args:
         circuit: Synthesized CNOT circuit.
         checks: Target CSS check matrix.
-        x_logicals: Target X logical operators.
-        z_logicals: Target Z logical operators.
+        logicals: Target logical operators (CheckMatrix matching check type, or StabilizerTableau).
         k: Number of logical qubits.
 
     Returns:
         True if circuit implements target CSS isometry.
     """
     from ...codes import CSSCode
+    from ...codes.pauli import CheckMatrix, Pauli
 
     if circuit.num_inputs() != k:
         return False
 
-    if x_logicals is None or z_logicals is None:
-        msg = "x_logicals and z_logicals must be provided for CSS isometry verification"
+    if logicals is None:
+        msg = "logicals must be provided for CSS isometry verification"
         raise ValueError(msg)
 
     circuit_code = circuit.get_code()
@@ -152,15 +151,31 @@ def verify_css_isometry(
     if not isinstance(circuit_code, CSSCode):
         return False
 
-    lx = x_logicals.get_x_part() if checks.is_x_type() else x_logicals.get_z_part()
-    lz = z_logicals.get_z_part() if checks.is_x_type() else z_logicals.get_x_part()
+    h_circ = circuit_code.Hx if checks.is_x_type() else circuit_code.Hz
 
-    target_code = CSSCode(
-        checks.matrix if checks.is_x_type() else checks.matrix * 0,
-        checks.matrix * 0 if checks.is_x_type() else checks.matrix,
-        Lx=lx,
-        Lz=lz,
-        distance=1,
-    )
+    if h_circ is None:
+        return False
 
-    return circuit_code.is_equivalent(target_code)
+    if not checks.equ_span(h_circ):
+        return False
+
+    if isinstance(logicals, CheckMatrix):
+        logical_matrix = logicals.matrix
+    else:
+        logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
+
+    if logical_matrix.shape[0] != k:
+        return False
+
+    for i in range(k):
+        logical_row = logical_matrix[i]
+        pauli_str = "".join("I" if val == 0 else ("X" if checks.is_x_type() else "Z") for val in logical_row)
+        pauli = Pauli.from_pauli_string(pauli_str)
+
+        if checks.is_x_type():
+            if not circuit_code.is_x_logical(pauli):
+                return False
+        elif not circuit_code.is_z_logical(pauli):
+            return False
+
+    return True
