@@ -11,19 +11,22 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
-import ldpc.mod2.mod2_numpy as mod2
 import multiprocess
 import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
+
+from .circuits import CNOTCircuit
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     import numpy.typing as npt
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
+
+    from ..codes.pauli import CheckMatrix
 
 
 logger = logging.getLogger(__name__)
@@ -89,73 +92,38 @@ def iterative_search_with_timeout(
     return None, max_param
 
 
-def heuristic_gaussian_elimination(
-    matrix: npt.NDArray[np.int8], parallel_elimination: bool = True
-) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]]:
-    """Perform Gaussian elimination on the column space of a matrix using as few eliminations as possible.
+Objective = Literal["eliminations", "depth"]
 
-    The algorithm utilizes a greedy heuristic to select the columns to eliminate in order to minimize the number of eliminations required.
 
-    The matrix is reduced until there are exactly rnk(matrix) columns with non-zero entries.
+def build_css_encoder_from_cnot_list(
+    checks: CheckMatrix, logicals: CheckMatrix, cnots: list[tuple[int, int]]
+) -> CNOTCircuit:
+    """Build a CSS encoding circuit from a list of CNOTs, given the stabilizers and logicals.
 
     Args:
-        matrix: The matrix to perform Gaussian elimination on.
-        parallel_elimination: Whether to prioritize elimination steps that act on disjoint columns.
+        checks: The stabilizer check matrix of the CSS code.
+        logicals: The logical operator matrix of the CSS code.
+        cnots: The list of CNOT operations to apply.
 
     Returns:
-        The reduced matrix and a list of the elimination steps taken. The elimination steps are represented as tuples of the form (i, j) where i is the column being eliminated with and j is the column being eliminated.
+        The synthesized encoding circuit.
     """
-    matrix = matrix.copy()
-    rank = mod2.rank(matrix)
+    if checks.type != logicals.type:
+        msg = "Checks and logicals must be of the same type."
+        raise ValueError(msg)
 
-    def is_reduced() -> bool:
-        return bool(len(np.where(np.all(matrix == 0, axis=0))[0]) == matrix.shape[1] - rank)
+    check_matrix = checks.matrix
+    logical_matrix = logicals.matrix
+    n = checks.num_qubits()
+    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0].tolist()
+    if checks.type == "X":
+        hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
+    else:
+        hadamards = np.where(check_matrix.sum(axis=0) == 0)[0]
 
-    costs = np.array([
-        [np.sum((matrix[:, i] + matrix[:, j]) % 2) for j in range(matrix.shape[1])] for i in range(matrix.shape[1])
-    ])
-
-    costs -= np.sum(matrix, axis=0)
-    np.fill_diagonal(costs, 1)
-
-    used_columns = []  # type: list[np.int_]
-    eliminations = []  # type: list[tuple[int, int]]
-    while not is_reduced():
-        m = np.zeros((matrix.shape[1], matrix.shape[1]), dtype=bool)  # type: npt.NDArray[np.bool_]
-        m[used_columns, :] = True
-        m[:, used_columns] = True
-
-        costs_unused = np.ma.array(costs, mask=m)  # type: ignore[no-untyped-call, unused-ignore]
-        if np.all(costs_unused >= 0) or len(used_columns) == matrix.shape[1]:  # no more reductions possible
-            if used_columns == []:  # local minimum => get out by making matrix triangular
-                logger.warning("Local minimum reached. Making matrix triangular.")
-                matrix = mod2.row_echelon(matrix, full=True)[0]
-                costs = np.array([
-                    [np.sum((matrix[:, i] + matrix[:, j]) % 2) for j in range(matrix.shape[1])]
-                    for i in range(matrix.shape[1])
-                ])
-                costs -= np.sum(matrix, axis=0)
-                np.fill_diagonal(costs, 1)
-            else:  # try to move onto the next layer
-                used_columns = []
-            continue
-
-        i, j = np.unravel_index(np.argmin(costs_unused), costs.shape)
-        eliminations.append((int(i), int(j)))
-
-        if parallel_elimination:
-            used_columns.append(i)
-            used_columns.append(j)
-
-        # update matrix
-        matrix[:, j] = (matrix[:, i] + matrix[:, j]) % 2
-        # update costs
-        new_weights = np.sum((matrix[:, j][:, np.newaxis] + matrix) % 2, axis=0)
-        costs[j, :] = new_weights - np.sum(matrix, axis=0)
-        costs[:, j] = new_weights - np.sum(matrix[:, j])
-        np.fill_diagonal(costs, 1)
-
-    return matrix, eliminations
+    hadamards = np.setdiff1d(hadamards, encoding_qubits)
+    non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards, inputs=encoding_qubits)
 
 
 def gaussian_elimination_min_column_ops(

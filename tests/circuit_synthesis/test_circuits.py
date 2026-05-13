@@ -14,7 +14,9 @@ import pytest
 import stim
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.codes.pauli import Pauli
+from mqt.qecc.codes.stabilizer_code import StabilizerCode
 
 
 def test_add_cnot():
@@ -47,7 +49,7 @@ def test_initialize_qubit():
     circuit = CNOTCircuit()
     circuit.initialize_qubit(0, "Z")
     circuit.initialize_qubit(1, "X")
-    assert circuit.initializations == {0: "Z", 1: "X"}, "Qubits were not initialized correctly."
+    assert circuit.get_initialized() == {0: "Z", 1: "X"}, "Qubits were not initialized correctly."
 
 
 def test_initialize_invalid_basis():
@@ -196,7 +198,7 @@ def test_from_qiskit_circuit_simple():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit.initializations == {}, "No qubits should be initialized."
+    assert cnot_circuit.get_initialized() == {}, "No qubits should be initialized."
 
 
 def test_from_qiskit_circuit_with_initialization():
@@ -216,7 +218,7 @@ def test_from_qiskit_circuit_with_initialization():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit.initializations == expected_initializations, "Qubit initialization was not handled correctly."
+    assert cnot_circuit.get_initialized() == expected_initializations, "Qubit initialization was not handled correctly."
 
 
 def test_from_qiskit_circuit_init_all():
@@ -235,7 +237,9 @@ def test_from_qiskit_circuit_init_all():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit.initializations == expected_initializations, "All qubits should be initialized in the Z basis."
+    assert cnot_circuit.get_initialized() == expected_initializations, (
+        "All qubits should be initialized in the Z basis."
+    )
 
 
 def test_from_qiskit_circuit_unsupported_gate():
@@ -278,7 +282,9 @@ def test_from_stim_circuit_simple():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit.initializations == expected_initializations, "Qubit initializations were not handled correctly."
+    assert cnot_circuit.get_initialized() == expected_initializations, (
+        "Qubit initializations were not handled correctly."
+    )
 
 
 def test_from_stim_circuit_with_x_initialization():
@@ -297,7 +303,9 @@ def test_from_stim_circuit_with_x_initialization():
 
     # Check the result
     assert cnot_circuit.cnots == expected_cnots, "CNOT gates were not extracted correctly."
-    assert cnot_circuit.initializations == expected_initializations, "X-basis initialization was not handled correctly."
+    assert cnot_circuit.get_initialized() == expected_initializations, (
+        "X-basis initialization was not handled correctly."
+    )
 
 
 def test_from_stim_circuit_reset_error():
@@ -427,14 +435,14 @@ def test_get_logicals():
     }
 
     # Check the result
-    logicals = circuit.get_logicals()
+    logicals = circuit.get_logicals_css()
     for qubit, operator in expected_logical_x.items():
         assert np.array_equal(logicals[qubit][0], operator), f"Logical X operator for qubit {qubit} is incorrect."
     for qubit, operator in expected_logical_z.items():
         assert np.array_equal(logicals[qubit][1], operator), f"Logical Z operator for qubit {qubit} is incorrect."
 
-    x = circuit.get_logical_x()
-    z = circuit.get_logical_z()
+    x = circuit.get_logical_xs_css()
+    z = circuit.get_logical_zs_css()
 
     for qubit, (x_op, z_op) in logicals.items():
         assert np.array_equal(x[qubit], x_op), f"Logical X operator for qubit {qubit} is incorrect."
@@ -448,10 +456,10 @@ def test_logicals_state():
     circuit.initialize_qubit(1, "X")
 
     # Check that the circuit has no logicals
-    logicals = circuit.get_logicals()
+    logicals = circuit.get_logicals_css()
     assert not logicals, "States should not have logical operators."
-    assert circuit.get_logical_x() == {}, "States should not have logical X operators."
-    assert circuit.get_logical_z() == {}, "States should not have logical Z operators."
+    assert circuit.get_logical_xs_css() == {}, "States should not have logical X operators."
+    assert circuit.get_logical_zs_css() == {}, "States should not have logical Z operators."
 
 
 def test_copy_circuit():
@@ -472,7 +480,7 @@ def test_copy_circuit():
 
     # Verify that the copied circuit has the same gates and initializations
     assert copied_circuit.cnots == original_circuit.cnots, "CNOT gates were not copied correctly."
-    assert copied_circuit.initializations == original_circuit.initializations, (
+    assert copied_circuit.get_initialized() == original_circuit.get_initialized(), (
         "Initializations were not copied correctly."
     )
 
@@ -483,7 +491,7 @@ def test_copy_circuit():
     assert copied_circuit.cnots != original_circuit.cnots, (
         "Copied circuit should not reflect changes to the original circuit."
     )
-    assert copied_circuit.initializations != original_circuit.initializations, (
+    assert copied_circuit.get_initialized() != original_circuit.get_initialized(), (
         "Copied circuit should not reflect changes to the original circuit."
     )
 
@@ -513,7 +521,7 @@ def test_relabel_qubits():
 
     # Check the result
     assert circuit.cnots == expected_cnots, "CNOT gates were not relabeled correctly."
-    assert circuit.initializations == expected_initializations, "Initializations were not relabeled correctly."
+    assert circuit.get_initialized() == expected_initializations, "Initializations were not relabeled correctly."
 
 
 def test_relabel_qubits_invalid_mapping():
@@ -561,7 +569,9 @@ def test_compose_cnot_circuits_no_wiring():
 
     # Check the result
     assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly."
-    assert composed_circuit.initializations == expected_initializations, "Initializations were not composed correctly."
+    assert composed_circuit.get_initialized() == expected_initializations, (
+        "Initializations were not composed correctly."
+    )
     assert m1 == {0: 0, 1: 1, 2: 2, 3: 3}, "Mapping m1 should be identity."
     assert m2 == {0: 4, 1: 5, 2: 6}, "Mapping m2 should map circ2 qubits to the end of circ1."
 
@@ -596,7 +606,7 @@ def test_compose_cnot_circuits_with_wiring():
 
     # Check the result
     assert composed_circuit.cnots == expected_cnots, "CNOT gates were not composed correctly with wiring."
-    assert composed_circuit.initializations == expected_initializations, (
+    assert composed_circuit.get_initialized() == expected_initializations, (
         "Initializations were not composed correctly with wiring."
     )
     assert m1 == {0: 0, 1: 3, 2: 1, 3: 4}, "Mapping m1 should map circ1 qubits to the composed circuit."
@@ -617,3 +627,76 @@ def test_compose_invalid_wiring():
         ValueError, match=r"Cannot compose circuits with wiring that connects to initialized qubits in circ2."
     ):
         compose_cnot_circuits(circ1, circ2, wiring)
+
+
+def test_trivial_isometry():
+    """Test construction of trivial encoding isometry."""
+    iso = CliffordIsometry()
+    assert iso.num_inputs() == 0
+    assert iso.num_outputs() == 0
+    assert iso.get_all_logicals() == []
+
+    with pytest.raises(ValueError, match=r"Given index is not a logical qubit index."):
+        iso.get_logical(0)
+
+
+@pytest.fixture
+def rep_code_encoder() -> stim.Circuit:
+    """Encoding isometry of the repetition code."""
+    circ = stim.Circuit()
+    circ.append("R", [1, 2])
+    circ.append("CX", [0, 1, 1, 2])
+    return circ
+
+
+@pytest.fixture
+def five_qubit_code_encoder() -> stim.Circuit:
+    """Encoding isometry of the five-qubit code."""
+    circ = stim.Circuit()
+    circ.append("RX", [1, 2, 3, 4])
+    circ.append("H", [0])
+    circ.append("CZ", [0, 1, 0, 2, 0, 3, 0, 4])
+    circ.append("H", [0])
+    circ.append("CZ", [0, 1, 2, 3, 1, 2, 3, 4, 0, 4])
+    return circ
+
+
+@pytest.fixture
+def five_qubit_code() -> StabilizerCode:
+    """Five-qubit code stabilizer code."""
+    stabilizers = [
+        "XZZXI",
+        "IXZZX",
+        "XIXZZ",
+        "ZXIXZ",
+    ]
+    x_logicals = ["XXXXX"]
+    z_logicals = ["ZZZZZ"]
+    return StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals, distance=3)
+
+
+def test_basic_isometry(rep_code_encoder: stim.Circuit) -> None:
+    """Test simple encoding isometry."""
+    iso = CliffordIsometry.from_stim_circuit(rep_code_encoder)
+    assert iso.num_inputs() == 1
+    assert iso.num_outputs() == 3
+    x, z = iso.get_logical(0)
+    assert x == Pauli.from_pauli_string("XXX")
+    assert z == Pauli.from_pauli_string("ZII")
+
+
+def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_code: StabilizerCode) -> None:
+    """Test five-qubit code encoding isometry."""
+    iso = CliffordIsometry.from_stim_circuit(five_qubit_code_encoder)
+    assert iso.num_inputs() == 1
+    assert iso.num_outputs() == 5
+
+    code = iso.get_code()
+    assert code.n == 5
+    assert code.is_equivalent(five_qubit_code)
+    x, z = iso.get_logical(0)
+
+    expected_x = Pauli.from_pauli_string("XXXXX")
+    expected_z = Pauli.from_pauli_string("ZZZZZ")
+    assert five_qubit_code.stabilizer_equivalent(x, expected_x), "Logical X operator does not match expected."
+    assert five_qubit_code.stabilizer_equivalent(z, expected_z), "Logical Z operator does not match expected."

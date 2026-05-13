@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
 
@@ -27,6 +27,10 @@ class SymplecticVector:
         """Initialize the Symplectic Vector."""
         self.vector = vector
         self.n = vector.shape[0] // 2
+
+    def copy(self) -> SymplecticVector:
+        """Return a copy of the vector."""
+        return SymplecticVector(self.vector.copy())
 
     @classmethod
     def zeros(cls, n: int) -> SymplecticVector:
@@ -79,6 +83,14 @@ class SymplecticVector:
         """Return the hash of the vector."""
         return hash(self.vector.tobytes())
 
+    def __repr__(self) -> str:
+        """Return the string representation of the vector."""
+        return str(self.vector.__repr__())
+
+    def __len__(self) -> int:
+        """Return the length of the vector."""
+        return len(self.vector)
+
 
 class SymplecticMatrix:
     """Symplectic Matrix Class."""
@@ -94,6 +106,10 @@ class SymplecticMatrix:
         """Return the transpose of the matrix."""
         return SymplecticMatrix(self.matrix.T)
 
+    def copy(self) -> SymplecticMatrix:
+        """Return a copy of the matrix."""
+        return SymplecticMatrix(self.matrix.copy())
+
     @classmethod
     def zeros(cls, n_rows: int, n: int) -> SymplecticMatrix:
         """Create a zero matrix of size n."""
@@ -102,12 +118,15 @@ class SymplecticMatrix:
     @classmethod
     def identity(cls, n: int) -> SymplecticMatrix:
         """Create the identity matrix of size n."""
-        return cls(
-            np.block([
-                [np.zeros((n, n), dtype=np.int8), np.eye(n, dtype=np.int8)],
-                [np.eye(n, dtype=np.int8), np.zeros((n, n), dtype=np.int8)],
-            ])
-        )
+        return cls(np.eye(2 * n, dtype=np.int8))
+
+    @classmethod
+    def symplectic_identity(cls, n: int) -> SymplecticMatrix:
+        """Create the identity matrix of size n."""
+        mat = np.zeros((2 * n, 2 * n), dtype=np.int8)
+        mat[:n, n:] = np.eye(n, dtype=np.int8)
+        mat[n:, :n] = np.eye(n, dtype=np.int8)
+        return cls(mat)
 
     @classmethod
     def empty(cls, n: int) -> SymplecticMatrix:
@@ -132,11 +151,36 @@ class SymplecticMatrix:
         m2 = other.matrix
         return SymplecticMatrix(((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2)
 
-    def __getitem__(self, key: tuple[int, int] | int | slice) -> Any:  # noqa: ANN401
+    @overload
+    def __getitem__(self, key: int) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[int, int]) -> np.int8: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, int]) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, slice]) -> npt.NDArray[np.int8]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[slice, list[int]]) -> npt.NDArray[np.int8]: ...
+
+    def __getitem__(
+        self,
+        key: int | slice | tuple[int, int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, list[int]],
+    ) -> Any:
         """Get the value of the matrix at index key."""
         return self.matrix[key]
 
-    def __setitem__(self, key: tuple[int, int] | int | slice, value: npt.NDArray[np.int8]) -> None:
+    def __setitem__(
+        self,
+        key: int | slice | tuple[int, int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, list[int]],
+        value: npt.NDArray[np.int8] | np.int8,
+    ) -> None:
         """Set the value of the matrix at index key."""
         self.matrix[key] = value
 

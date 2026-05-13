@@ -64,6 +64,7 @@ dependencies = [
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
   "tqdm>=4.66.2",
+  "protobuf==6.31.1",
   "networkx>=3.4.2",
 ]
 dynamic = ["version"]
@@ -106,6 +107,7 @@ addopts = [
   "--dist=loadgroup", # Ensure that certain tests are run on the same worker
 ]
 log_level = "INFO"
+
 filterwarnings = [
   "error",
   "ignore:pkg_resources is deprecated:UserWarning", # Due to qsample, do not remove!
@@ -125,6 +127,7 @@ run.source = ["mqt.qecc"]
 run.disable_warnings = [
   "no-sysmon",
 ]
+
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
@@ -151,7 +154,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*", "networkx.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*","networkx.*"]
 ignore_missing_imports = true
 
 
@@ -250,6 +253,7 @@ aer = "aer"
 anc = "anc"
 arange = "arange"
 nd = "nd"
+strat = "strat"
 iz = "iz"
 
 

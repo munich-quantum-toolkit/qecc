@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 from stim import Circuit
 
+from .definitions import STIM_MEASUREMENTS
+
 if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
-
-from .definitions import STIM_MEASUREMENTS
 
 
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
@@ -192,6 +192,69 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
     return layers
 
 
+def depth(circ: Circuit) -> int:
+    """Calculate the depth of a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyze.
+
+    Returns:
+        The depth of the circuit.
+    """
+    return len(collect_circuit_layers(circ, scheduling_method="asap"))
+
+
+def remove_single_qubit_gates(circ: Circuit) -> Circuit:
+    """Remove all single-qubit gates from a stim circuit.
+
+    Args:
+        circ: The stim circuit to filter.
+
+    Returns:
+        A new stim circuit with single-qubit gates removed.
+    """
+    new_circ = Circuit()
+    for op in circ:
+        if all(len(grp) == 1 for grp in op.target_groups()):
+            continue
+        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+    return new_circ
+
+
+def remove_swap_gates(circ: Circuit) -> Circuit:
+    """Remove all SWAP gates from a stim circuit.
+
+    Args:
+        circ: The stim circuit to filter.
+
+    Returns:
+        A new stim circuit with SWAP gates removed.
+    """
+    new_circ = Circuit()
+    for op in circ:
+        if op.name == "SWAP":
+            continue
+        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+    return new_circ
+
+
+def two_qubit_gate_depth(circ: Circuit, *, count_swaps: bool = False) -> int:
+    """Calculate the two-qubit gate depth of a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyse.
+        count_swaps: If ``True``, SWAP gates are included in the depth
+            calculation. Defaults to ``False``.
+
+    Returns:
+        The two-qubit gate depth of the circuit.
+    """
+    circ = remove_single_qubit_gates(circ)
+    if not count_swaps:
+        circ = remove_swap_gates(circ)
+    return depth(circ)
+
+
 def unmeasured_qubits(circ: Circuit) -> list[int]:
     """Return a list of qubits that are not measured in circ."""
     measured_qubits: set[int] = set()
@@ -261,3 +324,25 @@ def compose_circuits(
     circ2_relabelled = relabel_qubits(circ2, mapping2)
     composed += circ2_relabelled
     return composed, mapping1, mapping2
+
+
+def num_two_qubit_gates(circ: Circuit, *, count_swaps: bool = False) -> int:
+    """Return the number of two-qubit gates in a stim circuit.
+
+    Args:
+        circ: The stim circuit to analyse.
+        count_swaps: If ``True``, SWAP gates are counted as two-qubit gates.
+            Defaults to ``False``.
+
+    Returns:
+        The number of two-qubit gates.
+    """
+    num_tqg = 0
+    for op in circ:
+        if op.name == "SWAP" and not count_swaps:
+            continue
+        for grp in op.target_groups():
+            if len(grp) == 2:
+                num_tqg += 1
+
+    return num_tqg
