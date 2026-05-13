@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
+import stim
 
 from ...codes.pauli import CheckMatrix, StabilizerTableau
 from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count
@@ -181,6 +183,55 @@ def _combine_stabilizers_and_logicals(
     return StabilizerTableau(combined_matrix, combined_phase)
 
 
+def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int) -> stim.Circuit:
+    """Apply Pauli sign correction to a circuit to match target phases.
+
+    Args:
+        circuit: The synthesized circuit (may have incorrect signs).
+        n: Number of qubits.
+
+    Returns:
+        Circuit with Pauli correction prepended if needed.
+    """
+    stim_tableau = circuit.to_tableau().to_numpy()
+
+    x_part = np.vstack((stim_tableau[0].astype(np.int8), stim_tableau[2].astype(np.int8)))
+    z_part = np.vstack((stim_tableau[1].astype(np.int8), stim_tableau[3].astype(np.int8)))
+    signs = np.concatenate((stim_tableau[-2].astype(int), stim_tableau[-1].astype(int)))
+
+    signed_tableau = np.hstack((x_part, z_part, np.array([signs]).T))
+
+    if np.all(signed_tableau[:, -1] == 0):
+        return circuit
+
+    kernel = mod2.nullspace(signed_tableau)
+
+    if kernel.size == 0:
+        return circuit
+
+    correction_symplectic = kernel[-1]
+
+    if correction_symplectic[-1] != 1:
+        return circuit
+
+    z_correction = correction_symplectic[:n]
+    x_correction = correction_symplectic[n:-1]
+
+    corrected_circuit = stim.Circuit()
+
+    for q, (xv, zv) in enumerate(zip(x_correction, z_correction, strict=False)):
+        if xv == 1 and zv == 1:
+            corrected_circuit.append("Y", [q])
+        elif xv == 1:
+            corrected_circuit.append("X", [q])
+        elif zv == 1:
+            corrected_circuit.append("Z", [q])
+
+    corrected_circuit += circuit
+
+    return corrected_circuit
+
+
 def _synthesize_clifford(
     stabilizers: StabilizerTableau,
     target_kind: TargetKind,
@@ -249,18 +300,29 @@ def _synthesize_clifford(
                 if model.eval(z3.Or(h_vars[slot], s_vars[slot], c_vars[slot]), model_completion=True)
             )
 
+            stim_circuit = circuit.to_stim_circuit(with_resets=False)
+            corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n)
+
+            from ..circuits import CliffordIsometry
+
+            corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
+
+            if target_kind == TargetKind.STABILIZER_STATE:
+                for q in circuit.get_zero_initialized():
+                    corrected_circuit.initialize_qubit(q, basis="Z")
+
             verified = False
             if verify:
                 if target_kind == TargetKind.CLIFFORD_UNITARY:
-                    verified = verify_clifford_unitary(circuit, target)
+                    verified = verify_clifford_unitary(corrected_circuit, target)
                 elif target_kind == TargetKind.STABILIZER_STATE:
-                    verified = verify_stabilizer_state(circuit, stabilizers)
+                    verified = verify_stabilizer_state(corrected_circuit, stabilizers)
                 else:
-                    verified = verify_clifford_isometry(circuit, target, k)
+                    verified = verify_clifford_isometry(corrected_circuit, target, k)
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
-                circuit=circuit,
+                circuit=corrected_circuit,
                 gate_count=actual_count,
                 verified=verified,
                 message=f"Found solution with {actual_count} gates",

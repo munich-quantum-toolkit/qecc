@@ -159,6 +159,7 @@ def test_s_gate_unitary(s_gate_unitary: tuple[StabilizerTableau, StabilizerTable
         upper_bound=3,
     )
 
+    print(result.circuit.to_stim_circuit(with_resets=False))
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
     assert result.gate_count == 1
