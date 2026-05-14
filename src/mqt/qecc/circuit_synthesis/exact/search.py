@@ -73,8 +73,11 @@ def synthesize_exact(
         lower_bound: Lower bound on resource count.
         upper_bound: Upper bound on resource count.
         k: Number of logical qubits (required for isometry).
-        x_logicals: Logical X operators (StabilizerTableau for Clifford, CheckMatrix or StabilizerTableau for CSS).
-        z_logicals: Logical Z operators (StabilizerTableau for Clifford, CheckMatrix or StabilizerTableau for CSS).
+        x_logicals: Logical X operators. For Clifford synthesis (including CLIFFORD_UNITARY), must be a
+            StabilizerTableau whose rows are the X-type logical operators. For CSS, may be a CheckMatrix
+            or StabilizerTableau. Required for CLIFFORD_UNITARY and CLIFFORD_ISOMETRY.
+        z_logicals: Logical Z operators. Same type rules as x_logicals. Required for CLIFFORD_UNITARY
+            and CLIFFORD_ISOMETRY.
         verify: Whether to verify synthesized circuit.
         allow_qubit_permutation: Allow qubit permutation in unitaries.
         gate_set: Custom gate set to use. If None, uses default gate set for gate_family.
@@ -159,8 +162,10 @@ def _validate_synthesis_parameters(
             msg = f"k must be non-negative, got {k}"
             raise ValueError(msg)
 
-    if target_kind == TargetKind.CLIFFORD_ISOMETRY and (x_logicals is None or z_logicals is None):
-        msg = "x_logicals and z_logicals must be provided for Clifford isometry synthesis"
+    if target_kind in {TargetKind.CLIFFORD_UNITARY, TargetKind.CLIFFORD_ISOMETRY} and (
+        x_logicals is None or z_logicals is None
+    ):
+        msg = f"x_logicals and z_logicals must be provided for {target_kind.value} synthesis"
         raise ValueError(msg)
 
     if target_kind == TargetKind.CSS_ISOMETRY:
@@ -285,12 +290,6 @@ def _prepare_clifford_target(
     if k is None:
         if target_kind == TargetKind.CLIFFORD_UNITARY:
             k = stabilizers.n
-            x_logicals = StabilizerTableau.from_pauli_strings([
-                "I" * i + "X" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
-            ])
-            z_logicals = StabilizerTableau.from_pauli_strings([
-                "I" * i + "Z" + "I" * (stabilizers.n - i - 1) for i in range(stabilizers.n)
-            ])
         elif target_kind == TargetKind.STABILIZER_STATE:
             k = 0
         else:
