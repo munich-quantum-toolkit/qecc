@@ -692,3 +692,15 @@ def test_apply_cnot_z():
 
     expected_faults2 = np.array([[1, 1, 0]], dtype=np.int8)
     assert np.array_equal(fault_set2.to_array(), expected_faults2), "CNOT gate was not applied correctly to the fault set"
+
+
+def test_apply_cnot_invalid_qubits():
+    """Test that applying a CNOT gate with invalid qubit indices raises an error."""
+    faults = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+
+    with pytest.raises(ValueError, match=r"Control and target qubits must be different."):
+        fault_set.apply_cnot(control=0, target=0)
+
+    with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
+        fault_set.apply_cnot(control=3, target=1)

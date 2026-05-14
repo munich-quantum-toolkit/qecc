@@ -402,6 +402,9 @@ class PureFaultSet:
         if control >= self.num_qubits or target >= self.num_qubits:
             msg = f"Control and target indices must be between 0 and {self.num_qubits - 1}."
             raise ValueError(msg)
+        if control == target:
+            msg = "Control and target qubits must be different."
+            raise ValueError(msg)
 
         updated_faults = np.copy(self.faults)
         if self.kind == "X":
