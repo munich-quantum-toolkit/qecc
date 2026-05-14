@@ -375,6 +375,36 @@ class PureFaultSet:
 
         return PureFaultSet.from_fault_array(permuted_faults)
 
+    def apply_cnot(self, control: int, target: int, kind: str = "X", inplace: bool = True) -> PureFaultSet:
+        """Apply a CNOT gate to the faults in the set.
+
+        Args:
+            control: The index of the control qubit.
+            target: The index of the target qubit.
+            kind: The type of faults to apply the CNOT to ('X' or 'Z').
+            inplace: If True, modifies the current fault set. If False, returns a new PureFaultSet with updated faults.
+
+        Returns:
+            A new PureFaultSet with updated faults if inplace is False.
+        """
+        if control >= self.num_qubits or target >= self.num_qubits:
+            msg = f"Control and target indices must be less than {self.num_qubits}."
+            raise ValueError(msg)
+        if kind.capitalize() not in {"X", "Z"}:
+            msg = "Kind must be either 'X' or 'Z'."
+            raise ValueError(msg)
+
+        updated_faults = np.copy(self.faults)
+        if kind == "X":
+            updated_faults[:, target] ^= updated_faults[:, control]
+        else:  # kind == "Z"
+            updated_faults[:, control] ^= updated_faults[:, target]
+
+        if inplace:
+            self.faults = updated_faults
+            return self
+
+        return PureFaultSet.from_fault_array(updated_faults)
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""
