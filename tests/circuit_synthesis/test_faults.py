@@ -712,3 +712,18 @@ def test_apply_cnot_invalid_qubits():
 
     with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
         fault_set.apply_cnot(control=3, target=1)
+
+
+def test_apply_cnot_not_inplace():
+    """Test that applying a CNOT gate does not modify the original fault set when inplace=False."""
+    faults = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+
+    # Apply CNOT with control=0 and target=1 without modifying the original fault set
+    new_fault_set = fault_set.apply_cnot(control=0, target=1, inplace=False)
+
+    expected_new_faults = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(new_fault_set.to_array(), expected_new_faults), (
+        "CNOT gate was not applied correctly to the new fault set"
+    )
+    assert np.array_equal(fault_set.to_array(), faults), "Original fault set should remain unchanged"
