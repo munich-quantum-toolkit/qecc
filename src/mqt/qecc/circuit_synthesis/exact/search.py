@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
@@ -26,7 +26,6 @@ from .encoding_interface import (
 )
 from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
 from .types import (
-    GateFamily,
     Objective,
     SynthesisResult,
     SynthesisStatus,
@@ -48,15 +47,16 @@ if TYPE_CHECKING:
     )
     from .gate_operations import SymbolicGateOperation
 
+_CLIFFORD_KINDS = {TargetKind.CLIFFORD_UNITARY, TargetKind.CLIFFORD_ISOMETRY, TargetKind.STABILIZER_STATE}
+_CSS_KINDS = {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}
+
 
 def synthesize_exact(
     target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
-    gate_family: GateFamily,
     objective: Objective,
     lower_bound: int = 0,
     upper_bound: int = 10,
-    k: int | None = None,
     x_logicals: StabilizerTableau | CheckMatrix | None = None,
     z_logicals: StabilizerTableau | CheckMatrix | None = None,
     verify: bool = True,
@@ -65,22 +65,22 @@ def synthesize_exact(
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
 
+    The gate family (Clifford vs CSS-CNOT) is inferred from ``target_kind``.
+    The number of logical qubits ``k`` is derived from the provided logicals.
+
     Args:
-        target: Target stabilizer generators (for states/isometries) or check matrix (for CSS).
+        target: Target stabilizer generators (StabilizerTableau) or check matrix (CheckMatrix).
         target_kind: Kind of synthesis problem.
-        gate_family: Gate family to use.
-        objective: Optimization objective.
+        objective: Optimization objective (gate count or depth).
         lower_bound: Lower bound on resource count.
         upper_bound: Upper bound on resource count.
-        k: Number of logical qubits (required for isometry).
-        x_logicals: Logical X operators. For Clifford synthesis (including CLIFFORD_UNITARY), must be a
-            StabilizerTableau whose rows are the X-type logical operators. For CSS, may be a CheckMatrix
-            or StabilizerTableau. Required for CLIFFORD_UNITARY and CLIFFORD_ISOMETRY.
-        z_logicals: Logical Z operators. Same type rules as x_logicals. Required for CLIFFORD_UNITARY
-            and CLIFFORD_ISOMETRY.
+        x_logicals: Logical X operators. Required for CLIFFORD_UNITARY, CLIFFORD_ISOMETRY,
+            and CSS_ISOMETRY with X-type checks. Must be a StabilizerTableau for Clifford synthesis.
+        z_logicals: Logical Z operators. Required for CLIFFORD_UNITARY, CLIFFORD_ISOMETRY,
+            and CSS_ISOMETRY with Z-type checks. Must be a StabilizerTableau for Clifford synthesis.
         verify: Whether to verify synthesized circuit.
-        allow_qubit_permutation: Allow qubit permutation in unitaries.
-        gate_set: Custom gate set to use. If None, uses default gate set for gate_family.
+        allow_qubit_permutation: Allow qubit permutation in the terminal constraint.
+        gate_set: Custom gate set. If None, uses the standard gate set for the inferred family.
 
     Returns:
         SynthesisResult with circuit and metadata.
@@ -89,24 +89,18 @@ def synthesize_exact(
         ValueError: If parameters are invalid.
     """
     if gate_set is None:
-        if gate_family == GateFamily.CLIFFORD:
-            gate_set = get_standard_clifford_gate_set()
-        else:
-            gate_set = get_standard_css_gate_set()
+        gate_set = get_standard_clifford_gate_set() if target_kind in _CLIFFORD_KINDS else get_standard_css_gate_set()
 
     _validate_synthesis_parameters(
         target,
         target_kind,
-        gate_family,
-        objective,
         lower_bound,
         upper_bound,
-        k,
         x_logicals,
         z_logicals,
     )
 
-    if gate_family == GateFamily.CLIFFORD:
+    if target_kind in _CLIFFORD_KINDS:
         assert isinstance(target, StabilizerTableau)
         return _synthesize_clifford(
             target,
@@ -114,7 +108,6 @@ def synthesize_exact(
             objective,
             lower_bound,
             upper_bound,
-            k,
             x_logicals,
             z_logicals,
             verify,
@@ -128,7 +121,6 @@ def synthesize_exact(
         objective,
         lower_bound,
         upper_bound,
-        k,
         x_logicals,
         z_logicals,
         verify,
@@ -139,11 +131,8 @@ def synthesize_exact(
 def _validate_synthesis_parameters(
     target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
-    gate_family: GateFamily,
-    _objective: Objective,
     lower_bound: int,
     upper_bound: int,
-    k: int | None,
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
 ) -> None:
@@ -155,14 +144,6 @@ def _validate_synthesis_parameters(
     if lower_bound < 0 or upper_bound < lower_bound:
         msg = f"Invalid bounds: lower_bound={lower_bound}, upper_bound={upper_bound}"
         raise ValueError(msg)
-
-    if target_kind in {TargetKind.CLIFFORD_ISOMETRY, TargetKind.CSS_ISOMETRY}:
-        if k is None:
-            msg = "k must be provided for isometry synthesis"
-            raise ValueError(msg)
-        if k < 0:
-            msg = f"k must be non-negative, got {k}"
-            raise ValueError(msg)
 
     if target_kind in {TargetKind.CLIFFORD_UNITARY, TargetKind.CLIFFORD_ISOMETRY} and (
         x_logicals is None or z_logicals is None
@@ -181,20 +162,12 @@ def _validate_synthesis_parameters(
             msg = "z_logicals must be provided for CSS isometry with Z-type checks"
             raise ValueError(msg)
 
-    if gate_family == GateFamily.CLIFFORD:
-        if not isinstance(target, StabilizerTableau):
-            msg = f"CLIFFORD gate family requires StabilizerTableau, got {type(target).__name__}"
-            raise ValueError(msg)
-        if target_kind in {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}:
-            msg = f"CLIFFORD gate family incompatible with {target_kind.value}"
-            raise ValueError(msg)
-    elif gate_family == GateFamily.CSS_CNOT:
-        if not isinstance(target, CheckMatrix):
-            msg = f"CSS_CNOT gate family requires CheckMatrix, got {type(target).__name__}"
-            raise ValueError(msg)
-        if target_kind not in {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}:
-            msg = f"CSS_CNOT gate family requires CSS_STATE or CSS_ISOMETRY, got {target_kind.value}"
-            raise ValueError(msg)
+    if target_kind in _CLIFFORD_KINDS and not isinstance(target, StabilizerTableau):
+        msg = f"{target_kind.value} requires StabilizerTableau, got {type(target).__name__}"
+        raise ValueError(msg)
+    if target_kind in _CSS_KINDS and not isinstance(target, CheckMatrix):
+        msg = f"{target_kind.value} requires CheckMatrix, got {type(target).__name__}"
+        raise ValueError(msg)
 
 
 def _search_with_encoding(
@@ -206,6 +179,7 @@ def _search_with_encoding(
     verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
     is_depth: bool,
     verify: bool,
+    postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None = None,
 ) -> SynthesisResult:
     """Generic search loop using an encoding.
 
@@ -215,9 +189,10 @@ def _search_with_encoding(
         lower_bound: Lower bound on resources.
         upper_bound: Upper bound on resources.
         k: Number of logical qubits.
-        verify_fn: Verification function to call.
+        verify_fn: Verification function called on the (post-processed) circuit.
         is_depth: Whether optimizing depth (vs gate count).
         verify: Whether to verify the synthesized circuit.
+        postprocess: Optional transform applied to the extracted circuit before verification.
 
     Returns:
         SynthesisResult.
@@ -232,7 +207,10 @@ def _search_with_encoding(
         if result == z3.sat:
             model = solver.model()
 
-            circuit = encoding.extract_circuit(model)
+            circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
+
+            if postprocess is not None:
+                circuit = postprocess(circuit)
 
             actual_resources = encoding.compute_actual_resources(model)
 
@@ -267,7 +245,6 @@ def _search_with_encoding(
 def _prepare_clifford_target(
     stabilizers: StabilizerTableau,
     target_kind: TargetKind,
-    k: int | None,
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
 ) -> tuple[StabilizerTableau, int]:
@@ -276,32 +253,22 @@ def _prepare_clifford_target(
     Args:
         stabilizers: Stabilizer generators.
         target_kind: Kind of synthesis problem.
-        k: Number of logical qubits.
         x_logicals: Logical X operators.
         z_logicals: Logical Z operators.
 
     Returns:
         Tuple of (combined_target, k).
     """
-    if k is None:
-        if target_kind == TargetKind.CLIFFORD_UNITARY:
-            k = stabilizers.n
-        elif target_kind == TargetKind.STABILIZER_STATE:
-            k = 0
-        else:
-            msg = "k must be provided for isometry synthesis"
-            raise ValueError(msg)
+    if target_kind == TargetKind.STABILIZER_STATE:
+        return stabilizers, 0
 
-    if k > 0 and (not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau)):
+    if not isinstance(x_logicals, StabilizerTableau) or not isinstance(z_logicals, StabilizerTableau):
         msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
-        raise ValueError(msg)
+        raise TypeError(msg)
 
-    target = _combine_stabilizers_and_logicals(
-        stabilizers,
-        k,
-        cast("StabilizerTableau | None", x_logicals),
-        cast("StabilizerTableau | None", z_logicals),
-    )
+    k = x_logicals.num_rows()
+
+    target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
     return target, k
 
 
@@ -474,7 +441,6 @@ def _synthesize_clifford(
     objective: Objective,
     lower_bound: int,
     upper_bound: int,
-    k: int | None,
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
@@ -482,7 +448,7 @@ def _synthesize_clifford(
     gate_set: dict[str, type[SymbolicGateOperation]],
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
-    target, k = _prepare_clifford_target(stabilizers, target_kind, k, x_logicals, z_logicals)
+    target, k = _prepare_clifford_target(stabilizers, target_kind, x_logicals, z_logicals)
     n = target.n
 
     if objective == Objective.GATE_COUNT:
@@ -492,15 +458,18 @@ def _synthesize_clifford(
         encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation)
         is_depth = True
 
-    def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
-        corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind, target)
-        if target_kind == TargetKind.CLIFFORD_UNITARY:
-            return verify_clifford_unitary(corrected, target)
-        if target_kind == TargetKind.STABILIZER_STATE:
-            return verify_stabilizer_state(corrected, stabilizers)
-        return verify_clifford_isometry(corrected, target, k)
+    def postprocess(circuit: CliffordIsometry | CNOTCircuit) -> CliffordIsometry | CNOTCircuit:
+        assert isinstance(circuit, CliffordIsometry)
+        return _apply_pauli_correction_to_clifford(circuit, n, target_kind, target)
 
-    result = _search_with_encoding(
+    def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
+        if target_kind == TargetKind.CLIFFORD_UNITARY:
+            return verify_clifford_unitary(circuit, target)
+        if target_kind == TargetKind.STABILIZER_STATE:
+            return verify_stabilizer_state(circuit, stabilizers)
+        return verify_clifford_isometry(circuit, target, k)
+
+    return _search_with_encoding(
         encoding,
         target,
         lower_bound,
@@ -509,52 +478,51 @@ def _synthesize_clifford(
         verify_fn,
         is_depth,
         verify,
+        postprocess=postprocess,
     )
-
-    if result.circuit is not None and isinstance(result.circuit, CliffordIsometry):
-        result.circuit = _apply_pauli_correction_to_clifford(result.circuit, n, target_kind, target)
-
-    return result
 
 
 def _prepare_css_target(
     checks: CheckMatrix,
-    k: int,
+    target_kind: TargetKind,
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
-) -> tuple[CheckMatrix, int]:
+) -> tuple[CheckMatrix, int, int]:
     """Prepare combined CSS target matrix for synthesis.
 
     Args:
         checks: CSS check matrix.
-        k: Number of logical qubits.
+        target_kind: Kind of synthesis problem.
         x_logicals: Logical X operators.
         z_logicals: Logical Z operators.
 
     Returns:
-        Tuple of (combined_target, m_x) where m_x is number of stabilizers.
+        Tuple of (combined_target, k, m_x) where k is the number of logical qubits
+        and m_x is the number of stabilizers.
     """
-    if k > 0:
-        logicals = x_logicals if checks.is_x_type() else z_logicals
-        if logicals is None:
-            check_type = "X" if checks.is_x_type() else "Z"
-            msg = f"{check_type.lower()}_logicals must be provided for CSS isometry with {check_type}-type checks"
-            raise ValueError(msg)
+    if target_kind == TargetKind.CSS_STATE:
+        m_x = checks.num_rows()
+        return checks, 0, m_x
 
-        if isinstance(logicals, CheckMatrix):
-            logical_matrix = logicals.matrix
-        else:
-            logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
+    logicals = x_logicals if checks.is_x_type() else z_logicals
+    if logicals is None:
+        check_type = "X" if checks.is_x_type() else "Z"
+        msg = f"{check_type.lower()}_logicals must be provided for CSS isometry with {check_type}-type checks"
+        raise ValueError(msg)
 
-        target = CheckMatrix(
-            np.vstack([logical_matrix, checks.matrix]),
-            pauli_type=checks.type,
-        )
+    if isinstance(logicals, CheckMatrix):
+        logical_matrix = logicals.matrix
     else:
-        target = checks
+        logical_matrix = logicals.get_x_part() if checks.is_x_type() else logicals.get_z_part()
+
+    k = logical_matrix.shape[0]
+    target = CheckMatrix(
+        np.vstack([logical_matrix, checks.matrix]),
+        pauli_type=checks.type,
+    )
 
     m_x = target.num_rows() - k
-    return target, m_x
+    return target, k, m_x
 
 
 def _synthesize_css(
@@ -563,21 +531,13 @@ def _synthesize_css(
     objective: Objective,
     lower_bound: int,
     upper_bound: int,
-    k: int | None,
     x_logicals: StabilizerTableau | CheckMatrix | None,
     z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
     gate_set: dict[str, type[SymbolicGateOperation]],
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
-    if k is None:
-        if target_kind == TargetKind.CSS_STATE:
-            k = 0
-        else:
-            msg = "k must be provided for CSS isometry synthesis"
-            raise ValueError(msg)
-
-    target, m_x = _prepare_css_target(checks, k, x_logicals, z_logicals)
+    target, k, m_x = _prepare_css_target(checks, target_kind, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
         encoding: SynthesisEncoding = CSSGateCountEncoding(gate_set, m_x)

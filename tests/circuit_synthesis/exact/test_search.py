@@ -14,7 +14,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
-from mqt.qecc.circuit_synthesis.exact.types import GateFamily, Objective, SynthesisStatus, TargetKind
+from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_isometry,
     verify_css_state,
@@ -39,7 +39,6 @@ def test_stabilizer_state_gate_count(fixture_name: str, expected_gates: int, req
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=10,
@@ -53,26 +52,22 @@ def test_stabilizer_state_gate_count(fixture_name: str, expected_gates: int, req
 
 
 @pytest.mark.parametrize(
-    ("fixture_name", "k", "expected_gates"),
+    ("fixture_name", "expected_gates"),
     [
-        ("identity_unitary", 2, 0),
-        ("hadamard_unitary", 1, 1),
-        ("s_gate_unitary", 1, 1),
-        ("cnot_unitary", 2, 1),
+        ("identity_unitary", 0),
+        ("hadamard_unitary", 1),
+        ("s_gate_unitary", 1),
+        ("cnot_unitary", 1),
     ],
 )
-def test_clifford_unitary_gate_count(
-    fixture_name: str, k: int, expected_gates: int, request: pytest.FixtureRequest
-) -> None:
+def test_clifford_unitary_gate_count(fixture_name: str, expected_gates: int, request: pytest.FixtureRequest) -> None:
     """Test Clifford unitary synthesis with optimal gate count."""
     stabilizers, x_logicals, z_logicals = request.getfixturevalue(fixture_name)
 
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
-        k=k,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=0,
@@ -101,7 +96,6 @@ def test_stabilizer_state_depth(fixture_name: str, expected_depth: int, request:
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.DEPTH,
         lower_bound=0,
         upper_bound=10,
@@ -115,24 +109,22 @@ def test_stabilizer_state_depth(fixture_name: str, expected_depth: int, request:
 
 
 @pytest.mark.parametrize(
-    ("fixture_name", "k", "expected_depth"),
+    ("fixture_name", "expected_depth"),
     [
-        ("hadamard_unitary", 1, 1),
-        ("s_gate_unitary", 1, 1),
-        ("cnot_unitary", 2, 1),
-        ("swap_unitary", 2, 3),
+        ("hadamard_unitary", 1),
+        ("s_gate_unitary", 1),
+        ("cnot_unitary", 1),
+        ("swap_unitary", 3),
     ],
 )
-def test_clifford_unitary_depth(fixture_name: str, k: int, expected_depth: int, request: pytest.FixtureRequest) -> None:
+def test_clifford_unitary_depth(fixture_name: str, expected_depth: int, request: pytest.FixtureRequest) -> None:
     """Test Clifford unitary synthesis with optimal depth."""
     stabilizers, x_logicals, z_logicals = request.getfixturevalue(fixture_name)
 
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.DEPTH,
-        k=k,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=0,
@@ -151,7 +143,6 @@ def test_css_state_preparation(repetition_code_check_matrix: CheckMatrix) -> Non
     result = synthesize_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
-        gate_family=GateFamily.CSS_CNOT,
         objective=Objective.GATE_COUNT,
         lower_bound=1,
         upper_bound=5,
@@ -173,9 +164,7 @@ def test_css_isometry_synthesis(css_isometry_4q: tuple[CheckMatrix, CheckMatrix,
     result = synthesize_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
-        gate_family=GateFamily.CSS_CNOT,
         objective=Objective.GATE_COUNT,
-        k=2,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=1,
@@ -196,7 +185,6 @@ def test_css_state_depth(repetition_code_check_matrix: CheckMatrix) -> None:
     result = synthesize_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
-        gate_family=GateFamily.CSS_CNOT,
         objective=Objective.DEPTH,
         lower_bound=1,
         upper_bound=5,
@@ -217,9 +205,7 @@ def test_css_isometry_depth(css_isometry_4q: tuple[CheckMatrix, CheckMatrix, Che
     result = synthesize_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
-        gate_family=GateFamily.CSS_CNOT,
         objective=Objective.DEPTH,
-        k=2,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=1,
@@ -243,7 +229,6 @@ def test_unsat_with_insufficient_bound(
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=1,
@@ -260,7 +245,6 @@ def test_unsat_depth_zero(bell_state: tuple[StabilizerTableau, StabilizerTableau
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.DEPTH,
         lower_bound=0,
         upper_bound=0,
@@ -280,7 +264,6 @@ def test_verification_flag(
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=5,
@@ -298,7 +281,6 @@ def test_lower_bound_respected(bell_state: tuple[StabilizerTableau, StabilizerTa
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=2,
         upper_bound=10,
@@ -315,7 +297,6 @@ def test_exact_bound_match(bell_state: tuple[StabilizerTableau, StabilizerTablea
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=2,
         upper_bound=2,
@@ -334,9 +315,7 @@ def test_qubit_permutation_disabled(
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
-        k=2,
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=0,
@@ -358,7 +337,6 @@ def test_zero_bound_with_identity_state(
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=0,
@@ -377,7 +355,6 @@ def test_zero_bound_with_nontrivial_state(
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=0,
@@ -393,7 +370,6 @@ def test_state_with_minus_sign() -> None:
     result = synthesize_exact(
         target,
         TargetKind.STABILIZER_STATE,
-        GateFamily.CLIFFORD,
         Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=5,
@@ -410,7 +386,6 @@ def test_css_single_check() -> None:
     result = synthesize_exact(
         check_matrix,
         TargetKind.CSS_STATE,
-        GateFamily.CSS_CNOT,
         Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=5,
@@ -426,7 +401,6 @@ def test_css_fully_connected_check() -> None:
     result = synthesize_exact(
         check_matrix,
         TargetKind.CSS_STATE,
-        GateFamily.CSS_CNOT,
         Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=10,
@@ -442,7 +416,6 @@ def test_four_qubit_ghz_state() -> None:
     result = synthesize_exact(
         target,
         TargetKind.STABILIZER_STATE,
-        GateFamily.CLIFFORD,
         Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=10,
@@ -459,42 +432,8 @@ def test_invalid_bounds(plus_state: tuple[StabilizerTableau, StabilizerTableau, 
         synthesize_exact(
             target=stabilizers,
             target_kind=TargetKind.STABILIZER_STATE,
-            gate_family=GateFamily.CLIFFORD,
             objective=Objective.GATE_COUNT,
             lower_bound=10,
-            upper_bound=5,
-        )
-
-
-def test_negative_k_rejected(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
-    """Test that negative k is rejected."""
-    stabilizers, _x_logicals, _z_logicals = bell_state
-
-    with pytest.raises(ValueError, match="k must be non-negative"):
-        synthesize_exact(
-            target=stabilizers,
-            target_kind=TargetKind.CLIFFORD_ISOMETRY,
-            gate_family=GateFamily.CLIFFORD,
-            objective=Objective.GATE_COUNT,
-            k=-1,
-            lower_bound=0,
-            upper_bound=5,
-        )
-
-
-def test_clifford_isometry_missing_k(
-    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
-) -> None:
-    """Test that isometry synthesis requires k parameter."""
-    stabilizers, _x_logicals, _z_logicals = bell_state
-
-    with pytest.raises(ValueError, match="k must be provided for isometry synthesis"):
-        synthesize_exact(
-            target=stabilizers,
-            target_kind=TargetKind.CLIFFORD_ISOMETRY,
-            gate_family=GateFamily.CLIFFORD,
-            objective=Objective.GATE_COUNT,
-            lower_bound=0,
             upper_bound=5,
         )
 
@@ -509,9 +448,7 @@ def test_clifford_isometry_missing_logicals(
         synthesize_exact(
             target=stabilizers,
             target_kind=TargetKind.CLIFFORD_ISOMETRY,
-            gate_family=GateFamily.CLIFFORD,
             objective=Objective.GATE_COUNT,
-            k=1,
             lower_bound=0,
             upper_bound=5,
         )
@@ -527,9 +464,7 @@ def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, Stabilize
         synthesize_exact(
             target=stabilizers,
             target_kind=TargetKind.CLIFFORD_ISOMETRY,
-            gate_family=GateFamily.CLIFFORD,
             objective=Objective.GATE_COUNT,
-            k=2,
             x_logicals=x_logicals,
             z_logicals=z_logicals,
             lower_bound=0,
@@ -537,30 +472,28 @@ def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, Stabilize
         )
 
 
-def test_css_with_clifford_gate_family(repetition_code_check_matrix: CheckMatrix) -> None:
-    """Test that CSS targets require CSS_CNOT gate family."""
-    with pytest.raises(ValueError, match="CLIFFORD gate family requires StabilizerTableau"):
+def test_stabilizer_state_requires_stabilizer_tableau(repetition_code_check_matrix: CheckMatrix) -> None:
+    """Test that Clifford target kinds require StabilizerTableau."""
+    with pytest.raises(ValueError, match="stabilizer_state requires StabilizerTableau"):
         synthesize_exact(
             target=repetition_code_check_matrix,
-            target_kind=TargetKind.CSS_STATE,
-            gate_family=GateFamily.CLIFFORD,
+            target_kind=TargetKind.STABILIZER_STATE,
             objective=Objective.GATE_COUNT,
             lower_bound=0,
             upper_bound=5,
         )
 
 
-def test_clifford_with_css_gate_family(
+def test_css_state_requires_check_matrix(
     plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
 ) -> None:
-    """Test that Clifford targets require CLIFFORD gate family."""
+    """Test that CSS target kinds require CheckMatrix."""
     stabilizers, _x_logicals, _z_logicals = plus_state
 
-    with pytest.raises(ValueError, match="CSS_CNOT gate family requires CheckMatrix"):
+    with pytest.raises(ValueError, match="css_state requires CheckMatrix"):
         synthesize_exact(
             target=stabilizers,
-            target_kind=TargetKind.STABILIZER_STATE,
-            gate_family=GateFamily.CSS_CNOT,
+            target_kind=TargetKind.CSS_STATE,
             objective=Objective.GATE_COUNT,
             lower_bound=0,
             upper_bound=5,
@@ -574,7 +507,6 @@ def test_result_contains_metadata(plus_state: tuple[StabilizerTableau, Stabilize
     result = synthesize_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
-        gate_family=GateFamily.CLIFFORD,
         objective=Objective.GATE_COUNT,
         lower_bound=0,
         upper_bound=5,

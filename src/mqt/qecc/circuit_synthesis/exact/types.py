@@ -27,13 +27,6 @@ class TargetKind(Enum):
     CSS_ISOMETRY = "css_isometry"
 
 
-class GateFamily(Enum):
-    """Gate family to use for synthesis."""
-
-    CLIFFORD = "clifford"
-    CSS_CNOT = "css_cnot"
-
-
 class Objective(Enum):
     """Optimization objective."""
 

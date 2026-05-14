@@ -88,7 +88,7 @@ def encode_clifford_depth(
             for ctrl in range(n):
                 if ctrl == q:
                     continue
-                cx_idx = ctrl * (n - 1) + (tgt if (tgt := q) < ctrl else tgt - 1)
+                cx_idx = ctrl * (n - 1) + (q if q < ctrl else q - 1)
                 cx_involving_q.append(cx_vars[layer][cx_idx])
 
             for tgt in range(n):
@@ -221,7 +221,7 @@ def encode_css_depth(
             for ctrl in range(n):
                 if ctrl == q:
                     continue
-                cx_idx = ctrl * (n - 1) + (tgt if (tgt := q) < ctrl else tgt - 1)
+                cx_idx = ctrl * (n - 1) + (q if q < ctrl else q - 1)
                 cx_involving_q.append(cx_vars[layer][cx_idx])
 
             for tgt in range(n):

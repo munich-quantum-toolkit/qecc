@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from .search import synthesize_exact
 from .types import (
-    GateFamily,
     Objective,
     SynthesisResult,
     SynthesisStatus,
@@ -19,7 +18,6 @@ from .types import (
 )
 
 __all__ = [
-    "GateFamily",
     "Objective",
     "SynthesisResult",
     "SynthesisStatus",

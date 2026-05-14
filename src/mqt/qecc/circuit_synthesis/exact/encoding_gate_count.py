@@ -31,15 +31,12 @@ def encode_clifford_gate_count(
 ) -> tuple[z3.Solver, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]]:
     """Encode Clifford isometry synthesis with gate-count optimization.
 
-    Uses the provided gate set to dynamically support registered Clifford gates.
-    Defaults to {H, S, CX} if no gate set is provided.
-
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
         k: Number of logical qubits.
         max_gates: Maximum number of gates.
         allow_qubit_permutation: Allow final qubit permutation.
-        gate_set: Optional custom gate set. If None, uses standard {H, S, CX, ID}.
+        gate_set: Gate set to use. If None, uses standard {H, S, CX}.
 
     Returns:
         Tuple of (solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars).
