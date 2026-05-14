@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc.mod2.mod2_numpy import rank
+from ldpc.mod2.mod2_numpy import nullspace, rank
 
 from .pauli import Pauli, StabilizerTableau
 
@@ -61,10 +61,7 @@ class StabilizerCode:
             raise InvalidStabilizerCodeError(msg)
 
         self.distance = 1 if distance is None else distance  # default distance is 1
-
-        self.z_logicals = None
-        self.x_logicals = None
-
+        self.compute_logical_ops()
         if z_logicals is not None:
             self.z_logicals = self.get_generators(z_logicals)
         if x_logicals is not None:
@@ -74,16 +71,103 @@ class StabilizerCode:
 
     def __hash__(self) -> int:
         """Compute a hash for the stabilizer code."""
-        return hash(self.generators)
+        return hash((self.generators, tuple(self.z_logicals), tuple(self.x_logicals)))
 
     def __eq__(self, other: object) -> bool:
-        """Check if two stabilizer codes are equal."""
+        """Check if two stabilizer codes are equal.
+
+        Two codes are equal if their generator matrices, logical X matrices,
+        and logical Z matrices are identical (element-wise comparison).
+        For semantic equivalence (same stabilizer group and logical basis),
+        use the is_equivalent method instead.
+        """
         if not isinstance(other, StabilizerCode):
             return NotImplemented
+        return (
+            np.array_equal(self.generators.as_matrix(), other.generators.as_matrix())
+            and np.array_equal(self.x_logicals.as_matrix(), other.x_logicals.as_matrix())
+            and np.array_equal(self.z_logicals.as_matrix(), other.z_logicals.as_matrix())
+        )
+
+    def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes have the same stabilizer group."""
+        if self.n != other.n:
+            return False
+
         self_matrix = self.generators.as_matrix()
         other_matrix = other.generators.as_matrix()
-        rnk = rank(self_matrix)
-        return bool(rnk == rank(other_matrix) and rnk == rank(np.vstack((self_matrix, other_matrix))))
+        stabs_rnk = rank(self_matrix)
+
+        return bool(stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix))))
+
+    def equal_logical_basis(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes have the same logical basis."""
+        if len(self.z_logicals) != len(other.z_logicals) or len(self.x_logicals) != len(other.x_logicals):
+            return False
+
+        for lz_other in other.z_logicals:
+            if not self.is_z_logical(lz_other):
+                return False
+
+        return all(self.is_x_logical(lx_other) for lx_other in other.x_logicals)
+
+    def is_equivalent(self, other: StabilizerCode) -> bool:
+        """Check if two stabilizer codes are equivalent.
+
+        Two codes are equivalent if they have the same stabilizer group
+        and the same logical basis (up to stabilizer equivalence).
+        This is a semantic comparison, unlike __eq__ which checks
+        for exact matrix equality.
+        """
+        return self.equal_stabilizer_group(other) and self.equal_logical_basis(other)
+
+    def is_z_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical Z operator of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+
+        return any(self.stabilizer_equivalent(p, logical) for logical in self.z_logicals)
+
+    def is_x_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical X operator of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+
+        return any(self.stabilizer_equivalent(p, logical) for logical in self.x_logicals)
+
+    def get_logical_mapping(self, other: StabilizerCode) -> list[int] | None:
+        """Get a mapping of logical qubits from this code to another code, if it exists.
+
+        Returns:
+            A list of integers where the i-th element is the index of the logical qubit in the other code that corresponds to the i-th logical qubit in this code. Returns None if no such mapping exists.
+        """
+        if self.k != other.k:
+            return None
+
+        if not self.equal_logical_basis(other):
+            return None
+
+        available_indices = set(range(len(other.z_logicals)))
+        mapping = []
+
+        for lz_self, lx_self in zip(self.z_logicals, self.x_logicals, strict=False):
+            found_match = False
+            for idx in available_indices.copy():
+                lz_other = other.z_logicals[idx]
+                lx_other = other.x_logicals[idx]
+                if self.stabilizer_equivalent(lz_self, lz_other) and self.stabilizer_equivalent(lx_self, lx_other):
+                    mapping.append(idx)
+                    available_indices.remove(idx)
+                    found_match = True
+                    break
+            if not found_match:
+                return None
+
+        return mapping
+
+    def is_logical(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a logical operator of the code."""
+        return self.is_z_logical(p) or self.is_x_logical(p)
 
     def get_syndrome(self, error: Pauli | str) -> npt.NDArray[np.int8]:
         """Compute the syndrome of the error.
@@ -111,22 +195,31 @@ class StabilizerCode:
             == rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
         )
 
+    def to_tableau(self) -> StabilizerTableau:
+        """Convert the stabilizer code to a tableau with logicals and stabilizers.
+
+        Returns:
+            StabilizerTableau: A tableau with rows ordered as:
+                - X logical operators
+                - Z logical operators
+                - Stabilizer generators
+        """
+        x_log_matrix = self.x_logicals.tableau.matrix
+        z_log_matrix = self.z_logicals.tableau.matrix
+        stab_matrix = self.generators.tableau.matrix
+
+        combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
+
+        x_log_phases = self.x_logicals.phase
+        z_log_phases = self.z_logicals.phase
+        stab_phases = self.generators.phase
+
+        combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
+
+        return StabilizerTableau(combined_matrix, combined_phases)
+
     def _check_code_correct(self) -> None:
         """Check if the code is correct. Throws an exception if not."""
-        if self.z_logicals is not None or self.x_logicals is not None:
-            if self.z_logicals is None:
-                msg = "If logical X-operators are given, logical Z-operators must also be given."
-                raise InvalidStabilizerCodeError(msg)
-            if self.x_logicals is None:
-                msg = "If logical Z-operators are given, logical X-operators must also be given."
-                raise InvalidStabilizerCodeError(msg)
-
-        if self.z_logicals is None:
-            return
-
-        if self.x_logicals is None:
-            return
-
         if self.z_logicals.n != self.n:
             msg = "Logical operators must have the same number of qubits as the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
@@ -144,7 +237,7 @@ class StabilizerCode:
             raise InvalidStabilizerCodeError(msg)
 
         if not self.z_logicals.all_commute(self.generators):
-            msg = "Logical Z-operators must anti-commute with the stabilizer generators."
+            msg = "Logical Z-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
         if not self.x_logicals.all_commute(self.generators):
             msg = "Logical X-operators must commute with the stabilizer generators."
@@ -153,6 +246,11 @@ class StabilizerCode:
         commutations = (self.z_logicals.tableau @ self.x_logicals.tableau).matrix
         if not np.all(np.sum(commutations, axis=1) == 1):
             msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator."
+            raise InvalidStabilizerCodeError(msg)
+
+        stabilizer_commutations = (self.generators.tableau @ self.generators.tableau).matrix
+        if not np.all(stabilizer_commutations == 0):
+            msg = "Stabilizer generators must commute with each other."
             raise InvalidStabilizerCodeError(msg)
 
     @staticmethod
@@ -184,17 +282,147 @@ class StabilizerCode:
         x_logicals = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
 
+    def compute_logical_ops(self) -> None:
+        """Compute logical Z/X operators from stabilizer generators.
+
+        Finds a basis of the centralizer modulo the stabilizers and canonicalizes it
+        into k symplectic pairs (Z̄_i, X̄_i). Stores results in self.z_logicals/self.x_logicals.
+        """
+        if self.generators.n_rows == 0:
+            self.z_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "Z" + "I" * (self.n - i - 1) for i in range(self.n)
+            ])
+            self.x_logicals = StabilizerTableau.from_pauli_strings([
+                "I" * i + "X" + "I" * (self.n - i - 1) for i in range(self.n)
+            ])
+            return
+
+        n = self.n
+        mat = self.generators.tableau.matrix
+
+        identity = np.eye(n, dtype=np.int8)
+        z0 = np.zeros((n, n), dtype=np.int8)
+        lamb = np.block([[z0, identity], [identity, z0]])
+
+        mat_times_lamb = (mat @ lamb) % 2
+        ns = nullspace(mat_times_lamb).astype(np.int8)
+
+        if ns.size == 0:
+            if self.k > 0:
+                msg = f"Cannot compute logical operators: nullspace is empty (ns.size=0) but code has k={self.k} logical qubits. This would result in empty z_logicals and x_logicals, creating an inconsistent code state."
+                raise InvalidStabilizerCodeError(msg)
+            self.z_logicals = StabilizerTableau.empty(n)
+            self.x_logicals = StabilizerTableau.empty(n)
+            return
+
+        def mod2_rank(mat: np.ndarray) -> int:
+            return int(rank(mat % 2))
+
+        base = mat.copy()
+        base_rank = mod2_rank(base)
+        target = 2 * self.k
+
+        logical_basis: list[np.ndarray] = []
+        for v in ns:
+            if len(logical_basis) == target:
+                break
+            test = np.vstack((base, v))
+            if mod2_rank(test) > base_rank:
+                logical_basis.append(v.copy())
+                base = test
+                base_rank += 1
+
+        logical_basis_arr = np.array(logical_basis, dtype=np.int8)
+
+        def symp(u: np.ndarray, v: np.ndarray) -> int:
+            return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
+
+        logs = logical_basis_arr.copy()
+        vecs = [logs[i].copy() for i in range(logs.shape[0])]
+        zs: list[np.ndarray] = []
+        xs: list[np.ndarray] = []
+
+        def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
+            a = a.copy()
+            for zp, xp in zip(zs, xs, strict=False):
+                if symp(a, xp):
+                    a ^= zp
+                if symp(a, zp):
+                    a ^= xp
+            return a
+
+        used: set[int] = set()
+        k = self.k
+        i = 0
+        while len(zs) < k and i < len(vecs):
+            if i in used:
+                i += 1
+                continue
+            v = ortho_against_pairs(vecs[i])
+            maybe_j = None
+            for t in range(len(vecs)):
+                if t == i or t in used:
+                    continue
+                w_cand = ortho_against_pairs(vecs[t])
+                if symp(v, w_cand) == 1:
+                    maybe_j = t
+                    w = w_cand
+                    break
+            if maybe_j is None:
+                i += 1
+                continue
+            j = maybe_j
+
+            v = ortho_against_pairs(v)
+            w = ortho_against_pairs(w)
+            if symp(v, w) != 1:
+                i += 1
+                continue
+
+            for t in range(len(vecs)):
+                if t in {i, j} or t in used:
+                    continue
+                u = vecs[t]
+                if symp(u, w):
+                    u ^= v
+                if symp(u, v):
+                    u ^= w
+                vecs[t] = u
+
+            zs.append(v)
+            xs.append(w)
+            used.add(i)
+            used.add(j)
+            i += 1
+
+        if len(zs) != k or len(xs) != k:
+            msg = f"Failed to derive {k} logical X/Z pairs from the stabilizer generators."
+            raise InvalidStabilizerCodeError(msg)
+
+        z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
+        self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
+        self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
+
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:
-        """Load a Stabilizer code from a file.
+        r"""Load a Stabilizer code from a file.
 
-        The file should have one line per stabilizer generator as a string.
+        The file can contain either:
+        1. One line per stabilizer generator as a Pauli string (e.g., "IXXZZ")
+        2. A binary symplectic matrix (2nxm) where m is the number of stabilizers
 
-        For the 5-qubit perfect code, this would be:
+        For the 5-qubit perfect code in Pauli string format:
         IXXZZ
         ZIXXZ
         ZZIXX
         XZZIX
+
+        For binary symplectic matrix format, any of these are accepted:
+        - Space-separated: "1 0 0 0 0 ..."
+        - Comma-separated: "1,0,0,0,0,..."
+        - List notation: "[[1,0,0,...],[0,1,0,...]]"
+        - NumPy array notation: "[[1 0 0 ...]\n [0 1 0 ...]]"
 
         Args:
             file_path: The path to the file containing the code.
@@ -202,10 +430,184 @@ class StabilizerCode:
         Returns:
             StabilizerCode: The stabilizer code.
         """
-        with Path(file_path).open(encoding="utf-8") as f:
-            lines = f.readlines()
-        generators = [line.strip() for line in lines]
+        content = Path(file_path).read_text(encoding="utf-8").strip()
+
+        if not content:
+            msg = "File is empty"
+            raise InvalidStabilizerCodeError(msg)
+
+        if _is_binary_matrix_format(content):
+            return _load_from_binary_matrix(content)
+
+        lines = content.split("\n")
+        generators = [line.strip() for line in lines if line.strip()]
         return cls(generators)
+
+    def is_stabilizer(self, p: Pauli | str) -> bool:
+        """Check if a given Pauli string is a stabilizer of the code."""
+        if isinstance(p, str):
+            p = Pauli.from_pauli_string(p)
+        return self.stabilizer_equivalent(p, Pauli.from_pauli_string("I" * self.n))
+
+    def __repr__(self) -> str:
+        """Return a string representation of the code."""
+        return f"StabilizerCode(n={self.n}, k={self.k}, distance={self.distance})"
+
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the code."""
+        lines = [f"Stabilizer Code: n={self.n}, k={self.k}, distance={self.distance}"]
+        lines.append("Stabilizer Generators:")
+        lines.extend(f"  {gen}" for gen in self.generators)
+        lines.append("Logical Z operators:")
+        lines.extend(f"  {z}" for z in self.z_logicals)
+        lines.append("Logical X operators:")
+        lines.extend(f"  {x}" for x in self.x_logicals)
+        return "\n".join(lines)
+
+
+def _is_binary_matrix_format(content: str) -> bool:
+    """Check if the content appears to be a binary matrix format.
+
+    Args:
+        content: The file content to check.
+
+    Returns:
+        True if the content looks like a binary matrix, False otherwise.
+    """
+    content = content.strip()
+
+    if not content:
+        return False
+
+    if content.startswith(("[[", "[")):
+        return True
+
+    lines = content.split("\n")
+    non_empty_lines = [line.strip() for line in lines if line.strip()]
+
+    if not non_empty_lines:
+        return False
+
+    first_line = non_empty_lines[0]
+    first_tokens = [t.strip() for t in first_line.split(",")] if "," in first_line else first_line.split()
+
+    if len(first_tokens) < 2:
+        return False
+
+    if not all(token in {"0", "1"} for token in first_tokens):
+        return False
+
+    if len(non_empty_lines) > 1:
+        second_line = non_empty_lines[1]
+        second_tokens = [t.strip() for t in second_line.split(",")] if "," in second_line else second_line.split()
+
+        if len(second_tokens) != len(first_tokens):
+            return False
+
+        if not all(token in {"0", "1"} for token in second_tokens):
+            return False
+
+    return True
+
+
+def _parse_bracketed_rows(content: str) -> list[str]:
+    """Parse bracketed content into individual row strings.
+
+    Args:
+        content: The bracketed content (e.g., "[[1,0],[0,1]]" or nested format).
+
+    Returns:
+        List of row strings, each representing one row of the matrix.
+    """
+    depth = 0
+    current_row: list[str] = []
+    rows = []
+
+    for char in content:
+        if char == "[":
+            depth += 1
+            if depth == 2:
+                current_row = []
+        elif char == "]":
+            depth -= 1
+            if depth == 1 and current_row:
+                rows.append("".join(current_row))
+                current_row = []
+        elif depth == 2:
+            current_row.append(char)
+
+    return rows
+
+
+def _load_from_binary_matrix(content: str) -> StabilizerCode:
+    """Load a stabilizer code from binary symplectic matrix format.
+
+    Args:
+        content: The file content containing the binary matrix.
+
+    Returns:
+        StabilizerCode: The stabilizer code.
+    """
+    content = content.strip()
+
+    if content.startswith(("[[", "[")):
+        row_strings = _parse_bracketed_rows(content)
+    else:
+        row_strings = [line.strip() for line in content.split("\n") if line.strip()]
+
+    rows = []
+    for line_idx, line in enumerate(row_strings):
+        tokens = [t.strip() for t in line.split(",") if t.strip()] if "," in line else line.split()
+
+        for token in tokens:
+            if token not in {"0", "1"}:
+                msg = f"Invalid token '{token}' in binary matrix at line {line_idx + 1}: expected '0' or '1'"
+                raise InvalidStabilizerCodeError(msg)
+
+        row = [int(t) for t in tokens]
+        if row:
+            rows.append(row)
+
+    if not rows:
+        msg = "No valid binary matrix data found in file"
+        raise InvalidStabilizerCodeError(msg)
+
+    row_lengths = {len(row) for row in rows}
+    if len(row_lengths) != 1:
+        msg = "Binary matrix rows must all have the same length."
+        raise InvalidStabilizerCodeError(msg)
+
+    matrix = np.array(rows, dtype=np.int8)
+
+    if matrix.shape[1] % 2 != 0:
+        msg = f"Binary matrix must have an even number of columns (2n), got {matrix.shape[1]}"
+        raise InvalidStabilizerCodeError(msg)
+
+    n = matrix.shape[1] // 2
+    m = matrix.shape[0]
+
+    generators = []
+    for row_idx in range(m):
+        x_part = matrix[row_idx, :n]
+        z_part = matrix[row_idx, n:]
+
+        pauli_str = ""
+        for i in range(n):
+            x_val = x_part[i]
+            z_val = z_part[i]
+
+            if x_val == 0 and z_val == 0:
+                pauli_str += "I"
+            elif x_val == 1 and z_val == 0:
+                pauli_str += "X"
+            elif x_val == 0 and z_val == 1:
+                pauli_str += "Z"
+            elif x_val == 1 and z_val == 1:
+                pauli_str += "Y"
+
+        generators.append(pauli_str)
+
+    return StabilizerCode(generators)
 
 
 class InvalidStabilizerCodeError(ValueError):

@@ -1,0 +1,90 @@
+X 7
+Z 6
+Y 5 3
+Z 2
+Y 1
+I 7
+S_DAG 6
+I 5 4
+S_DAG 3
+H 3 2
+S_DAG 2
+I 1
+H 0
+S_DAG 0
+SWAP 7 6 7 5 6 4 6 3 5 2
+S_DAG 2
+H 2 3
+S_DAG 3 2
+CZ 2 3
+H 3 2
+S 2
+H 1
+S_DAG 1 0
+CZ 0 1
+H 1
+S_DAG 1
+H 1
+S_DAG 2
+H 2
+S_DAG 2 1
+CZ 1 2
+H 2
+S 2
+H 1
+S 1
+H 1
+S_DAG 6 1
+CZ 1 6
+H 1 2
+S_DAG 7
+H 7
+S_DAG 7 2
+CZ 2 7
+H 7
+S 7
+H 2
+S_DAG 1
+H 1
+S_DAG 2
+H 2
+S_DAG 2 1
+CZ 1 2
+H 2
+S 2
+H 1
+S 1
+H 1
+S_DAG 5
+H 5
+S_DAG 5 1
+CZ 1 5
+H 5
+S 5
+H 1
+S_DAG 4
+H 4
+S_DAG 6
+H 6
+S_DAG 6 4
+CZ 4 6
+H 6
+S 6
+H 4
+S 4
+H 5 6
+S_DAG 6 5
+CZ 5 6
+H 6 5
+S_DAG 6
+H 6 7
+S_DAG 7 6
+CZ 6 7
+H 7 6
+S 6
+S_DAG 7
+H 7
+S_DAG 7 4
+CZ 4 7
+H 7
+S 7

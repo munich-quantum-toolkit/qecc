@@ -19,10 +19,12 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
+from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
+from .encoding import cnot_encoding_circuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
+from .synthesis import SynthesisConfig
 from .synthesis_utils import (
-    heuristic_gaussian_elimination,
     iterative_search_with_timeout,
     measure_flagged,
     odd_overlap,
@@ -196,22 +198,42 @@ def _build_state_prep_circuit_from_back(
 
 
 def heuristic_prep_circuit(
-    code: CSSCode, optimize_depth: bool = True, zero_state: bool = True
+    code: CSSCode,
+    optimize_depth: bool = True,
+    zero_state: bool = True,
+    *,
+    rollout: int = 0,
+    rollout_candidates: int = 10,
 ) -> FaultyStatePrepCircuit:
     """Return a circuit that prepares the +1 eigenstate of the code w.r.t. the Z or X basis.
 
     Args:
         code: The CSS code to prepare the state for.
-        optimize_depth: If True, optimize the depth of the circuit. This may lead to a higher number of CNOTs.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+        optimize_depth: If True, optimize the circuit for depth. If False, optimize for number of gates.
+        rollout: The number of rollout steps to use in the heuristic synthesis. Higher values can lead to better circuits but also increase runtime.
+        rollout_candidates: The number of candidates to consider in each rollout step. Higher values can lead to better circuits but also increase runtime.
+
+    Returns:
+        A state preparation circuit for the given code.
     """
     logger.info("Starting heuristic state preparation.")
 
     checks = code.Hx if zero_state else code.Hz
     assert checks is not None
-    checks, cnots = heuristic_gaussian_elimination(checks, parallel_elimination=optimize_depth)
+    type_ = "X" if zero_state else "Z"
+    config = SynthesisConfig(
+        optimization_criterion="depth" if optimize_depth else "gates",
+        rollout=rollout,
+        num_rollout_candidates=rollout_candidates,
+        enable_early_termination=False,
+    )
+    circ = cnot_encoding_circuit(
+        CheckMatrix(checks, pauli_type=type_),
+        CheckMatrix(np.empty((0, code.n), dtype=np.int8), pauli_type=type_),
+        config=config,
+    )
 
-    circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
     return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
 
 

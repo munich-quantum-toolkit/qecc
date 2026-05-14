@@ -26,7 +26,7 @@ authors = [
 ]
 keywords = ["MQT", "quantum-computing", "error-correction", "MaxSAT", "QLDPC"]
 license = "MIT"
-license-files = ["LICENSE.md"]
+license-files = ["LICENSE"]
 
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -106,6 +106,7 @@ addopts = [
   "--dist=loadgroup", # Ensure that certain tests are run on the same worker
 ]
 log_level = "INFO"
+
 filterwarnings = [
   "error",
   "ignore:pkg_resources is deprecated:UserWarning", # Due to qsample, do not remove!
@@ -125,6 +126,7 @@ run.source = ["mqt.qecc"]
 run.disable_warnings = [
   "no-sysmon",
 ]
+
 report.exclude_also = [
   '\.\.\.',
   'if TYPE_CHECKING:',
@@ -151,7 +153,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*", "networkx.*"]
+    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*","networkx.*"]
 ignore_missing_imports = true
 
 
@@ -168,6 +170,7 @@ unsafe-fixes = true
 show-fixes = true
 
 [tool.ruff.format]
+preview = true
 docstring-code-format = true
 
 [tool.ruff.lint]
@@ -249,15 +252,15 @@ aer = "aer"
 anc = "anc"
 arange = "arange"
 nd = "nd"
+strat = "strat"
 iz = "iz"
 
 
-[tool.repo-review]
-ignore = [
-  "GH200", # We use Renovate instead of Dependabot
-  "PC160", # We use a mirror of crate-ci/typos
-  "PC170", # We do not use rST files anymore
-]
+[tool.repo-review.ignore]
+GH200 = "We use Renovate instead of Dependabot"
+PC111 = "We use ruff instead of blacken-docs"
+PC160 = "We use a mirror of crate-ci/typos"
+PC170 = "We do not use rST files anymore"
 
 
 [tool.uv]
@@ -282,7 +285,6 @@ docs = [
   "furo>=2025.09.25",
   "ipywidgets>=8.1.7",
   "myst-nb>=1.3.0",
-  "setuptools-scm>=9.2.2",
   "sphinx>=8.1.3",
   "sphinx>=8.2.3; python_version >= '3.11'",
   "sphinx-autoapi>=3.6.0",

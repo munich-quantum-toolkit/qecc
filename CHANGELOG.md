@@ -22,6 +22,13 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - New `CNOTCircuit` class to serve as an intermediate representation during circuit synthesis for simplifying work with CSS encoding isometries. ([#443]) ([**@pehamtom**])
 - Combinatorial search methods for constructing fault-tolerant cat state preparation circuits. ([#543]) ([**@pehamtom**])
 - Lattice surgery compilation for the color code with and without movable logical qubits and layout optimization. ([#559]) ([**@LSHerzog**])
+- Extendable synthesis framework for Clifford encoding isometries supporting custom candidate generators and optimization strategies. ([#640]) ([**@pehamtom**])
+- Synthesis of non-CSS Clifford encoding isometries with support for arbitrary stabilizer codes. ([#640]) ([**@pehamtom**])
+- Rollout heuristics for improved gate-count and depth optimization in synthesized Clifford circuits. ([#640]) ([**@pehamtom**])
+- Z3-based exact synthesis methods for depth-optimal and gate-optimal encoding circuits for both CSS and non-CSS codes. ([#640]) ([**@pehamtom**])
+- New `synthesize_clifford` function for general Clifford operation synthesis with configurable optimization strategies. ([#640]) ([**@pehamtom**])
+- New `resynthesize_stim_circuit` function for optimizing existing Stim circuits by resynthesizing them with improved gate count or depth. ([#640]) ([**@pehamtom**])
+- New `encoder_from_stabilizers_and_logicals` function for constructing encoding circuits from stabilizer and logical operator tableaux. ([#640]) ([**@pehamtom**])
 
 ### Changed
 
@@ -33,6 +40,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - Renamed `StatePrepCircuit` class to `FaultyStatePrepCircuit`, reflecting its new role in combining circuit and fault information. ([#443]) ([**@pehamtom**])
 - Changed the construction in `CatStatePreparationExperiment` to allow for ancillas with less qubits than the data cat state.
 - Added resets to Cat state preparation circuits in `CatStatePreparationExperiment`. ([#652]) ([**@pehamtom**])
+- Unified encoding circuit and state preparation circuit synthesis into a common framework. ([#640]) ([**@pehamtom**])
 
 ### Removed
 
@@ -61,6 +69,7 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 [#453]: https://github.com/munich-quantum-toolkit/qecc/pull/453
 [#443]: https://github.com/munich-quantum-toolkit/qecc/pull/443
 [#559]: https://github.com/munich-quantum-toolkit/qecc/pull/559
+[#640]: https://github.com/munich-quantum-toolkit/qecc/pull/640
 [#652]: https://github.com/munich-quantum-toolkit/qecc/pull/652
 
 <!-- Contributor -->

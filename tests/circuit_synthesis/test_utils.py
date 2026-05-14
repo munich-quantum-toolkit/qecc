@@ -25,14 +25,17 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
     compose_circuits,
     compose_compact_stim_circuits,
     measured_qubits,
+    num_two_qubit_gates,
     qiskit_to_stim_circuit,
+    remove_single_qubit_gates,
+    remove_swap_gates,
+    two_qubit_gate_depth,
     unmeasured_qubits,
 )
 from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
     gaussian_elimination_min_column_ops,
     gaussian_elimination_min_parallel_eliminations,
-    heuristic_gaussian_elimination,
     measure_flagged,
     measure_stab_unflagged,
     odd_overlap,
@@ -171,35 +174,6 @@ def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # t
 
     n_parallel_layers = get_n_parallel_layers(ops)
     assert n_parallel_layers <= max_parallel_steps
-
-
-@pytest.mark.parametrize(
-    "test_vals",
-    ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"],
-)
-def test_heuristic_gaussian_elimination(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
-    """Test heuristic Gaussian elimination method."""
-    fixture = request.getfixturevalue(test_vals)
-    matrix = fixture.matrix
-    res_seq = heuristic_gaussian_elimination(matrix, parallel_elimination=False)
-    res_parallel = heuristic_gaussian_elimination(matrix, parallel_elimination=True)
-
-    assert res_seq is not None
-    reduced_seq, ops_seq = res_seq
-
-    assert res_parallel is not None
-    reduced_parallel, ops_parallel = res_parallel
-
-    assert check_correct_elimination(matrix, reduced_seq, ops_seq)
-    assert check_correct_elimination(matrix, reduced_parallel, ops_parallel)
-
-    n_parallel_layers_seq = get_n_parallel_layers(ops_seq)
-    assert n_parallel_layers_seq <= fixture.max_parallel_steps
-
-    n_parallel_layers_parallel = get_n_parallel_layers(ops_parallel)
-    assert n_parallel_layers_parallel <= fixture.max_parallel_steps
-
-    assert n_parallel_layers_parallel <= n_parallel_layers_seq
 
 
 def correct_stabilizer_propagation(
@@ -705,3 +679,121 @@ def test_compose_circuits(
     # Check the mappings
     assert mapping1 == expected_mapping1
     assert mapping2 == expected_mapping2
+
+
+@pytest.mark.parametrize(
+    ("circuit", "count_swaps", "expected_count"),
+    [
+        (stim.Circuit(), False, 0),
+        (stim.Circuit(), True, 0),
+        (stim.Circuit("H 0"), False, 0),
+        (stim.Circuit("H 0"), True, 0),
+        (stim.Circuit("CX 0 1"), False, 1),
+        (stim.Circuit("CX 0 1"), True, 1),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), False, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2"), True, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), False, 2),
+        (stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2"), True, 2),
+        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), False, 3),
+        (stim.Circuit("CX 0 1\nCX 1 2\nCX 2 3"), True, 3),
+        (stim.Circuit("SWAP 0 1"), False, 0),
+        (stim.Circuit("SWAP 0 1"), True, 1),
+        (stim.Circuit("H 0\nSWAP 0 1\nH 2"), False, 0),
+        (stim.Circuit("H 0\nSWAP 0 1\nH 2"), True, 1),
+        (stim.Circuit("CX 0 1\nSWAP 1 2"), False, 1),
+        (stim.Circuit("CX 0 1\nSWAP 1 2"), True, 2),
+        (stim.Circuit("SWAP 0 1\nSWAP 1 2"), False, 0),
+        (stim.Circuit("SWAP 0 1\nSWAP 1 2"), True, 2),
+    ],
+)
+def test_num_two_qubit_gates(circuit: stim.Circuit, count_swaps: bool, expected_count: int) -> None:
+    """Test the num_two_qubit_gates function."""
+    assert num_two_qubit_gates(circuit, count_swaps=count_swaps) == expected_count
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "expected_ops"),
+    [
+        ([], []),
+        ([("H", [0])], []),
+        ([("H", [0]), ("X", [1])], []),
+        ([("CX", [0, 1])], [("CX", [0, 1])]),
+        ([("H", [0]), ("CX", [0, 1]), ("X", [2])], [("CX", [0, 1])]),
+        ([("CX", [0, 1]), ("H", [0]), ("CX", [1, 2])], [("CX", [0, 1]), ("CX", [1, 2])]),
+        ([("SWAP", [0, 1])], [("SWAP", [0, 1])]),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], [("SWAP", [0, 1])]),
+    ],
+)
+def test_remove_single_qubit_gates(circuit_ops, expected_ops):
+    """Parameterized test for remove_single_qubit_gates."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = remove_single_qubit_gates(circ)
+
+    expected = stim.Circuit()
+    for op, targets in expected_ops:
+        expected.append_operation(op, targets)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "expected_ops"),
+    [
+        ([], []),
+        ([("SWAP", [0, 1])], []),
+        ([("H", [0]), ("SWAP", [0, 1])], [("H", [0])]),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], [("CX", [0, 1])]),
+        ([("SWAP", [0, 1]), ("CX", [0, 1]), ("SWAP", [1, 2])], [("CX", [0, 1])]),
+        ([("H", [0]), ("CX", [0, 1])], [("H", [0]), ("CX", [0, 1])]),
+        ([("SWAP", [0, 1]), ("SWAP", [1, 2]), ("SWAP", [2, 3])], []),
+    ],
+)
+def test_remove_swap_gates(circuit_ops, expected_ops):
+    """Parameterized test for remove_swap_gates."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = remove_swap_gates(circ)
+
+    expected = stim.Circuit()
+    for op, targets in expected_ops:
+        expected.append_operation(op, targets)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("circuit_ops", "count_swaps", "expected_depth"),
+    [
+        ([], False, 0),
+        ([], True, 0),
+        ([("H", [0])], False, 0),
+        ([("H", [0])], True, 0),
+        ([("CX", [0, 1])], False, 1),
+        ([("CX", [0, 1])], True, 1),
+        ([("H", [0]), ("CX", [0, 1]), ("H", [2])], False, 1),
+        ([("CX", [0, 1]), ("CX", [1, 2])], False, 2),
+        ([("CX", [0, 1]), ("CX", [2, 3])], False, 1),
+        ([("SWAP", [0, 1])], False, 0),
+        ([("SWAP", [0, 1])], True, 1),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], False, 0),
+        ([("H", [0]), ("SWAP", [0, 1]), ("X", [2])], True, 1),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], False, 1),
+        ([("CX", [0, 1]), ("SWAP", [1, 2])], True, 2),
+        ([("CX", [0, 1]), ("H", [0]), ("CX", [0, 2])], False, 2),
+        ([("CX", [0, 1]), ("H", [2]), ("CX", [2, 3])], False, 1),
+    ],
+)
+def test_two_qubit_gate_depth(circuit_ops, count_swaps, expected_depth):
+    """Parameterized test for two_qubit_gate_depth."""
+    circ = stim.Circuit()
+    for op, targets in circuit_ops:
+        circ.append_operation(op, targets)
+
+    result = two_qubit_gate_depth(circ, count_swaps=count_swaps)
+
+    assert result == expected_depth

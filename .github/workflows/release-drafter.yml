@@ -14,4 +14,4 @@ jobs:
       contents: write
     runs-on: ubuntu-slim
     steps:
-      - uses: release-drafter/release-drafter@3a7fb5c85b80b1dda66e1ccb94009adbbd32fce3 # v7.0.0
+      - uses: release-drafter/release-drafter@563bf132657a13ded0b01fcb723c5a58cdd824e2 # v7.2.1

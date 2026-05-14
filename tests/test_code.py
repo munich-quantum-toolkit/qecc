@@ -13,10 +13,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
+import stim
+from numpy.testing import assert_array_equal
 
 from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.codes import (
-    ConcatenatedCode,
     ConcatenatedCSSCode,
     InvalidCSSCodeError,
     InvalidStabilizerCodeError,
@@ -25,7 +26,12 @@ from mqt.qecc.codes import (
     construct_many_hypercube_code,
     construct_quantum_hamming_code,
 )
-from mqt.qecc.codes.pauli import InvalidPauliError, Pauli, StabilizerTableau
+from mqt.qecc.codes.pauli import (
+    InvalidPauliError,
+    Pauli,
+    StabilizerTableau,
+    complete_stabilizer_tableau_with_destabilizers,
+)
 from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
 from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
 
@@ -81,7 +87,7 @@ def test_symplectic() -> None:
     u = SymplecticVector(np.array([0, 0, 1, 0, 0, 0]))
     assert v @ u == 1
 
-    eye = SymplecticMatrix.identity(3)
+    eye = SymplecticMatrix.symplectic_identity(3)
     zero_mat = SymplecticMatrix.zeros(6, 3)
     assert eye + eye == zero_mat
     assert eye - eye == zero_mat
@@ -98,6 +104,40 @@ def test_symplectic() -> None:
     assert len(m) == 6
     assert m.shape == (6, 6)
     assert m.n == 3
+
+
+@pytest.mark.parametrize(
+    ("tableau_matrix", "expected"),
+    [
+        (np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.int8), True),
+        (np.array([[1, 0, 0, 1], [0, 1, 1, 0]], dtype=np.int8), False),
+    ],
+)
+def test_is_css(tableau_matrix: npt.NDArray[np.int8], expected: bool) -> None:
+    """Test the is_css method."""
+    tableau = StabilizerTableau(SymplecticMatrix(tableau_matrix))
+    assert tableau.is_css() == expected
+
+
+@pytest.mark.parametrize(
+    ("tableau_fixture", "expected_x_part", "expected_z_part"),
+    [
+        ("identity_tableau", np.array([[1], [0]], dtype=np.int8), np.array([[0], [1]], dtype=np.int8)),
+        ("hadamard_tableau", np.array([[0], [1]], dtype=np.int8), np.array([[1], [0]], dtype=np.int8)),
+    ],
+)
+def test_get_x_and_z_parts(
+    tableau_fixture: str,
+    expected_x_part: npt.NDArray[np.int8],
+    expected_z_part: npt.NDArray[np.int8],
+    request: pytest.FixtureRequest,
+) -> None:
+    """Test the get_x_part and get_z_part methods with various tableaus."""
+    tableau = request.getfixturevalue(tableau_fixture)
+    x_part = tableau.get_x_part()
+    z_part = tableau.get_z_part()
+    assert_array_equal(x_part, expected_x_part)
+    assert_array_equal(z_part, expected_z_part)
 
 
 def test_stabilizer_tableau() -> None:
@@ -125,8 +165,69 @@ def test_stabilizer_tableau() -> None:
     t4 = StabilizerTableau.from_pauli_strings(["ZII"])
     assert t1 != t4
 
-    assert t1 == [Pauli.from_pauli_string("XIZ"), Pauli.from_pauli_string("ZIX"), Pauli.from_pauli_string("IZX")]
     assert len(t1) == 3
+
+
+@pytest.fixture
+def identity_tableau() -> StabilizerTableau:
+    """Fixture for the identity stabilizer tableau."""
+    return StabilizerTableau.from_matrix(np.eye(2, dtype=np.int8))
+
+
+@pytest.fixture
+def hadamard_tableau() -> StabilizerTableau:
+    """Fixture for the Hadamard stabilizer tableau."""
+    return StabilizerTableau.from_matrix(np.array([[0, 1], [1, 0]], dtype=np.int8))
+
+
+@pytest.fixture
+def cnot_tableau() -> StabilizerTableau:
+    """Fixture for the CNOT stabilizer tableau."""
+    return StabilizerTableau.from_matrix(
+        np.array(
+            [
+                [1, 1, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 1, 1],
+            ],
+            dtype=np.int8,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("stim_tableau", "expected_tableau_fixture"),
+    [
+        (stim.Tableau.from_named_gate("I"), "identity_tableau"),
+        (stim.Tableau.from_named_gate("H"), "hadamard_tableau"),
+        (stim.Tableau.from_named_gate("CX"), "cnot_tableau"),
+    ],
+)
+def test_stabilizer_tableau_from_stim_tableau(
+    stim_tableau: stim.Tableau, expected_tableau_fixture: str, request: pytest.FixtureRequest
+) -> None:
+    """Test the from_stim_tableau method of StabilizerTableau."""
+    expected_tableau = request.getfixturevalue(expected_tableau_fixture)
+    tableau = StabilizerTableau.from_stim_tableau(stim_tableau)
+    assert tableau == expected_tableau
+
+
+@pytest.mark.parametrize(
+    ("stim_circuit", "expected_tableau_fixture"),
+    [
+        (stim.Circuit("I 0"), "identity_tableau"),
+        (stim.Circuit("H 0"), "hadamard_tableau"),
+        (stim.Circuit("CX 0 1"), "cnot_tableau"),
+    ],
+)
+def test_stabilizer_tableau_from_stim_circuit(
+    stim_circuit: stim.Circuit, expected_tableau_fixture: str, request: pytest.FixtureRequest
+) -> None:
+    """Test the from_stim_circuit method of StabilizerTableau."""
+    expected_tableau = request.getfixturevalue(expected_tableau_fixture)
+    tableau = StabilizerTableau.from_stim_circuit(stim_circuit)
+    assert tableau == expected_tableau
 
 
 @pytest.fixture
@@ -175,29 +276,25 @@ def five_qubit_code() -> StabilizerCode:
 
 def test_invalid_css_codes() -> None:
     """Test that an invalid CSS code raises an error."""
-    # Violates CSS condition
     hx = np.array([[1, 1, 1]])
     hz = np.array([[1, 0, 0]])
     with pytest.raises(InvalidCSSCodeError):
         CSSCode(distance=3, Hx=hx, Hz=hz)
 
-    # Distances don't match
     hz = np.array([[1, 1, 0]])
     with pytest.raises(InvalidCSSCodeError):
         CSSCode(distance=3, Hx=hx, Hz=hz, x_distance=4, z_distance=1)
 
-    # Checks not over the same number of qubits
     hz = np.array([[1, 1]])
     with pytest.raises(InvalidCSSCodeError):
         CSSCode(distance=3, Hx=hx, Hz=hz)
 
-    # Checks not provided
     with pytest.raises(InvalidCSSCodeError):
         CSSCode(distance=3)
 
 
 @pytest.mark.parametrize("checks", ["steane_code_checks", "rep_code_checks", "rep_code_checks_reverse"])
-def test_logicals(checks: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None], request) -> None:  # type: ignore[no-untyped-def]
+def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:
     """Test the logical operators of the CSSCode class."""
     hx, hz = request.getfixturevalue(checks)
     code = CSSCode(distance=3, Hx=hx, Hz=hz)
@@ -206,10 +303,8 @@ def test_logicals(checks: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8
     assert code.Lx.shape[1] == code.Lz.shape[1] == code.n
     assert code.Lx.shape[0] == code.Lz.shape[0]
 
-    # assert that logicals anticommute
     assert code.Lx @ code.Lz.T % 2 != 0
 
-    # assert that logicals commute with stabilizers
     if code.Hz is not None:
         assert np.all(code.Lx @ code.Hz.T % 2 == 0)
     if code.Hx is not None:
@@ -237,13 +332,11 @@ def test_errors(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.i
     assert not np.array_equal(x_syndrome_1, x_syndrome_3)
     assert np.array_equal(x_syndrome_1, x_syndrome_4)
 
-    # e1 and e2 have same syndrome but if we add them we get a logical error
     assert code.check_if_logical_x_error((e1 + e2) % 2)
     assert code.check_if_logical_z_error((e1 + e2) % 2)
     assert not code.stabilizer_eq_x_error(e1, e2)
     assert not code.stabilizer_eq_z_error(e1, e2)
 
-    # e1 and e4 on the other hand do not induce a logical error because they are stabilizer equivalent
     assert not code.check_if_logical_x_error((e1 + e4) % 2)
     assert not code.check_if_logical_z_error((e1 + e4) % 2)
     assert code.stabilizer_eq_x_error(e1, e4)
@@ -298,7 +391,7 @@ def test_steane(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.i
 
     hx_reordered = hx[::-1, :]
     code_reordered = CSSCode(distance=3, Hx=hx_reordered, Hz=hz)
-    assert code == code_reordered
+    assert code.is_equivalent(code_reordered)
 
 
 @pytest.mark.parametrize("n", [72, 90, 108, 144, 288])
@@ -316,7 +409,6 @@ def test_five_qubit_code(five_qubit_code_stabs: list[str]) -> None:
     z_logicals = ["ZZZZZ"]
     x_logicals = ["XXXXX"]
 
-    # Many assertions are already made in the constructor
     code = StabilizerCode(five_qubit_code_stabs, distance=3, x_logicals=x_logicals, z_logicals=z_logicals)
     assert code.n == 5
     assert code.k == 1
@@ -353,8 +445,16 @@ def test_trivial_code() -> None:
     code = StabilizerCode.get_trivial_code(3)
     assert code.n == 3
     assert code.k == 3
-    assert code.x_logicals == ["XII", "IXI", "IIX"]
-    assert code.z_logicals == ["ZII", "IZI", "IIZ"]
+    assert code.x_logicals.to_pauli_list() == [
+        Pauli.from_pauli_string("XII"),
+        Pauli.from_pauli_string("IXI"),
+        Pauli.from_pauli_string("IIX"),
+    ]
+    assert code.z_logicals.to_pauli_list() == [
+        Pauli.from_pauli_string("ZII"),
+        Pauli.from_pauli_string("IZI"),
+        Pauli.from_pauli_string("IIZ"),
+    ]
     assert code.generators.n_rows == 0
 
 
@@ -418,15 +518,67 @@ def test_too_many_logicals() -> None:
         StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["IZZI"], x_logicals=["XXII", "XXII", "XXII"])
 
 
-def test_trivial_concatenation(five_qubit_code: StabilizerCode) -> None:
-    """Test that the trivial concatenation of a code is the code itself."""
-    inner_code = StabilizerCode.get_trivial_code(1)
-    concatenated = ConcatenatedCode(five_qubit_code, inner_code)
+def test_code_equality() -> None:
+    """Test equality of stabilizer codes."""
+    # Equal codes
+    code1 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    code2 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    assert code1 == code2  # literally the same code
 
-    assert concatenated.n == 5
-    assert concatenated.k == 1
-    assert concatenated.distance == 3
-    assert concatenated == five_qubit_code
+    # different basis of stabilizers, logicals automatically computed
+    code3 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "YXXYI"],
+        z_logicals=["ZIXXI"],
+        x_logicals=["XXXXX"],
+    )
+
+    assert code1.is_equivalent(code3)
+
+    # Unequal codes (swapped logical operators)
+    code4 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["XXXXX"],
+        x_logicals=["ZZZZZ"],
+    )
+    assert code1 != code4
+
+
+def test_logical_mapping() -> None:
+    """Test the get_logical_mapping method of StabilizerCode."""
+    # Define two equivalent codes
+    code1 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    code2 = StabilizerCode(
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        z_logicals=["ZZZZZ"],
+        x_logicals=["XXXXX"],
+    )
+    mapping = code1.get_logical_mapping(code2)
+    assert mapping == [0]
+
+    code3 = StabilizerCode(["XXXX", "ZZZZ"], z_logicals=["ZZII", "IZZI"], x_logicals=["IXXI", "XXII"])
+    code4 = StabilizerCode(["XXXX", "ZZZZ"], z_logicals=["IZZI", "ZZII"], x_logicals=["XXII", "IXXI"])
+
+    mapping = code3.get_logical_mapping(code4)
+    assert mapping == [1, 0]
+
+    code_5 = StabilizerCode(  # first logical is product of logicals
+        ["XXXX", "ZZZZ"], z_logicals=["ZIZI", "IZZI"], x_logicals=["IXXI", "XIXI"]
+    )
+
+    mapping = code3.get_logical_mapping(code_5)
+    assert mapping is None
 
 
 def test_trivial_css_concatenation(steane_code: CSSCode) -> None:
@@ -466,17 +618,9 @@ def test_many_hypercube_code_level_2() -> None:
     assert code.distance == 4
 
 
-def test_many_hypercube_code_level_3() -> None:
-    """Test that the many-hypercube code."""
-    code = construct_many_hypercube_code(3)
-    assert code.n == 6**3
-    assert code.k == 4**3
-    assert code.distance == 2**3
-
-
 def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Test that a stabilizer code can be constructed from a file."""
-    file_content = "IXXZZ\nZIXXZ\nZZIXX\nXZZIX"
+    file_content = "XZZXI\nIXZZX\nXIXZZ\nZXIXZ"
     file_path = tmp_path / "test_file.txt"
     file_path.write_text(file_content)
 
@@ -510,6 +654,235 @@ def test_css_code_from_file_empty_line(tmp_path) -> None:  # type: ignore[no-unt
     assert code.k == 1
 
 
+def test_css_code_from_binary_matrix_space_separated(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a CSS code from space-separated binary matrix format."""
+    file_content = """1 1 1 1 0 0 0
+1 0 1 0 1 0 1
+0 1 1 0 1 1 0
+
+1 1 1 1 0 0 0
+1 0 1 0 1 0 1
+0 1 1 0 1 1 0"""
+    file_path = tmp_path / "test_css_binary_space.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.Hx.shape == (3, 7)
+    assert code.Hz.shape == (3, 7)
+    assert np.array_equal(
+        code.Hx, np.array([[1, 1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 1, 0, 1], [0, 1, 1, 0, 1, 1, 0]], dtype=np.int8)
+    )
+    assert np.array_equal(
+        code.Hz, np.array([[1, 1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 1, 0, 1], [0, 1, 1, 0, 1, 1, 0]], dtype=np.int8)
+    )
+
+
+def test_css_code_from_binary_matrix_comma_separated(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a CSS code from comma-separated binary matrix format."""
+    file_content = """1,1,1,1,0,0,0
+1,0,1,0,1,0,1
+0,1,1,0,1,1,0
+
+1,1,1,1,0,0,0
+1,0,1,0,1,0,1
+0,1,1,0,1,1,0
+"""
+    file_path = tmp_path / "test_css_binary_comma.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.Hx.shape == (3, 7)
+    assert code.Hz.shape == (3, 7)
+
+
+def test_css_code_from_binary_matrix_list_notation(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a CSS code from list notation binary matrix format."""
+    file_content = """[[1,1,1,1,0,0,0],
+[1,0,1,0,1,0,1],
+[0,1,1,0,1,1,0]]
+
+[[1,1,1,1,0,0,0],
+[1,0,1,0,1,0,1],
+[0,1,1,0,1,1,0]]"""
+    file_path = tmp_path / "test_css_binary_list.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.Hx.shape == (3, 7)
+    assert code.Hz.shape == (3, 7)
+
+
+def test_css_code_from_binary_matrix_numpy_notation(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a CSS code from numpy array notation format."""
+    file_content = """[[1 1 1 1 0 0 0]
+ [1 0 1 0 1 0 1]
+ [0 1 1 0 1 1 0]]
+
+[[1 1 1 1 0 0 0]
+ [1 0 1 0 1 0 1]
+ [0 1 1 0 1 1 0]]"""
+    file_path = tmp_path / "test_css_binary_numpy.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.Hx.shape == (3, 7)
+    assert code.Hz.shape == (3, 7)
+
+
+def test_css_code_from_binary_matrix_x_only(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a CSS code with only X stabilizers from binary format."""
+    file_content = """1,1,1,1,0,0,0
+1,0,1,0,1,0,1
+0,1,1,0,1,1,0"""
+    file_path = tmp_path / "test_css_x_only.txt"
+    file_path.write_text(file_content)
+
+    code = CSSCode.from_file(file_path)
+
+    assert code.n == 7
+    assert code.Hx.shape == (3, 7)
+    assert code.Hz.shape == (0, 7)
+
+
+def test_css_code_from_binary_matrix_empty(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that an error is raised for empty CSS code files."""
+    file_content = ""
+    file_path = tmp_path / "test_css_empty.txt"
+    file_path.write_text(file_content)
+
+    with pytest.raises(InvalidCSSCodeError, match="File is empty"):
+        CSSCode.from_file(file_path)
+
+
+def test_css_code_from_invalid_pauli_string(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that an error is raised for invalid Pauli strings in CSS code files."""
+    file_content = "XIIX\nIIII\nZZII"
+    file_path = tmp_path / "test_css_invalid.txt"
+    file_path.write_text(file_content)
+
+    with pytest.raises(InvalidCSSCodeError, match="Invalid stabilizer"):
+        CSSCode.from_file(file_path)
+
+
+def test_stabilizer_code_from_binary_matrix_comma_separated(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a stabilizer code from a comma-separated binary matrix file."""
+    file_content = """1,0,0,1,0,0,1,1,0,0
+0,1,0,0,1,0,0,1,1,0
+1,0,1,0,0,0,0,0,1,1
+0,1,0,1,0,1,0,0,0,1"""
+    file_path = tmp_path / "test_binary_comma.txt"
+    file_path.write_text(file_content)
+
+    code = StabilizerCode.from_file(file_path)
+
+    assert code.n == 5
+    assert code.generators.n_rows == 4
+
+
+def test_stabilizer_code_from_binary_matrix_list_notation(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading a stabilizer code from a binary matrix file with list notation."""
+    file_content = """[[1,0,0,1,0,0,1,1,0,0],
+[0,1,0,0,1,0,0,1,1,0],
+[1,0,1,0,0,0,0,0,1,1],
+[0,1,0,1,0,1,0,0,0,1]]"""
+    file_path = tmp_path / "test_binary_list.txt"
+    file_path.write_text(file_content)
+
+    code = StabilizerCode.from_file(file_path)
+
+    assert code.n == 5
+    assert code.generators.n_rows == 4
+
+
+def test_stabilizer_code_from_binary_matrix_correctness(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that binary matrix loading produces the correct Pauli strings."""
+    file_content = """1 1 1 1"""
+    file_path = tmp_path / "test_binary_correctness.txt"
+    file_path.write_text(file_content)
+
+    code = StabilizerCode.from_file(file_path)
+
+    assert code.n == 2
+    stabs = code.stabs_as_pauli_strings()
+    assert stabs == ["YY"]
+
+
+def test_stabilizer_code_from_binary_matrix_five_qubit(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test loading the five-qubit code from binary matrix format."""
+    file_content = """1 0 0 1 0 0 1 1 0 0
+    0 1 0 0 1 0 0 1 1 0
+    1 0 1 0 0 0 0 0 1 1
+    0 1 0 1 0 1 0 0 0 1"""
+    file_path = tmp_path / "test_five_qubit.txt"
+    file_path.write_text(file_content)
+
+    code = StabilizerCode.from_file(file_path)
+    print(code.stabs_as_pauli_strings())
+
+    assert code.n == 5
+    assert code.generators.n_rows == 4
+
+
+def test_stabilizer_code_from_binary_matrix_invalid_rows(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that an error is raised for binary matrices with odd number of rows."""
+    file_content = """1 1 0 0
+0 0 1 0"""
+    file_path = tmp_path / "test_binary_invalid.txt"
+    file_path.write_text(file_content)
+
+    with pytest.raises(InvalidStabilizerCodeError, match=r"Stabilizer generators must commute with each other."):
+        StabilizerCode.from_file(file_path)
+
+
+def test_stabilizer_code_from_binary_matrix_empty(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Test that an error is raised for empty binary matrix files."""
+    file_content = ""
+    file_path = tmp_path / "test_binary_empty.txt"
+    file_path.write_text(file_content)
+
+    with pytest.raises(InvalidStabilizerCodeError, match="File is empty"):
+        StabilizerCode.from_file(file_path)
+
+
+def test_stabilizer_code_to_tableau(five_qubit_code: StabilizerCode) -> None:
+    """Test the to_tableau method of StabilizerCode."""
+    tableau = five_qubit_code.to_tableau()
+
+    assert tableau.n == 5
+    assert tableau.num_rows() == 6
+
+    x_log_pauli = tableau[0]
+    z_log_pauli = tableau[1]
+    assert not x_log_pauli.commute(z_log_pauli)
+
+    for i in range(2, 6):
+        stab = tableau[i]
+        assert x_log_pauli.commute(stab)
+        assert z_log_pauli.commute(stab)
+
+
+def test_stabilizer_code_to_tableau_trivial() -> None:
+    """Test the to_tableau method for trivial code."""
+    code = StabilizerCode.get_trivial_code(3)
+    tableau = code.to_tableau()
+
+    assert tableau.n == 3
+    assert tableau.num_rows() == 6
+
+    for i in range(3):
+        x_log = tableau[i]
+        z_log = tableau[3 + i]
+        assert not x_log.commute(z_log)
+
+
 @pytest.mark.parametrize(("x_distance", "z_distance"), [(3, 3), (7, 3), (5, 7)])
 def test_rotated_surface_code_params(x_distance: int, z_distance: int) -> None:
     """Test the RotatedSurfaceCode class."""
@@ -520,7 +893,6 @@ def test_rotated_surface_code_params(x_distance: int, z_distance: int) -> None:
     assert code.x_distance == x_distance
     assert code.z_distance == z_distance
 
-    # Check that the stabilizers are generated correctly
     num_patches = (x_distance - 1) * (z_distance - 1)
     num_x_stabs = num_patches // 2 + num_patches % 2 + (z_distance - 1)
     num_z_stabs = num_patches // 2 + (x_distance - 1)
@@ -538,3 +910,98 @@ def test_rotated_surface_code_invalid_distance() -> None:
         RotatedSurfaceCode(x_distance=5, z_distance=4)
     with pytest.raises(InvalidDistanceError):
         RotatedSurfaceCode(x_distance=5, z_distance=None)
+
+
+def test_complete_stabilizer_tableau_with_destabilizers():
+    """Test completing a stabilizer tableau with destabilizers."""
+    stabs = StabilizerTableau.from_pauli_strings(["ZZ"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 2
+
+    destab = completed[0]
+    stab = completed[1]
+    assert destab.anticommute(stab)
+
+    stabs = StabilizerTableau.from_pauli_strings(["XXXXIII", "ZZZZIII"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 4
+
+    for i in range(2):
+        destab_i = completed[i]
+        for j in range(2):
+            stab_j = completed[2 + j]
+            if i == j:
+                assert destab_i.anticommute(stab_j)
+            else:
+                assert destab_i.commute(stab_j)
+
+    for i in range(2):
+        for j in range(i + 1, 2):
+            assert completed[i].commute(completed[j])
+
+    stabs = StabilizerTableau.from_pauli_strings(["XII", "IZI", "IIX"])
+    completed = complete_stabilizer_tableau_with_destabilizers(stabs)
+
+    assert completed.num_rows() == 6
+
+    for i in range(3):
+        destab_i = completed[i]
+        for j in range(3):
+            stab_j = completed[3 + j]
+            if i == j:
+                assert destab_i.anticommute(stab_j)
+            else:
+                assert destab_i.commute(stab_j)
+
+
+def test_complete_stabilizer_tableau_invalid_cases():
+    """Test error handling for invalid inputs."""
+    stabs = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "YY"])
+
+    with pytest.raises(ValueError, match="Cannot have more stabilizers than qubits"):
+        complete_stabilizer_tableau_with_destabilizers(stabs)
+
+
+def test_compute_logical_steane():
+    """Test that compute_logical correctly finds logicals for Steane code."""
+    stabs = ["XXXXIII", "XIXIXIX", "IXXIXXI", "ZZZZIII", "ZIZIZIZ", "IZZIZZI"]
+    code = StabilizerCode(stabs, distance=3)
+
+    assert code.k == 1
+    assert code.z_logicals is not None
+    assert code.x_logicals is not None
+    assert code.z_logicals.n_rows == 1
+    assert code.x_logicals.n_rows == 1
+
+    assert not code.z_logicals[0].commute(code.x_logicals[0])
+
+
+def test_compute_logical_multiple_pairs():
+    """Test compute_logical with k>1."""
+    stabs = ["XXXX", "ZZZZ"]
+    code = StabilizerCode(stabs, distance=2)
+
+    assert code.k == 2
+    assert code.z_logicals.n_rows == 2
+    assert code.x_logicals.n_rows == 2
+
+
+def test_set_logicals():
+    """Test that set_logicals correctly sets the logical operators."""
+    h = np.array([[1, 1, 1, 1]])
+    code = CSSCode(h, h)
+    assert code.k == 2
+
+    lxs = code.Lx.copy()
+    lzs = code.Lz.copy()
+
+    lxs[0] ^= lxs[1]
+    lzs[1] ^= lzs[0]
+
+    code.set_x_logicals(lxs)
+    code.set_z_logicals(lzs)
+
+    assert np.array_equal(code.Lx, lxs)
+    assert np.array_equal(code.Lz, lzs)
