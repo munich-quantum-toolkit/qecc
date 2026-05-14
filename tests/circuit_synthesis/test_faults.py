@@ -637,3 +637,44 @@ def test_permute_qubits_inplace():
     fault_set.permute_qubits(permutation, inplace=True)
 
     assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"
+
+
+def test_apply_cnot_x():
+    """Test applying a CNOT gate to the fault set."""
+    faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set1 = PureFaultSet.from_fault_array(faults1)
+
+    # Apply CNOT with control=0 and target=1
+    fault_set1.apply_cnot(control=0, target=1, kind="X")
+
+    expected_faults1 = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set1.to_array(), expected_faults1), "CNOT gate was not applied correctly to the fault set"
+
+    faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    fault_set2 = PureFaultSet.from_fault_array(faults2)
+
+    # Apply CNOT with control=0 and target=1
+    fault_set2.apply_cnot(control=0, target=1, kind="X")
+
+    expected_faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set2.to_array(), expected_faults2), "CNOT gate was not applied correctly to the fault set"
+
+def test_apply_cnot_z():
+    """Test applying a CNOT gate to the fault set."""
+    faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set1 = PureFaultSet.from_fault_array(faults1)
+
+    # Apply CNOT with control=0 and target=1
+    fault_set1.apply_cnot(control=0, target=1, kind="Z")
+
+    expected_faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set1.to_array(), expected_faults1), "CNOT gate was not applied correctly to the fault set"
+
+    faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    fault_set2 = PureFaultSet.from_fault_array(faults2)
+
+    # Apply CNOT with control=0 and target=1
+    fault_set2.apply_cnot(control=0, target=1, kind="Z")
+
+    expected_faults2 = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set2.to_array(), expected_faults2), "CNOT gate was not applied correctly to the fault set"
