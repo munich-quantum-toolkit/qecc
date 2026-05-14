@@ -29,6 +29,7 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 - New `synthesize_clifford` function for general Clifford operation synthesis with configurable optimization strategies. ([#640]) ([**@pehamtom**])
 - New `resynthesize_stim_circuit` function for optimizing existing Stim circuits by resynthesizing them with improved gate count or depth. ([#640]) ([**@pehamtom**])
 - New `encoder_from_stabilizers_and_logicals` function for constructing encoding circuits from stabilizer and logical operator tableaux. ([#640]) ([**@pehamtom**])
+- New `apply_cnot` function to calculate the resulting `PureFaultSet` after a CNOT ([#690]) ([**@sunjerry019**])
 
 ### Changed
 
