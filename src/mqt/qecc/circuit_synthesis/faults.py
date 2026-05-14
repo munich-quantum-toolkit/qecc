@@ -28,14 +28,27 @@ if TYPE_CHECKING:  # pragma: no cover
 class PureFaultSet:
     """Represents a collection of pure faults (X-type or Z-type) in a quantum circuit."""
 
-    def __init__(self, num_qubits: int) -> None:
+    def __init__(self, num_qubits: int, kind: str = "X") -> None:
         """Initialize a PureFaultSet object.
 
         Args:
             num_qubits: The number of qubits in the circuit.
+            kind: The type of faults that this PureFaultSet represents ('X' or 'Z').
         """
         self.num_qubits = num_qubits
         self.faults = np.zeros((0, num_qubits), dtype=np.int8)  # Pure faults as binary vectors
+        self.kind = kind
+
+    @property
+    def kind(self) -> str:
+        """Return the type of faults in the set ('X' or 'Z')."""
+        return self._kind
+    
+    @kind.setter
+    def kind(self, value: str) -> None:
+        """Set the type of faults in the set ('X' or 'Z')."""        
+        assert value.upper() in {"X", "Z"}, "Kind must be either 'X' or 'Z'."
+        self._kind = value.upper()
 
     def add_fault(self, fault: npt.NDArray[np.int8]) -> None:
         """Add a fault to the fault set.
@@ -86,7 +99,7 @@ class PureFaultSet:
         return self.faults
 
     @classmethod
-    def from_fault_array(cls, array: npt.NDArray[np.int8]) -> PureFaultSet:
+    def from_fault_array(cls, array: npt.NDArray[np.int8], kind: str = "X") -> PureFaultSet:
         """Create a PureFaultSet from a numpy array of faults.
 
         Returns:
@@ -95,7 +108,7 @@ class PureFaultSet:
         if array.ndim != 2:
             msg = "Input array must be 2-dimensional."
             raise ValueError(msg)
-        fault_set = cls(array.shape[1])
+        fault_set = cls(array.shape[1], kind=kind)
         fault_set.faults = np.unique(array, axis=0)
         return fault_set
 
@@ -124,7 +137,7 @@ class PureFaultSet:
             qubit_faults[ctrl].append(new_fault)
 
         # Create the fault set
-        fs = cls.from_fault_array(np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8))
+        fs = cls.from_fault_array(np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8), kind=kind)
         if not reduce:
             return fs
 
@@ -375,29 +388,25 @@ class PureFaultSet:
 
         return PureFaultSet.from_fault_array(permuted_faults)
 
-    def apply_cnot(self, control: int, target: int, kind: str = "X", inplace: bool = True) -> PureFaultSet:
-        """Apply a CNOT gate to the faults in the set.
+    def apply_cnot(self, control: int, target: int, inplace: bool = True) -> PureFaultSet:
+        """Apply a CNOT gate to the faults in the set, based on the type of faults (X or Z).
 
         Args:
             control: The index of the control qubit.
             target: The index of the target qubit.
-            kind: The type of faults to apply the CNOT to ('X' or 'Z').
             inplace: If True, modifies the current fault set. If False, returns a new PureFaultSet with updated faults.
 
         Returns:
             A new PureFaultSet with updated faults if inplace is False.
         """
         if control >= self.num_qubits or target >= self.num_qubits:
-            msg = f"Control and target indices must be less than {self.num_qubits}."
-            raise ValueError(msg)
-        if kind.capitalize() not in {"X", "Z"}:
-            msg = "Kind must be either 'X' or 'Z'."
+            msg = f"Control and target indices must be between 0 and {self.num_qubits - 1}."
             raise ValueError(msg)
 
         updated_faults = np.copy(self.faults)
-        if kind == "X":
+        if self.kind == "X":
             updated_faults[:, target] ^= updated_faults[:, control]
-        else:  # kind == "Z"
+        else:  # self.kind == "Z"
             updated_faults[:, control] ^= updated_faults[:, target]
 
         if inplace:
