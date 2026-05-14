@@ -9,11 +9,12 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING
 
 from mqt.qecc.cococo import hill_climber, layouts
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from mqt.qecc.cococo.types import pos
 
 
 def test_neighborhood():
@@ -333,7 +334,7 @@ def hillclimbing_run():
     hc = hill_climber.HillClimbing(
         max_restarts=3,
         max_iterations=100,
-        circuit=cast("list[pos|int]", pairs),
+        circuit=pairs,
         metric="exact",
         t=t,
         custom_layout=custom_layout,

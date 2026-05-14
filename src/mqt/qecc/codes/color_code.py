@@ -64,7 +64,7 @@ class ColorCode(CSSCode):
         """Compute the logical operators of the code."""
         self.L = self._compute_logical(self.H, self.H)
 
-    def get_syndrome(self, error: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:  # type: ignore [override]
+    def get_syndrome(self, error: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:  # ty: ignore[invalid-method-override]
         """Compute the syndrome of the error."""
         return self.H @ error % 2
 

@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import mqt.qecc.cococo.utils_routing as utils
 from mqt.qecc.cococo import circuit_construction, layouts
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from mqt.qecc.cococo.types import Layout, pos
 
 
 def test_basicrouter():
@@ -48,9 +49,7 @@ def test_basicrouter():
     )
     layers = router.split_layer_terminal_pairs(terminal_pairs)
     try:
-        _vdp_layers, _ = router.find_total_vdp_layers_dyn(
-            layers, data_qubit_locs, router.factory_times, layout, testing=True
-        )
+        router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=True)
     except Exception as exc:
         msg = "Something is wrong with the BasicRouter."
         raise ValueError(msg) from exc
@@ -87,9 +86,7 @@ def test_basicrouter_2():
     )
     layers = router.split_layer_terminal_pairs(terminal_pairs)
     try:
-        _vdp_layers, _ = router.find_total_vdp_layers_dyn(
-            layers, data_qubit_locs, router.factory_times, layout, testing=True
-        )
+        router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=True)
     except Exception as e:
         msg = "Something is wrong with the BasicRouter."
         raise ValueError(msg) from e
@@ -125,9 +122,7 @@ def test_basicrouter_3_sc_validpath():
     )
     layers = router.split_layer_terminal_pairs(terminal_pairs)
     try:
-        _vdp_layers, _ = router.find_total_vdp_layers_dyn(
-            layers, data_qubit_locs, router.factory_times, layout, testing=True
-        )
+        router.find_total_vdp_layers_dyn(layers, data_qubit_locs, router.factory_times, layout, testing=True)
     except Exception as e:
         msg = "Something is wrong with the BasicRouter."
         raise ValueError(msg) from e
@@ -147,16 +142,9 @@ def test_teleportationrouter():
     q = len(data_qubit_locs)
     # j = 8
     num_gates = int(q * 1.2)
-    # _dag, pairs = circuit_construction.create_random_sequential_circuit_dag(
-    #    j,
-    #    q,
-    #    num_gates,
-    # )
     pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio=0.8)  # circuit with t gates
 
-    terminal_pairs = layouts.translate_layout_circuit(
-        pairs, cast("dict[int|str, pos|list[pos]]", layout)
-    )  # let's stick to the simple layout
+    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("Layout", layout))  # let's stick to the simple layout
 
     router = utils.TeleportationRouter(
         g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1
@@ -177,7 +165,7 @@ def test_teleportationrouter():
     idle_move_type = "later"
 
     try:
-        _schedule, _ = router.optimize_layers(
+        router.optimize_layers(
             terminal_pairs,
             layout,
             max_iters,
@@ -202,7 +190,7 @@ def test_teleportationrouter():
         g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1
     )
     try:
-        _schedule, _ = router.optimize_layers(
+        router.optimize_layers(
             terminal_pairs,
             layout,
             max_iters,
@@ -240,8 +228,6 @@ def test_count_crossings():
 
     len(data_qubit_locs)
 
-    terminal_pairs: list[pos | tuple[pos, pos]] = [((8, 4), (5, 0)), ((8, 4), (36, 0)), ((2, 2), (13, 4))]
-
     router = utils.BasicRouter(
         g,
         data_qubit_locs,
@@ -251,21 +237,22 @@ def test_count_crossings():
         metric="exact",
         use_dag=True,
     )
-    layers = router.split_layer_terminal_pairs(terminal_pairs)
-    num_crossings = router.count_crossings(cast("list[list[tuple[pos,pos]]]", layers), data_qubit_locs)
+
+    terminal_pairs_1 = [((8, 4), (5, 0)), ((8, 4), (36, 0)), ((2, 2), (13, 4))]
+    layers_1 = cast("list[list[tuple[pos, pos]]]", router.split_layer_terminal_pairs(terminal_pairs_1))
+
+    num_crossings = router.count_crossings(layers_1, data_qubit_locs)
     assert num_crossings == 600, "count_crossings does not work as expected."
 
-    terminal_pairs = [((0, 0), (8, 5)), ((2, 4), (7, 0))]
-    layers = router.split_layer_terminal_pairs(terminal_pairs)
+    terminal_pairs_2 = [((0, 0), (8, 5)), ((2, 4), (7, 0))]
+    layers_2 = router.split_layer_terminal_pairs(terminal_pairs_2)
 
-    crossings_lst = router.count_crossings_per_layer(layers, t_crossings=False)
+    crossings_lst = router.count_crossings_per_layer(layers_2, t_crossings=False)
     assert sum(crossings_lst) == 2, "count_crossings_per_layer is wrong."
 
     # with t
     factories = [(-1, -2)]
     g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
-    terminal_pairs = [((0, 0), (8, 5)), ((2, 4), (7, 0)), (2, 2)]
-    layers = router.split_layer_terminal_pairs(terminal_pairs)
     router = utils.BasicRouter(
         g,
         data_qubit_locs,
@@ -275,5 +262,9 @@ def test_count_crossings():
         metric="exact",
         use_dag=True,
     )
-    crossings_lst = router.count_crossings_per_layer(layers, t_crossings=True)
+
+    terminal_pairs_3 = [((0, 0), (8, 5)), ((2, 4), (7, 0)), (2, 2)]
+    layers_3 = router.split_layer_terminal_pairs(terminal_pairs_3)
+
+    crossings_lst = router.count_crossings_per_layer(layers_3, t_crossings=True)
     assert sum(crossings_lst) == 4, "count_crossings_per_layer is wrong."

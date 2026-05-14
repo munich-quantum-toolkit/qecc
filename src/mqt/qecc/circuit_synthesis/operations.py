@@ -36,7 +36,7 @@ class TableauOperation(ABC):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     @abstractmethod
@@ -187,18 +187,18 @@ class Transvection(TableauOperation):
         basis_change = {"Z": [], "X": ["H"], "Y": ["S_DAG", "H"]}
         undo_basis_change = {"Z": [], "X": ["H"], "Y": ["H", "S"]}
         for g in basis_change[p_i]:
-            circuit.append(g, [i])
+            circuit.append(g, [i])  # ty: ignore[no-matching-overload]
         for g in basis_change[p_j]:
-            circuit.append(g, [j])
+            circuit.append(g, [j])  # ty: ignore[no-matching-overload]
 
-        circuit.append("CZ", [i, j])
-        circuit.append("S", [i])
-        circuit.append("S", [j])
+        circuit.append("CZ", [i, j])  # ty: ignore[no-matching-overload]
+        circuit.append("S", [i])  # ty: ignore[no-matching-overload]
+        circuit.append("S", [j])  # ty: ignore[no-matching-overload]
 
         for g in undo_basis_change[p_j]:
-            circuit.append(g, [j])
+            circuit.append(g, [j])  # ty: ignore[no-matching-overload]
         for g in undo_basis_change[p_i]:
-            circuit.append(g, [i])
+            circuit.append(g, [i])  # ty: ignore[no-matching-overload]
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -395,29 +395,29 @@ class SingleQubitClifford(TableauOperation):
             circuit: The Stim circuit to append the operation to.
         """
         if self.clifford in {"H", "S", "I"}:
-            circuit.append(self.clifford, [self.qubit])
+            circuit.append(self.clifford, [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "SDAG":
-            circuit.append("S_DAG", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "HS":
-            circuit.append("H", [self.qubit])
-            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "SH":
-            circuit.append("S", [self.qubit])
-            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "HSH":
-            circuit.append("H", [self.qubit])
-            circuit.append("S", [self.qubit])
-            circuit.append("H", [self.qubit])
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "SDAGH":
-            circuit.append("S_DAG", [self.qubit])
-            circuit.append("H", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "HSDAG":
-            circuit.append("H", [self.qubit])
-            circuit.append("S_DAG", [self.qubit])
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
         elif self.clifford == "HSDAGH":
-            circuit.append("H", [self.qubit])
-            circuit.append("S_DAG", [self.qubit])
-            circuit.append("H", [self.qubit])
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
         else:
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
@@ -501,7 +501,7 @@ class PauliOperation(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append(self.pauli, [self.qubit])
+        circuit.append(self.pauli, [self.qubit])  # ty: ignore[no-matching-overload]
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -537,7 +537,7 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the tablau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
@@ -562,7 +562,7 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
 
         Returns:
-            CheckMatrix: The resulting CSS check matrix after applying the operation.
+            The resulting CSS check matrix after applying the operation.
         """
         out = check_matrix if inplace else check_matrix.copy()
         out.matrix[:, self.target] ^= out.matrix[:, self.control]
@@ -574,7 +574,7 @@ class CNOT(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append("CNOT", [self.control, self.target])
+        circuit.append("CNOT", [self.control, self.target])  # ty: ignore[no-matching-overload]
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -610,7 +610,7 @@ class Swap(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
@@ -644,13 +644,13 @@ class Swap(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append("SWAP", [self.qubit_a, self.qubit_b])
+        circuit.append("SWAP", [self.qubit_a, self.qubit_b])  # ty: ignore[no-matching-overload]
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
 
         Returns:
-            set[int]: The set of qubit indices involved in the operation.
+            The set of qubit indices involved in the operation.
         """
         return {self.qubit_a, self.qubit_b}
 

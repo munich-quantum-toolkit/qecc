@@ -87,9 +87,9 @@ class NoisyNDFTStatePrepSimulator(ABC):
         noisy_circ = noise.apply(self.circ)
 
         if self.zero_state:
-            noisy_circ.append("MR", self.data_qubits)
+            noisy_circ.append("MR", self.data_qubits)  # ty: ignore[no-matching-overload]
         else:
-            noisy_circ.append("MRX", self.data_qubits)
+            noisy_circ.append("MRX", self.data_qubits)  # ty: ignore[no-matching-overload]
         self._noisy_circ = noisy_circ
         return noisy_circ
 
@@ -104,13 +104,13 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         ctrls = self.data_qubits if self.zero_state else anc_qubits
         trgts = anc_qubits if self.zero_state else self.data_qubits
-        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts, strict=False) for item in pair])
+        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts, strict=False) for item in pair])  # ty: ignore[no-matching-overload]
         if self.zero_state:
-            noisy_circ.append("MRX", self.data_qubits)
-            noisy_circ.append("MRX", anc_qubits)
+            noisy_circ.append("MRX", self.data_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MRX", anc_qubits)  # ty: ignore[no-matching-overload]
         else:
-            noisy_circ.append("MR", self.data_qubits)
-            noisy_circ.append("MR", anc_qubits)
+            noisy_circ.append("MR", self.data_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MR", anc_qubits)  # ty: ignore[no-matching-overload]
         self._noisy_circ = noisy_circ
         return noisy_circ
 
@@ -468,7 +468,12 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         circ3.remove_final_measurements()
         circ4.remove_final_measurements()
 
-        combined = circ4.tensor(circ3).tensor(circ2).tensor(circ1)
+        combined = circ4.tensor(circ3)
+        assert combined is not None
+        combined = combined.tensor(circ2)
+        assert combined is not None
+        combined = combined.tensor(circ1)
+        assert combined is not None
 
         combined.barrier()  # need the barrier to retain order of measurements
         # transversal cnots

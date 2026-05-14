@@ -21,7 +21,7 @@ from mqt.qecc.circuit_synthesis import CNOTCircuit, DeterministicVerificationHel
 from .utils import in_span
 
 try:
-    from qsample import noise
+    from qsample import noise  # ty: ignore[unresolved-import]
 
     from mqt.qecc.circuit_synthesis.simulation_det import NoisyDFTStatePrepSimulator
 

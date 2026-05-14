@@ -23,7 +23,9 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def build_multiround_pcm(pcm: NDArray[np.int32], repetitions: int, matrix_format: str = "csr") -> csr_matrix:
+def build_multiround_pcm(
+    pcm: csr_matrix | NDArray[np.int32], repetitions: int, matrix_format: str = "csr"
+) -> csr_matrix:
     """Builds the multiround parity-check matrix as described in the paper.
 
     Each row corresponds to a round of measurements, the matrix for r repetitions has the form
@@ -74,6 +76,7 @@ def get_updated_decoder(
         decoder.update_channel_probs(new_channel)
         return decoder
     if decoding_method == "matching":
+        assert h3d is not None
         weights = np.clip(
             np.log((1 - new_channel) / new_channel),
             a_min=-16777215,

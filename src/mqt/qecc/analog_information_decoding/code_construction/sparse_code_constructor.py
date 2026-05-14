@@ -127,13 +127,13 @@ def save_code(
     hz: csr_matrix,
     mz: csr_matrix,
     codename: str,
-    lx: csr_matrix = None,
-    lz: csr_matrix = None,
+    lx: csr_matrix | None = None,
+    lz: csr_matrix | None = None,
 ) -> None:
     """Save code to file."""
     path = create_outpath(codename)
 
-    matrices: list[csr_matrix] = [hx, hz, mz, lx, lz]
+    matrices: list[csr_matrix | None] = [hx, hz, mz, lx, lz]
     names = ["hx", "hz", "mz", "lx", "lz"]
     for mat, name in zip(matrices, names, strict=False):
         if mat is not None:
@@ -141,7 +141,7 @@ def save_code(
             try:
                 np.savetxt(path_str + ".txt", mat.todense(), fmt="%i")
             except ValueError:
-                np.savetxt(path_str + ".txt", mat, fmt="%i")
+                np.savetxt(path_str + ".txt", mat.toarray(), fmt="%i")
             sio.mmwrite(
                 path_str + ".mtx",
                 coo_matrix(mat),
@@ -209,7 +209,7 @@ def create_code(
     mz = mz_t.transpose()
     if compute_logicals:
         lx, lz = code_constructor._compute_logicals(hx.todense(), hz.todense())  # noqa: SLF001
-        save_code(hx=hx, hz=hz, mz=mz, codename=codename, lx=lx, lz=lz)
+        save_code(hx=hx, hz=hz, mz=mz, codename=codename, lx=csr_matrix(lx), lz=csr_matrix(lz))
 
     if compute_distance:
         _compute_distances(hx.todense(), hz.todense(), codename)

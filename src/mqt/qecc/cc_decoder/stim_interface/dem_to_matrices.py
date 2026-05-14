@@ -14,10 +14,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+import stim
 from scipy.sparse import csc_matrix
 
 if TYPE_CHECKING:
-    import stim
     from numpy.typing import NDArray
 
 
@@ -76,18 +76,12 @@ def detector_error_model_to_check_matrices(
 ) -> DemMatrices:
     """Convert a `stim.DetectorErrorModel` into a `DemMatrices` object.
 
-    Parameters
-    ----------
-    dem : stim.DetectorErrorModel
-        A stim DetectorErrorModel
-    allow_undecomposed_hyperedges: bool
-        If True, don't raise an exception if a hyperedge is not decomposable. Instead, the hyperedge `h` is still added
-        to the `DemMatrices.check_matrix`, `DemMatrices.observables_matrix` and `DemMatrices.priors` but it will not
-        have any edges in its decomposition in `DemMatrices.hyperedge_to_edge_matrix[:, h]`.
+    Args:
+        dem: A stim DetectorErrorModel
+        allow_undecomposed_hyperedges: If True, don't raise an exception if a hyperedge is not decomposable.
+            Instead, the hyperedge `h` is still added to the `DemMatrices.check_matrix`, `DemMatrices.observables_matrix` and `DemMatrices.priors` but it will not have any edges in its decomposition in `DemMatrices.hyperedge_to_edge_matrix[:, h]`.
 
     Returns:
-    -------
-    DemMatrices
         A collection of matrices representing the stim DetectorErrorModel
     """
     hyperedge_ids: dict[frozenset[int], int] = {}
@@ -134,11 +128,12 @@ def detector_error_model_to_check_matrices(
 
     for instruction in dem.flattened():
         if instruction.type == "error":
+            assert isinstance(instruction, stim.DemInstruction)
             dets: list[list[int]] = [[]]
             frames: list[list[int]] = [[]]
-            t: stim.DemTarget
             p = instruction.args_copy()[0]
             for t in instruction.targets_copy():
+                assert isinstance(t, stim.DemTarget)
                 if t.is_relative_detector_id():
                     dets[-1].append(t.val)
                 elif t.is_logical_observable_id():

@@ -674,7 +674,10 @@ def _extend_covering_sets(
 
 
 def _heuristic_layer(
-    faults: npt.NDArray[np.int8], checks: npt.NDArray[np.int8], find_coset_leaders: bool, max_covering_sets: int
+    faults: npt.NDArray[np.int8],
+    checks: npt.NDArray[np.int8],
+    find_coset_leaders: bool,
+    max_covering_sets: int,
 ) -> list[npt.NDArray[np.int8]]:
     syndromes = checks @ faults.T % 2
     candidates = np.where(np.any(syndromes != 0, axis=1))[0]
@@ -730,7 +733,7 @@ def _heuristic_layer(
             leaders.sort(key=np.sum)
             measurements.append(leaders[0])
     else:
-        measurements = [min(mapping[c], key=np.sum) for c in cover]
+        measurements = [np.array(min(mapping[c], key=np.sum), dtype=np.int8) for c in cover]
 
     return measurements
 

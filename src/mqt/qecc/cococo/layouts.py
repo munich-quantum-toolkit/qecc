@@ -10,24 +10,27 @@
 from __future__ import annotations
 
 import itertools
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import networkx as nx
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from .types import Layout, pos
 
 
 def translate_layout_circuit(
-    pairs: list[pos | int],
-    layout: dict[int | str, pos | list[pos]],
-) -> list[tuple[pos, pos] | pos]:
+    pairs: list[int | pos],
+    layout: Layout,
+) -> Sequence[pos | tuple[pos, pos]]:
     """Translates a `pairs` circuit (with int labels) into the lattice's labels for a given layout.
 
     However, pairs does not only include tuple[int,int] but can include int as well for T gates.
     Layout will also include a list of factory positions in the key="factory_positions". For this key, there can be the list[tuple[int,int]].
     This key is never called here, so we do not need a case for the value being a list. One should note that the type annotation is not fully unambiguous here.
     """
-    terminal_pairs: list[tuple[pos, pos] | pos] = []
+    terminal_pairs = []
     for pair in pairs:
         if isinstance(pair, tuple):
             pos1_raw = layout[pair[0]]
@@ -322,9 +325,9 @@ def filter_factory_nodes(
     Note that one should place the factories in a suitable way such that they are not weirdly connected.
 
     Args:
-        g (nx.Graph): Graph of the Layout
-        factory_ring (list[tuple[int,int]]): Locations at the boundary where factories are allowed in principle.
-        factories (list[tuple[int,int]]): factory positions.
+        g: Graph of the Layout
+        factory_ring: Locations at the boundary where factories are allowed in principle.
+        factories: factory positions.
 
     Returns:
         tuple[nx.Graph, set, set]: graph with reduced ancillas, kept nodes, nodes_to_dsicard
@@ -337,11 +340,11 @@ def filter_factory_nodes(
     cycles = list(nx.simple_cycles(g, length_bound=6))  # only hexagons
     for node in factories:
         # add the least amount of qubits to get a full cycle
-        possible_cycles = [
+        possible_cycles: list[set[pos]] = [
             set(cycle) & set(factory_ring) for cycle in cycles if node in list(cycle) and len(list(cycle)) == 6
         ]
         if possible_cycles:
-            best_cycle_part = min(possible_cycles, key=len)
+            best_cycle_part = cast("set[pos]", min(possible_cycles, key=len))
             kept_nodes.update(best_cycle_part)
 
     nodes_to_discard = set(factory_ring) - kept_nodes - set(factories)

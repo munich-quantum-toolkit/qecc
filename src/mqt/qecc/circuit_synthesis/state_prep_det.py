@@ -832,7 +832,7 @@ def correction_stabilizers(
 
 
 def _extract_measurement_and_correction(
-    model: z3.Model,
+    model: z3.ModelRef,
     gens: npt.NDArray[np.int8],
     correction_gens: npt.NDArray[np.int8],
     n_qubits: int,

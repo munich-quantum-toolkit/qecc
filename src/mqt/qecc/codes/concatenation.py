@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -19,13 +20,13 @@ from .stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
 from .symplectic import SymplecticVector
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     import numpy.typing as npt
 
 
 class ConcatenatedCode(StabilizerCode):
     """A concatenated quantum code."""
+
+    inner_codes: Sequence[StabilizerCode]
 
     def __init__(self, outer_code: StabilizerCode, inner_code: StabilizerCode | Sequence[StabilizerCode]) -> None:
         """Initialize a concatenated quantum code.
@@ -35,8 +36,8 @@ class ConcatenatedCode(StabilizerCode):
             inner_code: The inner code. If a list of codes is provided, the qubits of the outer code are encoded by the different inner codes in the list.
         """
         self.outer_code = outer_code
-        if isinstance(inner_code, list):
-            self.inner_codes = inner_code
+        if isinstance(inner_code, Sequence):
+            self.inner_codes = inner_code  # ty: ignore[invalid-assignment]
         else:
             self.inner_codes = [inner_code] * outer_code.n
         if not all(code.k == 1 for code in self.inner_codes):
@@ -82,7 +83,7 @@ class ConcatenatedCode(StabilizerCode):
             raise InvalidStabilizerCodeError(msg)
         concatenated = SymplecticVector.zeros(self.n)
         phase = 0
-        offset = 0
+        offset: int = 0
         for i in range(self.outer_code.n):
             c = self.inner_codes[i]
             new_offset = offset + c.n
@@ -96,12 +97,12 @@ class ConcatenatedCode(StabilizerCode):
                 concatenated[offset:new_offset] = c.z_logicals[0].x_part()
                 concatenated[offset + self.n : new_offset + self.n] = c.z_logicals[0].z_part()
                 phase += c.z_logicals[0].phase
-
             elif p[i] == "Y":
-                concatenated[offset:new_offset] = c.x_logicals[0].x_part ^ c.z_logicals[0].x_part()
-                concatenated[offset + self.n : new_offset + self.n] = c.x_logicals[0].z_part ^ c.z_logicals[0].z_part()
+                concatenated[offset:new_offset] = c.x_logicals[0].x_part() ^ c.z_logicals[0].x_part()
+                concatenated[offset + self.n : new_offset + self.n] = (
+                    c.x_logicals[0].z_part() ^ c.z_logicals[0].z_part()
+                )
                 phase += c.x_logicals[0].phase + c.z_logicals[0].phase
-
             offset = new_offset
         return Pauli(concatenated, phase)
 
@@ -112,6 +113,8 @@ class ConcatenatedCode(StabilizerCode):
 
 class ConcatenatedCSSCode(ConcatenatedCode, CSSCode):
     """A concatenated CSS code."""
+
+    inner_codes: Sequence[CSSCode]
 
     def __init__(self, outer_code: CSSCode, inner_codes: CSSCode | Sequence[CSSCode]) -> None:
         """Initialize a concatenated CSS code.

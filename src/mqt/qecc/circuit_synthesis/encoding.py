@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -455,27 +456,27 @@ def depth_optimal_encoding_circuit_non_css(
         # Single-qubit gates.
         for q in range(n):
             if model_bool(model, h_gate[depth][q]):
-                reduction.append("H", [q])
+                reduction.append("H", [q])  # ty: ignore[no-matching-overload]
             elif model_bool(model, s_gate[depth][q]):
-                reduction.append("S", [q])
+                reduction.append("S", [q])  # ty: ignore[no-matching-overload]
             elif model_bool(model, sqrt_x_gate[depth][q]):
-                reduction.append("SQRT_X", [q])
+                reduction.append("SQRT_X", [q])  # ty: ignore[no-matching-overload]
 
         # Two-qubit gates.
         for (control, target), gate in cx_gate[depth].items():
             if model_bool(model, gate):
-                reduction.append("CX", [control, target])
+                reduction.append("CX", [control, target])  # ty: ignore[no-matching-overload]
 
         for (q1, q2), gate in cz_gate[depth].items():
             if model_bool(model, gate):
-                reduction.append("CZ", [q1, q2])
+                reduction.append("CZ", [q1, q2])  # ty: ignore[no-matching-overload]
 
     # Normalize terminal X-pivot ancillas to Z-pivot ancillas.
     # In the final encoder this becomes initial H preparation of those ancillas.
     x_pivot_ancillas: list[int] = [q for q in range(n) if model_bool(model, x_pivot[q])]
 
     if x_pivot_ancillas:
-        reduction.append("H", x_pivot_ancillas)
+        reduction.append("H", x_pivot_ancillas)  # ty: ignore[no-matching-overload]
 
     # Extract which physical qubits carry the input logical qubits.
     encoding_qubits: list[int] = []
@@ -495,7 +496,7 @@ def depth_optimal_encoding_circuit_non_css(
     encoder_circuit = stim.Circuit()
 
     if ancilla_qubits:
-        encoder_circuit.append("RZ", ancilla_qubits)
+        encoder_circuit.append("RZ", ancilla_qubits)  # ty: ignore[no-matching-overload]
 
     encoder_circuit += reduction.inverse()
 
@@ -532,11 +533,11 @@ def depth_optimal_encoding_circuit_non_css(
 
         for q, (xv, zv) in enumerate(zip(x_correction, z_correction, strict=False)):
             if xv == 1 and zv == 1:
-                encoder_circuit.append("Y", [q])
+                encoder_circuit.append("Y", [q])  # ty: ignore[no-matching-overload]
             elif xv == 1:
-                encoder_circuit.append("X", [q])
+                encoder_circuit.append("X", [q])  # ty: ignore[no-matching-overload]
             elif zv == 1:
-                encoder_circuit.append("Z", [q])
+                encoder_circuit.append("Z", [q])  # ty: ignore[no-matching-overload]
 
     return CliffordIsometry.from_stim_circuit(encoder_circuit)
 
@@ -690,7 +691,7 @@ def _final_matrix_constraint_partially_full_reduction(
     return z3.And(fully_reduced, partially_reduced, z3.And(overlap_constraints))
 
 
-def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> CliffordIsometry:
+def gottesman_encoding_circuit(tableau: StabilizerTableau | Sequence[str]) -> CliffordIsometry:
     """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
     Assumes all signs of the stabilizers are +1.
@@ -701,8 +702,9 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
     Returns:
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
     """
-    if isinstance(tableau, list):
-        tableau = StabilizerTableau.from_pauli_strings(tableau)
+    if isinstance(tableau, Sequence):
+        tableau = StabilizerTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
+
     nq = tableau.n
     mat = tableau.tableau.matrix.copy()
     x_part = mat[:, :nq]
@@ -742,7 +744,7 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
         z_part[row] = t
 
         if x_part[row][column] == 0:
-            circ.append("H", [column])
+            circ.append("H", [column])  # ty: ignore[no-matching-overload]
             t = x_part[:, column].copy()
             x_part[:, column] = z_part[:, column]
             z_part[:, column] = t
@@ -751,18 +753,18 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
         for q in np.where(x_part[row])[0]:
             if q == column:
                 continue
-            circ.append("CX", [column, q])
+            circ.append("CX", [column, q])  # ty: ignore[no-matching-overload]
             x_part[:, q] ^= x_part[:, column]
             z_part[:, column] ^= z_part[:, q]
 
         if z_part[row][column] == 1:
-            circ.append("S", [column])
+            circ.append("S", [column])  # ty: ignore[no-matching-overload]
             z_part[:, column] ^= x_part[:, column]
 
         for q in np.where(z_part[row])[0]:
             if q == column:
                 continue
-            circ.append("CZ", [column, q])
+            circ.append("CZ", [column, q])  # ty: ignore[no-matching-overload]
             z_part[:, q] ^= x_part[:, column]
             z_part[:, column] ^= x_part[:, q]
 
@@ -770,7 +772,7 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
         x_part[:, column] = 0
         x_part[row, column] = 1
 
-    circ.append("H", initialized)
+    circ.append("H", initialized)  # ty: ignore[no-matching-overload]
     circ = circ.inverse()
 
     signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
