@@ -472,6 +472,28 @@ def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, Stabilize
         )
 
 
+def test_clifford_isometry_synthesis(
+    clifford_isometry_422: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test Clifford isometry synthesis for the CSS [[4,2,2]] code."""
+    stabilizers, x_logicals, z_logicals = clifford_isometry_422
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.CLIFFORD_ISOMETRY,
+        objective=Objective.GATE_COUNT,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
+        lower_bound=3,
+        upper_bound=6,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.gate_count == 5
+    assert result.circuit is not None
+    assert result.verified is True
+
+
 def test_stabilizer_state_requires_stabilizer_tableau(repetition_code_check_matrix: CheckMatrix) -> None:
     """Test that Clifford target kinds require StabilizerTableau."""
     with pytest.raises(ValueError, match="stabilizer_state requires StabilizerTableau"):

@@ -318,7 +318,6 @@ def _combine_stabilizers_and_logicals(
 def _apply_pauli_correction_to_clifford(
     circuit: CliffordIsometry,
     n: int,
-    target_kind: TargetKind,
     target_tableau: StabilizerTableau,
 ) -> CliffordIsometry:
     """Apply Pauli sign correction and initialize ancillas.
@@ -326,7 +325,6 @@ def _apply_pauli_correction_to_clifford(
     Args:
         circuit: Extracted circuit from SAT model.
         n: Number of qubits.
-        target_kind: Kind of synthesis problem.
         target_tableau: Target tableau with correct phases.
 
     Returns:
@@ -336,9 +334,8 @@ def _apply_pauli_correction_to_clifford(
     corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau)
     corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
-    if target_kind == TargetKind.STABILIZER_STATE:
-        for q in circuit.get_zero_initialized():
-            corrected_circuit.initialize_qubit(q, basis="Z")
+    for q in circuit.get_zero_initialized():
+        corrected_circuit.initialize_qubit(q, basis="Z")
 
     return corrected_circuit
 
@@ -460,7 +457,7 @@ def _synthesize_clifford(
 
     def postprocess(circuit: CliffordIsometry | CNOTCircuit) -> CliffordIsometry | CNOTCircuit:
         assert isinstance(circuit, CliffordIsometry)
-        return _apply_pauli_correction_to_clifford(circuit, n, target_kind, target)
+        return _apply_pauli_correction_to_clifford(circuit, n, target)
 
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
         if target_kind == TargetKind.CLIFFORD_UNITARY:

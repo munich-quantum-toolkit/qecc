@@ -29,6 +29,7 @@ def extract_clifford_gate_count_circuit(
     alpha_vars: list[z3.BitVecRef],
     beta_vars: list[z3.BitVecRef],
     k: int,
+    pivot_qubits: list[int] | None = None,
 ) -> CliffordIsometry:
     """Extract Clifford circuit from gate-count SAT model.
 
@@ -45,6 +46,8 @@ def extract_clifford_gate_count_circuit(
         alpha_vars: First qubit index variables.
         beta_vars: Second qubit index variables.
         k: Number of logical qubits.
+        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined from
+            the satisfying model; defaults to range(k, n) if not provided.
 
     Returns:
         Extracted CliffordIsometry circuit.
@@ -70,9 +73,9 @@ def extract_clifford_gate_count_circuit(
 
     stim_circuit = stim.Circuit()
 
-    m = n - k
-    if m > 0:
-        stim_circuit.append("R", list(range(k, n)))
+    init_qubits = pivot_qubits if pivot_qubits is not None else list(range(k, n))
+    if init_qubits:
+        stim_circuit.append("R", init_qubits)
 
     for gate in reversed(gates):
         if gate[0] == "H":
@@ -93,6 +96,7 @@ def extract_clifford_depth_circuit(
     s_vars: list[list[z3.BoolRef]],
     cx_vars: list[list[z3.BoolRef]],
     k: int,
+    pivot_qubits: list[int] | None = None,
 ) -> CliffordIsometry:
     """Extract Clifford circuit from depth SAT model.
 
@@ -107,6 +111,8 @@ def extract_clifford_depth_circuit(
         s_vars: S gate variables [layer][qubit].
         cx_vars: CNOT gate variables [layer][cx_idx].
         k: Number of logical qubits.
+        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined from
+            the satisfying model; defaults to range(k, n) if not provided.
 
     Returns:
         Extracted CliffordIsometry circuit.
@@ -139,9 +145,9 @@ def extract_clifford_depth_circuit(
 
     stim_circuit = stim.Circuit()
 
-    m = n - k
-    if m > 0:
-        stim_circuit.append("R", list(range(k, n)))
+    init_qubits = pivot_qubits if pivot_qubits is not None else list(range(k, n))
+    if init_qubits:
+        stim_circuit.append("R", init_qubits)
 
     for layer_gates in reversed(layers):
         for gate in layer_gates:

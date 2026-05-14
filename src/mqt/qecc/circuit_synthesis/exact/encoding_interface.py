@@ -90,6 +90,23 @@ class SynthesisEncoding(ABC):
         """
 
 
+def _compute_pivot_qubits(model: z3.ModelRef, n: int, k: int, bound: int) -> list[int]:
+    """Determine which qubits are pivot (stabilizer) qubits from the satisfying model.
+
+    Reads the final tableau Z variables and returns columns where any stabilizer
+    row has Z support — these are the qubits that need to be reset to |0⟩.
+    """
+    num_stab = n - k
+    pivot_qubits = []
+    for q in range(n):
+        for row in range(2 * k, 2 * k + num_stab):
+            z_var = z3.Bool(f"tz_{bound}_{row}_{q}")
+            if model.eval(z_var, model_completion=True):
+                pivot_qubits.append(q)
+                break
+    return pivot_qubits
+
+
 class CliffordGateCountEncoding(SynthesisEncoding):
     """Gate-count encoding for general Clifford isometry synthesis."""
 
@@ -140,6 +157,7 @@ class CliffordGateCountEncoding(SynthesisEncoding):
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
         """Extract a Clifford circuit from a gate-count model."""
+        pivot_qubits = _compute_pivot_qubits(model, self._n, self._k, self._bound) if self._k < self._n else None
         return extract_clifford_gate_count_circuit(
             model,
             self._n,
@@ -150,6 +168,7 @@ class CliffordGateCountEncoding(SynthesisEncoding):
             self._alpha_vars,
             self._beta_vars,
             self._k,
+            pivot_qubits=pivot_qubits,
         )
 
     def compute_actual_resources(self, model: z3.ModelRef) -> int:
@@ -210,6 +229,7 @@ class CliffordDepthEncoding(SynthesisEncoding):
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
         """Extract a Clifford circuit from a depth model."""
+        pivot_qubits = _compute_pivot_qubits(model, self._n, self._k, self._bound) if self._k < self._n else None
         return extract_clifford_depth_circuit(
             model,
             self._n,
@@ -218,6 +238,7 @@ class CliffordDepthEncoding(SynthesisEncoding):
             self._s_vars,
             self._cx_vars,
             self._k,
+            pivot_qubits=pivot_qubits,
         )
 
     def compute_actual_resources(self, model: z3.ModelRef) -> int:

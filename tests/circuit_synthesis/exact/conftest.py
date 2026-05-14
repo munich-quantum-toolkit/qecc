@@ -106,6 +106,15 @@ def swap_unitary() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTabl
 
 
 @pytest.fixture
+def clifford_isometry_422() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """CSS [[4,2,2]] code as a Clifford isometry target (n=4, k=2)."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XXXX", "ZZZZ"])
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXII", "XIXI"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["IZIZ", "IIZZ"])
+    return stabilizers, x_logicals, z_logicals
+
+
+@pytest.fixture
 def repetition_code_check_matrix() -> CheckMatrix:
     """3-qubit repetition code check matrix (2 X-type checks)."""
     hx = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
