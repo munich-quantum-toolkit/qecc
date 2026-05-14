@@ -43,10 +43,10 @@ class PureFaultSet:
     def kind(self) -> str:
         """Return the type of faults in the set ('X' or 'Z')."""
         return self._kind
-    
+
     @kind.setter
     def kind(self, value: str) -> None:
-        """Set the type of faults in the set ('X' or 'Z')."""        
+        """Set the type of faults in the set ('X' or 'Z')."""
         assert value.upper() in {"X", "Z"}, "Kind must be either 'X' or 'Z'."
         self._kind = value.upper()
 
@@ -137,7 +137,9 @@ class PureFaultSet:
             qubit_faults[ctrl].append(new_fault)
 
         # Create the fault set
-        fs = cls.from_fault_array(np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8), kind=kind)
+        fs = cls.from_fault_array(
+            np.array([fault for faults in qubit_faults for fault in faults], dtype=np.int8), kind=kind
+        )
         if not reduce:
             return fs
 
@@ -417,6 +419,7 @@ class PureFaultSet:
             return self
 
         return PureFaultSet.from_fault_array(updated_faults)
+
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
     """Compute the coset leader of a fault given a set of stabilizer generators."""
