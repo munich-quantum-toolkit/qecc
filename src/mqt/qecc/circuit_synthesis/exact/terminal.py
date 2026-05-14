@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import z3
 
 if TYPE_CHECKING:
@@ -20,8 +21,8 @@ if TYPE_CHECKING:
 def add_clifford_unitary_terminal(
     solver: z3.Solver,
     n: int,
-    tableau_x_final: npt.NDArray,
-    tableau_z_final: npt.NDArray,
+    tableau_x_final: npt.NDArray[np.object_],
+    tableau_z_final: npt.NDArray[np.object_],
     allow_permutation: bool = True,
 ) -> None:
     """Add terminal constraints for Clifford unitary synthesis.
@@ -55,8 +56,6 @@ def add_clifford_unitary_terminal(
     else:
         # Allow qubit permutation using selector variables
         # For each logical qubit i, select which physical qubit q carries it
-        import numpy as np
-
         selector = np.array([[z3.Bool(f"unitary_selector_{i}_{q}") for q in range(n)] for i in range(n)], dtype=object)
 
         # Each logical qubit selects exactly one physical qubit
@@ -104,8 +103,8 @@ def add_clifford_isometry_terminal(
     solver: z3.Solver,
     n: int,
     k: int,
-    tableau_x_final: npt.NDArray,
-    tableau_z_final: npt.NDArray,
+    tableau_x_final: npt.NDArray[np.object_],
+    tableau_z_final: npt.NDArray[np.object_],
     allow_permutation: bool = True,
 ) -> None:
     """Add terminal constraints for general Clifford isometry synthesis.
@@ -156,8 +155,6 @@ def add_clifford_isometry_terminal(
             solver.add(z3.Not(stab_x[row, q]))
 
     # 2. Introduce pivot variables for stabilizer Z columns
-    import numpy as np
-
     pivot = np.array([z3.Bool(f"pivot_{q}") for q in range(n)], dtype=object)
 
     for q in range(n):
@@ -197,7 +194,7 @@ def add_clifford_isometry_terminal(
                 z_canonical_x_part = [False for _ in range(n)]
                 z_canonical_z = [q == qp for qp in range(n)]
 
-                conditions = []
+                conditions: list[z3.BoolRef] = []
                 for qp in range(n):
                     conditions.extend((
                         logical_x_x[i, qp] == x_canonical[qp],
@@ -254,8 +251,8 @@ def add_clifford_isometry_terminal(
 def add_stabilizer_state_terminal(
     solver: z3.Solver,
     n: int,
-    tableau_x_final: npt.NDArray,
-    tableau_z_final: npt.NDArray,
+    tableau_x_final: npt.NDArray[np.object_],
+    _tableau_z_final: npt.NDArray[np.object_],
 ) -> None:
     """Add terminal constraints for stabilizer-state preparation.
 
@@ -265,7 +262,7 @@ def add_stabilizer_state_terminal(
         solver: Z3 solver instance.
         n: Number of qubits.
         tableau_x_final: Final X part of tableau (n x n array of z3.BoolRef).
-        tableau_z_final: Final Z part of tableau (n x n array of z3.BoolRef).
+        _tableau_z_final: Final Z part of tableau (unused for stabilizer state terminal).
     """
     # All stabilizer X entries must be zero
     for row in range(n):
@@ -278,7 +275,7 @@ def add_css_isometry_terminal(
     n: int,
     k: int,
     m_x: int,
-    matrix_final: npt.NDArray,
+    matrix_final: npt.NDArray[np.object_],
 ) -> None:
     """Add terminal constraints for CSS CNOT isometry synthesis.
 
@@ -299,8 +296,6 @@ def add_css_isometry_terminal(
     # Stabilizer rows: k to k + m_x - 1
 
     # 1. Introduce pivot variables for stabilizer columns
-    import numpy as np
-
     pivot = np.array([z3.Bool(f"css_pivot_{q}") for q in range(n)], dtype=object)
 
     for q in range(n):
@@ -328,7 +323,7 @@ def add_css_state_terminal(
     solver: z3.Solver,
     n: int,
     m_x: int,
-    matrix_final: npt.NDArray,
+    matrix_final: npt.NDArray[np.object_],
 ) -> None:
     """Add terminal constraints for CSS state preparation.
 
@@ -342,8 +337,6 @@ def add_css_state_terminal(
         matrix_final: Final CSS matrix (m_x x n array of z3.BoolRef).
     """
     # Introduce pivot variables
-    import numpy as np
-
     pivot = np.array([z3.Bool(f"css_state_pivot_{q}") for q in range(n)], dtype=object)
 
     for q in range(n):

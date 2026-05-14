@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
 from mqt.qecc.circuit_synthesis.exact.types import GateFamily, Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
@@ -158,8 +159,10 @@ def test_css_state_preparation(repetition_code_check_matrix: CheckMatrix) -> Non
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
+    assert result.gate_count is not None
     assert result.gate_count >= 1
     assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
     assert verify_css_state(result.circuit, repetition_code_check_matrix)
 
 
@@ -181,8 +184,10 @@ def test_css_isometry_synthesis(css_isometry_4q: tuple[CheckMatrix, CheckMatrix,
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
+    assert result.gate_count is not None
     assert result.gate_count >= 1
     assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
     assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
 
 
@@ -201,6 +206,7 @@ def test_css_state_depth(repetition_code_check_matrix: CheckMatrix) -> None:
     assert result.circuit is not None
     assert result.depth == 2
     assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
     assert verify_css_state(result.circuit, repetition_code_check_matrix)
 
 
@@ -224,6 +230,7 @@ def test_css_isometry_depth(css_isometry_4q: tuple[CheckMatrix, CheckMatrix, Che
     assert result.circuit is not None
     assert result.depth == 2
     assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
     assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
 
 
@@ -516,7 +523,7 @@ def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, Stabilize
     x_logicals = StabilizerTableau.from_pauli_strings(["XI", "IX"])
     z_logicals = StabilizerTableau.from_pauli_strings(["ZI"])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Expected.*logical"):
         synthesize_exact(
             target=stabilizers,
             target_kind=TargetKind.CLIFFORD_ISOMETRY,

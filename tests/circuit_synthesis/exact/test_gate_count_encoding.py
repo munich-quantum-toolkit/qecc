@@ -4,3 +4,5 @@
 # SPDX-License-Identifier: MIT
 #
 # Licensed under the MIT License
+
+"""Tests for gate-count encoding classes."""

@@ -14,16 +14,17 @@ from typing import TYPE_CHECKING
 import z3
 
 if TYPE_CHECKING:
+    import numpy as np
     import numpy.typing as npt
 
 
 def add_clifford_h_transition(
     solver: z3.Solver,
     qubit: int,
-    tableau_x_curr: npt.NDArray,
-    tableau_z_curr: npt.NDArray,
-    tableau_x_next: npt.NDArray,
-    tableau_z_next: npt.NDArray,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
 ) -> None:
     """Add H gate transition constraints for a single qubit.
 
@@ -51,10 +52,10 @@ def add_clifford_h_transition(
 def add_clifford_s_transition(
     solver: z3.Solver,
     qubit: int,
-    tableau_x_curr: npt.NDArray,
-    tableau_z_curr: npt.NDArray,
-    tableau_x_next: npt.NDArray,
-    tableau_z_next: npt.NDArray,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
 ) -> None:
     """Add S gate transition constraints for a single qubit.
 
@@ -83,10 +84,10 @@ def add_clifford_cx_transition(
     solver: z3.Solver,
     control: int,
     target: int,
-    tableau_x_curr: npt.NDArray,
-    tableau_z_curr: npt.NDArray,
-    tableau_x_next: npt.NDArray,
-    tableau_z_next: npt.NDArray,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
 ) -> None:
     """Add CX gate transition constraints for control and target qubits.
 
@@ -122,10 +123,10 @@ def add_clifford_cx_transition(
 def add_clifford_identity_transition(
     solver: z3.Solver,
     qubit: int,
-    tableau_x_curr: npt.NDArray,
-    tableau_z_curr: npt.NDArray,
-    tableau_x_next: npt.NDArray,
-    tableau_z_next: npt.NDArray,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
 ) -> None:
     """Add identity transition constraints for a single qubit.
 
@@ -149,10 +150,10 @@ def add_clifford_identity_transition(
 def add_full_tableau_identity(
     solver: z3.Solver,
     n: int,
-    tableau_x_curr: npt.NDArray,
-    tableau_z_curr: npt.NDArray,
-    tableau_x_next: npt.NDArray,
-    tableau_z_next: npt.NDArray,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
 ) -> None:
     """Add identity transition constraints for all qubits.
 
@@ -179,8 +180,8 @@ def add_css_cnot_transition(
     solver: z3.Solver,
     control: int,
     target: int,
-    matrix_curr: npt.NDArray,
-    matrix_next: npt.NDArray,
+    matrix_curr: npt.NDArray[np.object_],
+    matrix_next: npt.NDArray[np.object_],
 ) -> None:
     """Add CSS CNOT transition constraints for control and target qubits.
 
@@ -208,8 +209,8 @@ def add_css_cnot_transition(
 def add_css_identity_transition(
     solver: z3.Solver,
     qubit: int,
-    matrix_curr: npt.NDArray,
-    matrix_next: npt.NDArray,
+    matrix_curr: npt.NDArray[np.object_],
+    matrix_next: npt.NDArray[np.object_],
 ) -> None:
     """Add CSS identity transition constraints for a single qubit.
 
@@ -230,8 +231,8 @@ def add_css_identity_transition(
 def add_css_full_identity(
     solver: z3.Solver,
     n: int,
-    matrix_curr: npt.NDArray,
-    matrix_next: npt.NDArray,
+    matrix_curr: npt.NDArray[np.object_],
+    matrix_next: npt.NDArray[np.object_],
 ) -> None:
     """Add CSS identity transition constraints for all qubits.
 

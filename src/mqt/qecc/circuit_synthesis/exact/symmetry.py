@@ -24,10 +24,10 @@ def add_clifford_depth_symmetry_breaking(
     """Add symmetry-breaking constraints for Clifford depth encoding.
 
     Constraints:
-    - Adjacent H cancellation: h_i^(ℓ) => not h_i^(ℓ+1)
-    - Adjacent identical CNOT cancellation: cx_{i,j}^(ℓ) => not cx_{i,j}^(ℓ+1)
-    - Left alignment: if id_i^(ℓ), then no single-qubit gate on i in ℓ+1
-    - Left alignment: if id_i^(ℓ) and id_j^(ℓ), then no CNOT between i,j in ℓ+1
+    - Adjacent H cancellation: h_i^(l) => not h_i^(l+1)
+    - Adjacent identical CNOT cancellation: cx_{i,j}^(l) => not cx_{i,j}^(l+1)
+    - Left alignment: if id_i^(l), then no single-qubit gate on i in l+1
+    - Left alignment: if id_i^(l) and id_j^(l), then no CNOT between i,j in l+1
 
     Args:
         solver: Z3 solver instance.
@@ -78,7 +78,7 @@ def add_clifford_gate_count_symmetry_breaking(
     solver: z3.Solver,
     max_gates: int,
     h_vars: list[z3.BoolRef],
-    s_vars: list[z3.BoolRef],
+    _s_vars: list[z3.BoolRef],
     c_vars: list[z3.BoolRef],
     alpha_vars: list[z3.BitVecRef],
     beta_vars: list[z3.BitVecRef],
@@ -86,8 +86,8 @@ def add_clifford_gate_count_symmetry_breaking(
     """Add symmetry-breaking constraints for Clifford gate-count encoding.
 
     Constraints:
-    - Adjacent H cancellation: not (h^(ℓ) and h^(ℓ+1) and alpha^(ℓ) = alpha^(ℓ+1))
-    - Adjacent identical CNOT cancellation: similar for c^(ℓ)
+    - Adjacent H cancellation: not (h^(l) and h^(l+1) and alpha^(l) = alpha^(l+1))
+    - Adjacent identical CNOT cancellation: similar for c^(l)
 
     Args:
         solver: Z3 solver instance.

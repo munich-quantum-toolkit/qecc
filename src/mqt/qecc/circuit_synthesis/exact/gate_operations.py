@@ -10,11 +10,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import z3
 
 if TYPE_CHECKING:
+    import numpy as np
     import numpy.typing as npt
 
 
@@ -25,10 +26,10 @@ class SymbolicGateOperation(ABC):
     def add_clifford_tableau_transition(
         self,
         solver: z3.Solver,
-        tableau_x_curr: npt.NDArray,
-        tableau_z_curr: npt.NDArray,
-        tableau_x_next: npt.NDArray,
-        tableau_z_next: npt.NDArray,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
     ) -> None:
         """Add constraints for this gate's effect on a Clifford tableau.
 
@@ -44,8 +45,8 @@ class SymbolicGateOperation(ABC):
     def add_css_matrix_transition(
         self,
         solver: z3.Solver,
-        matrix_curr: npt.NDArray,
-        matrix_next: npt.NDArray,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
     ) -> None:
         """Add constraints for this gate's effect on a CSS check matrix.
 
@@ -94,10 +95,10 @@ class HGate(SymbolicGateOperation):
     def add_clifford_tableau_transition(
         self,
         solver: z3.Solver,
-        tableau_x_curr: npt.NDArray,
-        tableau_z_curr: npt.NDArray,
-        tableau_x_next: npt.NDArray,
-        tableau_z_next: npt.NDArray,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
     ) -> None:
         """H gate: swap X and Z columns."""
         num_rows = tableau_x_curr.shape[0]
@@ -110,8 +111,8 @@ class HGate(SymbolicGateOperation):
     def add_css_matrix_transition(
         self,
         solver: z3.Solver,
-        matrix_curr: npt.NDArray,
-        matrix_next: npt.NDArray,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
     ) -> None:
         """H gate not applicable to CSS encoding (requires full Clifford)."""
         msg = "H gate cannot be applied in CSS CNOT-only encoding"
@@ -144,10 +145,10 @@ class SGate(SymbolicGateOperation):
     def add_clifford_tableau_transition(
         self,
         solver: z3.Solver,
-        tableau_x_curr: npt.NDArray,
-        tableau_z_curr: npt.NDArray,
-        tableau_x_next: npt.NDArray,
-        tableau_z_next: npt.NDArray,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
     ) -> None:
         """S gate: Z <- Z ⊕ X."""
         num_rows = tableau_x_curr.shape[0]
@@ -160,8 +161,8 @@ class SGate(SymbolicGateOperation):
     def add_css_matrix_transition(
         self,
         solver: z3.Solver,
-        matrix_curr: npt.NDArray,
-        matrix_next: npt.NDArray,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
     ) -> None:
         """S gate not applicable to CSS encoding."""
         msg = "S gate cannot be applied in CSS CNOT-only encoding"
@@ -196,10 +197,10 @@ class CNOTGate(SymbolicGateOperation):
     def add_clifford_tableau_transition(
         self,
         solver: z3.Solver,
-        tableau_x_curr: npt.NDArray,
-        tableau_z_curr: npt.NDArray,
-        tableau_x_next: npt.NDArray,
-        tableau_z_next: npt.NDArray,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
     ) -> None:
         """CNOT gate: X[:,t] <- X[:,t] ⊕ X[:,c], Z[:,c] <- Z[:,c] ⊕ Z[:,t]."""
         num_rows = tableau_x_curr.shape[0]
@@ -215,8 +216,8 @@ class CNOTGate(SymbolicGateOperation):
     def add_css_matrix_transition(
         self,
         solver: z3.Solver,
-        matrix_curr: npt.NDArray,
-        matrix_next: npt.NDArray,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
     ) -> None:
         """CNOT gate for CSS: M[:,t] <- M[:,t] ⊕ M[:,c]."""
         num_rows = matrix_curr.shape[0]
@@ -254,10 +255,10 @@ class IdentityGate(SymbolicGateOperation):
     def add_clifford_tableau_transition(
         self,
         solver: z3.Solver,
-        tableau_x_curr: npt.NDArray,
-        tableau_z_curr: npt.NDArray,
-        tableau_x_next: npt.NDArray,
-        tableau_z_next: npt.NDArray,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
     ) -> None:
         """Identity: no change."""
         num_rows = tableau_x_curr.shape[0]
@@ -270,8 +271,8 @@ class IdentityGate(SymbolicGateOperation):
     def add_css_matrix_transition(
         self,
         solver: z3.Solver,
-        matrix_curr: npt.NDArray,
-        matrix_next: npt.NDArray,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
     ) -> None:
         """Identity: no change."""
         num_rows = matrix_curr.shape[0]
@@ -335,7 +336,7 @@ class GateRegistry:
         """
         return self._css_gates.copy()
 
-    def create_gate(self, name: str, *args: Any, for_css: bool = False) -> SymbolicGateOperation:
+    def create_gate(self, name: str, *args: int, for_css: bool = False) -> SymbolicGateOperation:
         """Create a gate instance.
 
         Args:

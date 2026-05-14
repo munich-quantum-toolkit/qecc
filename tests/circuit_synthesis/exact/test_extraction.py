@@ -21,7 +21,9 @@ from mqt.qecc.circuit_synthesis.exact.extraction import (
 
 
 @pytest.fixture
-def simple_gate_count_model() -> tuple[z3.ModelRef, list, list, list, list, list]:
+def simple_gate_count_model() -> tuple[
+    z3.ModelRef, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]
+]:
     """Create a simple SAT model for gate-count extraction."""
     solver = z3.Solver()
 
@@ -79,7 +81,11 @@ def test_extract_single_h_gate() -> None:
     assert gate_found
 
 
-def test_extract_h_then_cnot(simple_gate_count_model: tuple) -> None:
+def test_extract_h_then_cnot(
+    simple_gate_count_model: tuple[
+        z3.ModelRef, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]
+    ],
+) -> None:
     """Test extraction of H followed by CNOT."""
     model, h_vars, s_vars, c_vars, alpha_vars, beta_vars = simple_gate_count_model
 
@@ -94,11 +100,11 @@ def test_extract_empty_circuit() -> None:
     """Test extraction with no gates."""
     solver = z3.Solver()
 
-    h_vars = []
-    s_vars = []
-    c_vars = []
-    alpha_vars = []
-    beta_vars = []
+    h_vars: list[z3.BoolRef] = []
+    s_vars: list[z3.BoolRef] = []
+    c_vars: list[z3.BoolRef] = []
+    alpha_vars: list[z3.BitVecRef] = []
+    beta_vars: list[z3.BitVecRef] = []
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -179,7 +185,7 @@ def test_extract_cnot_depth_circuit() -> None:
     assert solver.check() == z3.sat
     model = solver.model()
 
-    init_x = []
+    init_x: list[int] = []
     init_z = [0, 1, 2]
 
     circuit = extract_cnot_depth_circuit(model, n, depth, cx_vars, init_x, init_z)

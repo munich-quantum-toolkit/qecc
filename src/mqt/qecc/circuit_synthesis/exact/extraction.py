@@ -49,7 +49,7 @@ def extract_clifford_gate_count_circuit(
     Returns:
         Extracted CliffordIsometry circuit.
     """
-    gates = []
+    gates: list[tuple[str, int, int]] = []
     for slot in range(max_gates):
         h = model.eval(h_vars[slot], model_completion=True)
         s = model.eval(s_vars[slot], model_completion=True)
@@ -61,9 +61,9 @@ def extract_clifford_gate_count_circuit(
         alpha = model.eval(alpha_vars[slot], model_completion=True).as_long()
 
         if h:
-            gates.append(("H", alpha))
+            gates.append(("H", alpha, 0))
         elif s:
-            gates.append(("S", alpha))
+            gates.append(("S", alpha, 0))
         elif c:
             beta = model.eval(beta_vars[slot], model_completion=True).as_long()
             gates.append(("CX", alpha, beta))
@@ -111,18 +111,18 @@ def extract_clifford_depth_circuit(
     Returns:
         Extracted CliffordIsometry circuit.
     """
-    layers = []
+    layers: list[list[tuple[str, int, int]]] = []
     for layer in range(max_depth):
-        layer_gates = []
+        layer_gates: list[tuple[str, int, int]] = []
 
         for q in range(n):
             h = model.eval(h_vars[layer][q], model_completion=True)
             s = model.eval(s_vars[layer][q], model_completion=True)
 
             if h:
-                layer_gates.append(("H", q))
+                layer_gates.append(("H", q, 0))
             elif s:
-                layer_gates.append(("S", q))
+                layer_gates.append(("S", q, 0))
 
         cx_idx = 0
         for ctrl in range(n):

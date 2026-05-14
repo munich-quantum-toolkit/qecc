@@ -112,7 +112,6 @@ def encode_clifford_depth(
 
         for q in range(n):
             for row in range(num_rows):
-                gate_set["H"](q)
                 h_effect = z3.If(
                     h_vars[layer][q],
                     z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
@@ -120,7 +119,6 @@ def encode_clifford_depth(
                 )
                 solver.add(h_effect)
 
-                gate_set["S"](q)
                 s_effect = z3.If(
                     s_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q])),
@@ -128,7 +126,6 @@ def encode_clifford_depth(
                 )
                 solver.add(s_effect)
 
-                gate_set["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
@@ -141,8 +138,6 @@ def encode_clifford_depth(
             for tgt in range(n):
                 if ctrl == tgt:
                     continue
-
-                gate_set["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(
@@ -242,7 +237,6 @@ def encode_css_depth(
 
         for q in range(n):
             for row in range(num_rows):
-                gate_set["ID"](q)
                 id_effect = z3.If(
                     id_vars[layer][q],
                     next_m[row, q] == curr[row, q],
@@ -255,8 +249,6 @@ def encode_css_depth(
             for tgt in range(n):
                 if ctrl == tgt:
                     continue
-
-                gate_set["CX"](ctrl, tgt)
 
                 for row in range(num_rows):
                     cx_effect = z3.If(

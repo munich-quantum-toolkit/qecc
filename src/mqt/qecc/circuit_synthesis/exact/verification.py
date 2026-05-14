@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...codes import StabilizerCode
+from ...codes.pauli import CheckMatrix, Pauli, StabilizerTableau
+
 if TYPE_CHECKING:
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
     from ..circuits import CliffordIsometry, CNOTCircuit
 
 
@@ -26,8 +28,6 @@ def verify_clifford_unitary(circuit: CliffordIsometry, target: StabilizerTableau
     Returns:
         True if circuit matches target.
     """
-    from ...codes.pauli import StabilizerTableau
-
     actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
 
     if actual.n != target.n or actual.n_rows != target.n_rows:
@@ -46,8 +46,6 @@ def verify_stabilizer_state(circuit: CliffordIsometry, stabilizers: StabilizerTa
     Returns:
         True if circuit prepares target state.
     """
-    from ...codes import StabilizerCode
-
     if not circuit.is_state():
         return False
 
@@ -72,8 +70,6 @@ def verify_clifford_isometry(
     Returns:
         True if circuit implements target isometry.
     """
-    from ...codes import StabilizerCode
-
     if circuit.num_inputs() != k:
         return False
 
@@ -82,8 +78,6 @@ def verify_clifford_isometry(
 
     if num_rows != expected_rows:
         return False
-
-    from ...codes.pauli import StabilizerTableau
 
     x_logicals = StabilizerTableau(target.tableau.matrix[:k, :], target.phase[:k])
     z_logicals = StabilizerTableau(target.tableau.matrix[k : 2 * k, :], target.phase[k : 2 * k])
@@ -105,20 +99,11 @@ def verify_css_state(circuit: CNOTCircuit, checks: CheckMatrix) -> bool:
     Returns:
         True if circuit prepares target CSS state.
     """
-    from ...codes import CSSCode
-
     if not circuit.is_state():
         return False
 
     circuit_code = circuit.get_code()
-
-    if not isinstance(circuit_code, CSSCode):
-        return False
-
     h_circ = circuit_code.Hx if checks.is_x_type() else circuit_code.Hz
-
-    if h_circ is None:
-        return False
 
     return checks.equ_span(h_circ)
 
@@ -140,9 +125,6 @@ def verify_css_isometry(
     Returns:
         True if circuit implements target CSS isometry.
     """
-    from ...codes import CSSCode
-    from ...codes.pauli import CheckMatrix, Pauli
-
     if circuit.num_inputs() != k:
         return False
 
@@ -151,14 +133,7 @@ def verify_css_isometry(
         raise ValueError(msg)
 
     circuit_code = circuit.get_code()
-
-    if not isinstance(circuit_code, CSSCode):
-        return False
-
     h_circ = circuit_code.Hx if checks.is_x_type() else circuit_code.Hz
-
-    if h_circ is None:
-        return False
 
     if not checks.equ_span(h_circ):
         return False

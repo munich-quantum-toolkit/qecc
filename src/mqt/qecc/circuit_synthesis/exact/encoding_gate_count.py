@@ -28,7 +28,7 @@ def encode_clifford_gate_count(
     max_gates: int,
     allow_qubit_permutation: bool = True,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
-) -> tuple[z3.Solver, list, list, list, list, list]:
+) -> tuple[z3.Solver, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]]:
     """Encode Clifford isometry synthesis with gate-count optimization.
 
     Uses the provided gate set to dynamically support registered Clifford gates.
@@ -97,14 +97,12 @@ def encode_clifford_gate_count(
         next_z = tableau_z[slot + 1]
 
         for i in range(n):
-            gate_set["H"](i)
             h_condition = z3.And(h_vars[slot], alpha_vars[slot] == i)
 
             for row in range(num_rows):
                 solver.add(z3.Implies(h_condition, next_x[row, i] == curr_z[row, i]))
                 solver.add(z3.Implies(h_condition, next_z[row, i] == curr_x[row, i]))
 
-            gate_set["S"](i)
             s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
 
             for row in range(num_rows):
@@ -115,7 +113,6 @@ def encode_clifford_gate_count(
                 if i == j:
                     continue
 
-                gate_set["CX"](i, j)
                 cx_condition = z3.And(c_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):
@@ -168,7 +165,7 @@ def encode_css_gate_count(
     m_x: int,
     max_gates: int,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
-) -> tuple[z3.Solver, list, list]:
+) -> tuple[z3.Solver, list[z3.BitVecRef], list[z3.BitVecRef]]:
     """Encode CSS CNOT isometry synthesis with gate-count optimization.
 
     Uses the provided gate set to dynamically support registered CSS gates.
@@ -224,7 +221,6 @@ def encode_css_gate_count(
                 if i == j:
                     continue
 
-                gate_set["CX"](i, j)
                 cx_condition = z3.And(alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):

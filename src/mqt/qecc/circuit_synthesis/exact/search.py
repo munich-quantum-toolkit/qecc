@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
@@ -107,6 +107,7 @@ def synthesize_exact(
     )
 
     if gate_family == GateFamily.CLIFFORD:
+        assert isinstance(target, StabilizerTableau)
         return _synthesize_clifford(
             target,
             target_kind,
@@ -120,6 +121,7 @@ def synthesize_exact(
             allow_qubit_permutation,
             gate_set,
         )
+    assert isinstance(target, CheckMatrix)
     return _synthesize_css(
         target,
         target_kind,
@@ -138,7 +140,7 @@ def _validate_synthesis_parameters(
     target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
     gate_family: GateFamily,
-    objective: Objective,
+    _objective: Objective,
     lower_bound: int,
     upper_bound: int,
     k: int | None,
@@ -198,49 +200,43 @@ def _validate_synthesis_parameters(
 def _search_with_encoding(
     encoding: SynthesisEncoding,
     target: StabilizerTableau | CheckMatrix,
-    target_kind: TargetKind,
     lower_bound: int,
     upper_bound: int,
     k: int,
     verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
     is_depth: bool,
-    gate_set: dict[str, type[SymbolicGateOperation]],
-    **encoding_options: dict,
+    verify: bool,
 ) -> SynthesisResult:
     """Generic search loop using an encoding.
 
     Args:
         encoding: Encoding strategy to use.
         target: Combined target (tableau or check matrix).
-        target_kind: Kind of synthesis problem.
         lower_bound: Lower bound on resources.
         upper_bound: Upper bound on resources.
         k: Number of logical qubits.
         verify_fn: Verification function to call.
         is_depth: Whether optimizing depth (vs gate count).
-        gate_set: Gate set to use for synthesis.
-        **encoding_options: Additional options for encoding.
+        verify: Whether to verify the synthesized circuit.
 
     Returns:
         SynthesisResult.
     """
-    n = target.n if isinstance(target, StabilizerTableau) else target.num_qubits()
+    gate_set = encoding.gate_set
 
     for bound in range(lower_bound, upper_bound + 1):
-        solver, variables = encoding.encode(target, k, bound, gate_set=gate_set, **encoding_options)
+        solver = encoding.encode(target, k, bound)
 
         result = solver.check()
 
         if result == z3.sat:
             model = solver.model()
 
-            circuit = encoding.extract_circuit(model, n, bound, variables, k)
+            circuit = encoding.extract_circuit(model)
 
-            actual_resources = encoding.compute_actual_resources(model, bound, variables, n)
+            actual_resources = encoding.compute_actual_resources(model)
 
-            verified = False
-            if encoding_options.get("verify"):
-                verified = verify_fn(circuit)
+            verified = verify and verify_fn(circuit)
 
             resource_key = "depth" if is_depth else "gate_count"
             resource_name = "depth" if is_depth else "gates"
@@ -300,7 +296,12 @@ def _prepare_clifford_target(
         msg = "x_logicals and z_logicals must be StabilizerTableau for Clifford synthesis"
         raise ValueError(msg)
 
-    target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
+    target = _combine_stabilizers_and_logicals(
+        stabilizers,
+        k,
+        cast("StabilizerTableau | None", x_logicals),
+        cast("StabilizerTableau | None", z_logicals),
+    )
     return target, k
 
 
@@ -388,7 +389,7 @@ def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
     if n == 0:
         return circuit
 
-    used_qubits = set()
+    used_qubits: set[int] = set()
     for instruction in circuit:
         for target_group in instruction.target_groups():
             used_qubits.update(target.qubit_value for target in target_group)
@@ -485,15 +486,13 @@ def _synthesize_clifford(
     n = target.n
 
     if objective == Objective.GATE_COUNT:
-        encoding = CliffordGateCountEncoding()
+        encoding: SynthesisEncoding = CliffordGateCountEncoding(gate_set, allow_qubit_permutation)
         is_depth = False
     else:
-        encoding = CliffordDepthEncoding()
+        encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation)
         is_depth = True
 
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
-        if not isinstance(circuit, CliffordIsometry):
-            return False
         corrected = _apply_pauli_correction_to_clifford(circuit, n, target_kind, target)
         if target_kind == TargetKind.CLIFFORD_UNITARY:
             return verify_clifford_unitary(corrected, target)
@@ -504,15 +503,12 @@ def _synthesize_clifford(
     result = _search_with_encoding(
         encoding,
         target,
-        target_kind,
         lower_bound,
         upper_bound,
         k,
         verify_fn,
         is_depth,
-        gate_set,
-        allow_qubit_permutation=allow_qubit_permutation,
-        verify=verify,
+        verify,
     )
 
     if result.circuit is not None and isinstance(result.circuit, CliffordIsometry):
@@ -584,10 +580,10 @@ def _synthesize_css(
     target, m_x = _prepare_css_target(checks, k, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
-        encoding = CSSGateCountEncoding()
+        encoding: SynthesisEncoding = CSSGateCountEncoding(gate_set, m_x)
         is_depth = False
     else:
-        encoding = CSSDepthEncoding()
+        encoding = CSSDepthEncoding(gate_set, m_x)
         is_depth = True
 
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
@@ -600,13 +596,10 @@ def _synthesize_css(
     return _search_with_encoding(
         encoding,
         target,
-        target_kind,
         lower_bound,
         upper_bound,
         k,
         verify_fn,
         is_depth,
-        gate_set,
-        m_x=m_x,
-        verify=verify,
+        verify,
     )
