@@ -418,7 +418,7 @@ class PureFaultSet:
             self.faults = updated_faults
             return self
 
-        return PureFaultSet.from_fault_array(updated_faults)
+        return PureFaultSet.from_fault_array(updated_faults, kind = self.kind)
 
 
 def coset_leader(fault: npt.NDArray[np.int8], generators: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
