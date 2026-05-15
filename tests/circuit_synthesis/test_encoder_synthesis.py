@@ -9,19 +9,11 @@
 
 from __future__ import annotations
 
-import os
-import sys
-
 import numpy as np
 import pytest
 import stim
 
-from mqt.qecc.circuit_synthesis import (
-    depth_optimal_encoding_circuit,
-    depth_optimal_encoding_circuit_non_css,
-    gate_optimal_encoding_circuit,
-    gottesman_encoding_circuit,
-)
+from mqt.qecc.circuit_synthesis import gottesman_encoding_circuit
 from mqt.qecc.circuit_synthesis.circuit_utils import num_two_qubit_gates
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import (
@@ -158,34 +150,6 @@ def test_css_encoding_non_css_consistent(
     assert encoder.get_code().is_equivalent(code)
 
 
-@pytest.mark.skipif(
-    os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
-    reason="Too slow for CI on Windows or MacOS",
-)
-@pytest.mark.parametrize("code", ["css_4_2_2_code"])
-def test_gate_optimal_encoding_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
-    """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
-    code = request.getfixturevalue(code)
-
-    encoder = gate_optimal_encoding_circuit(code, max_timeout=1, min_gates=3, max_gates=10)
-    assert encoder is not None
-    assert encoder.get_code().is_equivalent(code)
-
-
-@pytest.mark.skipif(
-    os.getenv("CI") is not None and (sys.platform == "win32" or sys.platform == "darwin"),
-    reason="Too slow for CI on Windows or MacOS",
-)
-@pytest.mark.parametrize("code", ["css_4_2_2_code"])
-def test_depth_optimal_encoding_consistent(code: CSSCode, request) -> None:  # type: ignore[no-untyped-def]
-    """Check that `gate_optimal_encoding_circuit` returns a valid circuit with the correct stabilizers."""
-    code = request.getfixturevalue(code)
-
-    encoder = depth_optimal_encoding_circuit(code, max_timeout=5)
-    assert encoder is not None
-    assert encoder.get_code().is_equivalent(code)
-
-
 @pytest.mark.parametrize("code", ["non_css_5_qubit", "non_css_8_qubit", "steane_code"])
 def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
     """Check that `gottesman_encoding_circuit` returns a valid circuit with the correct stabilizers."""
@@ -205,29 +169,6 @@ def test_gottesman_encoding_invalid() -> None:
 
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
         gottesman_encoding_circuit(["X", "Z"])
-
-
-@pytest.mark.parametrize("code_fixture", ["non_css_5_qubit"])
-def test_depth_optimal_encoding_non_css_consistent(code_fixture: str, request) -> None:  # type: ignore[no-untyped-def]
-    """Check that `depth_optimal_encoding_circuit_non_css` returns a valid circuit with the correct stabilizers."""
-    code = request.getfixturevalue(code_fixture)
-    result = depth_optimal_encoding_circuit_non_css(code, max_depth=8)
-    assert result != "UNSAT"
-    assert not isinstance(result, str)
-    encoder = result
-    assert encoder.to_stim_circuit().num_qubits == code.n
-
-    circuit_code = encoder.get_code()
-    assert circuit_code.equal_stabilizer_group(code)
-
-
-@pytest.mark.parametrize("code", ["non_css_5_qubit"])
-def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request) -> None:  # type: ignore[no-untyped-def]
-    """Check edge cases for `depth_optimal_encoding_circuit_non_css`."""
-    code = request.getfixturevalue(code)
-
-    result = depth_optimal_encoding_circuit_non_css(code, max_depth=1)
-    assert result == "UNSAT"
 
 
 @pytest.mark.parametrize(

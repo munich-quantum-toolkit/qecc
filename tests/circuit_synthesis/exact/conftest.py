@@ -128,3 +128,27 @@ def css_isometry_4q() -> tuple[CheckMatrix, CheckMatrix, CheckMatrix]:
     x_logicals = CheckMatrix(np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=np.int8), "X")
     z_logicals = CheckMatrix(np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.int8), "Z")
     return checks, x_logicals, z_logicals
+
+
+@pytest.fixture
+def repetition_code_z_check_matrix() -> CheckMatrix:
+    """3-qubit repetition code check matrix (2 Z-type checks)."""
+    hz = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
+    return CheckMatrix(hz, pauli_type="Z")
+
+
+@pytest.fixture
+def css_isometry_4q_z_type() -> tuple[CheckMatrix, CheckMatrix]:
+    """4-qubit Z-type CSS isometry ([[4,2,2]] code) with 1 check and 2 logical qubits."""
+    checks = CheckMatrix(np.array([[1, 1, 1, 1]], dtype=np.int8), "Z")
+    z_logicals = CheckMatrix(np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.int8), "Z")
+    return checks, z_logicals
+
+
+@pytest.fixture
+def five_qubit_code() -> tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]:
+    """[[5,1,3]] non-CSS perfect code as Clifford isometry target."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"])
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXXXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZZZZZ"])
+    return stabilizers, x_logicals, z_logicals

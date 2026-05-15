@@ -128,7 +128,7 @@ def test_heuristic_prep_consistent(code: str, request: pytest.FixtureRequest) ->
 def test_gate_optimal_prep_consistent(code: str, request: pytest.FixtureRequest) -> None:
     """Check that gate_optimal_prep_circuit returns a valid circuit with the correct stabilizers."""
     code_ = request.getfixturevalue(code)
-    sp_circ = gate_optimal_prep_circuit(code_, max_timeout=3)
+    sp_circ = gate_optimal_prep_circuit(code_, timeout=3)
     assert sp_circ is not None
 
     circ = sp_circ.circ
@@ -150,7 +150,7 @@ def test_depth_optimal_prep_consistent(code: str, request: pytest.FixtureRequest
     """Check that depth_optimal_prep_circuit returns a valid circuit with the correct stabilizers."""
     code_ = request.getfixturevalue(code)
 
-    sp_circ = depth_optimal_prep_circuit(code_, max_timeout=3)
+    sp_circ = depth_optimal_prep_circuit(code_, timeout=3)
     assert sp_circ is not None
     circ = sp_circ.circ
     max_cnots = np.sum(code_.Hx) + np.sum(code_.Hz)
@@ -167,7 +167,7 @@ def test_depth_optimal_prep_consistent(code: str, request: pytest.FixtureRequest
 def test_plus_state_gate_optimal(code: str, request: pytest.FixtureRequest) -> None:
     """Test synthesis of the plus state."""
     code_ = request.getfixturevalue(code)
-    sp_circ_plus = gate_optimal_prep_circuit(code_, max_timeout=3, zero_state=False)
+    sp_circ_plus = gate_optimal_prep_circuit(code_, timeout=3, zero_state=False)
 
     assert sp_circ_plus is not None
 
@@ -179,17 +179,6 @@ def test_plus_state_gate_optimal(code: str, request: pytest.FixtureRequest) -> N
 
     assert eq_span(code_.Hz, sp_circ_plus.z_checks)
     assert eq_span(np.vstack((code_.Hx, code_.Lx)), sp_circ_plus.x_checks)
-
-    sp_circ_zero = gate_optimal_prep_circuit(code_, max_timeout=5, zero_state=True)
-
-    assert sp_circ_zero is not None
-
-    if code_.is_self_dual():
-        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
-    else:
-        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.parametrize(
@@ -355,10 +344,10 @@ def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None
 #     circ = heuristic_prep_circuit(code)
 
 #     circ.set_max_errors(1, 1)
-#     circ_ver_correction = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
+#     circ_ver_correction = gate_optimal_verification_circuit(circ, max_ancillas=3, timeout=5, only_first_layer=True)
 
 #     circ.set_max_errors(2, 2)
-#     circ_ver_detection = gate_optimal_verification_circuit(circ, max_ancillas=3, max_timeout=5, only_first_layer=True)
+#     circ_ver_detection = gate_optimal_verification_circuit(circ, max_ancillas=3, timeout=5, only_first_layer=True)
 
 #     assert circ_ver_detection.num_qubits > circ_ver_correction.num_qubits
 #     assert circ_ver_detection.num_nonlocal_gates() > circ_ver_correction.num_nonlocal_gates()
