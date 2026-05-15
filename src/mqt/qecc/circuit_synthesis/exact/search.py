@@ -233,13 +233,20 @@ def _search_with_encoding(
 
             verified = verify and verify_fn(circuit)
 
-            resource_key = "depth" if is_depth else "gate_count"
+            if is_depth:
+                opt_depth = actual_resources
+                opt_gate_count = _circuit_gate_count(circuit)
+            else:
+                opt_gate_count = actual_resources
+                opt_depth = _circuit_depth(circuit)
+
             resource_name = "depth" if is_depth else "gates"
 
             return SynthesisResult(
                 status=SynthesisStatus.SUCCESS,
                 circuit=circuit,
-                **{resource_key: actual_resources},
+                gate_count=opt_gate_count,
+                depth=opt_depth,
                 verified=verified,
                 message=f"Found solution with {actual_resources} {resource_name}",
                 gate_set=gate_set,
@@ -363,6 +370,24 @@ def _apply_pauli_correction_to_clifford(
         corrected_circuit.initialize_qubit(q, basis="Z")
 
     return corrected_circuit
+
+
+def _circuit_gate_count(circuit: CliffordIsometry | CNOTCircuit) -> int:
+    """Count the total number of non-identity gates in a synthesized circuit."""
+    if isinstance(circuit, CNOTCircuit):
+        return circuit.num_cnots()
+    count = 0
+    for inst in circuit.to_stim_circuit():
+        if inst.name in {"H", "S", "S_DAG"}:
+            count += len(inst.targets_copy())
+        elif inst.name == "CX":
+            count += len(inst.targets_copy()) // 2
+    return count
+
+
+def _circuit_depth(circuit: CliffordIsometry | CNOTCircuit) -> int:
+    """Return the two-qubit-gate depth of a synthesized circuit."""
+    return circuit.depth()
 
 
 def _gf2_rref_track(mat: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
