@@ -11,29 +11,67 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from ...codes import StabilizerCode
 from ...codes.pauli import CheckMatrix, Pauli, StabilizerTableau
 
 if TYPE_CHECKING:
+    import numpy.typing as npt
+
     from ..circuits import CliffordIsometry, CNOTCircuit
 
 
 def verify_clifford_unitary(circuit: CliffordIsometry, target: StabilizerTableau) -> bool:
-    """Verify that circuit implements the target Clifford unitary.
+    """Verify that circuit implements the target Clifford unitary up to input-qubit permutation.
+
+    The SAT encoding with allow_qubit_permutation=True finds circuits that implement
+    the target Clifford composed with some input-qubit permutation.  A permuted
+    implementation is still valid (relabelling input wires costs no gates), so we
+    check whether there exists a consistent permutation that maps actual rows to
+    target rows with matching phases.
 
     Args:
         circuit: Synthesized circuit.
-        target: Target Clifford unitary tableau.
+        target: Target Clifford unitary tableau (2n rows: n X-images then n Z-images).
 
     Returns:
-        True if circuit matches target.
+        True if circuit implements the target Clifford up to input-qubit permutation.
     """
     actual = StabilizerTableau.from_stim_circuit(circuit.to_stim_circuit(with_resets=False))
 
     if actual.n != target.n or actual.n_rows != target.n_rows:
         return False
 
-    return actual == target
+    n = actual.n
+    if actual.n_rows != 2 * n:
+        return actual == target
+
+    act_x: npt.NDArray[np.int8] = actual.tableau.matrix[:n]
+    act_z: npt.NDArray[np.int8] = actual.tableau.matrix[n:]
+    act_xp: npt.NDArray[np.int8] = actual.phase[:n]
+    act_zp: npt.NDArray[np.int8] = actual.phase[n:]
+
+    tgt_x: npt.NDArray[np.int8] = target.tableau.matrix[:n]
+    tgt_z: npt.NDArray[np.int8] = target.tableau.matrix[n:]
+    tgt_xp: npt.NDArray[np.int8] = target.phase[:n]
+    tgt_zp: npt.NDArray[np.int8] = target.phase[n:]
+
+    # Find permutation π such that actual.X[q] == target.X[π(q)] for each q.
+    perm: dict[int, int] = {}
+    for q in range(n):
+        for r in range(n):
+            if np.array_equal(act_x[q], tgt_x[r]) and act_xp[q] == tgt_xp[r]:
+                perm[q] = r
+                break
+        else:
+            return False
+
+    if len(set(perm.values())) != n:
+        return False
+
+    # Verify Z-images obey the same permutation.
+    return all(np.array_equal(act_z[q], tgt_z[perm[q]]) and act_zp[q] == tgt_zp[perm[q]] for q in range(n))
 
 
 def verify_stabilizer_state(circuit: CliffordIsometry, stabilizers: StabilizerTableau) -> bool:
