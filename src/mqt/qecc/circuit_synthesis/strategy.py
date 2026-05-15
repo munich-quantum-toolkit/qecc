@@ -68,7 +68,9 @@ def for_cnot_up_to_row_ops(
     cached_rank: int | None = None
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
-        assert isinstance(tbl, CheckMatrix)
+        if not isinstance(tbl, CheckMatrix):
+            return False
+
         nonlocal cached_rank
         matrix = tbl.matrix
 
