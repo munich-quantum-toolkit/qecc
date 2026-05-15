@@ -734,6 +734,7 @@ def test_clifford_isometry_five_qubit(
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
+    assert result.depth == 5
     assert result.verified is True
 
 
