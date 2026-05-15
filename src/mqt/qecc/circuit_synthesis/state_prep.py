@@ -14,7 +14,6 @@ import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
@@ -22,13 +21,14 @@ from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, Q
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .encoding import cnot_encoding_circuit
+from .exact.search import synthesize_exact
+from .exact.types import Objective, SynthesisStatus, TargetKind
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis import SynthesisConfig
 from .synthesis_utils import (
     iterative_search_with_timeout,
     measure_flagged,
     odd_overlap,
-    optimal_elimination,
     run_with_timeout,
     vars_to_stab,
 )
@@ -184,19 +184,6 @@ class FaultyStatePrepCircuit:
         return new_fault_sets
 
 
-def _build_state_prep_circuit_from_back(
-    checks: npt.NDArray[np.int8], cnots: list[tuple[int, int]], zero_state: bool = True
-) -> CNOTCircuit:
-    cnots.reverse()
-    if zero_state:
-        hadamards = np.where(np.sum(checks, axis=0) != 0)[0]
-    else:
-        hadamards = np.where(np.sum(checks, axis=0) == 0)[0]
-        cnots = [(j, i) for i, j in cnots]
-    non_hadamards = [i for i in range(checks.shape[1]) if i not in hadamards]
-    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
-
-
 def heuristic_prep_circuit(
     code: CSSCode,
     optimize_depth: bool = True,
@@ -240,75 +227,65 @@ def heuristic_prep_circuit(
 def depth_optimal_prep_circuit(
     code: CSSCode,
     zero_state: bool = True,
-    min_depth: int = 1,
-    max_depth: int = 10,
-    min_timeout: int = 1,
-    max_timeout: int = 3600,
+    lower_bound: int = 1,
+    upper_bound: int = 10,
+    timeout: int | None = None,
 ) -> FaultyStatePrepCircuit | None:
     """Synthesize a state preparation circuit for a CSS code that minimizes the circuit depth.
 
     Args:
         code: The CSS code to prepare the state for.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
-        min_depth: minimum depth to start with
-        max_depth: maximum depth to reach
-        min_timeout: minimum timeout to start with
-        max_timeout: maximum timeout to reach
+        lower_bound: Minimum depth to start searching from.
+        upper_bound: Maximum depth to search up to.
+        timeout: Per-bound solver timeout in seconds. If None, no timeout is applied.
     """
-    checks = code.Hx if zero_state else code.Hz
-    assert checks is not None
-    rank = mod2.rank(checks)
-    res = optimal_elimination(
-        checks,
-        lambda checks: final_matrix_constraint(checks, rank),
-        "parallel_ops",
-        min_param=min_depth,
-        max_param=max_depth,
-        min_timeout=min_timeout,
-        max_timeout=max_timeout,
+    pauli_type = "X" if zero_state else "Z"
+    checks = CheckMatrix(code.Hx if zero_state else code.Hz, pauli_type=pauli_type)
+    result = synthesize_exact(
+        target=checks,
+        target_kind=TargetKind.CSS_STATE,
+        objective=Objective.DEPTH,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        timeout=timeout,
     )
-    if res is None:
+    if result.status != SynthesisStatus.SUCCESS:
         return None
-    checks, cnots = res
-    circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    assert isinstance(result.circuit, CNOTCircuit)
+    return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2)
 
 
 def gate_optimal_prep_circuit(
     code: CSSCode,
     zero_state: bool = True,
-    min_gates: int = 1,
-    max_gates: int = 10,
-    min_timeout: int = 1,
-    max_timeout: int = 3600,
+    lower_bound: int = 1,
+    upper_bound: int = 10,
+    timeout: int | None = None,
 ) -> FaultyStatePrepCircuit | None:
     """Synthesize a state preparation circuit for a CSS code that minimizes the number of gates.
 
     Args:
         code: The CSS code to prepare the state for.
         zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
-        min_gates: minimum number of gates to start with
-        max_gates: maximum number of gates to reach
-        min_timeout: minimum timeout to start with
-        max_timeout: maximum timeout to reach
+        lower_bound: Minimum gate count to start searching from.
+        upper_bound: Maximum gate count to search up to.
+        timeout: Per-bound solver timeout in seconds. If None, no timeout is applied.
     """
-    checks = code.Hx if zero_state else code.Hz
-    assert checks is not None
-    rank = mod2.rank(checks)
-    res = optimal_elimination(
-        checks,
-        lambda checks: final_matrix_constraint(checks, rank),
-        "column_ops",
-        min_param=min_gates,
-        max_param=max_gates,
-        min_timeout=min_timeout,
-        max_timeout=max_timeout,
+    pauli_type = "X" if zero_state else "Z"
+    checks = CheckMatrix(code.Hx if zero_state else code.Hz, pauli_type=pauli_type)
+    result = synthesize_exact(
+        target=checks,
+        target_kind=TargetKind.CSS_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        timeout=timeout,
     )
-    if res is None:
+    if result.status != SynthesisStatus.SUCCESS:
         return None
-    checks, cnots = res
-    circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    assert isinstance(result.circuit, CNOTCircuit)
+    return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2)
 
 
 def gate_optimal_verification_stabilizers(
@@ -920,12 +897,3 @@ def get_hook_errors(measurements: list[npt.NDArray[np.int8]]) -> PureFaultSet:
     if len(errors) == 0:
         return PureFaultSet(measurements[0].shape[1])
     return PureFaultSet.from_fault_array(np.array(errors))
-
-
-def final_matrix_constraint(columns: npt.NDArray[np.bool_], rank: int) -> z3.BoolRef:
-    """Return a z3 constraint that the final matrix has exactly rank non-zero columns."""
-    assert len(columns.shape) == 3
-    return z3.PbEq(
-        [(z3.Not(z3.Or(list(columns[-1, :, col]))), 1) for col in range(columns.shape[2])],
-        columns.shape[2] - rank,
-    )

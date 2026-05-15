@@ -14,9 +14,6 @@ from .circuit_utils import qiskit_to_stim_circuit
 from .circuits import CliffordIsometry, CNOTCircuit
 from .encoding import (
     cnot_encoding_circuit,
-    depth_optimal_encoding_circuit,
-    depth_optimal_encoding_circuit_non_css,
-    gate_optimal_encoding_circuit,
     gottesman_encoding_circuit,
     synthesize_encoding_circuit,
 )
@@ -56,10 +53,7 @@ __all__ = [
     "cat_state_balanced_tree",
     "cat_state_line",
     "cnot_encoding_circuit",
-    "depth_optimal_encoding_circuit",
-    "depth_optimal_encoding_circuit_non_css",
     "depth_optimal_prep_circuit",
-    "gate_optimal_encoding_circuit",
     "gate_optimal_prep_circuit",
     "gate_optimal_verification_circuit",
     "gate_optimal_verification_stabilizers",
