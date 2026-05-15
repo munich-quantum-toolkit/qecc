@@ -54,7 +54,7 @@ def run_with_timeout(func: Callable[[Any], Any], *args: Any, timeout: int = 10) 
 
 
 def iterative_search_with_timeout(
-    fun: Callable[[Any], Any],
+    fun: Callable[[int], Any],
     min_param: int,
     max_param: int,
     min_timeout: int,
