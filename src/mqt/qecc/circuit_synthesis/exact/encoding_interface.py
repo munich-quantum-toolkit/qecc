@@ -207,6 +207,7 @@ class CliffordDepthEncoding(SynthesisEncoding):
         gate_set: dict[str, type[SymbolicGateOperation]],
         allow_qubit_permutation: bool = True,
         use_symmetry_breaking: bool = False,
+        max_two_qubit_gates: int | None = None,
     ) -> None:
         """Initialise depth Clifford encoding.
 
@@ -214,10 +215,13 @@ class CliffordDepthEncoding(SynthesisEncoding):
             gate_set: Gate set to use for synthesis.
             allow_qubit_permutation: Allow final qubit permutation in the terminal constraint.
             use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
+            max_two_qubit_gates: Upper bound on the total number of CX gates across all layers.
+                Useful for obtaining shallow circuits without an excessive CNOT count.
         """
         self.gate_set = gate_set
         self.allow_qubit_permutation = allow_qubit_permutation
         self.use_symmetry_breaking = use_symmetry_breaking
+        self.max_two_qubit_gates = max_two_qubit_gates
         self._n = 0
         self._bound = 0
         self._k = 0
@@ -253,6 +257,10 @@ class CliffordDepthEncoding(SynthesisEncoding):
         self._id_vars = id_vars
         if self.use_symmetry_breaking:
             self._apply_symmetry_breaking(solver)
+        if self.max_two_qubit_gates is not None:
+            cx_flat = [cx_var for layer_cx in cx_vars for cx_var in layer_cx]
+            if cx_flat:
+                solver.add(z3.AtMost(*cx_flat, self.max_two_qubit_gates))
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
@@ -381,6 +389,7 @@ class CSSDepthEncoding(SynthesisEncoding):
         gate_set: dict[str, type[SymbolicGateOperation]],
         m_x: int,
         use_symmetry_breaking: bool = False,
+        max_two_qubit_gates: int | None = None,
     ) -> None:
         """Initialise depth CSS encoding.
 
@@ -388,10 +397,13 @@ class CSSDepthEncoding(SynthesisEncoding):
             gate_set: Gate set to use for synthesis.
             m_x: Number of independent X-stabilizer generators (rank of H_X).
             use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
+            max_two_qubit_gates: Upper bound on the total number of CNOT gates across all layers.
+                Useful for obtaining shallow circuits without an excessive CNOT count.
         """
         self.gate_set = gate_set
         self._m_x = m_x
         self.use_symmetry_breaking = use_symmetry_breaking
+        self.max_two_qubit_gates = max_two_qubit_gates
         self._n = 0
         self._bound = 0
         self._k = 0
@@ -423,6 +435,10 @@ class CSSDepthEncoding(SynthesisEncoding):
         self._id_vars = id_vars
         if self.use_symmetry_breaking:
             self._apply_symmetry_breaking(solver)
+        if self.max_two_qubit_gates is not None:
+            cx_flat = [cx_var for layer_cx in cx_vars for cx_var in layer_cx]
+            if cx_flat:
+                solver.add(z3.AtMost(*cx_flat, self.max_two_qubit_gates))
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CNOTCircuit:

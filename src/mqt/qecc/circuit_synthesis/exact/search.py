@@ -65,6 +65,7 @@ def synthesize_exact(
     allow_qubit_permutation: bool = True,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
     use_symmetry_breaking: bool = False,
+    max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
@@ -86,6 +87,10 @@ def synthesize_exact(
         allow_qubit_permutation: Allow qubit permutation in the terminal constraint.
         gate_set: Custom gate set. If None, uses the standard gate set for the inferred family.
         use_symmetry_breaking: Add symmetry-breaking constraints to prune the SAT search space.
+        max_two_qubit_gates: Maximum total number of two-qubit (CX/CNOT) gates allowed in the
+            circuit. Only meaningful for depth-optimal synthesis, where it constrains the CNOT
+            count while still minimizing depth. Ignored for gate-count synthesis (where the
+            gate count already bounds the total).
         timeout: Per-bound solver timeout in seconds. If the solver exceeds the timeout
             at any bound, synthesis stops and returns SynthesisStatus.TIMEOUT.
 
@@ -121,6 +126,7 @@ def synthesize_exact(
             allow_qubit_permutation,
             gate_set,
             use_symmetry_breaking,
+            max_two_qubit_gates,
             timeout,
         )
     assert isinstance(target, CheckMatrix)
@@ -135,6 +141,7 @@ def synthesize_exact(
         verify,
         gate_set,
         use_symmetry_breaking,
+        max_two_qubit_gates,
         timeout,
     )
 
@@ -586,6 +593,7 @@ def _synthesize_clifford(
     allow_qubit_permutation: bool,
     gate_set: dict[str, type[SymbolicGateOperation]],
     use_symmetry_breaking: bool = False,
+    max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
@@ -598,7 +606,7 @@ def _synthesize_clifford(
         )
         is_depth = False
     else:
-        encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation, use_symmetry_breaking)
+        encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation, use_symmetry_breaking, max_two_qubit_gates)
         is_depth = True
 
     def postprocess(circuit: CliffordIsometry | CNOTCircuit) -> CliffordIsometry | CNOTCircuit:
@@ -680,6 +688,7 @@ def _synthesize_css(
     verify: bool,
     gate_set: dict[str, type[SymbolicGateOperation]],
     use_symmetry_breaking: bool = False,
+    max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
@@ -689,7 +698,7 @@ def _synthesize_css(
         encoding: SynthesisEncoding = CSSGateCountEncoding(gate_set, m_x, use_symmetry_breaking)
         is_depth = False
     else:
-        encoding = CSSDepthEncoding(gate_set, m_x, use_symmetry_breaking)
+        encoding = CSSDepthEncoding(gate_set, m_x, use_symmetry_breaking, max_two_qubit_gates)
         is_depth = True
 
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
