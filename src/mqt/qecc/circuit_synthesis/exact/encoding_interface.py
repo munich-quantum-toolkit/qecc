@@ -25,6 +25,12 @@ from .extraction import (
     extract_cnot_depth_circuit,
     extract_cnot_gate_count_circuit,
 )
+from .symmetry import (
+    add_clifford_depth_symmetry_breaking,
+    add_clifford_gate_count_symmetry_breaking,
+    add_css_depth_symmetry_breaking,
+    add_css_gate_count_symmetry_breaking,
+)
 
 if TYPE_CHECKING:
     from ..circuits import CliffordIsometry, CNOTCircuit
@@ -114,15 +120,18 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         self,
         gate_set: dict[str, type[SymbolicGateOperation]],
         allow_qubit_permutation: bool = True,
+        use_symmetry_breaking: bool = False,
     ) -> None:
         """Initialise gate-count Clifford encoding.
 
         Args:
             gate_set: Gate set to use for synthesis.
             allow_qubit_permutation: Allow final qubit permutation in the terminal constraint.
+            use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
         """
         self.gate_set = gate_set
         self.allow_qubit_permutation = allow_qubit_permutation
+        self.use_symmetry_breaking = use_symmetry_breaking
         self._n = 0
         self._bound = 0
         self._k = 0
@@ -131,6 +140,11 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         self._c_vars: list[z3.BoolRef] = []
         self._alpha_vars: list[z3.BitVecRef] = []
         self._beta_vars: list[z3.BitVecRef] = []
+
+    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
+        add_clifford_gate_count_symmetry_breaking(
+            solver, self._bound, self._h_vars, self._s_vars, self._c_vars, self._alpha_vars, self._beta_vars
+        )
 
     def encode(
         self,
@@ -153,6 +167,8 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         self._c_vars = c_vars
         self._alpha_vars = alpha_vars
         self._beta_vars = beta_vars
+        if self.use_symmetry_breaking:
+            self._apply_symmetry_breaking(solver)
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
@@ -190,21 +206,30 @@ class CliffordDepthEncoding(SynthesisEncoding):
         self,
         gate_set: dict[str, type[SymbolicGateOperation]],
         allow_qubit_permutation: bool = True,
+        use_symmetry_breaking: bool = False,
     ) -> None:
         """Initialise depth Clifford encoding.
 
         Args:
             gate_set: Gate set to use for synthesis.
             allow_qubit_permutation: Allow final qubit permutation in the terminal constraint.
+            use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
         """
         self.gate_set = gate_set
         self.allow_qubit_permutation = allow_qubit_permutation
+        self.use_symmetry_breaking = use_symmetry_breaking
         self._n = 0
         self._bound = 0
         self._k = 0
         self._h_vars: list[list[z3.BoolRef]] = []
         self._s_vars: list[list[z3.BoolRef]] = []
         self._cx_vars: list[list[z3.BoolRef]] = []
+        self._id_vars: list[list[z3.BoolRef]] = []
+
+    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
+        add_clifford_depth_symmetry_breaking(
+            solver, self._n, self._bound, self._h_vars, self._s_vars, self._cx_vars, self._id_vars
+        )
 
     def encode(
         self,
@@ -219,12 +244,15 @@ class CliffordDepthEncoding(SynthesisEncoding):
         self._n = target.n
         self._bound = bound
         self._k = k
-        solver, h_vars, s_vars, cx_vars, _id_vars = encode_clifford_depth(
+        solver, h_vars, s_vars, cx_vars, id_vars = encode_clifford_depth(
             target, k, bound, self.allow_qubit_permutation, self.gate_set
         )
         self._h_vars = h_vars
         self._s_vars = s_vars
         self._cx_vars = cx_vars
+        self._id_vars = id_vars
+        if self.use_symmetry_breaking:
+            self._apply_symmetry_breaking(solver)
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
@@ -267,15 +295,18 @@ class CSSGateCountEncoding(SynthesisEncoding):
         self,
         gate_set: dict[str, type[SymbolicGateOperation]],
         m_x: int,
+        use_symmetry_breaking: bool = False,
     ) -> None:
         """Initialise gate-count CSS encoding.
 
         Args:
             gate_set: Gate set to use for synthesis.
             m_x: Number of independent X-stabilizer generators (rank of H_X).
+            use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
         """
         self.gate_set = gate_set
         self._m_x = m_x
+        self.use_symmetry_breaking = use_symmetry_breaking
         self._n = 0
         self._bound = 0
         self._k = 0
@@ -283,6 +314,9 @@ class CSSGateCountEncoding(SynthesisEncoding):
         self._is_x_type = True
         self._alpha_vars: list[z3.BitVecRef] = []
         self._beta_vars: list[z3.BitVecRef] = []
+
+    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
+        add_css_gate_count_symmetry_breaking(solver, self._bound, self._alpha_vars, self._beta_vars)
 
     def encode(
         self,
@@ -302,6 +336,8 @@ class CSSGateCountEncoding(SynthesisEncoding):
         solver, alpha_vars, beta_vars = encode_css_gate_count(target, k, self._m_x, bound, self.gate_set)
         self._alpha_vars = alpha_vars
         self._beta_vars = beta_vars
+        if self.use_symmetry_breaking:
+            self._apply_symmetry_breaking(solver)
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CNOTCircuit:
@@ -344,21 +380,28 @@ class CSSDepthEncoding(SynthesisEncoding):
         self,
         gate_set: dict[str, type[SymbolicGateOperation]],
         m_x: int,
+        use_symmetry_breaking: bool = False,
     ) -> None:
         """Initialise depth CSS encoding.
 
         Args:
             gate_set: Gate set to use for synthesis.
             m_x: Number of independent X-stabilizer generators (rank of H_X).
+            use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
         """
         self.gate_set = gate_set
         self._m_x = m_x
+        self.use_symmetry_breaking = use_symmetry_breaking
         self._n = 0
         self._bound = 0
         self._k = 0
         self._num_rows = 0
         self._is_x_type = True
         self._cx_vars: list[list[z3.BoolRef]] = []
+        self._id_vars: list[list[z3.BoolRef]] = []
+
+    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
+        add_css_depth_symmetry_breaking(solver, self._n, self._bound, self._cx_vars, self._id_vars)
 
     def encode(
         self,
@@ -375,8 +418,11 @@ class CSSDepthEncoding(SynthesisEncoding):
         self._k = k
         self._num_rows = target.num_rows()
         self._is_x_type = target.is_x_type()
-        solver, cx_vars, _id_vars = encode_css_depth(target, k, self._m_x, bound, self.gate_set)
+        solver, cx_vars, id_vars = encode_css_depth(target, k, self._m_x, bound, self.gate_set)
         self._cx_vars = cx_vars
+        self._id_vars = id_vars
+        if self.use_symmetry_breaking:
+            self._apply_symmetry_breaking(solver)
         return solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CNOTCircuit:

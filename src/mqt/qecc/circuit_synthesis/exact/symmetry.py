@@ -12,6 +12,15 @@ from __future__ import annotations
 import z3
 
 
+def _cx_idx(ctrl: int, tgt: int, n: int) -> int:
+    """Compute the flat index of CX(ctrl, tgt) in the cx_vars list.
+
+    cx_vars are ordered as [(ctrl, tgt) for ctrl in range(n) for tgt in range(n) if ctrl != tgt],
+    giving n*(n-1) entries with index = ctrl*(n-1) + (tgt if tgt < ctrl else tgt-1).
+    """
+    return ctrl * (n - 1) + (tgt if tgt < ctrl else tgt - 1)
+
+
 def add_clifford_depth_symmetry_breaking(
     solver: z3.Solver,
     n: int,
@@ -35,7 +44,7 @@ def add_clifford_depth_symmetry_breaking(
         max_depth: Maximum depth bound.
         h_vars: H gate variables [depth][qubit].
         s_vars: S gate variables [depth][qubit].
-        cx_vars: CNOT gate variables [depth][control * n + target].
+        cx_vars: CNOT gate variables [depth][cx_idx] where cx_idx = ctrl*(n-1)+(tgt if tgt<ctrl else tgt-1).
         id_vars: Identity variables [depth][qubit].
     """
     # Adjacent H cancellation
@@ -45,8 +54,8 @@ def add_clifford_depth_symmetry_breaking(
 
     # Adjacent identical CNOT cancellation
     for ell in range(max_depth - 1):
-        for cx_idx in range(len(cx_vars[ell])):
-            solver.add(z3.Implies(cx_vars[ell][cx_idx], z3.Not(cx_vars[ell + 1][cx_idx])))
+        for cx_i in range(len(cx_vars[ell])):
+            solver.add(z3.Implies(cx_vars[ell][cx_i], z3.Not(cx_vars[ell + 1][cx_i])))
 
     # Left alignment for single-qubit gates
     for ell in range(max_depth - 1):
@@ -64,12 +73,13 @@ def add_clifford_depth_symmetry_breaking(
             for j in range(n):
                 if i == j:
                     continue
-                cx_idx_ij = i * n + j
-                cx_idx_ji = j * n + i
                 solver.add(
                     z3.Implies(
                         z3.And(id_vars[ell][i], id_vars[ell][j]),
-                        z3.And(z3.Not(cx_vars[ell + 1][cx_idx_ij]), z3.Not(cx_vars[ell + 1][cx_idx_ji])),
+                        z3.And(
+                            z3.Not(cx_vars[ell + 1][_cx_idx(i, j, n)]),
+                            z3.Not(cx_vars[ell + 1][_cx_idx(j, i, n)]),
+                        ),
                     )
                 )
 
@@ -132,13 +142,13 @@ def add_css_depth_symmetry_breaking(
         solver: Z3 solver instance.
         n: Number of qubits.
         max_depth: Maximum depth bound.
-        cx_vars: CNOT gate variables [depth][control * n + target].
+        cx_vars: CNOT gate variables [depth][cx_idx] where cx_idx = ctrl*(n-1)+(tgt if tgt<ctrl else tgt-1).
         id_vars: Identity variables [depth][qubit].
     """
     # Adjacent identical CNOT cancellation
     for ell in range(max_depth - 1):
-        for cx_idx in range(len(cx_vars[ell])):
-            solver.add(z3.Implies(cx_vars[ell][cx_idx], z3.Not(cx_vars[ell + 1][cx_idx])))
+        for cx_i in range(len(cx_vars[ell])):
+            solver.add(z3.Implies(cx_vars[ell][cx_i], z3.Not(cx_vars[ell + 1][cx_i])))
 
     # Left alignment for CNOTs
     for ell in range(max_depth - 1):
@@ -146,12 +156,13 @@ def add_css_depth_symmetry_breaking(
             for j in range(n):
                 if i == j:
                     continue
-                cx_idx_ij = i * n + j
-                cx_idx_ji = j * n + i
                 solver.add(
                     z3.Implies(
                         z3.And(id_vars[ell][i], id_vars[ell][j]),
-                        z3.And(z3.Not(cx_vars[ell + 1][cx_idx_ij]), z3.Not(cx_vars[ell + 1][cx_idx_ji])),
+                        z3.And(
+                            z3.Not(cx_vars[ell + 1][_cx_idx(i, j, n)]),
+                            z3.Not(cx_vars[ell + 1][_cx_idx(j, i, n)]),
+                        ),
                     )
                 )
 

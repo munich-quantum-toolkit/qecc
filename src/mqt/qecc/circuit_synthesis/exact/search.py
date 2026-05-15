@@ -62,6 +62,8 @@ def synthesize_exact(
     verify: bool = True,
     allow_qubit_permutation: bool = True,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
+    use_symmetry_breaking: bool = False,
+    timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
 
@@ -81,6 +83,9 @@ def synthesize_exact(
         verify: Whether to verify synthesized circuit.
         allow_qubit_permutation: Allow qubit permutation in the terminal constraint.
         gate_set: Custom gate set. If None, uses the standard gate set for the inferred family.
+        use_symmetry_breaking: Add symmetry-breaking constraints to prune the SAT search space.
+        timeout: Per-bound solver timeout in seconds. If the solver exceeds the timeout
+            at any bound, synthesis stops and returns SynthesisStatus.TIMEOUT.
 
     Returns:
         SynthesisResult with circuit and metadata.
@@ -113,6 +118,8 @@ def synthesize_exact(
             verify,
             allow_qubit_permutation,
             gate_set,
+            use_symmetry_breaking,
+            timeout,
         )
     assert isinstance(target, CheckMatrix)
     return _synthesize_css(
@@ -125,6 +132,8 @@ def synthesize_exact(
         z_logicals,
         verify,
         gate_set,
+        use_symmetry_breaking,
+        timeout,
     )
 
 
@@ -180,6 +189,7 @@ def _search_with_encoding(
     is_depth: bool,
     verify: bool,
     postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None = None,
+    timeout: int | None = None,
 ) -> SynthesisResult:
     """Generic search loop using an encoding.
 
@@ -193,6 +203,8 @@ def _search_with_encoding(
         is_depth: Whether optimizing depth (vs gate count).
         verify: Whether to verify the synthesized circuit.
         postprocess: Optional transform applied to the extracted circuit before verification.
+        timeout: Per-bound solver timeout in seconds. If the solver times out at any
+            bound, returns TIMEOUT immediately.
 
     Returns:
         SynthesisResult.
@@ -201,6 +213,9 @@ def _search_with_encoding(
 
     for bound in range(lower_bound, upper_bound + 1):
         solver = encoding.encode(target, k, bound)
+
+        if timeout is not None:
+            solver.set("timeout", timeout * 1000)
 
         result = solver.check()
 
@@ -229,9 +244,16 @@ def _search_with_encoding(
             )
 
         if result == z3.unknown:
+            reason = solver.reason_unknown()
+            if "timeout" in reason:
+                return SynthesisResult(
+                    status=SynthesisStatus.TIMEOUT,
+                    message=f"Solver timed out at bound {bound}",
+                    gate_set=gate_set,
+                )
             return SynthesisResult(
                 status=SynthesisStatus.ERROR,
-                message=f"Solver returned unknown at bound {bound}: {solver.reason_unknown()}",
+                message=f"Solver returned unknown at bound {bound}: {reason}",
                 gate_set=gate_set,
             )
 
@@ -330,11 +352,12 @@ def _apply_pauli_correction_to_clifford(
     Returns:
         Corrected circuit with proper initialization.
     """
+    pivot_qubits = circuit.get_zero_initialized()
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
-    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau)
+    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau, pivot_qubits)
     corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
-    for q in circuit.get_zero_initialized():
+    for q in pivot_qubits:
         corrected_circuit.initialize_qubit(q, basis="Z")
 
     return corrected_circuit
@@ -370,13 +393,21 @@ def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
     return result
 
 
-def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int, target_tableau: StabilizerTableau) -> stim.Circuit:
+def _apply_pauli_sign_correction(
+    circuit: stim.Circuit,
+    n: int,
+    target_tableau: StabilizerTableau,
+    pivot_qubits: list[int] | None = None,
+) -> stim.Circuit:
     """Apply Pauli sign correction to a circuit to match target phases.
 
     Args:
         circuit: The synthesized circuit (may have incorrect signs).
         n: Number of qubits.
         target_tableau: Target tableau with correct phases.
+        pivot_qubits: Z-reset (ancilla) qubits. For these qubits get_code() reads
+            zs_sign (the Z-image sign) rather than xs_sign (the X-image sign) when
+            extracting stabilizer phases, so the comparison must use the same image.
 
     Returns:
         Circuit with Pauli correction prepended if needed.
@@ -389,7 +420,18 @@ def _apply_pauli_sign_correction(circuit: stim.Circuit, n: int, target_tableau: 
 
     synth_x = np.vstack((stim_tableau_data[0].astype(np.int8), stim_tableau_data[2].astype(np.int8)))
     synth_z = np.vstack((stim_tableau_data[1].astype(np.int8), stim_tableau_data[3].astype(np.int8)))
-    synth_signs = np.concatenate((stim_tableau_data[-2].astype(np.int8), stim_tableau_data[-1].astype(np.int8)))
+
+    xs_sign = stim_tableau_data[-2].astype(np.int8)
+    zs_sign = stim_tableau_data[-1].astype(np.int8)
+
+    # Default: xs_sign for positions 0..n-1, zs_sign for positions n..2n-1.
+    # For Z-reset pivot qubits, get_code() uses z_output (zs_sign), not x_output
+    # (xs_sign), so replace xs_sign[p] with zs_sign[p] at each pivot position p.
+    synth_signs = np.concatenate((xs_sign.copy(), zs_sign))
+    if pivot_qubits:
+        for p in pivot_qubits:
+            if p < n:
+                synth_signs[p] = zs_sign[p]
 
     target_x = synth_x[:num_target_rows, :]
     target_z = synth_z[:num_target_rows, :]
@@ -443,16 +485,20 @@ def _synthesize_clifford(
     verify: bool,
     allow_qubit_permutation: bool,
     gate_set: dict[str, type[SymbolicGateOperation]],
+    use_symmetry_breaking: bool = False,
+    timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
     target, k = _prepare_clifford_target(stabilizers, target_kind, x_logicals, z_logicals)
     n = target.n
 
     if objective == Objective.GATE_COUNT:
-        encoding: SynthesisEncoding = CliffordGateCountEncoding(gate_set, allow_qubit_permutation)
+        encoding: SynthesisEncoding = CliffordGateCountEncoding(
+            gate_set, allow_qubit_permutation, use_symmetry_breaking
+        )
         is_depth = False
     else:
-        encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation)
+        encoding = CliffordDepthEncoding(gate_set, allow_qubit_permutation, use_symmetry_breaking)
         is_depth = True
 
     def postprocess(circuit: CliffordIsometry | CNOTCircuit) -> CliffordIsometry | CNOTCircuit:
@@ -476,6 +522,7 @@ def _synthesize_clifford(
         is_depth,
         verify,
         postprocess=postprocess,
+        timeout=timeout,
     )
 
 
@@ -532,15 +579,17 @@ def _synthesize_css(
     z_logicals: StabilizerTableau | CheckMatrix | None,
     verify: bool,
     gate_set: dict[str, type[SymbolicGateOperation]],
+    use_symmetry_breaking: bool = False,
+    timeout: int | None = None,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
     target, k, m_x = _prepare_css_target(checks, target_kind, x_logicals, z_logicals)
 
     if objective == Objective.GATE_COUNT:
-        encoding: SynthesisEncoding = CSSGateCountEncoding(gate_set, m_x)
+        encoding: SynthesisEncoding = CSSGateCountEncoding(gate_set, m_x, use_symmetry_breaking)
         is_depth = False
     else:
-        encoding = CSSDepthEncoding(gate_set, m_x)
+        encoding = CSSDepthEncoding(gate_set, m_x, use_symmetry_breaking)
         is_depth = True
 
     def verify_fn(circuit: CliffordIsometry | CNOTCircuit) -> bool:
@@ -559,4 +608,5 @@ def _synthesize_css(
         verify_fn,
         is_depth,
         verify,
+        timeout=timeout,
     )

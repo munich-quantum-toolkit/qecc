@@ -165,13 +165,19 @@ def encode_css_gate_count(
 ) -> tuple[z3.Solver, list[z3.BitVecRef], list[z3.BitVecRef]]:
     """Encode CSS CNOT isometry synthesis with gate-count optimization.
 
+    Supports both X-type and Z-type check matrices.  For X-type targets,
+    CNOT(ctrl, tgt) adds column ctrl to column tgt (X propagates ctrl→tgt).
+    For Z-type targets, CNOT(ctrl, tgt) adds column tgt to column ctrl
+    (Z propagates tgt→ctrl), so the pivot columns of the reduced matrix
+    are the qubits initialized in |0⟩.
+
     Uses the provided gate set to dynamically support registered CSS gates.
     Defaults to {CX} if no gate set is provided.
 
     Args:
-        target: Target CSS matrix [L; H].
+        target: Target CSS matrix [L; H] (X-type or Z-type).
         k: Number of logical qubits.
-        m_x: Number of X-stabilizers.
+        m_x: Number of stabilizer rows (rank of the stabilizer block).
         max_gates: Maximum number of gates.
         gate_set: Optional custom gate set. If None, uses standard {CX, ID}.
 
@@ -183,6 +189,7 @@ def encode_css_gate_count(
 
     n = target.num_qubits()
     num_rows = target.num_rows()
+    is_x_type = target.is_x_type()
 
     solver = z3.Solver()
 
@@ -220,9 +227,12 @@ def encode_css_gate_count(
 
                 cx_condition = z3.And(alpha_vars[slot] == i, beta_vars[slot] == j)
 
+                # X-type: CNOT(i,j) adds column i to column j  (col_j ^= col_i)
+                # Z-type: CNOT(i,j) adds column j to column i  (col_i ^= col_j)
+                src, dst = (i, j) if is_x_type else (j, i)
                 for row in range(num_rows):
-                    solver.add(z3.Implies(cx_condition, next_m[row, i] == curr[row, i]))
-                    solver.add(z3.Implies(cx_condition, next_m[row, j] == z3.Xor(curr[row, j], curr[row, i])))
+                    solver.add(z3.Implies(cx_condition, next_m[row, src] == curr[row, src]))
+                    solver.add(z3.Implies(cx_condition, next_m[row, dst] == z3.Xor(curr[row, dst], curr[row, src])))
 
         for q in range(n):
             not_control = z3.Not(alpha_vars[slot] == q)

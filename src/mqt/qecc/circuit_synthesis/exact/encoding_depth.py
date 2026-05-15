@@ -175,13 +175,19 @@ def encode_css_depth(
 ) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
     """Encode CSS CNOT isometry synthesis with depth optimization.
 
+    Supports both X-type and Z-type check matrices.  For X-type targets,
+    CNOT(ctrl, tgt) adds column ctrl to column tgt (X propagates ctrl→tgt).
+    For Z-type targets, CNOT(ctrl, tgt) adds column tgt to column ctrl
+    (Z propagates tgt→ctrl), so the pivot columns of the reduced matrix
+    are the qubits initialized in |0⟩.
+
     Uses the provided gate set to dynamically support registered CSS gates.
     Defaults to {CX, ID} if no gate set is provided.
 
     Args:
-        target: Target CSS matrix [L; H].
+        target: Target CSS matrix [L; H] (X-type or Z-type).
         k: Number of logical qubits.
-        m_x: Number of X-stabilizers.
+        m_x: Number of stabilizer rows (rank of the stabilizer block).
         max_depth: Maximum circuit depth.
         gate_set: Optional custom gate set. If None, uses standard {CX, ID}.
 
@@ -193,6 +199,7 @@ def encode_css_depth(
 
     n = target.num_qubits()
     num_rows = target.num_rows()
+    is_x_type = target.is_x_type()
 
     solver = z3.Solver()
 
@@ -250,12 +257,15 @@ def encode_css_depth(
                 if ctrl == tgt:
                     continue
 
+                # X-type: CNOT(ctrl,tgt) adds column ctrl to column tgt  (col_tgt ^= col_ctrl)
+                # Z-type: CNOT(ctrl,tgt) adds column tgt to column ctrl  (col_ctrl ^= col_tgt)
+                src, dst = (ctrl, tgt) if is_x_type else (tgt, ctrl)
                 for row in range(num_rows):
                     cx_effect = z3.If(
                         cx_vars[layer][cx_idx],
                         z3.And(
-                            next_m[row, ctrl] == curr[row, ctrl],
-                            next_m[row, tgt] == z3.Xor(curr[row, tgt], curr[row, ctrl]),
+                            next_m[row, src] == curr[row, src],
+                            next_m[row, dst] == z3.Xor(curr[row, dst], curr[row, src]),
                         ),
                         True,
                     )
