@@ -174,7 +174,7 @@ def test_css_isometry_synthesis(css_isometry_4q: tuple[CheckMatrix, CheckMatrix,
     assert result.status == SynthesisStatus.SUCCESS
     assert result.circuit is not None
     assert result.gate_count is not None
-    assert result.gate_count >= 1
+    assert result.gate_count == 4
     assert result.verified is True
     assert isinstance(result.circuit, CNOTCircuit)
     assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
@@ -729,7 +729,7 @@ def test_clifford_isometry_five_qubit(
         x_logicals=x_logicals,
         z_logicals=z_logicals,
         lower_bound=3,
-        upper_bound=8,
+        upper_bound=6,
     )
 
     assert result.status == SynthesisStatus.SUCCESS

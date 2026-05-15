@@ -42,6 +42,8 @@ from .verification import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import numpy.typing as npt
+
     from .encoding_interface import (
         SynthesisEncoding,
     )
@@ -354,13 +356,40 @@ def _apply_pauli_correction_to_clifford(
     """
     pivot_qubits = circuit.get_zero_initialized()
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
-    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau, pivot_qubits)
+    corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau)
     corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
 
     for q in pivot_qubits:
         corrected_circuit.initialize_qubit(q, basis="Z")
 
     return corrected_circuit
+
+
+def _gf2_rref_track(mat: npt.NDArray[np.int8]) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
+    """GF(2) row-reduce mat to RREF, tracking the transformation.
+
+    Args:
+        mat: Binary matrix to row-reduce.
+
+    Returns:
+        (E, R) where E = RREF(mat) and R @ mat = E mod 2.
+    """
+    n_rows, n_cols = mat.shape
+    work = mat.copy().astype(np.int8)
+    r_mat = np.eye(n_rows, dtype=np.int8)
+    current_row = 0
+    for col in range(n_cols):
+        pivot = next((r for r in range(current_row, n_rows) if work[r, col]), None)
+        if pivot is None:
+            continue
+        work[[current_row, pivot]] = work[[pivot, current_row]]
+        r_mat[[current_row, pivot]] = r_mat[[pivot, current_row]]
+        for r in range(n_rows):
+            if r != current_row and work[r, col]:
+                work[r] ^= work[current_row]
+                r_mat[r] ^= r_mat[current_row]
+        current_row += 1
+    return work, r_mat
 
 
 def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
@@ -397,17 +426,27 @@ def _apply_pauli_sign_correction(
     circuit: stim.Circuit,
     n: int,
     target_tableau: StabilizerTableau,
-    pivot_qubits: list[int] | None = None,
 ) -> stim.Circuit:
     """Apply Pauli sign correction to a circuit to match target phases.
 
+    The circuit U maps source generators to target generators:
+    - X-logical row i  → U(X_{selector_i}) → X_logical_i
+    - Z-logical row i  → U(Z_{selector_i}) → Z_logical_i
+    - Stabilizer rows  → U(Z_{pivot_q})    → some element of target stabilizer group
+
+    To flip the sign of U(X_q): prepend Z_q (anticommutes with X_q) → z_correction[q].
+    To flip the sign of U(Z_q): prepend X_q (anticommutes with Z_q) → x_correction[q].
+
+    For stabilizer rows the circuit may use a different GF(2) basis than the target, so
+    individual row matching does not work. We work at the group level: prepending X on
+    each pivot qubit q flips the sign of that generator in the circuit's stabilizer group.
+    The correct x_correction[q] for pivot qubits is determined by solving the linear system
+    that makes the circuit's signed stabilizer group equal to the target's.
+
     Args:
-        circuit: The synthesized circuit (may have incorrect signs).
+        circuit: The synthesized circuit (without reset gates, may have incorrect signs).
         n: Number of qubits.
         target_tableau: Target tableau with correct phases.
-        pivot_qubits: Z-reset (ancilla) qubits. For these qubits get_code() reads
-            zs_sign (the Z-image sign) rather than xs_sign (the X-image sign) when
-            extracting stabilizer phases, so the comparison must use the same image.
 
     Returns:
         Circuit with Pauli correction prepended if needed.
@@ -417,51 +456,87 @@ def _apply_pauli_sign_correction(
     stim_tableau_data = circuit.to_tableau().to_numpy()
 
     num_target_rows = target_tableau.num_rows()
-
-    synth_x = np.vstack((stim_tableau_data[0].astype(np.int8), stim_tableau_data[2].astype(np.int8)))
-    synth_z = np.vstack((stim_tableau_data[1].astype(np.int8), stim_tableau_data[3].astype(np.int8)))
+    # num_target_rows = 2k + (n-k) = n+k  →  k = num_target_rows - n
+    k = num_target_rows - n
 
     xs_sign = stim_tableau_data[-2].astype(np.int8)
     zs_sign = stim_tableau_data[-1].astype(np.int8)
+    x2x = stim_tableau_data[0].astype(np.int8)
+    x2z = stim_tableau_data[1].astype(np.int8)
+    z2x = stim_tableau_data[2].astype(np.int8)
+    z2z = stim_tableau_data[3].astype(np.int8)
 
-    # Default: xs_sign for positions 0..n-1, zs_sign for positions n..2n-1.
-    # For Z-reset pivot qubits, get_code() uses z_output (zs_sign), not x_output
-    # (xs_sign), so replace xs_sign[p] with zs_sign[p] at each pivot position p.
-    synth_signs = np.concatenate((xs_sign.copy(), zs_sign))
-    if pivot_qubits:
-        for p in pivot_qubits:
-            if p < n:
-                synth_signs[p] = zs_sign[p]
+    target_x = target_tableau.tableau.matrix[:num_target_rows, :n].astype(np.int8)
+    target_z = target_tableau.tableau.matrix[:num_target_rows, n:].astype(np.int8)
+    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
 
-    target_x = synth_x[:num_target_rows, :]
-    target_z = synth_z[:num_target_rows, :]
-    target_synth_signs = synth_signs[:num_target_rows]
+    x_correction = np.zeros(n, dtype=np.int8)
+    z_correction = np.zeros(n, dtype=np.int8)
+    selector_qubits: set[int] = set()
 
-    target_signs = target_tableau.phase.astype(np.int8)
+    # X-logical rows (0..k-1): U(X_q) exactly matches each target row.
+    # Fix sign by prepending Z_q (anticommutes with X_q) → z_correction[q].
+    for row_idx in range(k):
+        tx, tz = target_x[row_idx], target_z[row_idx]
+        for q in range(n):
+            if np.array_equal(x2x[q], tx) and np.array_equal(x2z[q], tz):
+                selector_qubits.add(q)
+                if xs_sign[q] ^ target_signs[row_idx]:
+                    z_correction[q] ^= 1
+                break
 
-    sign_difference = target_synth_signs ^ target_signs
+    # Z-logical rows (k..2k-1): U(Z_q) exactly matches each target row for selector q.
+    # Fix sign by prepending X_q (anticommutes with Z_q) → x_correction[q].
+    for row_idx in range(k, 2 * k):
+        tx, tz = target_x[row_idx], target_z[row_idx]
+        for q in range(n):
+            if np.array_equal(z2x[q], tx) and np.array_equal(z2z[q], tz):
+                if zs_sign[q] ^ target_signs[row_idx]:
+                    x_correction[q] ^= 1
+                break
 
-    if np.all(sign_difference == 0):
+    # Stabilizer rows (2k..n+k-1): pivot qubits.
+    # The circuit's stabilizer generators and the target's may span the same group
+    # but use different GF(2) bases. Row-reduce both to the same canonical form;
+    # the canonical sign vectors must agree, and the correction is found by solving
+    # R_A * x_corr = (s_A_can XOR s_B_can) where R_A is the circuit's reduction matrix.
+
+    pivot_qubits = [q for q in range(n) if q not in selector_qubits]
+    num_stab = n - k
+
+    if num_stab > 0:
+        target_stab_x = target_x[2 * k :]
+        target_stab_z = target_z[2 * k :]
+        target_stab_signs = target_signs[2 * k :]
+
+        circ_stab_symp = np.hstack([z2x[pivot_qubits], z2z[pivot_qubits]])  # (num_stab x 2n)
+        circ_stab_sign = zs_sign[np.array(pivot_qubits)]
+        targ_stab_symp = np.hstack([target_stab_x, target_stab_z])  # (num_stab x 2n)
+
+        _, r_circ = _gf2_rref_track(circ_stab_symp)
+        _, r_targ = _gf2_rref_track(targ_stab_symp)
+
+        s_circ_can = r_circ @ circ_stab_sign % 2
+        s_targ_can = r_targ @ target_stab_signs % 2
+
+        phase_diff = (s_circ_can ^ s_targ_can).astype(np.int8)
+        if np.any(phase_diff):
+            aug = np.hstack([r_circ, phase_diff.reshape(-1, 1)])
+            ns = mod2.nullspace(aug)
+            for vec in ns:
+                if vec[-1] == 1:
+                    for idx, q in enumerate(pivot_qubits):
+                        x_correction[q] ^= int(vec[idx])
+                    break
+
+    if np.all(x_correction == 0) and np.all(z_correction == 0):
         return circuit
-
-    signed_tableau = np.hstack((target_x, target_z, np.array([sign_difference]).T))
-
-    kernel = mod2.nullspace(signed_tableau)
-
-    if kernel.size == 0:
-        return circuit
-
-    correction_symplectic = kernel[-1]
-
-    if correction_symplectic[-1] != 1:
-        return circuit
-
-    z_correction = correction_symplectic[:n]
-    x_correction = correction_symplectic[n:-1]
 
     corrected_circuit = stim.Circuit()
 
-    for q, (xv, zv) in enumerate(zip(x_correction, z_correction, strict=False)):
+    for q in range(n):
+        xv = x_correction[q]
+        zv = z_correction[q]
         if xv == 1 and zv == 1:
             corrected_circuit.append("Y", [q])
         elif xv == 1:
