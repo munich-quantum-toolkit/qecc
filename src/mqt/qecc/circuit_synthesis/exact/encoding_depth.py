@@ -16,6 +16,7 @@ import z3
 
 from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
+from .vars import CliffordDepthVars
 
 if TYPE_CHECKING:
     from ...codes.pauli import CheckMatrix, StabilizerTableau
@@ -28,11 +29,12 @@ def encode_clifford_depth(
     max_depth: int,
     allow_qubit_permutation: bool = True,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
-) -> tuple[z3.Solver, list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]], list[list[z3.BoolRef]]]:
+) -> CliffordDepthVars:
     """Encode Clifford isometry synthesis with depth optimization.
 
     Uses the provided gate set to dynamically support registered Clifford gates.
-    Defaults to {H, S, CX, ID} if no gate set is provided.
+    Defaults to {H, S, CX, ID} if no gate set is provided.  Pass a gate set
+    containing ``"CZ"`` to also allow CZ gates.
 
     Args:
         target: Target stabilizer tableau (2k+m rows, where m=n-k stabilizers).
@@ -42,24 +44,46 @@ def encode_clifford_depth(
         gate_set: Optional custom gate set. If None, uses standard {H, S, CX, ID}.
 
     Returns:
-        Tuple of (solver, h_vars, s_vars, cx_vars, id_vars).
+        A :class:`CliffordDepthVars` container holding the solver and all SAT
+        variables.  ``gate_vars`` maps each gate name to a
+        ``[layer][idx]`` boolean array; ``n`` holds the qubit count needed by
+        consumers to decode pair indices.
     """
     if gate_set is None:
         gate_set = get_standard_clifford_gate_set()
+
+    use_cz = "CZ" in gate_set
 
     n = target.n
     num_rows = target.n_rows
 
     solver = z3.Solver()
 
-    h_vars = [[z3.Bool(f"h_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
-    s_vars = [[z3.Bool(f"s_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
-    id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
+    # Build gate_vars dict.  Variable index structure per gate type:
+    #   H / S / ID  → [layer][qubit]         (n entries per layer)
+    #   CX          → [layer][ordered-pair]   (n*(n-1) entries per layer)
+    #   CZ          → [layer][unordered-pair] (n*(n-1)//2 entries per layer)
+    gate_vars: dict[str, list[list[z3.BoolRef]]] = {
+        "H": [[z3.Bool(f"h_{layer}_{q}") for q in range(n)] for layer in range(max_depth)],
+        "S": [[z3.Bool(f"s_{layer}_{q}") for q in range(n)] for layer in range(max_depth)],
+        "ID": [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)],
+        "CX": [
+            [z3.Bool(f"cx_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
+            for layer in range(max_depth)
+        ],
+    }
 
-    cx_vars = [
-        [z3.Bool(f"cx_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
-        for layer in range(max_depth)
-    ]
+    if use_cz:
+        gate_vars["CZ"] = [
+            [z3.Bool(f"cz_{layer}_{i}_{j}") for i in range(n) for j in range(i + 1, n)] for layer in range(max_depth)
+        ]
+
+    # Convenient local aliases for the inline constraint logic below.
+    h_vars = gate_vars["H"]
+    s_vars = gate_vars["S"]
+    id_vars = gate_vars["ID"]
+    cx_vars = gate_vars["CX"]
+    cz_vars = gate_vars.get("CZ", [])
 
     tableau_x = np.array(
         [
@@ -97,10 +121,21 @@ def encode_clifford_depth(
                 cx_idx = q * (n - 1) + (tgt if tgt < q else tgt - 1)
                 cx_involving_q.append(cx_vars[layer][cx_idx])
 
+            cz_involving_q: list[z3.BoolRef] = []
+            if use_cz:
+                for other in range(n):
+                    if other == q:
+                        continue
+                    pi = min(q, other)
+                    pj = max(q, other)
+                    cz_idx = pi * (2 * n - pi - 1) // 2 + (pj - pi - 1)
+                    cz_involving_q.append(cz_vars[layer][cz_idx])
+
             solver.add(
                 z3.PbEq(
                     [(h_vars[layer][q], 1), (s_vars[layer][q], 1), (id_vars[layer][q], 1)]
-                    + [(v, 1) for v in cx_involving_q],
+                    + [(v, 1) for v in cx_involving_q]
+                    + [(v, 1) for v in cz_involving_q],
                     1,
                 )
             )
@@ -154,6 +189,24 @@ def encode_clifford_depth(
 
                 cx_idx += 1
 
+        if use_cz:
+            cz_idx = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    for row in range(num_rows):
+                        cz_effect = z3.If(
+                            cz_vars[layer][cz_idx],
+                            z3.And(
+                                next_x[row, i] == curr_x[row, i],
+                                next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, j]),
+                                next_x[row, j] == curr_x[row, j],
+                                next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i]),
+                            ),
+                            True,
+                        )
+                        solver.add(cz_effect)
+                    cz_idx += 1
+
     add_clifford_isometry_terminal(
         solver,
         n,
@@ -163,7 +216,7 @@ def encode_clifford_depth(
         allow_qubit_permutation,
     )
 
-    return solver, h_vars, s_vars, cx_vars, id_vars
+    return CliffordDepthVars(solver, gate_vars, n, gate_set)
 
 
 def encode_css_depth(

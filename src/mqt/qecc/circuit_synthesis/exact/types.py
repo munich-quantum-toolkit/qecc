@@ -55,6 +55,7 @@ class SynthesisResult:
         verified: bool = False,
         message: str = "",
         gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
+        proven_optimal: bool = False,
     ) -> None:
         """Initialize synthesis result.
 
@@ -66,6 +67,9 @@ class SynthesisResult:
             verified: Whether circuit was verified.
             message: Additional information or error message.
             gate_set: Gate set used for synthesis.
+            proven_optimal: Whether the returned circuit is proven optimal within
+                the search range.  True when all smaller bounds were proven UNSAT
+                before the solution was found.
         """
         self.status = status
         self.circuit = circuit
@@ -74,3 +78,4 @@ class SynthesisResult:
         self.verified = verified
         self.message = message
         self.gate_set = gate_set
+        self.proven_optimal = proven_optimal

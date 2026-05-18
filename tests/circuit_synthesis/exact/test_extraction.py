@@ -18,13 +18,16 @@ from mqt.qecc.circuit_synthesis.exact.extraction import (
     extract_cnot_depth_circuit,
     extract_cnot_gate_count_circuit,
 )
+from mqt.qecc.circuit_synthesis.exact.gate_operations import CNOTGate, HGate, SGate
+from mqt.qecc.circuit_synthesis.exact.vars import CliffordDepthVars, CliffordGateCountVars
 
 
 @pytest.fixture
-def simple_gate_count_model() -> tuple[
-    z3.ModelRef, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]
-]:
-    """Create a simple SAT model for gate-count extraction."""
+def simple_gate_count_enc() -> tuple[z3.ModelRef, CliffordGateCountVars]:
+    """Create a simple SAT model and CliffordGateCountVars for gate-count extraction.
+
+    Encodes: slot 0 = H(0), slot 1 = CX(0→1).
+    """
     solver = z3.Solver()
 
     h_vars = [z3.Bool(f"h_{i}") for i in range(2)]
@@ -47,7 +50,14 @@ def simple_gate_count_model() -> tuple[
     assert solver.check() == z3.sat
     model = solver.model()
 
-    return model, h_vars, s_vars, c_vars, alpha_vars, beta_vars
+    enc = CliffordGateCountVars(
+        solver=solver,
+        gate_sel={"H": h_vars, "S": s_vars, "CX": c_vars},
+        alpha=alpha_vars,
+        beta=beta_vars,
+        gate_set={"H": HGate, "S": SGate, "CX": CNOTGate},
+    )
+    return model, enc
 
 
 def test_extract_single_h_gate() -> None:
@@ -68,7 +78,14 @@ def test_extract_single_h_gate() -> None:
     assert solver.check() == z3.sat
     model = solver.model()
 
-    circuit = extract_clifford_gate_count_circuit(model, 1, 1, h_vars, s_vars, c_vars, alpha_vars, beta_vars, k=0)
+    enc = CliffordGateCountVars(
+        solver=solver,
+        gate_sel={"H": h_vars, "S": s_vars, "CX": c_vars},
+        alpha=alpha_vars,
+        beta=beta_vars,
+        gate_set={"H": HGate, "S": SGate, "CX": CNOTGate},
+    )
+    circuit = extract_clifford_gate_count_circuit(model, 1, 1, enc, k=0)
 
     assert circuit is not None
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
@@ -81,15 +98,10 @@ def test_extract_single_h_gate() -> None:
     assert gate_found
 
 
-def test_extract_h_then_cnot(
-    simple_gate_count_model: tuple[
-        z3.ModelRef, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]
-    ],
-) -> None:
+def test_extract_h_then_cnot(simple_gate_count_enc: tuple[z3.ModelRef, CliffordGateCountVars]) -> None:
     """Test extraction of H followed by CNOT."""
-    model, h_vars, s_vars, c_vars, alpha_vars, beta_vars = simple_gate_count_model
-
-    circuit = extract_clifford_gate_count_circuit(model, 2, 2, h_vars, s_vars, c_vars, alpha_vars, beta_vars, k=0)
+    model, enc = simple_gate_count_enc
+    circuit = extract_clifford_gate_count_circuit(model, 2, 2, enc, k=0)
 
     assert circuit is not None
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
@@ -99,17 +111,17 @@ def test_extract_h_then_cnot(
 def test_extract_empty_circuit() -> None:
     """Test extraction with no gates."""
     solver = z3.Solver()
-
-    h_vars: list[z3.BoolRef] = []
-    s_vars: list[z3.BoolRef] = []
-    c_vars: list[z3.BoolRef] = []
-    alpha_vars: list[z3.BitVecRef] = []
-    beta_vars: list[z3.BitVecRef] = []
-
     assert solver.check() == z3.sat
     model = solver.model()
 
-    circuit = extract_clifford_gate_count_circuit(model, 1, 0, h_vars, s_vars, c_vars, alpha_vars, beta_vars, k=0)
+    enc = CliffordGateCountVars(
+        solver=solver,
+        gate_sel={},
+        alpha=[],
+        beta=[],
+        gate_set={},
+    )
+    circuit = extract_clifford_gate_count_circuit(model, 1, 0, enc, k=0)
 
     assert circuit is not None
     stim_circuit = circuit.to_stim_circuit(with_resets=True)
@@ -136,7 +148,13 @@ def test_extract_parallel_h_gates() -> None:
     assert solver.check() == z3.sat
     model = solver.model()
 
-    circuit = extract_clifford_depth_circuit(model, n, depth, h_vars, s_vars, cx_vars, k=0)
+    enc = CliffordDepthVars(
+        solver=solver,
+        gate_vars={"H": h_vars, "S": s_vars, "CX": cx_vars},
+        n=n,
+        gate_set={"H": HGate, "S": SGate, "CX": CNOTGate},
+    )
+    circuit = extract_clifford_depth_circuit(model, n, depth, enc, k=0)
 
     assert circuit is not None
     stim_circuit = circuit.to_stim_circuit(with_resets=False)

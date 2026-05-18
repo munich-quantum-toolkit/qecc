@@ -35,6 +35,7 @@ from .symmetry import (
 if TYPE_CHECKING:
     from ..circuits import CliffordIsometry, CNOTCircuit
     from .gate_operations import SymbolicGateOperation
+    from .vars import CliffordDepthVars, CliffordGateCountVars
 
 
 class SynthesisEncoding(ABC):
@@ -135,16 +136,7 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         self._n = 0
         self._bound = 0
         self._k = 0
-        self._h_vars: list[z3.BoolRef] = []
-        self._s_vars: list[z3.BoolRef] = []
-        self._c_vars: list[z3.BoolRef] = []
-        self._alpha_vars: list[z3.BitVecRef] = []
-        self._beta_vars: list[z3.BitVecRef] = []
-
-    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
-        add_clifford_gate_count_symmetry_breaking(
-            solver, self._bound, self._h_vars, self._s_vars, self._c_vars, self._alpha_vars, self._beta_vars
-        )
+        self._vars: CliffordGateCountVars | None = None
 
     def encode(
         self,
@@ -159,44 +151,26 @@ class CliffordGateCountEncoding(SynthesisEncoding):
         self._n = target.n
         self._bound = bound
         self._k = k
-        solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars = encode_clifford_gate_count(
-            target, k, bound, self.allow_qubit_permutation, self.gate_set
-        )
-        self._h_vars = h_vars
-        self._s_vars = s_vars
-        self._c_vars = c_vars
-        self._alpha_vars = alpha_vars
-        self._beta_vars = beta_vars
+        self._vars = encode_clifford_gate_count(target, k, bound, self.allow_qubit_permutation, self.gate_set)
         if self.use_symmetry_breaking:
-            self._apply_symmetry_breaking(solver)
-        return solver
+            add_clifford_gate_count_symmetry_breaking(self._vars.solver, bound, self._vars)
+        return self._vars.solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
         """Extract a Clifford circuit from a gate-count model."""
+        assert self._vars is not None
         pivot_qubits = _compute_pivot_qubits(model, self._n, self._k, self._bound) if self._k < self._n else None
-        return extract_clifford_gate_count_circuit(
-            model,
-            self._n,
-            self._bound,
-            self._h_vars,
-            self._s_vars,
-            self._c_vars,
-            self._alpha_vars,
-            self._beta_vars,
-            self._k,
-            pivot_qubits=pivot_qubits,
-        )
+        return extract_clifford_gate_count_circuit(model, self._n, self._bound, self._vars, self._k, pivot_qubits)
 
     def compute_actual_resources(self, model: z3.ModelRef) -> int:
         """Compute actual gate count."""
-        return sum(
-            1
-            for slot in range(self._bound)
-            if model.eval(
-                z3.Or(self._h_vars[slot], self._s_vars[slot], self._c_vars[slot]),
-                model_completion=True,
-            )
-        )
+        assert self._vars is not None
+        count = 0
+        for slot in range(self._bound):
+            all_bools = [sel[slot] for sel in self._vars.gate_sel.values()]
+            if model.eval(z3.Or(*all_bools), model_completion=True):
+                count += 1
+        return count
 
 
 class CliffordDepthEncoding(SynthesisEncoding):
@@ -215,8 +189,8 @@ class CliffordDepthEncoding(SynthesisEncoding):
             gate_set: Gate set to use for synthesis.
             allow_qubit_permutation: Allow final qubit permutation in the terminal constraint.
             use_symmetry_breaking: Add symmetry-breaking constraints to prune the search space.
-            max_two_qubit_gates: Upper bound on the total number of CX gates across all layers.
-                Useful for obtaining shallow circuits without an excessive CNOT count.
+            max_two_qubit_gates: Upper bound on the total number of two-qubit gates across all
+                layers.  Useful for obtaining shallow circuits without an excessive gate count.
         """
         self.gate_set = gate_set
         self.allow_qubit_permutation = allow_qubit_permutation
@@ -225,15 +199,7 @@ class CliffordDepthEncoding(SynthesisEncoding):
         self._n = 0
         self._bound = 0
         self._k = 0
-        self._h_vars: list[list[z3.BoolRef]] = []
-        self._s_vars: list[list[z3.BoolRef]] = []
-        self._cx_vars: list[list[z3.BoolRef]] = []
-        self._id_vars: list[list[z3.BoolRef]] = []
-
-    def _apply_symmetry_breaking(self, solver: z3.Solver) -> None:
-        add_clifford_depth_symmetry_breaking(
-            solver, self._n, self._bound, self._h_vars, self._s_vars, self._cx_vars, self._id_vars
-        )
+        self._vars: CliffordDepthVars | None = None
 
     def encode(
         self,
@@ -248,50 +214,39 @@ class CliffordDepthEncoding(SynthesisEncoding):
         self._n = target.n
         self._bound = bound
         self._k = k
-        solver, h_vars, s_vars, cx_vars, id_vars = encode_clifford_depth(
-            target, k, bound, self.allow_qubit_permutation, self.gate_set
-        )
-        self._h_vars = h_vars
-        self._s_vars = s_vars
-        self._cx_vars = cx_vars
-        self._id_vars = id_vars
+        self._vars = encode_clifford_depth(target, k, bound, self.allow_qubit_permutation, self.gate_set)
         if self.use_symmetry_breaking:
-            self._apply_symmetry_breaking(solver)
+            add_clifford_depth_symmetry_breaking(self._vars.solver, bound, self._vars)
         if self.max_two_qubit_gates is not None:
-            cx_flat = [cx_var for layer_cx in cx_vars for cx_var in layer_cx]
-            if cx_flat:
-                solver.add(z3.AtMost(*cx_flat, self.max_two_qubit_gates))
-        return solver
+            two_q_flat = [
+                v
+                for gate_name, all_layer_vars in self._vars.gate_vars.items()
+                if self._vars.gate_set[gate_name].IS_TWO_QUBIT
+                for layer_vars in all_layer_vars
+                for v in layer_vars
+            ]
+            if two_q_flat:
+                self._vars.solver.add(z3.AtMost(*two_q_flat, self.max_two_qubit_gates))
+        return self._vars.solver
 
     def extract_circuit(self, model: z3.ModelRef) -> CliffordIsometry:
         """Extract a Clifford circuit from a depth model."""
+        assert self._vars is not None
         pivot_qubits = _compute_pivot_qubits(model, self._n, self._k, self._bound) if self._k < self._n else None
-        return extract_clifford_depth_circuit(
-            model,
-            self._n,
-            self._bound,
-            self._h_vars,
-            self._s_vars,
-            self._cx_vars,
-            self._k,
-            pivot_qubits=pivot_qubits,
-        )
+        return extract_clifford_depth_circuit(model, self._n, self._bound, self._vars, self._k, pivot_qubits)
 
     def compute_actual_resources(self, model: z3.ModelRef) -> int:
         """Compute actual circuit depth."""
+        assert self._vars is not None
         actual_depth = 0
         for layer in range(self._bound):
-            layer_has_gate = any(
-                model.eval(self._h_vars[layer][q], model_completion=True)
-                or model.eval(self._s_vars[layer][q], model_completion=True)
-                for q in range(self._n)
+            layer_active = any(
+                model.eval(v, model_completion=True)
+                for gate_name, all_layer_vars in self._vars.gate_vars.items()
+                if gate_name != "ID"
+                for v in all_layer_vars[layer]
             )
-            if not layer_has_gate:
-                layer_has_gate = any(
-                    model.eval(self._cx_vars[layer][cx_idx], model_completion=True)
-                    for cx_idx in range(len(self._cx_vars[layer]))
-                )
-            if layer_has_gate:
+            if layer_active:
                 actual_depth += 1
         return actual_depth
 

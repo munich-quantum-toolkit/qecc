@@ -245,7 +245,9 @@ def _search_with_encoding(
         result = solver.check()
 
         if result == z3.sat:
-            return _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+            return _make_success_result(
+                encoding, solver.model(), is_depth, verify, verify_fn, postprocess, proven_optimal=True
+            )
 
         if result == z3.unknown:
             reason = solver.reason_unknown()
@@ -275,6 +277,7 @@ def _make_success_result(
     verify: bool,
     verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
     postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None,
+    proven_optimal: bool = False,
 ) -> SynthesisResult:
     """Extract a SAT model into a SynthesisResult."""
     circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
@@ -297,6 +300,7 @@ def _make_success_result(
         verified=verified,
         message=f"Found solution with {actual_resources} {resource_name}",
         gate_set=encoding.gate_set,
+        proven_optimal=proven_optimal,
     )
 
 
@@ -354,15 +358,23 @@ def _search_with_exponential_backoff(
 
             if result == z3.sat:
                 best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
-                # Phase B: descend with max_timeout
+                # Phase B: descend with max_timeout to tighten the solution
+                proven = False
                 for b in range(bound - 1, lower_bound - 1, -1):
                     s = encoding.encode(target, k, b)
                     s.set("timeout", max_timeout * 1000)
                     r = s.check()
                     if r == z3.sat:
                         best = _make_success_result(encoding, s.model(), is_depth, verify, verify_fn, postprocess)
-                    else:
-                        break  # UNSAT → optimal proven; TIMEOUT → return best known
+                    elif r == z3.unsat:
+                        proven = True
+                        break
+                    else:  # timeout: best known is all we have
+                        break
+                else:
+                    # Exhausted all smaller bounds — all SAT, so lower_bound is optimal.
+                    proven = True
+                best.proven_optimal = proven
                 return best
 
             if result == z3.unknown:

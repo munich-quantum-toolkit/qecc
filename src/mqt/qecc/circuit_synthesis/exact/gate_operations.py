@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import z3
 
@@ -20,7 +20,38 @@ if TYPE_CHECKING:
 
 
 class SymbolicGateOperation(ABC):
-    """Abstract base class for gate operations in symbolic encoding."""
+    """Abstract base class for gate operations in symbolic encoding.
+
+    Class attributes (must be set on every concrete subclass):
+        IS_TWO_QUBIT: True for two-qubit gates (CX, CZ, …).
+        IS_SYMMETRIC: True when the gate treats both qubits symmetrically so
+            that only unordered pairs need to be enumerated (e.g. CZ).
+            Ignored for single-qubit gates.
+        IS_SELF_INVERSE: True when applying the gate twice yields the identity
+            (H, CX, CZ, …).  Used by symmetry-breaking to prune adjacent
+            identical gates.
+    """
+
+    IS_TWO_QUBIT: ClassVar[bool]
+    IS_SYMMETRIC: ClassVar[bool]
+    IS_SELF_INVERSE: ClassVar[bool]
+
+    @classmethod
+    @abstractmethod
+    def from_qubits(cls, q1: int, q2: int) -> SymbolicGateOperation:
+        """Instantiate the gate from up to two qubit indices.
+
+        Single-qubit gates use *q1* and ignore *q2*.  Two-qubit gates use
+        both.  This uniform interface allows extraction code to create gate
+        instances without knowing the concrete arity.
+
+        Args:
+            q1: First (or only) qubit index.
+            q2: Second qubit index (ignored for single-qubit gates).
+
+        Returns:
+            A concrete gate instance.
+        """
 
     @abstractmethod
     def add_clifford_tableau_transition(
@@ -84,6 +115,10 @@ class SymbolicGateOperation(ABC):
 class HGate(SymbolicGateOperation):
     """Hadamard gate operation."""
 
+    IS_TWO_QUBIT: ClassVar[bool] = False
+    IS_SYMMETRIC: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = True
+
     def __init__(self, qubit: int) -> None:
         """Initialize H gate.
 
@@ -91,6 +126,11 @@ class HGate(SymbolicGateOperation):
             qubit: Target qubit index.
         """
         self.qubit = qubit
+
+    @classmethod
+    def from_qubits(cls, q1: int, _q2: int) -> HGate:
+        """Instantiate H gate from qubit indices (_q2 ignored)."""
+        return cls(q1)
 
     def add_clifford_tableau_transition(
         self,
@@ -134,6 +174,10 @@ class HGate(SymbolicGateOperation):
 class SGate(SymbolicGateOperation):
     """S (phase) gate operation."""
 
+    IS_TWO_QUBIT: ClassVar[bool] = False
+    IS_SYMMETRIC: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = False
+
     def __init__(self, qubit: int) -> None:
         """Initialize S gate.
 
@@ -141,6 +185,11 @@ class SGate(SymbolicGateOperation):
             qubit: Target qubit index.
         """
         self.qubit = qubit
+
+    @classmethod
+    def from_qubits(cls, q1: int, _q2: int) -> SGate:
+        """Instantiate S gate from qubit indices (_q2 ignored)."""
+        return cls(q1)
 
     def add_clifford_tableau_transition(
         self,
@@ -184,6 +233,10 @@ class SGate(SymbolicGateOperation):
 class CNOTGate(SymbolicGateOperation):
     """CNOT gate operation."""
 
+    IS_TWO_QUBIT: ClassVar[bool] = True
+    IS_SYMMETRIC: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = True
+
     def __init__(self, control: int, target: int) -> None:
         """Initialize CNOT gate.
 
@@ -193,6 +246,11 @@ class CNOTGate(SymbolicGateOperation):
         """
         self.control = control
         self.target = target
+
+    @classmethod
+    def from_qubits(cls, q1: int, q2: int) -> CNOTGate:
+        """Instantiate CNOT gate from qubit indices."""
+        return cls(q1, q2)
 
     def add_clifford_tableau_transition(
         self,
@@ -241,8 +299,75 @@ class CNOTGate(SymbolicGateOperation):
         return {self.control, self.target}
 
 
+class CZGate(SymbolicGateOperation):
+    """CZ gate operation."""
+
+    IS_TWO_QUBIT: ClassVar[bool] = True
+    IS_SYMMETRIC: ClassVar[bool] = True
+    IS_SELF_INVERSE: ClassVar[bool] = True
+
+    def __init__(self, qubit1: int, qubit2: int) -> None:
+        """Initialize CZ gate.
+
+        Args:
+            qubit1: First qubit index (canonical: qubit1 < qubit2).
+            qubit2: Second qubit index.
+        """
+        self.qubit1 = qubit1
+        self.qubit2 = qubit2
+
+    @classmethod
+    def from_qubits(cls, q1: int, q2: int) -> CZGate:
+        """Instantiate CZ gate from qubit indices."""
+        return cls(q1, q2)
+
+    def add_clifford_tableau_transition(
+        self,
+        solver: z3.Solver,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
+    ) -> None:
+        """CZ gate: Z[:,i] ^= X[:,j], Z[:,j] ^= X[:,i], X columns unchanged."""
+        num_rows = tableau_x_curr.shape[0]
+        i, j = self.qubit1, self.qubit2
+
+        for row in range(num_rows):
+            solver.add(tableau_x_next[row, i] == tableau_x_curr[row, i])
+            solver.add(tableau_z_next[row, i] == z3.Xor(tableau_z_curr[row, i], tableau_x_curr[row, j]))
+            solver.add(tableau_x_next[row, j] == tableau_x_curr[row, j])
+            solver.add(tableau_z_next[row, j] == z3.Xor(tableau_z_curr[row, j], tableau_x_curr[row, i]))
+
+    def add_css_matrix_transition(
+        self,
+        solver: z3.Solver,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
+    ) -> None:
+        """CZ gate not applicable to CSS encoding."""
+        msg = "CZ gate cannot be applied in CSS CNOT-only encoding"
+        raise NotImplementedError(msg)
+
+    def to_stim_gate(self) -> tuple[str, list[int]]:
+        """Convert to Stim gate."""
+        return ("CZ", [self.qubit1, self.qubit2])
+
+    def inverse_stim_gate(self) -> tuple[str, list[int]]:
+        """CZ is self-inverse."""
+        return ("CZ", [self.qubit1, self.qubit2])
+
+    def qubits(self) -> set[int]:
+        """Get qubits involved."""
+        return {self.qubit1, self.qubit2}
+
+
 class IdentityGate(SymbolicGateOperation):
     """Identity (no-op) gate operation."""
+
+    IS_TWO_QUBIT: ClassVar[bool] = False
+    IS_SYMMETRIC: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = True
 
     def __init__(self, qubit: int) -> None:
         """Initialize identity gate.
@@ -251,6 +376,11 @@ class IdentityGate(SymbolicGateOperation):
             qubit: Qubit index (for bookkeeping in depth encoding).
         """
         self.qubit = qubit
+
+    @classmethod
+    def from_qubits(cls, q1: int, _q2: int) -> IdentityGate:
+        """Instantiate identity gate from qubit indices (_q2 ignored)."""
+        return cls(q1)
 
     def add_clifford_tableau_transition(
         self,
@@ -367,6 +497,21 @@ def get_standard_clifford_gate_set() -> dict[str, type[SymbolicGateOperation]]:
         "H": HGate,
         "S": SGate,
         "CX": CNOTGate,
+        "ID": IdentityGate,
+    }
+
+
+def get_clifford_cz_gate_set() -> dict[str, type[SymbolicGateOperation]]:
+    """Get the extended Clifford gate set {H, S, CX, CZ, ID}.
+
+    Returns:
+        Dictionary mapping gate names to gate classes.
+    """
+    return {
+        "H": HGate,
+        "S": SGate,
+        "CX": CNOTGate,
+        "CZ": CZGate,
         "ID": IdentityGate,
     }
 

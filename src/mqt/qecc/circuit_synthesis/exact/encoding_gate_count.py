@@ -16,6 +16,7 @@ import z3
 
 from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
+from .vars import CliffordGateCountVars
 
 if TYPE_CHECKING:
     from ...codes.pauli import CheckMatrix, StabilizerTableau
@@ -28,7 +29,7 @@ def encode_clifford_gate_count(
     max_gates: int,
     allow_qubit_permutation: bool = True,
     gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
-) -> tuple[z3.Solver, list[z3.BoolRef], list[z3.BoolRef], list[z3.BoolRef], list[z3.BitVecRef], list[z3.BitVecRef]]:
+) -> CliffordGateCountVars:
     """Encode Clifford isometry synthesis with gate-count optimization.
 
     Args:
@@ -36,13 +37,19 @@ def encode_clifford_gate_count(
         k: Number of logical qubits.
         max_gates: Maximum number of gates.
         allow_qubit_permutation: Allow final qubit permutation.
-        gate_set: Gate set to use. If None, uses standard {H, S, CX}.
+        gate_set: Gate set to use. If None, uses standard {H, S, CX, ID}.
+            Pass a gate set containing ``"CZ"`` to enable CZ gates.
 
     Returns:
-        Tuple of (solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars).
+        A :class:`CliffordGateCountVars` container holding the solver and all
+        SAT variables.  The ``gate_sel`` dict has one entry per gate type
+        (excluding ``"ID"``); ``alpha`` and ``beta`` hold per-slot qubit-index
+        variables.
     """
     if gate_set is None:
         gate_set = get_standard_clifford_gate_set()
+
+    use_cz = "CZ" in gate_set
 
     n = target.n
     num_rows = target.n_rows
@@ -51,9 +58,17 @@ def encode_clifford_gate_count(
 
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
-    h_vars = [z3.Bool(f"h_{slot}") for slot in range(max_gates)]
-    s_vars = [z3.Bool(f"s_{slot}") for slot in range(max_gates)]
-    c_vars = [z3.Bool(f"c_{slot}") for slot in range(max_gates)]
+    # One selection boolean per slot for every non-ID gate in the gate set.
+    # "ID" is a depth-encoding concept; gate-count slots are always occupied.
+    gate_sel: dict[str, list[z3.BoolRef]] = {
+        name: [z3.Bool(f"{name.lower()}_{slot}") for slot in range(max_gates)] for name in gate_set if name != "ID"
+    }
+
+    # Convenient local aliases for the inline transition logic below.
+    h_vars = gate_sel["H"]
+    s_vars = gate_sel["S"]
+    cx_vars = gate_sel["CX"]
+    cz_vars = gate_sel.get("CZ", [])
 
     alpha_vars = [z3.BitVec(f"alpha_{slot}", n_bits) for slot in range(max_gates)]
     beta_vars = [z3.BitVec(f"beta_{slot}", n_bits) for slot in range(max_gates)]
@@ -80,13 +95,18 @@ def encode_clifford_gate_count(
             solver.add(tableau_z[0, row, q] == bool(target.tableau.matrix[row, q + n]))
 
     for slot in range(max_gates):
-        solver.add(z3.PbEq([(h_vars[slot], 1), (s_vars[slot], 1), (c_vars[slot], 1)], 1))
+        pb_terms: list[tuple[z3.BoolRef, int]] = [(v[slot], 1) for v in gate_sel.values()]
+        solver.add(z3.PbEq(pb_terms, 1))
 
         if n > 1 and n & n - 1 != 0:
             solver.add(z3.ULT(alpha_vars[slot], n))
             solver.add(z3.ULT(beta_vars[slot], n))
 
-        solver.add(z3.Implies(c_vars[slot], alpha_vars[slot] != beta_vars[slot]))
+        solver.add(z3.Implies(cx_vars[slot], alpha_vars[slot] != beta_vars[slot]))
+
+        # CZ is symmetric: canonically enforce alpha < beta so we only need i<j transitions.
+        if use_cz:
+            solver.add(z3.Implies(cz_vars[slot], z3.ULT(alpha_vars[slot], beta_vars[slot])))
 
         curr_x = tableau_x[slot]
         curr_z = tableau_z[slot]
@@ -110,13 +130,24 @@ def encode_clifford_gate_count(
                 if i == j:
                     continue
 
-                cx_condition = z3.And(c_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
+                cx_condition = z3.And(cx_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
 
                 for row in range(num_rows):
                     solver.add(z3.Implies(cx_condition, next_x[row, i] == curr_x[row, i]))
                     solver.add(z3.Implies(cx_condition, next_x[row, j] == z3.Xor(curr_x[row, j], curr_x[row, i])))
                     solver.add(z3.Implies(cx_condition, next_z[row, i] == z3.Xor(curr_z[row, i], curr_z[row, j])))
                     solver.add(z3.Implies(cx_condition, next_z[row, j] == curr_z[row, j]))
+
+        # CZ transitions: only i < j pairs (alpha < beta enforced above).
+        if use_cz:
+            for i in range(n):
+                for j in range(i + 1, n):
+                    cz_condition = z3.And(cz_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
+                    for row in range(num_rows):
+                        solver.add(z3.Implies(cz_condition, next_x[row, i] == curr_x[row, i]))
+                        solver.add(z3.Implies(cz_condition, next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, j])))
+                        solver.add(z3.Implies(cz_condition, next_x[row, j] == curr_x[row, j]))
+                        solver.add(z3.Implies(cz_condition, next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i])))
 
         for q in range(n):
             not_h_on_q = z3.Not(z3.And(h_vars[slot], alpha_vars[slot] == q))
@@ -129,7 +160,7 @@ def encode_clifford_gate_count(
                 not_cx_involving_q.append(
                     z3.Not(
                         z3.And(
-                            c_vars[slot],
+                            cx_vars[slot],
                             z3.Or(
                                 z3.And(alpha_vars[slot] == q, beta_vars[slot] == other),
                                 z3.And(alpha_vars[slot] == other, beta_vars[slot] == q),
@@ -138,7 +169,11 @@ def encode_clifford_gate_count(
                     )
                 )
 
-            qubit_untouched = z3.And(not_h_on_q, not_s_on_q, *not_cx_involving_q)
+            if use_cz:
+                not_cz_involving_q = z3.Not(z3.And(cz_vars[slot], z3.Or(alpha_vars[slot] == q, beta_vars[slot] == q)))
+                qubit_untouched = z3.And(not_h_on_q, not_s_on_q, *not_cx_involving_q, not_cz_involving_q)
+            else:
+                qubit_untouched = z3.And(not_h_on_q, not_s_on_q, *not_cx_involving_q)
 
             for row in range(num_rows):
                 solver.add(z3.Implies(qubit_untouched, next_x[row, q] == curr_x[row, q]))
@@ -153,7 +188,7 @@ def encode_clifford_gate_count(
         allow_qubit_permutation,
     )
 
-    return solver, h_vars, s_vars, c_vars, alpha_vars, beta_vars
+    return CliffordGateCountVars(solver, gate_sel, alpha_vars, beta_vars, gate_set)
 
 
 def encode_css_gate_count(

@@ -176,6 +176,50 @@ def add_full_tableau_identity(
             solver.add(tableau_z_next[row, q] == tableau_z_curr[row, q])
 
 
+def add_clifford_cz_transition(
+    solver: z3.Solver,
+    qubit1: int,
+    qubit2: int,
+    tableau_x_curr: npt.NDArray[np.object_],
+    tableau_z_curr: npt.NDArray[np.object_],
+    tableau_x_next: npt.NDArray[np.object_],
+    tableau_z_next: npt.NDArray[np.object_],
+) -> None:
+    """Add CZ gate transition constraints for two qubits.
+
+    CZ gate on qubits (i, j):
+    - Z[:, i] <- Z[:, i] XOR X[:, j]
+    - Z[:, j] <- Z[:, j] XOR X[:, i]
+    - X[:, i] and X[:, j] unchanged.
+
+    CZ is symmetric: CZ(i, j) = CZ(j, i).  Callers should canonically pass
+    qubit1 < qubit2 so that the encoding variable space is not doubled.
+
+    This function only constrains the two qubits being acted upon.
+    Identity constraints on other qubits must be handled by the caller.
+
+    Args:
+        solver: Z3 solver instance.
+        qubit1: First qubit index i (canonical: qubit1 < qubit2).
+        qubit2: Second qubit index j.
+        tableau_x_curr: Current X part of tableau (num_rows x n array of z3.BoolRef).
+        tableau_z_curr: Current Z part of tableau (num_rows x n array of z3.BoolRef).
+        tableau_x_next: Next X part of tableau (num_rows x n array of z3.BoolRef).
+        tableau_z_next: Next Z part of tableau (num_rows x n array of z3.BoolRef).
+    """
+    num_rows = tableau_x_curr.shape[0]
+
+    for row in range(num_rows):
+        # X[:, i] unchanged
+        solver.add(tableau_x_next[row, qubit1] == tableau_x_curr[row, qubit1])
+        # Z[:, i] <- Z[:, i] XOR X[:, j]
+        solver.add(tableau_z_next[row, qubit1] == z3.Xor(tableau_z_curr[row, qubit1], tableau_x_curr[row, qubit2]))
+        # X[:, j] unchanged
+        solver.add(tableau_x_next[row, qubit2] == tableau_x_curr[row, qubit2])
+        # Z[:, j] <- Z[:, j] XOR X[:, i]
+        solver.add(tableau_z_next[row, qubit2] == z3.Xor(tableau_z_curr[row, qubit2], tableau_x_curr[row, qubit1]))
+
+
 def add_css_cnot_transition(
     solver: z3.Solver,
     control: int,

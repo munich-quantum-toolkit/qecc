@@ -18,58 +18,76 @@ from ..circuits import CliffordIsometry, CNOTCircuit
 if TYPE_CHECKING:
     import z3
 
+    from .gate_operations import SymbolicGateOperation
+    from .vars import CliffordDepthVars, CliffordGateCountVars
+
+
+def _decode_layer_gates(
+    model: z3.ModelRef,
+    gate_name: str,
+    gate_cls: type[SymbolicGateOperation],
+    layer_vars: list[z3.BoolRef],
+    n: int,
+) -> list[tuple[str, int, int]]:
+    """Decode active gate operations from a layer's model values."""
+    gates: list[tuple[str, int, int]] = []
+    if not gate_cls.IS_TWO_QUBIT:
+        for q, var in enumerate(layer_vars):
+            if model.eval(var, model_completion=True):
+                gates.append((gate_name, q, 0))
+    elif not gate_cls.IS_SYMMETRIC:
+        pair_idx = 0
+        for ctrl in range(n):
+            for tgt in range(n):
+                if ctrl == tgt:
+                    continue
+                if model.eval(layer_vars[pair_idx], model_completion=True):
+                    gates.append((gate_name, ctrl, tgt))
+                pair_idx += 1
+    else:
+        pair_idx = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                if model.eval(layer_vars[pair_idx], model_completion=True):
+                    gates.append((gate_name, i, j))
+                pair_idx += 1
+    return gates
+
 
 def extract_clifford_gate_count_circuit(
     model: z3.ModelRef,
     n: int,
     max_gates: int,
-    h_vars: list[z3.BoolRef],
-    s_vars: list[z3.BoolRef],
-    c_vars: list[z3.BoolRef],
-    alpha_vars: list[z3.BitVecRef],
-    beta_vars: list[z3.BitVecRef],
+    enc: CliffordGateCountVars,
     k: int,
     pivot_qubits: list[int] | None = None,
 ) -> CliffordIsometry:
     """Extract Clifford circuit from gate-count SAT model.
 
     The synthesis builds the circuit in reverse (reducing target to identity),
-    so we need to invert and reverse the gate sequence.
+    so we invert and reverse the gate sequence using each gate class's
+    :meth:`~SymbolicGateOperation.inverse_stim_gate`.
 
     Args:
         model: Z3 model from satisfiable formula.
         n: Number of qubits.
         max_gates: Maximum number of gates.
-        h_vars: Hadamard gate selection variables.
-        s_vars: S gate selection variables.
-        c_vars: CNOT gate selection variables.
-        alpha_vars: First qubit index variables.
-        beta_vars: Second qubit index variables.
+        enc: Variable container returned by :func:`encode_clifford_gate_count`.
         k: Number of logical qubits.
-        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined from
-            the satisfying model; defaults to range(k, n) if not provided.
+        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined
+            from the satisfying model; defaults to range(k, n) if not provided.
 
     Returns:
         Extracted CliffordIsometry circuit.
     """
     gates: list[tuple[str, int, int]] = []
     for slot in range(max_gates):
-        h = model.eval(h_vars[slot], model_completion=True)
-        s = model.eval(s_vars[slot], model_completion=True)
-        c = model.eval(c_vars[slot], model_completion=True)
-
-        if not (h or s or c):
-            continue
-
-        alpha = model.eval(alpha_vars[slot], model_completion=True).as_long()
-
-        if h:
-            gates.append(("H", alpha, 0))
-        elif s:
-            gates.append(("S", alpha, 0))
-        elif c:
-            beta = model.eval(beta_vars[slot], model_completion=True).as_long()
-            gates.append(("CX", alpha, beta))
+        for gate_name, sel in enc.gate_sel.items():
+            if model.eval(sel[slot], model_completion=True):
+                alpha = model.eval(enc.alpha[slot], model_completion=True).as_long()
+                beta = model.eval(enc.beta[slot], model_completion=True).as_long()
+                gates.append((gate_name, alpha, beta))
+                break
 
     stim_circuit = stim.Circuit()
 
@@ -77,13 +95,10 @@ def extract_clifford_gate_count_circuit(
     if init_qubits:
         stim_circuit.append("R", init_qubits)
 
-    for gate in reversed(gates):
-        if gate[0] == "H":
-            stim_circuit.append("H", [gate[1]])
-        elif gate[0] == "S":
-            stim_circuit.append("S_DAG", [gate[1]])
-        elif gate[0] == "CX":
-            stim_circuit.append("CX", [gate[1], gate[2]])
+    for gate_name, q1, q2 in reversed(gates):
+        gate_inst = enc.gate_set[gate_name].from_qubits(q1, q2)
+        inv_name, inv_qubits = gate_inst.inverse_stim_gate()
+        stim_circuit.append(inv_name, inv_qubits)
 
     return CliffordIsometry.from_stim_circuit(stim_circuit)
 
@@ -92,27 +107,34 @@ def extract_clifford_depth_circuit(
     model: z3.ModelRef,
     n: int,
     max_depth: int,
-    h_vars: list[list[z3.BoolRef]],
-    s_vars: list[list[z3.BoolRef]],
-    cx_vars: list[list[z3.BoolRef]],
+    enc: CliffordDepthVars,
     k: int,
     pivot_qubits: list[int] | None = None,
 ) -> CliffordIsometry:
     """Extract Clifford circuit from depth SAT model.
 
     The synthesis builds the circuit in reverse (reducing target to identity),
-    so we need to invert and reverse the layer sequence.
+    so we invert and reverse the layer sequence.
+
+    The variable index structure recorded in ``enc.gate_vars`` is decoded by
+    inspecting the number of booleans per layer:
+
+    - ``n`` entries → single-qubit gate; the index equals the qubit.
+    - ``n*(n-1)`` entries → ordered two-qubit gate (CX-like); the pair
+      ``(ctrl, tgt)`` is decoded from
+      ``ctrl*(n-1) + (tgt if tgt < ctrl else tgt-1)``.
+    - ``n*(n-1)//2`` entries → symmetric two-qubit gate (CZ-like); the pair
+      ``(i, j)`` with ``i < j`` is decoded from
+      ``i*(2n-i-1)//2 + (j-i-1)``.
 
     Args:
         model: Z3 model from satisfiable formula.
         n: Number of qubits.
         max_depth: Maximum depth.
-        h_vars: Hadamard gate variables [layer][qubit].
-        s_vars: S gate variables [layer][qubit].
-        cx_vars: CNOT gate variables [layer][cx_idx].
+        enc: Variable container returned by :func:`encode_clifford_depth`.
         k: Number of logical qubits.
-        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined from
-            the satisfying model; defaults to range(k, n) if not provided.
+        pivot_qubits: Qubits to reset (stabilizer/ancilla qubits). Determined
+            from the satisfying model; defaults to range(k, n) if not provided.
 
     Returns:
         Extracted CliffordIsometry circuit.
@@ -120,26 +142,11 @@ def extract_clifford_depth_circuit(
     layers: list[list[tuple[str, int, int]]] = []
     for layer in range(max_depth):
         layer_gates: list[tuple[str, int, int]] = []
-
-        for q in range(n):
-            h = model.eval(h_vars[layer][q], model_completion=True)
-            s = model.eval(s_vars[layer][q], model_completion=True)
-
-            if h:
-                layer_gates.append(("H", q, 0))
-            elif s:
-                layer_gates.append(("S", q, 0))
-
-        cx_idx = 0
-        for ctrl in range(n):
-            for tgt in range(n):
-                if ctrl == tgt:
-                    continue
-                cx = model.eval(cx_vars[layer][cx_idx], model_completion=True)
-                if cx:
-                    layer_gates.append(("CX", ctrl, tgt))
-                cx_idx += 1
-
+        for gate_name, all_layer_vars in enc.gate_vars.items():
+            if gate_name == "ID":
+                continue
+            gate_cls = enc.gate_set[gate_name]
+            layer_gates.extend(_decode_layer_gates(model, gate_name, gate_cls, all_layer_vars[layer], n))
         if layer_gates:
             layers.append(layer_gates)
 
@@ -150,13 +157,10 @@ def extract_clifford_depth_circuit(
         stim_circuit.append("R", init_qubits)
 
     for layer_gates in reversed(layers):
-        for gate in layer_gates:
-            if gate[0] == "H":
-                stim_circuit.append("H", [gate[1]])
-            elif gate[0] == "S":
-                stim_circuit.append("S_DAG", [gate[1]])
-            elif gate[0] == "CX":
-                stim_circuit.append("CX", [gate[1], gate[2]])
+        for gate_name, q1, q2 in layer_gates:
+            gate_inst = enc.gate_set[gate_name].from_qubits(q1, q2)
+            inv_name, inv_qubits = gate_inst.inverse_stim_gate()
+            stim_circuit.append(inv_name, inv_qubits)
 
     return CliffordIsometry.from_stim_circuit(stim_circuit)
 
