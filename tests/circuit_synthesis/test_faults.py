@@ -646,7 +646,7 @@ def test_permute_qubits_inplace():
     assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"
 
 
-def test_PureFaultSet_invalid_kind():
+def test_invalid_fault_kind():
     """Test that an invalid kind raises an assertion error."""
     with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
         pfs = PureFaultSet(5, kind="Y")
