@@ -506,15 +506,19 @@ def _apply_pauli_correction_to_clifford(
     return corrected_circuit
 
 
+_SINGLE_QUBIT_CLIFFORD = {"H", "S", "S_DAG", "SQRT_X", "SQRT_X_DAG"}
+_TWO_QUBIT_CLIFFORD = {"CX", "CZ"}
+
+
 def _circuit_gate_count(circuit: CliffordIsometry | CNOTCircuit) -> int:
-    """Count the total number of non-identity gates in a synthesized circuit."""
+    """Count the total number of non-identity non-Pauli gates in a synthesized circuit."""
     if isinstance(circuit, CNOTCircuit):
         return circuit.num_cnots()
     count = 0
     for inst in circuit.to_stim_circuit():
-        if inst.name in {"H", "S", "S_DAG"}:
+        if inst.name in _SINGLE_QUBIT_CLIFFORD:
             count += len(inst.targets_copy())
-        elif inst.name == "CX":
+        elif inst.name in _TWO_QUBIT_CLIFFORD:
             count += len(inst.targets_copy()) // 2
     return count
 
