@@ -97,6 +97,7 @@ def test_from_fault_array():
     # Check that the rows in the result match the expected rows, regardless of order
     assert set(map(tuple, result)) == set(map(tuple, faults)), "Fault set was not created correctly from array."
 
+
 def test_from_fault_array_invalid_dimension():
     """Test creating a PureFaultSet from an array with invalid dimensions."""
     faults = np.array([1, 0, 1], dtype=np.int8)  # 1D array instead of 2D
