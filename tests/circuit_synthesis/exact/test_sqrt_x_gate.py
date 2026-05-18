@@ -37,7 +37,7 @@ def test_sqrt_x_gate_properties() -> None:
     assert sx.inverse_stim_gate() == ("SQRT_X_DAG", [0])
     assert not SqrtXGate.IS_TWO_QUBIT
     assert not SqrtXGate.IS_SYMMETRIC
-    assert not SqrtXGate.IS_SELF_INVERSE
+    assert SqrtXGate.IS_SELF_INVERSE
 
 
 def test_sqrt_x_not_applicable_to_css() -> None:

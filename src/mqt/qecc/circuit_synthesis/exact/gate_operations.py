@@ -28,8 +28,11 @@ class SymbolicGateOperation(ABC):
             that only unordered pairs need to be enumerated (e.g. CZ).
             Ignored for single-qubit gates.
         IS_SELF_INVERSE: True when applying the gate twice yields the identity
-            (H, CX, CZ, …).  Used by symmetry-breaking to prune adjacent
-            identical gates.
+            in the binary stabilizer tableau (ignoring global phases).  This
+            holds for H, CX, CZ, and also for S and SX: although S and SX have
+            order 4 as unitaries, their binary tableau actions square to the
+            identity (S: z↦x⊕z twice gives z; SX: x↦x⊕z twice gives x).
+            Used by symmetry-breaking to prune adjacent identical gates.
     """
 
     IS_TWO_QUBIT: ClassVar[bool]
@@ -176,7 +179,7 @@ class SGate(SymbolicGateOperation):
 
     IS_TWO_QUBIT: ClassVar[bool] = False
     IS_SYMMETRIC: ClassVar[bool] = False
-    IS_SELF_INVERSE: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = True
 
     def __init__(self, qubit: int) -> None:
         """Initialize S gate.
@@ -234,12 +237,13 @@ class SqrtXGate(SymbolicGateOperation):
     """√X gate (SX = HSH) operation.
 
     Binary tableau action: X_out = X ⊕ Z, Z_out = Z.
-    Not self-inverse: (SX)^2 = X, (SX)^4 = I.
+    Self-inverse in the binary tableau: (SX)^2 = X as a unitary, but the
+    binary tableau action squares to the identity (x⊕z)⊕z = x.
     """
 
     IS_TWO_QUBIT: ClassVar[bool] = False
     IS_SYMMETRIC: ClassVar[bool] = False
-    IS_SELF_INVERSE: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = True
 
     def __init__(self, qubit: int) -> None:
         """Initialize SX gate.
@@ -589,6 +593,24 @@ def get_clifford_cz_gate_set() -> dict[str, type[SymbolicGateOperation]]:
     return {
         "H": HGate,
         "S": SGate,
+        "CX": CNOTGate,
+        "CZ": CZGate,
+        "ID": IdentityGate,
+    }
+
+
+def get_clifford_extended_gate_set() -> dict[str, type[SymbolicGateOperation]]:
+    """Get the full extended Clifford gate set {H, S, SX, CX, CZ, ID}.
+
+    Combines CZ and SX extensions on top of the standard {H, S, CX} basis.
+
+    Returns:
+        Dictionary mapping gate names to gate classes.
+    """
+    return {
+        "H": HGate,
+        "S": SGate,
+        "SX": SqrtXGate,
         "CX": CNOTGate,
         "CZ": CZGate,
         "ID": IdentityGate,
