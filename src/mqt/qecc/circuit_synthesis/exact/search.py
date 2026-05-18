@@ -67,6 +67,8 @@ def synthesize_exact(
     use_symmetry_breaking: bool = False,
     max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
+    use_exponential_backoff: bool = False,
+    min_timeout: int = 1,
 ) -> SynthesisResult:
     """Synthesize optimal circuit for given target using exact methods.
 
@@ -91,8 +93,18 @@ def synthesize_exact(
             circuit. Only meaningful for depth-optimal synthesis, where it constrains the CNOT
             count while still minimizing depth. Ignored for gate-count synthesis (where the
             gate count already bounds the total).
-        timeout: Per-bound solver timeout in seconds. If the solver exceeds the timeout
-            at any bound, synthesis stops and returns SynthesisStatus.TIMEOUT.
+        timeout: Per-bound solver timeout in seconds. In the default fixed-timeout strategy
+            the first timeout stops the search immediately. When ``use_exponential_backoff``
+            is enabled this becomes the *maximum* per-bound budget.
+        use_exponential_backoff: Use exponential-backoff search instead of the default
+            fixed-timeout linear scan. The search starts at ``min_timeout`` seconds per
+            bound and doubles the budget after each full pass over remaining (timed-out)
+            bounds, up to ``timeout``. Bounds proven UNSAT are dropped permanently. Once
+            a SAT solution is found, a descending phase tries lower bounds at the maximum
+            budget. Not guaranteed to find the optimum within the time budget, but often
+            finds good solutions faster in practice.
+        min_timeout: Starting per-bound timeout in seconds for the exponential-backoff
+            strategy. Only used when ``use_exponential_backoff`` is True.
 
     Returns:
         SynthesisResult with circuit and metadata.
@@ -128,6 +140,8 @@ def synthesize_exact(
             use_symmetry_breaking,
             max_two_qubit_gates,
             timeout,
+            use_exponential_backoff,
+            min_timeout,
         )
     assert isinstance(target, CheckMatrix)
     return _synthesize_css(
@@ -143,6 +157,8 @@ def synthesize_exact(
         use_symmetry_breaking,
         max_two_qubit_gates,
         timeout,
+        use_exponential_backoff,
+        min_timeout,
     )
 
 
@@ -229,35 +245,7 @@ def _search_with_encoding(
         result = solver.check()
 
         if result == z3.sat:
-            model = solver.model()
-
-            circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
-
-            if postprocess is not None:
-                circuit = postprocess(circuit)
-
-            actual_resources = encoding.compute_actual_resources(model)
-
-            verified = verify and verify_fn(circuit)
-
-            if is_depth:
-                opt_depth = actual_resources
-                opt_gate_count = _circuit_gate_count(circuit)
-            else:
-                opt_gate_count = actual_resources
-                opt_depth = _circuit_depth(circuit)
-
-            resource_name = "depth" if is_depth else "gates"
-
-            return SynthesisResult(
-                status=SynthesisStatus.SUCCESS,
-                circuit=circuit,
-                gate_count=opt_gate_count,
-                depth=opt_depth,
-                verified=verified,
-                message=f"Found solution with {actual_resources} {resource_name}",
-                gate_set=gate_set,
-            )
+            return _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
 
         if result == z3.unknown:
             reason = solver.reason_unknown()
@@ -273,6 +261,133 @@ def _search_with_encoding(
                 gate_set=gate_set,
             )
 
+    return SynthesisResult(
+        status=SynthesisStatus.UNSAT,
+        message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
+        gate_set=gate_set,
+    )
+
+
+def _make_success_result(
+    encoding: SynthesisEncoding,
+    model: z3.ModelRef,
+    is_depth: bool,
+    verify: bool,
+    verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
+    postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None,
+) -> SynthesisResult:
+    """Extract a SAT model into a SynthesisResult."""
+    circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
+    if postprocess is not None:
+        circuit = postprocess(circuit)
+    actual_resources = encoding.compute_actual_resources(model)
+    verified = verify and verify_fn(circuit)
+    if is_depth:
+        opt_depth = actual_resources
+        opt_gate_count = _circuit_gate_count(circuit)
+    else:
+        opt_gate_count = actual_resources
+        opt_depth = _circuit_depth(circuit)
+    resource_name = "depth" if is_depth else "gates"
+    return SynthesisResult(
+        status=SynthesisStatus.SUCCESS,
+        circuit=circuit,
+        gate_count=opt_gate_count,
+        depth=opt_depth,
+        verified=verified,
+        message=f"Found solution with {actual_resources} {resource_name}",
+        gate_set=encoding.gate_set,
+    )
+
+
+def _search_with_exponential_backoff(
+    encoding: SynthesisEncoding,
+    target: StabilizerTableau | CheckMatrix,
+    lower_bound: int,
+    upper_bound: int,
+    k: int,
+    verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
+    is_depth: bool,
+    verify: bool,
+    postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None = None,
+    min_timeout: int = 1,
+    max_timeout: int = 3600,
+) -> SynthesisResult:
+    """Search with exponential timeout backoff.
+
+    Phase A — ascending linear scan: starting with ``min_timeout`` seconds per
+    bound, scan from ``lower_bound`` to ``upper_bound``.  Bounds proven UNSAT
+    are dropped permanently; timed-out bounds are retried with a doubled budget.
+    This continues until a SAT result is found or all pending bounds time out at
+    ``max_timeout``.
+
+    Phase B — descending refinement: once a SAT solution is found at bound
+    ``b``, descend from ``b - 1`` downward using ``max_timeout`` per bound.
+    Stops when UNSAT (optimal proven) or TIMEOUT (best-known solution returned).
+
+    Args:
+        encoding: Encoding strategy to use.
+        target: Combined target (tableau or check matrix).
+        lower_bound: Lower bound on resources.
+        upper_bound: Upper bound on resources.
+        k: Number of logical qubits.
+        verify_fn: Verification function called on the (post-processed) circuit.
+        is_depth: Whether optimizing depth (vs gate count).
+        verify: Whether to verify the synthesized circuit.
+        postprocess: Optional transform applied to the extracted circuit.
+        min_timeout: Starting per-bound timeout in seconds.
+        max_timeout: Maximum per-bound timeout in seconds.
+
+    Returns:
+        SynthesisResult.
+    """
+    gate_set = encoding.gate_set
+    pending = list(range(lower_bound, upper_bound + 1))
+    curr_timeout = min_timeout
+
+    while pending:
+        still_pending: list[int] = []
+        for bound in pending:
+            solver = encoding.encode(target, k, bound)
+            solver.set("timeout", curr_timeout * 1000)
+            result = solver.check()
+
+            if result == z3.sat:
+                best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+                # Phase B: descend with max_timeout
+                for b in range(bound - 1, lower_bound - 1, -1):
+                    s = encoding.encode(target, k, b)
+                    s.set("timeout", max_timeout * 1000)
+                    r = s.check()
+                    if r == z3.sat:
+                        best = _make_success_result(encoding, s.model(), is_depth, verify, verify_fn, postprocess)
+                    else:
+                        break  # UNSAT → optimal proven; TIMEOUT → return best known
+                return best
+
+            if result == z3.unknown:
+                reason = solver.reason_unknown()
+                if "timeout" in reason:
+                    still_pending.append(bound)
+                else:
+                    return SynthesisResult(
+                        status=SynthesisStatus.ERROR,
+                        message=f"Solver returned unknown at bound {bound}: {reason}",
+                        gate_set=gate_set,
+                    )
+            # z3.unsat: proven infeasible, not retried
+
+        pending = still_pending
+        if not pending or curr_timeout >= max_timeout:
+            break
+        curr_timeout = min(curr_timeout * 2, max_timeout)
+
+    if pending:
+        return SynthesisResult(
+            status=SynthesisStatus.TIMEOUT,
+            message=f"Bounds {pending[0]}..{pending[-1]} unresolved at max timeout ({max_timeout}s)",
+            gate_set=gate_set,
+        )
     return SynthesisResult(
         status=SynthesisStatus.UNSAT,
         message=f"No solution found within bounds [{lower_bound}, {upper_bound}]",
@@ -595,6 +710,8 @@ def _synthesize_clifford(
     use_symmetry_breaking: bool = False,
     max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
+    use_exponential_backoff: bool = False,
+    min_timeout: int = 1,
 ) -> SynthesisResult:
     """Synthesize Clifford circuit."""
     target, k = _prepare_clifford_target(stabilizers, target_kind, x_logicals, z_logicals)
@@ -620,6 +737,20 @@ def _synthesize_clifford(
             return verify_stabilizer_state(circuit, stabilizers)
         return verify_clifford_isometry(circuit, target, k)
 
+    if use_exponential_backoff:
+        return _search_with_exponential_backoff(
+            encoding,
+            target,
+            lower_bound,
+            upper_bound,
+            k,
+            verify_fn,
+            is_depth,
+            verify,
+            postprocess=postprocess,
+            min_timeout=min_timeout,
+            max_timeout=timeout if timeout is not None else 3600,
+        )
     return _search_with_encoding(
         encoding,
         target,
@@ -690,6 +821,8 @@ def _synthesize_css(
     use_symmetry_breaking: bool = False,
     max_two_qubit_gates: int | None = None,
     timeout: int | None = None,
+    use_exponential_backoff: bool = False,
+    min_timeout: int = 1,
 ) -> SynthesisResult:
     """Synthesize CSS CNOT circuit."""
     target, k, m_x = _prepare_css_target(checks, target_kind, x_logicals, z_logicals)
@@ -708,6 +841,19 @@ def _synthesize_css(
             return verify_css_state(circuit, checks)
         return verify_css_isometry(circuit, checks, x_logicals if checks.type == "X" else z_logicals, k)
 
+    if use_exponential_backoff:
+        return _search_with_exponential_backoff(
+            encoding,
+            target,
+            lower_bound,
+            upper_bound,
+            k,
+            verify_fn,
+            is_depth,
+            verify,
+            min_timeout=min_timeout,
+            max_timeout=timeout if timeout is not None else 3600,
+        )
     return _search_with_encoding(
         encoding,
         target,

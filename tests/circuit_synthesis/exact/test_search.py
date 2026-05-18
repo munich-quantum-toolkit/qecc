@@ -755,3 +755,122 @@ def test_result_contains_metadata(plus_state: tuple[StabilizerTableau, Stabilize
     assert result.verified is not None
     assert result.message is not None
     assert result.gate_set is not None
+
+
+# ---------------------------------------------------------------------------
+# Exponential-backoff search (min_timeout)
+# ---------------------------------------------------------------------------
+
+
+def test_min_timeout_stabilizer_state_gate_count(
+    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Exponential-backoff finds optimal gate count for a Clifford state.
+
+    lower_bound=0 forces Phase A to prove UNSAT at bounds 0 and 1 before
+    finding SAT at 2, then Phase B descends and confirms 2 is optimal.
+    """
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+        timeout=10,
+        use_exponential_backoff=True,
+        min_timeout=1,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.gate_count == 2
+    assert result.verified is True
+
+
+def test_min_timeout_stabilizer_state_depth(
+    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Exponential-backoff finds optimal depth for a Clifford state."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.DEPTH,
+        lower_bound=0,
+        upper_bound=5,
+        timeout=10,
+        use_exponential_backoff=True,
+        min_timeout=1,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.depth == 2
+    assert result.verified is True
+
+
+def test_min_timeout_css_state_gate_count(
+    repetition_code_check_matrix: CheckMatrix,
+) -> None:
+    """Exponential-backoff finds optimal gate count for a CSS state."""
+    result = synthesize_exact(
+        target=repetition_code_check_matrix,
+        target_kind=TargetKind.CSS_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=10,
+        timeout=10,
+        use_exponential_backoff=True,
+        min_timeout=1,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert result.verified is True
+    assert verify_css_state(result.circuit, repetition_code_check_matrix)
+
+
+def test_min_timeout_css_isometry_gate_count(
+    css_isometry_4q: tuple[CheckMatrix, CheckMatrix, CheckMatrix],
+) -> None:
+    """Exponential-backoff finds a valid circuit for a CSS isometry."""
+    checks, x_logicals, _z_logicals = css_isometry_4q
+
+    result = synthesize_exact(
+        target=checks,
+        target_kind=TargetKind.CSS_ISOMETRY,
+        objective=Objective.GATE_COUNT,
+        x_logicals=x_logicals,
+        lower_bound=0,
+        upper_bound=10,
+        timeout=10,
+        use_exponential_backoff=True,
+        min_timeout=1,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert verify_css_isometry(result.circuit, checks, x_logicals, k=2)
+
+
+def test_min_timeout_unsat_when_bounds_insufficient(
+    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Exponential-backoff returns UNSAT when upper_bound is too small."""
+    stabilizers, _x_logicals, _z_logicals = bell_state
+
+    result = synthesize_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=1,
+        timeout=10,
+        use_exponential_backoff=True,
+        min_timeout=1,
+    )
+
+    assert result.status == SynthesisStatus.UNSAT
+    assert result.circuit is None
