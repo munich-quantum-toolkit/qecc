@@ -230,6 +230,69 @@ class SGate(SymbolicGateOperation):
         return {self.qubit}
 
 
+class SqrtXGate(SymbolicGateOperation):
+    """√X gate (SX = HSH) operation.
+
+    Binary tableau action: X_out = X ⊕ Z, Z_out = Z.
+    Not self-inverse: (SX)^2 = X, (SX)^4 = I.
+    """
+
+    IS_TWO_QUBIT: ClassVar[bool] = False
+    IS_SYMMETRIC: ClassVar[bool] = False
+    IS_SELF_INVERSE: ClassVar[bool] = False
+
+    def __init__(self, qubit: int) -> None:
+        """Initialize SX gate.
+
+        Args:
+            qubit: Target qubit index.
+        """
+        self.qubit = qubit
+
+    @classmethod
+    def from_qubits(cls, q1: int, _q2: int) -> SqrtXGate:
+        """Instantiate SX gate from qubit indices (_q2 ignored)."""
+        return cls(q1)
+
+    def add_clifford_tableau_transition(
+        self,
+        solver: z3.Solver,
+        tableau_x_curr: npt.NDArray[np.object_],
+        tableau_z_curr: npt.NDArray[np.object_],
+        tableau_x_next: npt.NDArray[np.object_],
+        tableau_z_next: npt.NDArray[np.object_],
+    ) -> None:
+        """SX gate: X_out = X ⊕ Z, Z_out = Z."""
+        num_rows = tableau_x_curr.shape[0]
+        q = self.qubit
+
+        for row in range(num_rows):
+            solver.add(tableau_x_next[row, q] == z3.Xor(tableau_x_curr[row, q], tableau_z_curr[row, q]))
+            solver.add(tableau_z_next[row, q] == tableau_z_curr[row, q])
+
+    def add_css_matrix_transition(
+        self,
+        solver: z3.Solver,
+        matrix_curr: npt.NDArray[np.object_],
+        matrix_next: npt.NDArray[np.object_],
+    ) -> None:
+        """SX gate not applicable to CSS encoding."""
+        msg = "SX gate cannot be applied in CSS CNOT-only encoding"
+        raise NotImplementedError(msg)
+
+    def to_stim_gate(self) -> tuple[str, list[int]]:
+        """Convert to Stim gate."""
+        return ("SQRT_X", [self.qubit])
+
+    def inverse_stim_gate(self) -> tuple[str, list[int]]:
+        """Inverse is SQRT_X_DAG."""
+        return ("SQRT_X_DAG", [self.qubit])
+
+    def qubits(self) -> set[int]:
+        """Get qubits involved."""
+        return {self.qubit}
+
+
 class CNOTGate(SymbolicGateOperation):
     """CNOT gate operation."""
 
@@ -496,6 +559,22 @@ def get_standard_clifford_gate_set() -> dict[str, type[SymbolicGateOperation]]:
     return {
         "H": HGate,
         "S": SGate,
+        "CX": CNOTGate,
+        "ID": IdentityGate,
+    }
+
+
+def get_clifford_sx_gate_set() -> dict[str, type[SymbolicGateOperation]]:
+    """Get the Clifford gate set {H, SX, CX, ID}.
+
+    Replaces S with the √X (SX = HSH) gate.
+
+    Returns:
+        Dictionary mapping gate names to gate classes.
+    """
+    return {
+        "H": HGate,
+        "SX": SqrtXGate,
         "CX": CNOTGate,
         "ID": IdentityGate,
     }

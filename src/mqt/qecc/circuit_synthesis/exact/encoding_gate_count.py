@@ -49,8 +49,6 @@ def encode_clifford_gate_count(
     if gate_set is None:
         gate_set = get_standard_clifford_gate_set()
 
-    use_cz = "CZ" in gate_set
-
     n = target.n
     num_rows = target.n_rows
 
@@ -66,7 +64,8 @@ def encode_clifford_gate_count(
 
     # Convenient local aliases for the inline transition logic below.
     h_vars = gate_sel["H"]
-    s_vars = gate_sel["S"]
+    s_vars = gate_sel.get("S", [])
+    sx_vars = gate_sel.get("SX", [])
     cx_vars = gate_sel["CX"]
     cz_vars = gate_sel.get("CZ", [])
 
@@ -98,15 +97,16 @@ def encode_clifford_gate_count(
         pb_terms: list[tuple[z3.BoolRef, int]] = [(v[slot], 1) for v in gate_sel.values()]
         solver.add(z3.PbEq(pb_terms, 1))
 
-        if n > 1 and n & n - 1 != 0:
+        if (1 << n_bits) > n:
             solver.add(z3.ULT(alpha_vars[slot], n))
             solver.add(z3.ULT(beta_vars[slot], n))
 
         solver.add(z3.Implies(cx_vars[slot], alpha_vars[slot] != beta_vars[slot]))
 
-        # CZ is symmetric: canonically enforce alpha < beta so we only need i<j transitions.
-        if use_cz:
-            solver.add(z3.Implies(cz_vars[slot], z3.ULT(alpha_vars[slot], beta_vars[slot])))
+        # Symmetric two-qubit gates: canonically enforce alpha < beta.
+        for gate_name, sel_list in gate_sel.items():
+            if gate_set[gate_name].IS_TWO_QUBIT and gate_set[gate_name].IS_SYMMETRIC:
+                solver.add(z3.Implies(sel_list[slot], z3.ULT(alpha_vars[slot], beta_vars[slot])))
 
         curr_x = tableau_x[slot]
         curr_z = tableau_z[slot]
@@ -115,23 +115,27 @@ def encode_clifford_gate_count(
 
         for i in range(n):
             h_condition = z3.And(h_vars[slot], alpha_vars[slot] == i)
-
             for row in range(num_rows):
                 solver.add(z3.Implies(h_condition, next_x[row, i] == curr_z[row, i]))
                 solver.add(z3.Implies(h_condition, next_z[row, i] == curr_x[row, i]))
 
-            s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
+            if s_vars:
+                s_condition = z3.And(s_vars[slot], alpha_vars[slot] == i)
+                for row in range(num_rows):
+                    solver.add(z3.Implies(s_condition, next_x[row, i] == curr_x[row, i]))
+                    solver.add(z3.Implies(s_condition, next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, i])))
 
-            for row in range(num_rows):
-                solver.add(z3.Implies(s_condition, next_x[row, i] == curr_x[row, i]))
-                solver.add(z3.Implies(s_condition, next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, i])))
+            if sx_vars:
+                sx_condition = z3.And(sx_vars[slot], alpha_vars[slot] == i)
+                for row in range(num_rows):
+                    solver.add(z3.Implies(sx_condition, next_x[row, i] == z3.Xor(curr_x[row, i], curr_z[row, i])))
+                    solver.add(z3.Implies(sx_condition, next_z[row, i] == curr_z[row, i]))
 
             for j in range(n):
                 if i == j:
                     continue
 
                 cx_condition = z3.And(cx_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
-
                 for row in range(num_rows):
                     solver.add(z3.Implies(cx_condition, next_x[row, i] == curr_x[row, i]))
                     solver.add(z3.Implies(cx_condition, next_x[row, j] == z3.Xor(curr_x[row, j], curr_x[row, i])))
@@ -139,7 +143,7 @@ def encode_clifford_gate_count(
                     solver.add(z3.Implies(cx_condition, next_z[row, j] == curr_z[row, j]))
 
         # CZ transitions: only i < j pairs (alpha < beta enforced above).
-        if use_cz:
+        if cz_vars:
             for i in range(n):
                 for j in range(i + 1, n):
                     cz_condition = z3.And(cz_vars[slot], alpha_vars[slot] == i, beta_vars[slot] == j)
@@ -149,32 +153,15 @@ def encode_clifford_gate_count(
                         solver.add(z3.Implies(cz_condition, next_x[row, j] == curr_x[row, j]))
                         solver.add(z3.Implies(cz_condition, next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i])))
 
+        # Preserve qubits not touched by any gate at this slot.
         for q in range(n):
-            not_h_on_q = z3.Not(z3.And(h_vars[slot], alpha_vars[slot] == q))
-            not_s_on_q = z3.Not(z3.And(s_vars[slot], alpha_vars[slot] == q))
-
-            not_cx_involving_q = []
-            for other in range(n):
-                if other == q:
-                    continue
-                not_cx_involving_q.append(
-                    z3.Not(
-                        z3.And(
-                            cx_vars[slot],
-                            z3.Or(
-                                z3.And(alpha_vars[slot] == q, beta_vars[slot] == other),
-                                z3.And(alpha_vars[slot] == other, beta_vars[slot] == q),
-                            ),
-                        )
-                    )
-                )
-
-            if use_cz:
-                not_cz_involving_q = z3.Not(z3.And(cz_vars[slot], z3.Or(alpha_vars[slot] == q, beta_vars[slot] == q)))
-                qubit_untouched = z3.And(not_h_on_q, not_s_on_q, *not_cx_involving_q, not_cz_involving_q)
-            else:
-                qubit_untouched = z3.And(not_h_on_q, not_s_on_q, *not_cx_involving_q)
-
+            untouched = [
+                z3.Not(z3.And(sel_list[slot], alpha_vars[slot] == q))
+                if not gate_set[gate_name].IS_TWO_QUBIT
+                else z3.Not(z3.And(sel_list[slot], z3.Or(alpha_vars[slot] == q, beta_vars[slot] == q)))
+                for gate_name, sel_list in gate_sel.items()
+            ]
+            qubit_untouched = z3.And(*untouched)
             for row in range(num_rows):
                 solver.add(z3.Implies(qubit_untouched, next_x[row, q] == curr_x[row, q]))
                 solver.add(z3.Implies(qubit_untouched, next_z[row, q] == curr_z[row, q]))

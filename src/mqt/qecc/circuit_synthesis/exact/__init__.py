@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from .gate_operations import get_clifford_cz_gate_set
+from .gate_operations import get_clifford_cz_gate_set, get_clifford_sx_gate_set
 from .search import synthesize_exact
 from .types import (
     Objective,
@@ -27,5 +27,6 @@ __all__ = [
     "SynthesisStatus",
     "TargetKind",
     "get_clifford_cz_gate_set",
+    "get_clifford_sx_gate_set",
     "synthesize_exact",
 ]
