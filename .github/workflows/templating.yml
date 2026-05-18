@@ -28,3 +28,4 @@ jobs:
           organization: ${{ github.repository_owner }}
           project-type: pure-python
           repository: ${{ github.event.repository.name }}
+          has-changelog-and-upgrade-guide: false
