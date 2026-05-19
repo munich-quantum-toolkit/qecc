@@ -46,7 +46,6 @@
   All hooks must pass before submitting.
 - MUST add or update tests for every code change, even if not explicitly requested.
 - MUST follow existing code style by checking neighboring files for patterns.
-- MUST update `CHANGELOG.md` and `UPGRADING.md` when changes are user-facing, breaking, or otherwise noteworthy.
 - MUST include a commit footer attribution in the form `Assisted-by: [Model Name] via [Tool Name]` (example: `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`) if AI tools are used to prepare a commit.
 - NEVER modify files that start with "This file has been generated from an external template. Please do not modify it directly."
   These files are managed by [the MQT templates action](https://github.com/munich-quantum-toolkit/templates) and changes will be overwritten.
@@ -63,4 +62,3 @@
 
 - Did `uvx nox -s lint` pass without errors?
 - Are all changes covered by at least one automated test?
-- Are `CHANGELOG.md` and `UPGRADING.md` updated when changes are user-facing, breaking, or otherwise noteworthy?

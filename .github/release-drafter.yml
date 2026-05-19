@@ -52,10 +52,6 @@ version-resolver:
   default: patch
 
 template: |
-  ## 👀 What Changed
-
-  _Please refer to the [changelog](https://github.com/$OWNER/$REPOSITORY/blob/main/CHANGELOG.md) and the [upgrade guide](https://github.com/$OWNER/$REPOSITORY/blob/main/UPGRADING.md) for a structured overview of the changes._
-
   $CHANGES
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
