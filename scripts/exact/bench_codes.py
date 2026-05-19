@@ -307,8 +307,12 @@ def _make_record(
 # ---------------------------------------------------------------------------
 
 
-def _synthesize_one_code(code_name: str, timeout: int) -> list[dict[str, Any]]:
-    """Synthesize gate-count-optimal and depth-optimal circuits for one code.
+def _synthesize_one_code(
+    code_name: str,
+    timeout: int,
+    objectives: list[Objective] | None = None,
+) -> list[dict[str, Any]]:
+    """Synthesize circuits for one code under the requested objectives.
 
     Designed to run in a worker process. Rebuilds the code spec internally so
     that no non-picklable objects are passed across process boundaries.
@@ -316,10 +320,13 @@ def _synthesize_one_code(code_name: str, timeout: int) -> list[dict[str, Any]]:
     Args:
         code_name: Name key from _build_codes().
         timeout: Per-bound SAT-solver timeout in seconds.
+        objectives: Which objectives to run. Defaults to both GATE_COUNT and DEPTH.
 
     Returns:
-        List of two record dicts: one for gate-count, one for depth objective.
+        List of record dicts, one per objective.
     """
+    if objectives is None:
+        objectives = [Objective.GATE_COUNT, Objective.DEPTH]
     all_codes = {c["name"]: c for c in _build_codes()}
     code_spec = all_codes[code_name]
 
@@ -345,15 +352,19 @@ def _synthesize_one_code(code_name: str, timeout: int) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
 
     # --- Gate-count optimization ---
-    t0 = time.monotonic()
-    gc_result = synthesize_exact(
-        **common_kwargs,
-        objective=Objective.GATE_COUNT,
-        lower_bound=0,
-        upper_bound=gc_bound,
-    )
-    gc_time = time.monotonic() - t0
-    records.append(_make_record(code_spec, Objective.GATE_COUNT, gate_set_name, gc_bound, gc_result, gc_time))
+    if Objective.GATE_COUNT in objectives:
+        t0 = time.monotonic()
+        gc_result = synthesize_exact(
+            **common_kwargs,
+            objective=Objective.GATE_COUNT,
+            lower_bound=0,
+            upper_bound=gc_bound,
+        )
+        gc_time = time.monotonic() - t0
+        records.append(_make_record(code_spec, Objective.GATE_COUNT, gate_set_name, gc_bound, gc_result, gc_time))
+
+    if Objective.DEPTH not in objectives:
+        return records
 
     # --- Depth optimization ---
     t0 = time.monotonic()
@@ -483,7 +494,21 @@ def main() -> None:
         dest="nprocesses",
         help="Number of parallel worker processes (default: %(default)s)",
     )
+    parser.add_argument(
+        "--objective",
+        choices=["gate_count", "depth", "both"],
+        default="both",
+        help="Which objective(s) to optimize (default: both)",
+    )
     args = parser.parse_args()
+
+    objectives: list[Objective]
+    if args.objective == "gate_count":
+        objectives = [Objective.GATE_COUNT]
+    elif args.objective == "depth":
+        objectives = [Objective.DEPTH]
+    else:
+        objectives = [Objective.GATE_COUNT, Objective.DEPTH]
 
     all_codes = _build_codes()
 
@@ -503,7 +528,9 @@ def main() -> None:
 
     try:
         with ProcessPoolExecutor(max_workers=args.nprocesses) as executor:
-            futures = {executor.submit(_synthesize_one_code, name, args.timeout): name for name in code_names}
+            futures = {
+                executor.submit(_synthesize_one_code, name, args.timeout, objectives): name for name in code_names
+            }
             for future in as_completed(futures):
                 name = futures[future]
                 try:
