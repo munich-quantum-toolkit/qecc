@@ -37,14 +37,14 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - Performing lattice surgery compilation for the color code for CNOT + T circuits with static or movable qubits.
 
 > [!NOTE]
-> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch ['ft-stateprep-qubit-perm'](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
+> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch [`ft-stateprep-qubit-perm`](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
 > The documentation is a work in progress and this branch undergoes some final improvements before being merged into `main`.
 
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
-> QECC is now entirely a Python package.
+> MQT QECC is now entirely a Python package.
 > For up-to-date software for decoding LDPC codes we refer to [quantumgizmos/ldpc](https://github.com/quantumgizmos/ldpc).
-> If you would still like to use these features, they are available in `mqt.qecc` versions `v2.0.0`.
+> If you would still like to use these features, they are available in versions before `v2.0.0`.
 
 If you have any questions, feel free to create a [discussion](https://github.com/munich-quantum-toolkit/qecc/discussions) or an [issue](https://github.com/munich-quantum-toolkit/qecc/issues) on [GitHub](https://github.com/munich-quantum-toolkit/qecc).
 
