@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 try:
-    import qsample as qs
+    import qsample as qs  # ty: ignore[unresolved-import]
 except ImportError:
     msg = (
         "NoisyDFTStatePrepSimulator requires the optional dependency 'qsample'. "
@@ -29,7 +29,7 @@ from .simulation import LutDecoder
 if TYPE_CHECKING:
     import numpy.typing as npt
     from qiskit.circuit import QuantumCircuit
-    from qsample.callbacks import Callback, CallbackList
+    from qsample.callbacks import Callback, CallbackList  # ty: ignore[unresolved-import]
 
     from ..codes.css_code import CSSCode
     from .state_prep_det import DeterministicCorrection, DeterministicVerification
@@ -428,8 +428,8 @@ def qiskit_to_qsample(qiskit_circuit: QuantumCircuit) -> qs.Circuit:
         if gate_name == "MEASURE":
             gate_name = "measure"
         if len(qargs) == 1:
-            qubits = qiskit_circuit.qubits.index(qargs[0])
+            qubits = {qiskit_circuit.qubits.index(qargs[0])}
         else:
-            qubits = tuple(qiskit_circuit.qubits.index(q) for q in qargs)
-        custom_circuit.append({gate_name: {qubits}})
+            qubits = {qiskit_circuit.qubits.index(q) for q in qargs}
+        custom_circuit.append({gate_name: qubits})
     return qs.Circuit(custom_circuit, noisy=True)

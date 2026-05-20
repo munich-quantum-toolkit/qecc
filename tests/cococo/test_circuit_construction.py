@@ -9,11 +9,12 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from mqt.qecc.cococo import circuit_construction, dag_helper, layouts
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from mqt.qecc.cococo.types import Layout, pos
 
 # ------------------with respect to naive sequential layer structure---------------------
 
@@ -144,12 +145,12 @@ def test_remainder_dag_helper():
         19,
         (17, 20),
     ]
-    layout = {}
+    layout: dict[int, pos] = {}
     for i, j in zip(range(len(data_qubit_locs)), data_qubit_locs, strict=False):
         layout.update({i: (int(j[0]), int(j[1]))})
     terminal_pairs = layouts.translate_layout_circuit(
-        cast("list[tuple[int, int] | int]", pairs),
-        cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]", layout),
+        pairs,
+        cast("Layout", layout),
     )  # let's stick to the simple layout
 
     dag = dag_helper.terminal_pairs_into_dag(terminal_pairs, layout)
@@ -177,17 +178,15 @@ def test_remainder_dag_helper():
 
     layer0_layout = dag_helper.extract_layer_from_dag(dag, layout, 0)
     layer_0_trans = layouts.translate_layout_circuit(
-        cast("list[tuple[int, int] | int]", layer0),
-        cast("dict[int | str, tuple[int, int] | list[tuple[int, int]]]", layout),
+        layer0,
+        cast("Layout", layout),
     )
 
     assert layer0_layout == layer_0_trans, "Layer extraction or translation does not work."
 
     terminal_pairs_remainder = [(0, 0)]
 
-    layers_updated, _ = dag_helper.push_remainder_into_layers_dag(
-        dag, cast("list[tuple[pos,pos]|pos]", terminal_pairs_remainder), layout, layer0_layout
-    )
+    layers_updated, _ = dag_helper.push_remainder_into_layers_dag(dag, terminal_pairs_remainder, layout, layer0_layout)
 
     layers_updated_aim = [
         [

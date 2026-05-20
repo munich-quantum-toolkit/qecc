@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import pathlib
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import networkx as nx
@@ -14,7 +14,8 @@ import stim
 from mqt.qecc import CSSCode
 from mqt.qecc.cococo import snake_builder
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from mqt.qecc.cococo.types import pos
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 

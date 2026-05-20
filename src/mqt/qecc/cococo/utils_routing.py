@@ -26,8 +26,12 @@ import numpy as np
 import mqt.qecc.cococo.internal_testing as tst
 from mqt.qecc.cococo import dag_helper
 
+from .types import pos
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+
+    from .types import VdpDict
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -37,8 +41,7 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 
 
-pos = tuple[int, int]
-steiner_type = dict[tuple[pos, pos, pos] | tuple[pos, pos], list[list[pos]]]
+SteinerType = dict[tuple[pos, ...], list[list[pos]]]
 lock_penalty = 200
 
 
@@ -152,25 +155,29 @@ class BasicRouter:
         raise NotImplementedError(msg)
 
     @staticmethod
-    def split_layer_terminal_pairs(terminal_pairs: list[pos | tuple[pos, pos]]) -> list[list[pos | tuple[pos, pos]]]:
+    def split_layer_terminal_pairs(
+        terminal_pairs: Sequence[pos | tuple[pos, pos]],
+    ) -> list[Sequence[pos | tuple[pos, pos]]]:
         """Split terminal_pairs into layers of disjoint qubit support.
 
         Only really needed if self.use_dag=False. If true, it is often computed uselessly.
         """
         layers = []
-        current_layer: list[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]]] = []
-        used_qubits = set()
+        current_layer: list[pos | tuple[pos, pos]] = []
+        used_qubits: set[pos] = set()
 
         for pair in terminal_pairs:
             if isinstance(pair[0], tuple) and isinstance(pair[1], tuple):
+                pair = cast("tuple[pos, pos]", pair)
                 if pair[0] in used_qubits or pair[1] in used_qubits:
                     layers.append(current_layer)
                     current_layer = [pair]
                     used_qubits = set(pair)
                 else:
                     current_layer.append(pair)
-                    used_qubits.update(pair)
-            elif isinstance(pair[1], int):
+                    used_qubits.update(list(pair))
+            elif isinstance(pair, tuple):
+                pair = cast("pos", pair)
                 if pair in used_qubits:
                     layers.append(current_layer)
                     current_layer = [pair]
@@ -186,27 +193,24 @@ class BasicRouter:
 
     def find_max_vdp_set(
         self,
-        layer: list[tuple[pos, pos] | pos],
+        layer: Sequence[pos | tuple[pos, pos]],
         logical_pos: list[pos] | None,
         factory_times: dict[pos, int],
-    ) -> tuple[dict[pos | tuple[pos, pos], list[pos]], list[pos | tuple[pos, pos]], dict[pos, int]]:
+    ) -> tuple[VdpDict, Sequence[pos | tuple[pos, pos]], dict[pos, int]]:
         """Finds the approximation for a vdp set for some given layer and returns the routing as well as a potential remainder.
 
         If logical_pos is given as input, you use the input instead of the self.logical_pos
         """
         factory_times_temp = factory_times.copy()
-        vdp_dict: dict[
-            pos | tuple[pos, pos],
-            list[pos],
-        ] = {}
+        vdp_dict: VdpDict = {}
         terminal_pairs_remainder = []
         successful_terminals = []  # gather successful terminal pairs
         flag_problem = False
         g_temp = self.g.copy()
         dct_qubits = {}  # a dct which checks whether a qubit was already used in the layer
-        terminal_pairs_current = layer.copy()
+        terminal_pairs_current = list(layer).copy()
         flattened_terminals = [
-            pair for item in layer.copy() for pair in (item if isinstance(item[0], tuple) else [item])
+            pair for item in list(layer).copy() for pair in (item if isinstance(item[0], tuple) else [item])
         ]
         for t in flattened_terminals:
             dct_qubits.update({t: False})
@@ -216,10 +220,10 @@ class BasicRouter:
         )  # was using self.flattened before, which was problem because not updated after logical repositioning
 
         while len(terminal_pairs_current) > 0 and flag_problem is False:
-            paths_temp_lst = []  # gather all possible paths here, between all terminal pairs (cnots) and between all qubits for a tgate with all factories
-            tp_list: list[
-                tuple[int, int] | tuple[tuple[int, int], tuple[int, int]]
-            ] = []  # same order, actually redundant but error otherwise
+            paths_temp_lst: list[
+                list[pos]
+            ] = []  # gather all possible paths here, between all terminal pairs (cnots) and between all qubits for a tgate with all factories
+            tp_list: list[pos | tuple[pos, pos]] = []  # same order, actually redundant but error otherwise
             for t_p in terminal_pairs_current:
                 # cnot
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
@@ -249,7 +253,8 @@ class BasicRouter:
                         pass  # therefore just pass
 
                 # t gate
-                elif isinstance(t_p[1], int):
+                elif isinstance(t_p, tuple):
+                    t_p = cast("pos", t_p)
                     g_temp_temp = g_temp.copy()
                     # ADAPT THE GRAPH AND REMOVE ALL LOGICAL DATA PATCHES DESPITE THE t_p position where the t gate is applied
                     if logical_pos is None:
@@ -289,7 +294,7 @@ class BasicRouter:
                     break  # type: ignore[unreachable]
 
             if len(paths_temp_lst) != 0 and not flag_problem:
-                shortest_path = min(paths_temp_lst, key=len)
+                shortest_path = cast("list[pos]", min(paths_temp_lst, key=len))
                 shortest_idx = paths_temp_lst.index(shortest_path)  # index in current terminal_pairs_current
                 t_p = tp_list[shortest_idx]  # terminal_pairs_current[shortest_idx]
                 # update already used qubits based on chosen t_p path
@@ -335,21 +340,21 @@ class BasicRouter:
 
     def push_remainder_into_layers(
         self,
-        layers: list[list[tuple[pos, pos] | pos]],
-        remainder: list[pos | tuple[pos, pos]],
+        layers: list[Sequence[pos | tuple[pos, pos]]],
+        remainder: Sequence[pos | tuple[pos, pos]],
         delete_layer_zero: bool = True,
-    ) -> list[list[pos | tuple[pos, pos]]]:
+    ) -> list[Sequence[pos | tuple[pos, pos]]]:
         """Updates a copy of layers_cnot_t (removed used stuff and takes remainder of previous layer, pushes through).
 
         Only really needed if self.use_dag=False. If true, it is often computed uselessly.
 
         Args:
-            layers (list[list[tuple[pos,pos]|pos]]): given layers
-            remainder (list[tuple[int,int]]): remaining gates which could not be routed so far in current layer.
-            delete_layer_zero (bool): whether 0th layer is deleted or not.
+            layers: given layers
+            remainder: remaining gates which could not be routed so far in current layer.
+            delete_layer_zero: whether 0th layer is deleted or not.
 
         Returns:
-            list[list[pos | tuple[pos, pos]]]: layered gates with remainder being pushed into next layer.
+            layered gates with remainder being pushed into next layer.
         """
         initial_layers = layers.copy()
         if delete_layer_zero:
@@ -361,8 +366,8 @@ class BasicRouter:
         flag = True
         while flag is True:
             try:
-                initial_layers[i] = (
-                    remainder + initial_layers[i]
+                initial_layers[i] = list(remainder) + list(
+                    initial_layers[i]
                 )  # push remainder in front of the new zeroth entry (previously entry 1)
             except IndexError:  # if no further initial_layer[i] available but still the previous layer was split
                 initial_layers.append(remainder)
@@ -382,19 +387,13 @@ class BasicRouter:
 
     def find_total_vdp_layers_dyn(
         self,
-        next_layers: list[list[pos | tuple[pos, pos]]],
+        next_layers: list[Sequence[pos | tuple[pos, pos]]],
         logical_pos: list[pos],
         factory_times: dict[pos, int],
         layout: dict[int, pos],
         testing: bool = False,
     ) -> tuple[
-        list[
-            dict[
-                pos | tuple[pos, pos],
-                list[pos],
-            ]
-        ]
-        | None,
+        list[VdpDict] | None,
         dict[pos, int],
     ]:
         """Finds all routes for given logical layers called `next_layers`.
@@ -412,12 +411,7 @@ class BasicRouter:
         for layer in next_layers:
             terminal_pairs += layer
         layers_cnot_t_orig = next_layers.copy()
-        vdp_layers: list[
-            dict[
-                tuple[int, int] | tuple[tuple[int, int], tuple[int, int]],
-                list[tuple[int, int]],
-            ]
-        ] = []
+        vdp_layers: list[VdpDict] = []
 
         layers_cnot_t_prev = None
 
@@ -442,7 +436,7 @@ class BasicRouter:
                 factory_times=factory_times_temp,  # !IMPORTANT: logical_pos is not taken from self.logical_pos here, because it would be overwritten too often in the annealing procedure. but we need to compute the metric correctly with this _dyn method
             )  # layer is successively reordered within find_max_vdp_set
 
-            keys: list[tuple[int, int] | tuple[tuple[int, int], tuple[int, int]]] = []
+            keys: list[str | pos | tuple[pos, pos]] = []
             for lst in vdp_layers:
                 keys += list(lst.keys())
             if layers_cnot_t_prev == layers_cnot_t_orig and len(keys) == len(terminal_pairs):
@@ -495,7 +489,7 @@ class BasicRouter:
 
         return vdp_layers, factory_times_temp
 
-    def count_crossings(self, layers: list[list[tuple[pos, pos]]], logical_pos_temp: list[pos]) -> int:
+    def count_crossings(self, layers: Sequence[Sequence[tuple[pos, pos]]], logical_pos_temp: list[pos]) -> int:
         """Heuristic energy function to minimize.
 
         Computes number of crossings of Dijkstra paths without constraints.
@@ -537,22 +531,29 @@ class BasicRouter:
         return sum(lst_crossings) + total_penalty
 
     def count_crossings_per_layer(
-        self, layers: list[list[pos | tuple[pos, pos]]], t_crossings: bool = False
+        self,
+        layers: Sequence[Sequence[pos | tuple[pos, pos]]],
+        t_crossings: bool = False,
     ) -> list[int]:
         """Counts the crossings of the simple paths between cnots and between shortest factory to qubit path (respecting terminals and factory positions) per layer.
 
         Args:
-            layers (list[list[pos | tuple[pos,pos]]]): circuit layers.
-            t_crossings (bool): decides whether the crossings to the factory are included (true) or not (false).
+            layers: circuit layers.
+            t_crossings: decides whether the crossings to the factory are included (true) or not (false).
 
         Returns:
-            list[int]: Number of crossings per initial layer. len is len(self.layers_cnot_t_orig)
+            Number of crossings per initial layer. len is len(self.layers_cnot_t_orig)
         """
         # ! TODO: remove redundancies (order_terminal_pairs very similar)
         lst_crossings = []
-        flattened_terminals_and_factories = self.factory_pos.copy()
+        flattened_terminals_and_factories = cast("list[pos | tuple[pos, pos]]", self.factory_pos.copy())
         for layer in layers:
-            temp = [pair for item in layer.copy() for pair in (item if isinstance(item[0], tuple) else [item])]
+            temp = []
+            for item in layer:
+                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], tuple):
+                    temp.extend(item)
+                else:
+                    temp.append(item)
             flattened_terminals_and_factories += temp
 
         for layer in layers:
@@ -643,11 +644,11 @@ class TeleportationRouter(BasicRouter):
 
     def initialize_steiner(
         self,
-        vdp_dict: dict[str | pos | tuple[pos, pos], list[pos]],
+        vdp_dict: VdpDict,
         steiner_init_type: str,
-        layers: list[list[pos | tuple[pos, pos]]] | None = None,
+        layers: list[Sequence[pos | tuple[pos, pos]]] | None = None,
         k_lookahead: int | None = None,
-    ) -> steiner_type:
+    ) -> SteinerType:
         """Initialize a random steiner tree per path which are non-overlapping.
 
         This initialization depends on the vdp_dict you already have for your current layer. This is fixed, it only tries to find additional terminal of a 3-terminal steiner tree.
@@ -741,8 +742,8 @@ class TeleportationRouter(BasicRouter):
         return steiner_dct
 
     def perturbation(
-        self, steiner_dct: steiner_type, radius: int, vdp_dict: dict[str | pos | tuple[pos, pos], list[pos]]
-    ) -> tuple[steiner_type, nx.Graph]:
+        self, steiner_dct: SteinerType, radius: int, vdp_dict: dict[str | pos | tuple[pos, pos], list[pos]]
+    ) -> tuple[SteinerType, nx.Graph]:
         """Computes a perturbation of a given collection of trees within a given radius of edges around the current terminal.
 
         For each tree in steiner_dct a new location of the 3rd terminal is updated randomly.
@@ -812,6 +813,7 @@ class TeleportationRouter(BasicRouter):
             if len(neighborhood) == 1:  # if only one neighbor, i.e. the terminal itself
                 # new_terminal = None #to skip the updating of the root node below.
                 break
+            path_terminal: list[pos] = []
             while True:
                 new_terminal = random.choice(list(neighborhood))  # noqa: S311
                 if new_terminal == terminal:  # do not want same terminal again
@@ -827,7 +829,7 @@ class TeleportationRouter(BasicRouter):
 
             # !TODO should i skip this since we do it globally afterwards again?
             # (A) loop to possibly find shorter path_terminal
-            paths_lst_temp = []  # collect all paths from path1[1:-1] to new_terminal
+            paths_lst_temp: list[list[pos]] = []  # collect all paths from path1[1:-1] to new_terminal
             for node_on_path in path1[1:-1]:
                 try:
                     path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, new_terminal)
@@ -835,7 +837,7 @@ class TeleportationRouter(BasicRouter):
                 except nx.NetworkXNoPath:  # noqa: PERF203
                     pass
             if paths_lst_temp:
-                path_terminal = min(paths_lst_temp, key=len)
+                path_terminal = cast("list[pos]", min(paths_lst_temp, key=len))
 
             # delete old entry and add new with updated key
             steiner_dct_update.pop(key_tree, None)
@@ -845,7 +847,7 @@ class TeleportationRouter(BasicRouter):
             elif len(key_tree) == 2:
                 (a, terminal) = key_tree
                 new_key_tree = (a, new_terminal)
-            steiner_dct_update[new_key_tree] = (path1, path_terminal)
+            steiner_dct_update[new_key_tree] = [path1, path_terminal]
             # remove_branch_nodes += path_terminal
 
         # it is possible that (A) does not capture everything, as the terminal path may change in a later iteration and thus make even shorter paths possible.
@@ -891,7 +893,7 @@ class TeleportationRouter(BasicRouter):
                     except nx.NetworkXNoPath:  # noqa: PERF203
                         pass
                 if paths_lst_temp:
-                    path_terminal = min(paths_lst_temp, key=len)
+                    path_terminal = cast("list[pos]", min(paths_lst_temp, key=len))
                     if len(key_tree) == 3:
                         (a, b, terminal) = key_tree
                         new_key_tree = (a, b, terminal)
@@ -899,66 +901,60 @@ class TeleportationRouter(BasicRouter):
                         (a, terminal) = key_tree
                         new_key_tree = (a, terminal)
                     steiner_dct_update_second.pop(key_tree, None)
-                    steiner_dct_update_second[new_key_tree] = (path1, path_terminal)
+                    steiner_dct_update_second[new_key_tree] = [path1, path_terminal]
         if new_terminal is None:
             steiner_dct_update_second = steiner_dct_update
             g_temp_temp = g_temp.copy()
         return steiner_dct_update_second, g_temp_temp
 
     @staticmethod
-    def replace_pos(lst: list[tuple[pos, pos] | pos], old: pos, new: pos) -> list[tuple[pos, pos] | pos]:
+    def replace_pos(lst: Sequence[pos | tuple[pos, pos]], old: pos, new: pos) -> Sequence[pos | tuple[pos, pos]]:
         """Helper function to replace pos values in lists.
 
         This is needed to update logical_pos etc. during the optimization.
         """
-        result: list[tuple[pos, pos] | pos] = []
+        result: list[pos | tuple[pos, pos]] = []
         for item in lst:
             if isinstance(item[0], int):
                 result.append(new if item == old else item)
             else:
-                result.append(cast("tuple[pos,pos]", tuple(new if sub == old else sub for sub in item)))
+                result.append(cast("tuple[pos, pos]", tuple(new if sub == old else sub for sub in item)))
         return result
 
     def run_annealing(
         self,
-        next_layers: list[list[pos | tuple[pos, pos]]],
-        init_steiner_dct: steiner_type,
+        next_layers: list[Sequence[pos | tuple[pos, pos]]],
+        init_steiner_dct: SteinerType,
         max_iters: int,
         T_start: float,  # noqa: N803
         T_end: float,  # noqa: N803
         alpha: float,
         k_lookahead: int,
         radius: int,
-        vdp_dict: dict[str | pos | tuple[pos, pos], list[pos]],
+        vdp_dict: VdpDict,
         layout: dict[int, pos],
     ) -> tuple[
-        steiner_type | None,  # best_steiner
+        SteinerType | None,  # best_steiner
         int,  # best_cost
-        list[
-            dict[
-                pos | tuple[pos, pos],
-                list[pos],
-            ]
-        ]
-        | None,  # best_schedule
-        list[tuple[int, list[list[tuple[pos, pos] | pos]]]],  # cost_history
-        dict[tuple[pos, pos] | tuple[pos, pos, pos], str],  # best_move_type_lst
-        list[steiner_type],  # steiner_history
+        list[VdpDict] | None,  # best_schedule
+        list[tuple[int, list[Sequence[pos | tuple[pos, pos]]]]],  # cost_history
+        dict[tuple[pos, ...], str],  # best_move_type_lst
+        list[SteinerType],  # steiner_history
         list[nx.Graph],  # graph_history
     ]:
         """Plug together all previous methods to run annealing for k future layers.
 
         Args:
-            next_layers (list[list[pos | tuple[pos,pos]]]): upcoming layers to draw into consideration
-            init_steiner_dct (dict[tuple[pos, pos, pos] | tuple[pos, pos], list[list[pos]]]): current steiner
-            max_iters (int): max number of iterations of each simulated annealing
-            T_start (float): start temperature of simulated annealing
-            T_end (float): end temperature of simulated annealing
-            alpha (float): factor to reduce temp
-            k_lookahead (int): number of logical layers to draw into account
-            radius (int): number of edges within which one can choose a new ancilla position
-            vdp_dict (dict[ str | pos | tuple[pos, pos], list[pos]]): routing of current layer
-            layout (dict[int, pos]): layout.
+            next_layers: upcoming layers to draw into consideration
+            init_steiner_dct: current steiner
+            max_iters: max number of iterations of each simulated annealing
+            T_start: start temperature of simulated annealing
+            T_end: end temperature of simulated annealing
+            alpha: factor to reduce temp
+            k_lookahead: number of logical layers to draw into account
+            radius: number of edges within which one can choose a new ancilla position
+            vdp_dict: routing of current layer
+            layout: layout.
 
         Returns:
             best_steiner
@@ -978,18 +974,18 @@ class TeleportationRouter(BasicRouter):
             msg = "alpha must be between 0 and 1"  # pragma: no cover
             raise ValueError(msg)
 
-        self.logical_pos_temp = self.logical_pos.copy()  # type: ignore[assignment]
+        self.logical_pos_temp: list[pos] = self.logical_pos.copy()
 
         steiner_dct = init_steiner_dct.copy()
         if self.metric == "crossing":
             cost = self.count_crossings(
                 cast("list[list[tuple[pos,pos]]]", next_layers[:k_lookahead]),
-                self.logical_pos_temp,  # type: ignore[arg-type]
+                self.logical_pos_temp,
             )  # overwrite this in the upcoming loop
         elif self.metric == "exact":
             schedule, _ = self.find_total_vdp_layers_dyn(
                 next_layers[:k_lookahead],
-                self.logical_pos_temp,  # type: ignore[arg-type]
+                self.logical_pos_temp,
                 factory_times_copy,
                 layout,
             )  # initially the self.logical pos can be used. later you need a logical_pos outside of self
@@ -997,7 +993,7 @@ class TeleportationRouter(BasicRouter):
         else:
             msg = "Other metrics than crossing and exact not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
-        best_steiner: steiner_type | None = steiner_dct
+        best_steiner: SteinerType | None = steiner_dct
         best_cost = cost
         best_move_type_lst = {}
         layout.copy()
@@ -1008,7 +1004,7 @@ class TeleportationRouter(BasicRouter):
         graph_history = []
 
         T = T_start  # noqa: N806
-        for _step in range(max_iters):
+        for _ in range(max_iters):
             candidate, g_temp_temp = self.perturbation(steiner_dct, radius, vdp_dict)
             graph_history.append(g_temp_temp)
             # !NOT NEEDED ANYMORE
@@ -1021,10 +1017,10 @@ class TeleportationRouter(BasicRouter):
 
             # after the perturbation you have to update the logical pos, otherwise you will run into issues
             next_layers_copy = next_layers.copy()
-            move_type_lst_temp: dict[tuple[pos, pos] | tuple[pos, pos, pos], str] = {}
+            move_type_lst_temp: dict[tuple[pos, ...], str] = {}
             # compute the cost of the candidate
             # 1. change the position of the target/control to the ancilla spot for all paths (adapt next_layer)
-            logical_pos_temp = self.logical_pos_temp.copy()  # type: ignore[attr-defined]
+            logical_pos_temp = self.logical_pos_temp.copy()
             layout_rev = {j: i for i, j in layout.items()}
             layout_mod = layout.copy()
             for key_candidate in candidate:
@@ -1037,14 +1033,14 @@ class TeleportationRouter(BasicRouter):
                         for j, next_layer in enumerate(next_layers_copy):  # update all future layers
                             next_layers_copy[j] = self.replace_pos(next_layer, b, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, b, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, b, terminal))
                         label = layout_rev[b]
                         layout_mod[label] = terminal
                     else:
                         for j, next_layer in enumerate(next_layers_copy):
                             next_layers_copy[j] = self.replace_pos(next_layer, a, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, a, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, a, terminal))
                         label = layout_rev[a]
                         layout_mod[label] = terminal
                 elif len(key_candidate) == 2:
@@ -1055,7 +1051,7 @@ class TeleportationRouter(BasicRouter):
                     # update layers
                     for j, next_layer in enumerate(next_layers_copy):
                         next_layers_copy[j] = self.replace_pos(next_layer, a, terminal)
-                    logical_pos_temp = self.replace_pos(logical_pos_temp, a, terminal)
+                    logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, a, terminal))
                     label = layout_rev[a]
                     layout_mod[label] = terminal
                 else:
@@ -1065,7 +1061,7 @@ class TeleportationRouter(BasicRouter):
             layers_for_metric = next_layers_copy[:k_lookahead]
             if self.metric == "crossing":
                 candidate_cost = self.count_crossings(
-                    cast("list[list[tuple[pos,pos]]]", layers_for_metric), logical_pos_temp
+                    cast("Sequence[Sequence[tuple[pos, pos]]]", layers_for_metric), logical_pos_temp
                 )
             elif self.metric == "exact":
                 schedule, _ = self.find_total_vdp_layers_dyn(
@@ -1084,7 +1080,8 @@ class TeleportationRouter(BasicRouter):
                 if cost < best_cost:  # update the best cost
                     best_steiner, best_cost = steiner_dct.copy(), cost
                     best_move_type_lst = move_type_lst_temp.copy()
-                    best_schedule = schedule.copy()  # type: ignore[union-attr]
+                    assert schedule is not None
+                    best_schedule = schedule.copy()
                     layout_mod.copy()
                 cost_history.append((cost, layers_for_metric))
             steiner_history.append(candidate)
@@ -1112,22 +1109,16 @@ class TeleportationRouter(BasicRouter):
 
     def reduce_steiner_moves(
         self,
-        steiner_dct: steiner_type,
-        move_type_lst: dict[tuple[pos, pos] | tuple[pos, pos, pos], str],
-        next_layers: list[list[tuple[pos, pos] | pos]],
+        steiner_dct: SteinerType,
+        move_type_lst: dict[tuple[pos, ...], str],
+        next_layers: list[Sequence[pos | tuple[pos, pos]]],
         best_cost: int,
         k_lookahead: int,
         layout: dict[int, pos],
     ) -> tuple[
-        steiner_type,
-        dict[tuple[pos, pos] | tuple[pos, pos, pos], str],
-        list[
-            dict[
-                pos | tuple[pos, pos],
-                list[pos],
-            ]
-        ]
-        | None,
+        SteinerType,
+        dict[tuple[pos, ...], str],
+        list[VdpDict] | None,
     ]:  # steiner_reduced, move_type_lst_red, final_schedule
         """Given some tree solution, make sure that you effectively use as least movements as possible.
 
@@ -1136,14 +1127,13 @@ class TeleportationRouter(BasicRouter):
         """
         factory_times_copy = self.factory_times.copy()
         flag = False
-        best_dct_temp: steiner_type | None = None
+        best_dct_temp: SteinerType | None = None
         best_schedule = None
         for r in range(1, len(steiner_dct) + 1):
             for subset in itertools.combinations(steiner_dct.items(), r):
                 # translate everything into the setup of the steiner_dct movement
-                logical_pos_temp = self.logical_pos_temp.copy()  # type: ignore[attr-defined]
-                # dct_temp = {(a,b,terminal): (path1, path2) for (a,b,terminal), (path1, path2) in subset}
-                dct_temp = {key: (path1, path2) for key, (path1, path2) in subset}  # allows different types of keys
+                logical_pos_temp = self.logical_pos_temp.copy()
+                dct_temp = {key: [path1, path2] for key, (path1, path2) in subset}  # allows different types of keys
                 next_layers_copy = next_layers.copy()
                 layout_mod = layout.copy()
                 layout_rev = {j: i for i, j in layout.items()}
@@ -1162,7 +1152,7 @@ class TeleportationRouter(BasicRouter):
                         for j, next_layer in enumerate(next_layers_copy):
                             next_layers_copy[j] = self.replace_pos(next_layer, b, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, b, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, b, terminal))
                         label = layout_rev[b]
                         layout_mod[label] = terminal
                     elif move_type in {
@@ -1172,7 +1162,7 @@ class TeleportationRouter(BasicRouter):
                         for j, next_layer in enumerate(next_layers_copy):
                             next_layers_copy[j] = self.replace_pos(next_layer, a, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, a, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, a, terminal))
                         label = layout_rev[a]
                         layout_mod[label] = terminal
                     else:
@@ -1182,7 +1172,8 @@ class TeleportationRouter(BasicRouter):
                 try:
                     if self.metric == "crossing":
                         candidate_cost = self.count_crossings(
-                            cast("list[list[tuple[pos,pos]]]", next_layers_copy[:k_lookahead]), logical_pos_temp
+                            cast("Sequence[Sequence[tuple[pos, pos]]]", next_layers_copy[:k_lookahead]),
+                            logical_pos_temp,
                         )
                     elif self.metric == "exact":
                         schedule, _ = self.find_total_vdp_layers_dyn(
@@ -1200,25 +1191,27 @@ class TeleportationRouter(BasicRouter):
 
                 if candidate_cost == best_cost:
                     flag = True
-                    best_dct_temp = cast("steiner_type", dct_temp)
-                    best_schedule = schedule.copy() if self.metric == "exact" else None  # type: ignore[union-attr]
+                    best_dct_temp = dct_temp
+                    if self.metric == "exact":
+                        assert schedule is not None
+                        best_schedule = schedule.copy()
+                    else:
+                        best_schedule = None
                     break
             if flag:
                 break
 
         if flag:
-            steiner_reduced = (
-                cast(
-                    "steiner_type", best_dct_temp
-                )  # {(a,b,terminal): (path1, path2) for (a,b,terminal), (path1, path2) in subset}
-            )
-            # move_type_lst_red = {(a,b,terminal): move_type_lst[(a,b,terminal)] for (a,b,terminal), (_, _) in best_dct_temp.items()}
-            move_type_lst_red = {key: move_type_lst[key] for key in best_dct_temp}  # type: ignore[union-attr]
-            final_schedule = best_schedule.copy()  # type: ignore[union-attr]
+            assert best_dct_temp is not None
+            assert best_schedule is not None
+            steiner_reduced = best_dct_temp
+            move_type_lst_red = {key: move_type_lst[key] for key in best_dct_temp}
+            final_schedule = best_schedule.copy()
         else:  # return the inputs if nothing is found
             steiner_reduced = steiner_dct
             move_type_lst_red = move_type_lst
             final_schedule = None
+
         return steiner_reduced, move_type_lst_red, final_schedule
 
     def idle_move_back(
@@ -1229,22 +1222,16 @@ class TeleportationRouter(BasicRouter):
         danger_qubits_temp: dict[pos, int],
         available_gaps_temp: list[pos],
         layout: dict[int, pos],
-        layers: list[list[pos | tuple[pos, pos]]],
+        layers: list[Sequence[pos | tuple[pos, pos]]],
         reduce_time_stamp: bool,
         jump_harvesting: bool,
-        best_schedule: list[
-            dict[
-                pos | tuple[pos, pos],
-                list[pos],
-            ]
-        ]
-        | None,
+        best_schedule: list[VdpDict] | None,
     ) -> tuple[
         Any,  # schedule
         dict[pos, int],  # danger_qubits
         list[pos],  # available gaps
         dict[int, pos],  # layout
-        list[list[pos | tuple[pos, pos]]],  # layers
+        list[Sequence[pos | tuple[pos, pos]]],  # layers
     ]:
         """Subroutine of `optimize_layers` to move back qubits in dangerous positions asap."""
         # ruff: noqa: PLR1702
@@ -1268,7 +1255,8 @@ class TeleportationRouter(BasicRouter):
         # filter the danger_qubits to those which are idling right now? to avoid useless runs
         flattened_vdp_dict_current = [item for pair in schedule_temp["vdp_dict"] for item in pair]
         if jump_harvesting:  # include the (remaining) k_lookahead layers for the current jump because we do not want to alter the stuff from SA for multiple k_lookahead
-            for layer in best_schedule:  # type: ignore[union-attr]
+            assert best_schedule is not None
+            for layer in best_schedule:
                 for key in layer:
                     flattened_vdp_dict_current.extend((key[0], key[1]))
 
@@ -1332,7 +1320,7 @@ class TeleportationRouter(BasicRouter):
                     idle_move_labels.append(label_idle)
                     logical_pos_temp = cast(
                         "list[pos]",
-                        self.replace_pos(cast("list[pos|tuple[pos,pos]]", logical_pos_temp), danger_qubit, gap),
+                        self.replace_pos(logical_pos_temp, danger_qubit, gap),
                     )
                     for j, next_layer in enumerate(next_layers_copy):  # update all future layers
                         next_layers_copy[j] = self.replace_pos(next_layer, danger_qubit, gap)
@@ -1363,7 +1351,7 @@ class TeleportationRouter(BasicRouter):
         # !update terminal_pairs, logical_pos etc
         schedule_temp["vdp_dict"] = vdp_dict
         self.logical_pos = logical_pos_temp.copy()
-        self.logical_pos_temp = cast("None", logical_pos_temp.copy())  # weird cast but mypy demands it
+        self.logical_pos_temp = logical_pos_temp.copy()
         schedule_temp["logical_pos"] = self.logical_pos.copy()
         schedule_temp["idle_move_label"] = idle_move_labels.copy()
         layers = next_layers_copy.copy()
@@ -1376,7 +1364,7 @@ class TeleportationRouter(BasicRouter):
 
     def optimize_layers(
         self,
-        terminal_pairs: list[tuple[pos, pos] | pos],
+        terminal_pairs: Sequence[pos | tuple[pos, pos]],
         layout: dict[int, pos],
         max_iters: int,
         T_start: float,  # noqa: N803
@@ -1404,27 +1392,24 @@ class TeleportationRouter(BasicRouter):
         4. move idling qubits back (in different points in time depending on `idle_move_type.`)
         Repeat this layer by layer.
 
-        `idle_move_type`: str
-
-
         Args:
-            terminal_pairs (list[tuple[pos, pos]  |  pos]): Circuit of CNOT + T gates in terms of qubit positions `pos` on the lattice.
-            layout (dict[int, pos]): mapping between logical qubit labels `int` and their positions `pos` on the lattice.
-            max_iters (int): Maximum  number of iterations per simulated annealing run
-            T_start (float): Start temperature of each simulated annealing run
-            T_end (float): End temperature of each simulated annealing run
-            alpha (float): Factor by which the temperature is decreased per iteration in a simulated annealing run. T*alpha per iteration.
-            radius (int): Radius in which the 3rd terminal of the tree can be randomly placed (radius in terms of edges on the macroscopic routing graph)
-            k_lookahead (int): Number of logical lookahead layers on which the optimization is done per simulated annealing.
-            steiner_init_type (str): recommended to use `full_random`. on_path_random: terminal placement on the routing path - or full_random: fully random placement on the macroscopic routing graph.
-            jump_harvesting (bool): Recommended to use True. False: Default sliding window method. True: 1 layer is used for steiner search of k future layers. but then you do not just iterate through EACH layer but you skip the k layers, because you do not want to destroy the optimization by optimizing too much!
-            reduce_steiner (bool): Recommended to use True. Decides whether the trees are reduced again (True), such that possibly useless movements are removed. Using False may reduce rutnime however.
-            idle_move_type (str): Recommended to use `later`. asap: moving back is done as frequent as possible. this may destroy however structure of the predicted routing from the steiner search. later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
-            reduce_init_steiner (bool, optional): Defaults to False and is recommended not to be changed.
-            stimtest (bool, optional): If True, at the end of the computation the schedule is sanity checked. Defaults to False but recommended to use.
+            terminal_pairs: Circuit of CNOT + T gates in terms of qubit positions `pos` on the lattice.
+            layout: mapping between logical qubit labels `int` and their positions `pos` on the lattice.
+            max_iters: Maximum  number of iterations per simulated annealing run
+            T_start: Start temperature of each simulated annealing run
+            T_end: End temperature of each simulated annealing run
+            alpha: Factor by which the temperature is decreased per iteration in a simulated annealing run. T*alpha per iteration.
+            radius: Radius in which the 3rd terminal of the tree can be randomly placed (radius in terms of edges on the macroscopic routing graph)
+            k_lookahead: Number of logical lookahead layers on which the optimization is done per simulated annealing.
+            steiner_init_type: recommended to use `full_random`. on_path_random: terminal placement on the routing path - or full_random: fully random placement on the macroscopic routing graph.
+            jump_harvesting: Recommended to use True. False: Default sliding window method. True: 1 layer is used for steiner search of k future layers. but then you do not just iterate through EACH layer but you skip the k layers, because you do not want to destroy the optimization by optimizing too much!
+            reduce_steiner: Recommended to use True. Decides whether the trees are reduced again (True), such that possibly useless movements are removed. Using False may reduce rutnime however.
+            idle_move_type: Recommended to use `later`. asap: moving back is done as frequent as possible. this may destroy however structure of the predicted routing from the steiner search. later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
+            reduce_init_steiner: Defaults to False and is recommended not to be changed.
+            stimtest: If True, at the end of the computation the schedule is sanity checked. Defaults to False but recommended to use.
 
         Returns:
-            tuple[Any, list[tuple[int, Any]]]: schedule and improvement_history.
+            schedule and improvement_history.
         """
         if idle_move_type not in {"asap", "later"}:
             msg = "`move_idle_type` must be `asap` or `later`"  # pragma: no cover
@@ -1538,7 +1523,7 @@ class TeleportationRouter(BasicRouter):
             # find optimal steiner tree(s) for current layer
             if reduce_init_steiner:
                 steiner_dct = self.initialize_steiner(
-                    cast("dict[str|pos|tuple[pos,pos], list[pos]]", vdp_dict),
+                    vdp_dict,
                     steiner_init_type,
                     layers=layers,
                     k_lookahead=k_lookahead,
@@ -1563,14 +1548,14 @@ class TeleportationRouter(BasicRouter):
                         alpha,
                         k_lookahead,
                         radius=radius,
-                        vdp_dict=schedule_temp["vdp_dict"],
+                        vdp_dict=cast("VdpDict", schedule_temp["vdp_dict"]),
                         layout=layout,
                     )
                     # store improvement history
                     improvement_history.append((best_cost, cost_history[0]))
             else:
                 steiner_dct = self.initialize_steiner(
-                    cast("dict[str|pos|tuple[pos,pos], list[pos]]", vdp_dict),
+                    vdp_dict,
                     steiner_init_type,
                     layers=None,
                     k_lookahead=None,
@@ -1592,7 +1577,7 @@ class TeleportationRouter(BasicRouter):
                     alpha,
                     k_lookahead,
                     radius=radius,
-                    vdp_dict=schedule_temp["vdp_dict"],
+                    vdp_dict=cast("VdpDict", schedule_temp["vdp_dict"]),
                     layout=layout,
                 )
                 # store improvement history
@@ -1611,7 +1596,7 @@ class TeleportationRouter(BasicRouter):
             if flag_skip_steiner is False:
                 if reduce_steiner:
                     best_steiner, move_type_lst, best_schedule_temp = self.reduce_steiner_moves(
-                        cast("steiner_type", best_steiner_init),
+                        cast("SteinerType", best_steiner_init),
                         move_type_lst,
                         layers,
                         best_cost,
@@ -1621,13 +1606,14 @@ class TeleportationRouter(BasicRouter):
                     if best_steiner_init is not None:
                         if len(best_steiner) < len(best_steiner_init):
                             logger.info("Complexity of Steiner could be reduced.")
-                        best_schedule = best_schedule_temp.copy()  # type: ignore[union-attr]
+                        assert best_schedule_temp is not None
+                        best_schedule = best_schedule_temp.copy()
 
                 else:
-                    best_steiner = cast("steiner_type", best_steiner_init)  # only rename
+                    best_steiner = cast("SteinerType", best_steiner_init)  # only rename
 
                 # update the logical pos etc for the next iteration
-                logical_pos_temp = self.logical_pos_temp.copy()  # type: ignore[attr-defined]
+                logical_pos_temp = self.logical_pos_temp.copy()
                 layout_rev = {j: i for i, j in layout.items()}
                 layout_mod = layout.copy()
                 schedule_temp["layout"] = (
@@ -1658,7 +1644,7 @@ class TeleportationRouter(BasicRouter):
                         for j, next_layer in enumerate(next_layers_copy):  # update all future layers
                             next_layers_copy[j] = self.replace_pos(next_layer, b, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, b, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, b, terminal))
                         label = layout_rev[b]
                         layout_mod[label] = terminal
                         available_gaps_temp.append(b)
@@ -1666,7 +1652,7 @@ class TeleportationRouter(BasicRouter):
                         for j, next_layer in enumerate(next_layers_copy):
                             next_layers_copy[j] = self.replace_pos(next_layer, a, terminal)
                         # update temporary logical pos such that correct nodes are removed from g_temp in perturbation method
-                        logical_pos_temp = self.replace_pos(logical_pos_temp, a, terminal)
+                        logical_pos_temp = cast("list[pos]", self.replace_pos(logical_pos_temp, a, terminal))
                         label = layout_rev[a]
                         layout_mod[label] = terminal
                         available_gaps_temp.append(a)
@@ -1796,16 +1782,17 @@ class TeleportationRouter(BasicRouter):
                     if (
                         flag_identical_schedules
                     ):  # only test as long as we expect identical schedules. this is not all the time the case.
+                        assert best_schedule is not None
                         matching = True
-                        for vdp_key in cast("list[dict[pos | tuple[pos, pos],list[pos],]]", best_schedule)[0]:
+                        for vdp_key in best_schedule[0]:
                             if vdp_key not in vdp_dict:
                                 matching = False
                         if idle_move_type == "asap":  # if asap idle move type then there's no problem if matching wrong
-                            del cast("list[dict[pos | tuple[pos, pos],list[pos],]]", best_schedule)[0]
+                            del best_schedule[0]
 
                         elif idle_move_type == "later":
                             if matching:
-                                del cast("list[dict[pos | tuple[pos, pos],list[pos],]]", best_schedule)[0]
+                                del best_schedule[0]
                             else:
                                 msg = "Mismatch between exact metric routing and real routing in jump harvest. If you do not care you should turn on `idle_move_type == asap`"  # pragma: no cover
                                 raise RuntimeError(msg)
@@ -1854,9 +1841,7 @@ class TeleportationRouter(BasicRouter):
                         # also layers_after_k need to be updated if there was something moved back
                         for danger_qubit, gap in danger_gap_list:
                             for j, next_layer in enumerate(layers_after_k):  # update all future layers
-                                layers_after_k[j] = self.replace_pos(
-                                    next_layer, cast("pos", danger_qubit), cast("pos", gap)
-                                )
+                                layers_after_k[j] = self.replace_pos(next_layer, danger_qubit, gap)
 
                 # update global layers here. with the terminal pairs remainder which was the last in the above loop
                 layers = layers_k.copy() + layers_after_k.copy()

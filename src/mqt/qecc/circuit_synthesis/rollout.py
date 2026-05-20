@@ -252,7 +252,7 @@ class RolloutCandidateGenerator(CandidateGenerator):
         """Create a fresh rollout strategy for recursive simulation.
 
         Args:
-        op: The operation to be applied at the current layer, used to build the child evaluation prefix.
+            op: The operation to be applied at the current layer, used to build the child evaluation prefix.
 
         Returns:
             A new EliminationStrategy with fresh generator and filters.
@@ -266,8 +266,8 @@ class RolloutCandidateGenerator(CandidateGenerator):
                 child_base_strategy.filters,
             )
         # also make sure the candidate generator sees those filters
-        if hasattr(child_base_strategy.candidate_generator, "filters"):
-            child_base_strategy.candidate_generator.filters = list(child_base_strategy.filters or [])
+        if hasattr(child_base_strategy.candidate_generator, "filters") and child_base_strategy.filters is not None:
+            child_base_strategy.filters = list(child_base_strategy.filters)
 
         return EliminationStrategy(
             termination_criterion=self.base_strategy.termination_criterion,

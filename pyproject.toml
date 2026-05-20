@@ -258,7 +258,9 @@ iz = "iz"
 
 [tool.repo-review.ignore]
 GH200 = "We use Renovate instead of Dependabot"
+MY100 = "We use ty instead of mypy"
 PC111 = "We use ruff instead of blacken-docs"
+PC140 = "We use ty instead of mypy"
 PC160 = "We use a mirror of crate-ci/typos"
 PC170 = "We do not use rST files anymore"
 
@@ -273,6 +275,18 @@ environments = [
 
 [tool.uv.sources]
 mqt-qecc = { workspace = true }
+
+
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true
+
+[tool.ty.src]
+exclude = [
+    "**/*.ipynb",
+    "docs/**",
+    "scripts/**",
+]
 
 
 [tool.check-sdist]
@@ -306,4 +320,5 @@ test = [
 dev = [
   {include-group = "test"},
   "nox>=2025.11.12",
+  "ty==0.0.36",
 ]

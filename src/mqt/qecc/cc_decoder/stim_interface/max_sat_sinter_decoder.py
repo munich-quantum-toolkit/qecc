@@ -77,7 +77,7 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
         """Init sinter decoder with kwargs."""
         self.maxsat_kwargs = maxsat_kwargs
 
-    def compile_decoder_for_dem(self, dem: stim.DetectorErrorModel) -> CompiledDecoder:
+    def compile_decoder_for_dem(self, dem: stim.DetectorErrorModel) -> SinterCompiledDecoderMaxSat:
         """Return sinter compiled decoder initialized with the given DEM."""
         maxsat = MaxSatStim(
             model=dem,

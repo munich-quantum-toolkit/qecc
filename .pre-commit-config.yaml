@@ -12,7 +12,7 @@ ci:
   autoupdate_commit_msg: "⬆️🪝 update pre-commit hooks"
   autoupdate_schedule: quarterly
   autofix_commit_msg: "🎨 pre-commit fixes"
-  skip: [mypy]
+  skip: [ty-check]
 
 repos:
   ## Standard hooks
@@ -131,16 +131,15 @@ repos:
           - --
         priority: 8
 
-  ## Check Python types with mypy
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.2
+    ## Check Python types with ty
+  - repo: local
     hooks:
-      - id: mypy
-        files: ^(src/mqt|tests|noxfile.py)
-        args: []
-        additional_dependencies:
-          - nox
-          - numpy
-          - pytest
-          - pytest-mock
-        priority: 9
+      - id: ty-check
+        name: ty check
+        entry: uv run ty check
+        language: unsupported
+        require_serial: true
+        types_or: [python, pyi, jupyter]
+        exclude: ^(docs/|scripts/)
+        pass_filenames: false
+        priority: 8

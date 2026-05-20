@@ -17,14 +17,14 @@ import networkx as nx
 from matplotlib.cm import rainbow
 
 if TYPE_CHECKING:
-    from mqt.qecc.cococo.types import HistoryTemp
+    from mqt.qecc.cococo.types import HistoryTemp, VdpDict, pos
 
 
 def plot_lattice(
     g: nx.Graph,
     size: tuple[float, float] = (3.5, 3.5),
-    data_qubit_locs: list[tuple[int, int]] | None = None,
-    factory_locs: list[tuple[int, int]] | None = None,
+    data_qubit_locs: list[pos] | None = None,
+    factory_locs: list[pos] | None = None,
 ) -> None:
     """Plots the lattice G with networkx labels."""
     if data_qubit_locs is None:
@@ -96,13 +96,7 @@ def plot_history(
 
 def plot_lattice_paths(
     g: nx.Graph,
-    vdp_dict: (
-        dict[
-            tuple[int, int] | tuple[tuple[int, int], tuple[int, int]],
-            list[tuple[int, int]],
-        ]
-        | None
-    ),
+    vdp_dict: (VdpDict | None),
     steiner_dct: dict | None = None,
     layout: dict[int, tuple[int, int]] | None = None,
     factory_locs: list[tuple[int, int]] | None = None,
@@ -111,12 +105,12 @@ def plot_lattice_paths(
     """Plots the graph and the corresponding VDP of a layer.
 
     Args:
-        g (nx.Graph): routing graph
-        vdp_dict (dict[ tuple[int, int]  |  tuple[tuple[int, int], tuple[int, int]], list[tuple[int, int]], ]  |  None): vdp dict of the current layer of the CNOT routing (no movements)
-        steiner_dct (dict | None): dct for the steiner trees. Defaults to None.
-        layout (dict[int, tuple[int, int]] | None, optional): qubit label to position mapping. Defaults to None.
-        factory_locs (list[tuple[int, int]] | None, optional): positions of factories. Defaults to None.
-        size (tuple[float, float], optional): plot size. Defaults to (3.5, 3.5).
+        g: routing graph
+        vdp_dict: vdp dict of the current layer of the CNOT routing (no movements)
+        steiner_dct: dct for the steiner trees. Defaults to None.
+        layout: qubit label to position mapping. Defaults to None.
+        factory_locs: positions of factories. Defaults to None.
+        size: plot size. Defaults to (3.5, 3.5).
     """
     if layout is None:
         layout = {}

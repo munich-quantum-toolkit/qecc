@@ -475,7 +475,7 @@ class SingleShotSimulator:
         syndrome_w_err_binary += meta_decoded  # repair syndrome
         syndrome_w_err_binary %= 2
 
-        return syndrome_w_err_binary
+        return syndrome_w_err_binary.astype(np.int32)
 
     def _analog_tg_decoding(
         self,
@@ -709,7 +709,7 @@ class SingleShotSimulator:
         }
 
         output.update(self.input_values)
-        output["bias"] = replace_inf(output["bias"])  # type: ignore[assignment, arg-type]
+        output["bias"] = replace_inf(output["bias"])  # ty: ignore[invalid-assignment, invalid-argument-type]
 
         with Path(self.outfile).open(encoding=locale.getpreferredencoding(False)) as f:
             f.write(

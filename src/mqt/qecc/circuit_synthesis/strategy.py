@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
-from ..codes.pauli import StabilizerTableau
+from ..codes.pauli import CheckMatrix, StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .rollout import (
@@ -68,8 +68,11 @@ def for_cnot_up_to_row_ops(
     cached_rank: int | None = None
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
+        if not isinstance(tbl, CheckMatrix):
+            return False
+
         nonlocal cached_rank
-        matrix = tbl.matrix  # type: ignore[union-attr]
+        matrix = tbl.matrix
 
         if cached_rank is None:
             cached_rank = mod2.rank(matrix)
@@ -104,6 +107,7 @@ def for_cnot_up_to_row_ops(
             remaining_rows = matrix[n_stabs:, :]
 
             if n_stabs > 0:
+                assert first_rows_reduced is not None
                 # Reduce remaining rows using first n_stabs rows (vectorized)
                 remaining_rows = remaining_rows.copy()
                 for pivot_row in first_rows_reduced:

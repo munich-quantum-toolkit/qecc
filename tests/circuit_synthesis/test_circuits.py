@@ -644,8 +644,8 @@ def test_trivial_isometry():
 def rep_code_encoder() -> stim.Circuit:
     """Encoding isometry of the repetition code."""
     circ = stim.Circuit()
-    circ.append("R", [1, 2])
-    circ.append("CX", [0, 1, 1, 2])
+    circ.append("R", [1, 2])  # ty: ignore[no-matching-overload]
+    circ.append("CX", [0, 1, 1, 2])  # ty: ignore[no-matching-overload]
     return circ
 
 
@@ -653,11 +653,11 @@ def rep_code_encoder() -> stim.Circuit:
 def five_qubit_code_encoder() -> stim.Circuit:
     """Encoding isometry of the five-qubit code."""
     circ = stim.Circuit()
-    circ.append("RX", [1, 2, 3, 4])
-    circ.append("H", [0])
-    circ.append("CZ", [0, 1, 0, 2, 0, 3, 0, 4])
-    circ.append("H", [0])
-    circ.append("CZ", [0, 1, 2, 3, 1, 2, 3, 4, 0, 4])
+    circ.append("RX", [1, 2, 3, 4])  # ty: ignore[no-matching-overload]
+    circ.append("H", [0])  # ty: ignore[no-matching-overload]
+    circ.append("CZ", [0, 1, 0, 2, 0, 3, 0, 4])  # ty: ignore[no-matching-overload]
+    circ.append("H", [0])  # ty: ignore[no-matching-overload]
+    circ.append("CZ", [0, 1, 2, 3, 1, 2, 3, 4, 0, 4])  # ty: ignore[no-matching-overload]
     return circ
 
 

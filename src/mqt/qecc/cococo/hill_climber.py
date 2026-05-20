@@ -25,9 +25,7 @@ from .utils_routing import BasicRouter
 if TYPE_CHECKING:
     import networkx as nx
 
-    from .types import HistoryTemp
-
-    pos = tuple[int, int]
+    from .types import HistoryTemp, pos
 
 
 def save_to_file(path: str, data: Any) -> None:  # noqa: ANN401
@@ -39,6 +37,9 @@ def save_to_file(path: str, data: Any) -> None:  # noqa: ANN401
 class HillClimbing:
     """Hill Climbing with random restarts for routing layouts."""
 
+    data_qubit_locs: list[pos]
+    g: nx.Graph
+
     def __init__(
         self,
         max_restarts: int,
@@ -46,10 +47,10 @@ class HillClimbing:
         circuit: list[tuple[int, int] | int],
         metric: str,
         t: int,
-        custom_layout: list[list[tuple[int, int]] | nx.Graph],
+        custom_layout: list[list[pos] | nx.Graph],
         use_dag: bool,
         valid_path: str,
-        possible_factory_positions: list[tuple[int, int]] | None = None,
+        possible_factory_positions: list[pos] | None = None,
         num_factories: int | None = None,
         optimize_factories: bool = False,
         seed: int = 45,
@@ -59,21 +60,19 @@ class HillClimbing:
         IMPORTANT: ALWAYS USE CUSTOM LAYOUTS TO MAKE SURE THAT THE CONNECTIVITY IS CORRECT AND REPRESENTS CC CORRECTLY
         (e.g. you have to remove edges between directly neighboring logical nodes, because a path between those would not allow to put a ancilla for LS)
 
-
         Args:
-            max_restarts (int): Maximum number of random restarts.
-            max_iterations (int): Maximum number of iterations per restart.
-            circuit (list[tuple[int, int]  |  int]): list of qubits to connect (terminal pairs aka cnots)
-            metric (str): `crossing` or `exact`
-            t (int): waiting time for factories.
-            custom_layout (list[list[tuple[int, int]]  |  nx.Graph]): The first list in the list should be
-                a `data_qubits_loc` of the node locations of data qubits and nx.Graph the corresponding graph (possibly differing from the standard networkx hex graph shape)
-            use_dag (bool): use dag for layer structure or not.
-            valid_path (str): which type of valid path is used. actually one should only use "cc".
-            possible_factory_positions (list[tuple[int, int]] | None, optional): possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout). Defaults to None.
-            num_factories (int | None, optional): Number of factories to be used (subset of possible_factory_positions). Defaults to None.
-            optimize_factories (bool, optional): decides whether factories are optimized or not. Defaults to false.
-            seed (int): seed for random stuff
+            max_restarts: Maximum number of random restarts.
+            max_iterations: Maximum number of iterations per restart.
+            circuit: list of qubits to connect (terminal pairs aka cnots)
+            metric: `crossing` or `exact`
+            t: waiting time for factories.
+            custom_layout: The first list in the list should be a `data_qubits_loc` of the node locations of data qubits and nx.Graph the corresponding graph (possibly differing from the standard networkx hex graph shape)
+            use_dag: use dag for layer structure or not.
+            valid_path: which type of valid path is used. actually one should only use "cc".
+            possible_factory_positions: possible locations for the factories (must follow nx labeling of hex. lattice and must be placed outside the generated layout). Defaults to None.
+            num_factories: Number of factories to be used (subset of possible_factory_positions). Defaults to None.
+            optimize_factories: decides whether factories are optimized or not. Defaults to false.
+            seed: seed for random stuff
         """
         rng = random.Random(seed)  # noqa: S311
         self.rng = rng
@@ -105,10 +104,10 @@ class HillClimbing:
             raise ValueError(msg)
 
         # custom layout types
-        data_qubit_locs = custom_layout[0]
-        self.g = custom_layout[1]
-
+        data_qubit_locs = cast("list[pos]", custom_layout[0])
         self.data_qubit_locs = data_qubit_locs
+        self.g = cast("nx.Graph", custom_layout[1])
+
         if metric not in {"crossing", "exact"}:
             msg = "metric must be either 'crossing' or  'exact'"
             raise ValueError(msg)
@@ -151,8 +150,6 @@ class HillClimbing:
 
         factory_times = dict.fromkeys(factory_positions_temp, self.t)
         clean_layout = cast("dict[int, pos] ", {k: v for k, v in layout.items() if k != "factory_positions"})
-
-        router: BasicRouter
 
         router = BasicRouter(
             self.g,

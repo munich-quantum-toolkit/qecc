@@ -24,7 +24,7 @@ from . import code_from_string
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
-    from z3 import ModelRef
+    from z3 import BoolRef, ModelRef
 
     from ..codes.color_code import ColorCode
 
@@ -35,8 +35,8 @@ class LightsOut:
 
     lights_to_switches: dict[int, list[int]]
     switches_to_lights: dict[int, list[int]]
-    switch_vars: list[Bool] | None = None
-    helper_vars: dict[int, list[Bool]] = field(default_factory=dict)
+    switch_vars: list[BoolRef] | None = None
+    helper_vars: dict[int, list[BoolRef]] = field(default_factory=dict)
     optimizer: Optimize = field(default_factory=Optimize)
 
     def preconstruct_parity_constraint(self, light: int, indices: list[int]) -> None:

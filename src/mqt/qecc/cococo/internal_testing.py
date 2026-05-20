@@ -7,15 +7,20 @@
 
 """Helper functions to perform testing."""
 
+from __future__ import annotations
+
 import random
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import stim
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from .types import VdpDict, pos
 
 
-def extract_gates_schedule(schedule: Any) -> list[tuple[pos, pos] | pos]:  # noqa: ANN401
+def extract_gates_schedule(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # noqa: ANN401
     """Extracts the gates from the schedule in the order of the schedule. ignore 'idle' moves in the vdp dict."""
     gates = []
     for i in range(len(schedule)):
@@ -25,7 +30,7 @@ def extract_gates_schedule(schedule: Any) -> list[tuple[pos, pos] | pos]:  # noq
     return gates
 
 
-def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos, pos] | pos]:  # noqa: ANN401
+def extract_gates_schedule_respect_layout(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # noqa: ANN401
     """Extracts the gates with the qubit labels (not the positions of quibts) by respecting the changing `layout` dictionaries."""
     gates = []
     for i in range(len(schedule)):
@@ -45,7 +50,7 @@ def extract_gates_schedule_respect_layout(schedule: Any) -> list[tuple[pos, pos]
     return gates
 
 
-def check_num_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule: Any) -> bool:  # noqa: ANN401
+def check_num_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # noqa: ANN401
     """Check that the input `terminal_pairs` has the same number of gates as the resulting schedule."""
     gates_schedule = extract_gates_schedule(schedule)
     return len(gates_schedule) == len(terminal_pairs)
@@ -58,13 +63,13 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
         # choose a random Pauli: I, X, Y, Z
         p = random.choice(["I", "X", "Y", "Z"])  # noqa: S311
         if p != "I":
-            c.append(p, [q])
+            c.append(p, [q])  # ty: ignore[no-matching-overload]
     return c
 
 
 def check_order_dyn_gates_st(
-    terminal_pairs: list[tuple[pos, pos] | pos],
-    vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]],
+    terminal_pairs: Sequence[pos | tuple[pos, pos]],
+    vdp_layers: list[VdpDict],
     layout: dict[int, pos] | None = None,
 ) -> bool:
     """Only works for circuits and the standard scheme, i.e. find_total_vdp_layers_dyn.
@@ -83,18 +88,23 @@ def check_order_dyn_gates_st(
 
     initial_state = random_initial_state(n_qubits)
 
-    layout_rev = {j: i for i, j in layout.items()}
+    layout_rev: dict[pos, int] = {j: i for i, j in layout.items()}
     terminal_pairs_trans: list[int | tuple[int, int]] = []
     for el in terminal_pairs:
-        if isinstance(el[0], tuple):
+        if isinstance(el[0], tuple) and isinstance(el[1], tuple):
             # cnot
             terminal_pairs_trans.append((layout_rev[el[0]], layout_rev[el[1]]))
-        elif isinstance(el[0], int):
+        elif isinstance(el, tuple):
+            el = cast("pos", el)
             terminal_pairs_trans.append(layout_rev[el])
     gates_schedule = []
     for vdp_dict in vdp_layers:
         gates_schedule += [
-            ((layout_rev[el[0]], layout_rev[el[1]]) if isinstance(el[0], tuple) else layout_rev[el])
+            (
+                (layout_rev[el[0]], layout_rev[el[1]])
+                if isinstance(el[0], tuple) and isinstance(el[1], tuple)
+                else layout_rev[cast("pos", el)]
+            )
             for el in list(vdp_dict.keys())
         ]
     if set(terminal_pairs_trans) != set(gates_schedule):
@@ -108,16 +118,16 @@ def check_order_dyn_gates_st(
     initial_circ_order = initial_state.copy()
     for el3 in terminal_pairs_trans:
         if isinstance(el3, tuple):
-            initial_circ_order.append("CNOT", [el3[0], el3[1]])
+            initial_circ_order.append("CNOT", [el3[0], el3[1]])  # ty: ignore[no-matching-overload]
         elif isinstance(el3, int):
-            initial_circ_order.append("s", el3)
+            initial_circ_order.append("s", el3)  # ty: ignore[no-matching-overload]
 
     dyn_circ_order = initial_state.copy()
     for el2 in gates_schedule:
         if isinstance(el2, tuple):
-            dyn_circ_order.append("CNOT", [el2[0], el2[1]])
+            dyn_circ_order.append("CNOT", [el2[0], el2[1]])  # ty: ignore[no-matching-overload]
         elif isinstance(el2, int):
-            dyn_circ_order.append("s", el2)
+            dyn_circ_order.append("s", el2)  # ty: ignore[no-matching-overload]
 
     sim1 = stim.TableauSimulator()
     sim1.do_circuit(initial_circ_order)
@@ -127,10 +137,10 @@ def check_order_dyn_gates_st(
     sim2.do_circuit(dyn_circ_order)
     tableau2 = sim2.current_inverse_tableau()
 
-    return cast("bool", tableau1 == tableau2)
+    return tableau1 == tableau2
 
 
-def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule: Any) -> bool:  # noqa: ANN401
+def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # noqa: ANN401
     """Checks order of the schedule.
 
     simulates the gate order in the schedule (changed from pushing) and from initial terminal pairs on a random initial state.
@@ -168,16 +178,16 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule:
     initial_circ_order = initial_state.copy()
     for el in terminal_pairs_trans:
         if isinstance(el, tuple):
-            initial_circ_order.append("CNOT", [el[0], el[1]])
+            initial_circ_order.append("CNOT", [el[0], el[1]])  # ty: ignore[no-matching-overload]
         elif isinstance(el, int):  # type: ignore[unreachable]
-            initial_circ_order.append("s", el)
+            initial_circ_order.append("s", el)  # ty: ignore[no-matching-overload]
 
     dyn_circ_order = initial_state.copy()
     for el in gates_schedule:
         if isinstance(el, tuple):
-            dyn_circ_order.append("CNOT", [el[0], el[1]])
+            dyn_circ_order.append("CNOT", [el[0], el[1]])  # ty: ignore[no-matching-overload]
         elif isinstance(el, int):  # type: ignore[unreachable]
-            dyn_circ_order.append("s", el)
+            dyn_circ_order.append("s", el)  # ty: ignore[no-matching-overload]
 
     sim1 = stim.TableauSimulator()
     sim1.do_circuit(initial_circ_order)
@@ -187,10 +197,10 @@ def check_order_dyn_gates(terminal_pairs: list[tuple[pos, pos] | pos], schedule:
     sim2.do_circuit(dyn_circ_order)
     tableau2 = sim2.current_inverse_tableau()
 
-    return cast("bool", tableau1 == tableau2)
+    return tableau1 == tableau2
 
 
-def check_duplicate_nodes_per_layer_st(vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]]) -> bool:
+def check_duplicate_nodes_per_layer_st(vdp_layers: list[VdpDict]) -> bool:
     """Checks whether there are duplicate nodes in the paths of one layer.
 
     this would indicate that there are overlapping paths and is a big problem.
@@ -243,7 +253,7 @@ def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # noqa: ANN401
     return True
 
 
-def check_path_on_logical_st(vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]], logical_pos: list[pos]) -> bool:
+def check_path_on_logical_st(vdp_layers: list[VdpDict], logical_pos: list[pos]) -> bool:
     """Checks whether the path occupies any logical pos somewhere else than on the end points. this would be an issue!"""
     for vdp_dict in vdp_layers:
         for path in vdp_dict.values():
@@ -300,9 +310,7 @@ def test_times_t_gates_opt(schedule: Any, t: int, factories: list[pos]) -> bool:
     return True
 
 
-def test_times_t_gates_st(
-    vdp_layers: list[dict[pos | tuple[pos, pos], list[pos,]]], t: int, factories: list[pos]
-) -> bool:
+def test_times_t_gates_st(vdp_layers: list[VdpDict], t: int, factories: list[pos]) -> bool:
     """Checks whether the t timestamps make sense in a finished vdp layeyrs (st)."""
     factory_times = dict.fromkeys(factories, t)
     for vdp_dict in vdp_layers:

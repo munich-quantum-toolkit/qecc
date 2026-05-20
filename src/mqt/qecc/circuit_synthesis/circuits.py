@@ -110,11 +110,13 @@ class CliffordIsometry:
         circ_no_reset = stim.Circuit()
         basis = {}
         for gate in self.to_stim_circuit():
+            assert isinstance(gate, stim.CircuitInstruction)
             if gate.name not in {"R", "RX", "RZ"}:
                 circ_no_reset.append(gate)
             else:
                 for grp in gate.target_groups():
                     q = grp[0].qubit_value
+                    assert q is not None
                     if gate.name in {"R", "RZ"}:
                         basis[q] = "Z"
                     elif gate.name == "RX":
@@ -147,10 +149,12 @@ class CliffordIsometry:
         stripped = stim.Circuit()
 
         for gate in circ:
+            assert isinstance(gate, stim.CircuitInstruction)
             name = gate.name
             if name in {"R", "RX", "RZ"}:
                 for grp in gate.target_groups():
                     q = grp[0].qubit_value
+                    assert q is not None
                     iso._ancillas.add(q)
                     iso._initializations[q] = "X" if name == "RX" else "Z"
             else:
@@ -175,7 +179,7 @@ class CliffordIsometry:
         result = stim.Circuit()
 
         for qubit, basis in self._initializations.items():
-            result.append("R" + basis, [qubit])
+            result.append("R" + basis, [qubit])  # ty: ignore[no-matching-overload]
 
         result += self._circ
 
@@ -383,10 +387,10 @@ class CNOTCircuit(CliffordIsometry):
 
         if with_resets:
             for qubit, basis in self._initializations.items():
-                stim_circuit.append("R" + basis, [qubit])
+                stim_circuit.append("R" + basis, [qubit])  # ty: ignore[no-matching-overload]
 
         if self.cnots:
-            stim_circuit.append_operation("CX", [qubit for pair in self.cnots for qubit in pair])
+            stim_circuit.append("CX", [qubit for pair in self.cnots for qubit in pair])  # ty: ignore[no-matching-overload]
 
         return stim_circuit
 
@@ -472,25 +476,31 @@ class CNOTCircuit(CliffordIsometry):
         cnot_circuit = cls()
         initialized = [False for _ in range(circ.num_qubits)]
         for gate in circ:
+            assert isinstance(gate, stim.CircuitInstruction)
             name = gate.name
             for grp in gate.target_groups():
                 if name in {"R", "RZ"}:
                     q = grp[0].qubit_value
+                    assert q is not None
                     if initialized[q]:
                         msg = f"Qubit {q} reset during circuit."
                         raise ValueError(msg)
-                    cnot_circuit.initialize_qubit(grp[0].qubit_value, basis="Z")
+                    cnot_circuit.initialize_qubit(q, basis="Z")
                     initialized[q] = True
 
                 elif name == "RX":
                     q = grp[0].qubit_value
+                    assert q is not None
                     if initialized[q]:
                         msg = f"Qubit {q} reset during circuit."
                         raise ValueError(msg)
-                    cnot_circuit.initialize_qubit(grp[0].qubit_value, basis="X")
+                    cnot_circuit.initialize_qubit(q, basis="X")
                     initialized[q] = True
                 elif name == "CX":
-                    control, target = grp[0].qubit_value, grp[1].qubit_value
+                    control = grp[0].qubit_value
+                    assert control is not None
+                    target = grp[1].qubit_value
+                    assert target is not None
                     cnot_circuit.add_cnot(control, target)
                     initialized[control] = True
                     initialized[target] = True

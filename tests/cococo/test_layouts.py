@@ -9,10 +9,12 @@
 
 import json
 import pathlib
+from typing import TYPE_CHECKING
 
 from mqt.qecc.cococo import layouts
 
-pos = tuple[int, int]
+if TYPE_CHECKING:
+    from mqt.qecc.cococo.types import pos
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 

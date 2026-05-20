@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from stim import Circuit
+from stim import Circuit, CircuitInstruction
 
 from .circuit_utils import collect_circuit_layers
 from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
@@ -113,28 +113,38 @@ class CircuitLevelNoise(NoiseModel):
         for op in circ:
             name = op.name
             if name in STIM_SQGS:
+                assert isinstance(op, CircuitInstruction)
                 for targets in op.target_groups():
-                    noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", [trgt.qubit_value for trgt in targets], self.p_sqg)
+                    noisy_circ.append_operation(name, targets)
+                    qubits = [target.qubit_value for target in targets]
+                    assert all(qubit is not None for qubit in qubits)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", cast("list[int]", qubits), self.p_sqg)
 
             elif name in STIM_RESETS:
+                assert isinstance(op, CircuitInstruction)
                 for targets in op.target_groups():
-                    noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", [trgt.qubit_value for trgt in targets], self.p_init)
+                    noisy_circ.append_operation(name, targets)
+                    qubits = [target.qubit_value for target in targets]
+                    assert all(qubit is not None for qubit in qubits)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE1", cast("list[int]", qubits), self.p_init)
 
             elif name in STIM_TQGS:
+                assert isinstance(op, CircuitInstruction)
                 for targets in (
                     op.target_groups()
                 ):  # errors might propagate so we have to apply noise to every target group individually
-                    noisy_circ.append_operation(op.name, targets)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE2", [trgt.qubit_value for trgt in targets], self.p_tqg)
+                    noisy_circ.append_operation(name, targets)
+                    qubits = [target.qubit_value for target in targets]
+                    assert all(qubit is not None for qubit in qubits)
+                    self._apply_noise(noisy_circ, "DEPOLARIZE2", cast("list[int]", qubits), self.p_tqg)
 
             elif name in STIM_MEASUREMENTS:
+                assert isinstance(op, CircuitInstruction)
                 for targets in op.target_groups():
                     if not any(t in self.ideal_qubits for t in [trgt.qubit_value for trgt in targets]):
-                        noisy_circ.append_operation(op.name, targets, self.p_meas)
+                        noisy_circ.append_operation(name, targets, self.p_meas)
                     else:
-                        noisy_circ.append_operation(op.name, targets)
+                        noisy_circ.append_operation(name, targets)
             else:
                 noisy_circ.append_operation(op)
         return noisy_circ
@@ -231,9 +241,10 @@ class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
         layers = []
 
         for op in circ:
+            assert isinstance(op, CircuitInstruction)
             for grp in op.target_groups():
                 layer_circ = Circuit()
-                layer_circ.append(op.name, grp)
+                layer_circ.append(op.name, grp)  # ty: ignore[no-matching-overload]
                 layers.append(layer_circ)
 
         if self.resets_alap:
@@ -294,6 +305,7 @@ def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
     resets = set()
     for instr in circ:
         if instr.name in STIM_RESETS:
+            assert isinstance(instr, CircuitInstruction)
             resets.update([q.qubit_value for q in instr.targets_copy()])
     return resets
 
@@ -301,6 +313,7 @@ def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
 def _get_non_idle_qubits_layer(circ: Circuit) -> set[int]:
     qubits = set()
     for instr in circ:
+        assert isinstance(instr, CircuitInstruction)
         qubits.update([q.qubit_value for q in instr.targets_copy()])
     return qubits
 
