@@ -187,18 +187,18 @@ class Transvection(TableauOperation):
         basis_change = {"Z": [], "X": ["H"], "Y": ["S_DAG", "H"]}
         undo_basis_change = {"Z": [], "X": ["H"], "Y": ["H", "S"]}
         for g in basis_change[p_i]:
-            circuit.append(g, [i])  # ty: ignore[no-matching-overload]
+            circuit.append(g, [i])
         for g in basis_change[p_j]:
-            circuit.append(g, [j])  # ty: ignore[no-matching-overload]
+            circuit.append(g, [j])
 
-        circuit.append("CZ", [i, j])  # ty: ignore[no-matching-overload]
-        circuit.append("S", [i])  # ty: ignore[no-matching-overload]
-        circuit.append("S", [j])  # ty: ignore[no-matching-overload]
+        circuit.append("CZ", [i, j])
+        circuit.append("S", [i])
+        circuit.append("S", [j])
 
         for g in undo_basis_change[p_j]:
-            circuit.append(g, [j])  # ty: ignore[no-matching-overload]
+            circuit.append(g, [j])
         for g in undo_basis_change[p_i]:
-            circuit.append(g, [i])  # ty: ignore[no-matching-overload]
+            circuit.append(g, [i])
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -395,29 +395,29 @@ class SingleQubitClifford(TableauOperation):
             circuit: The Stim circuit to append the operation to.
         """
         if self.clifford in {"H", "S", "I"}:
-            circuit.append(self.clifford, [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append(self.clifford, [self.qubit])
         elif self.clifford == "SDAG":
-            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S_DAG", [self.qubit])
         elif self.clifford == "HS":
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
         elif self.clifford == "SH":
-            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
         elif self.clifford == "HSH":
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("S", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])
+            circuit.append("S", [self.qubit])
+            circuit.append("H", [self.qubit])
         elif self.clifford == "SDAGH":
-            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("S_DAG", [self.qubit])
+            circuit.append("H", [self.qubit])
         elif self.clifford == "HSDAG":
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])
         elif self.clifford == "HSDAGH":
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("S_DAG", [self.qubit])  # ty: ignore[no-matching-overload]
-            circuit.append("H", [self.qubit])  # ty: ignore[no-matching-overload]
+            circuit.append("H", [self.qubit])
+            circuit.append("S_DAG", [self.qubit])
+            circuit.append("H", [self.qubit])
         else:
             msg = f"Unsupported single-qubit Clifford operation: {self.clifford}"
             raise ValueError(msg)
@@ -501,7 +501,7 @@ class PauliOperation(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append(self.pauli, [self.qubit])  # ty: ignore[no-matching-overload]
+        circuit.append(self.pauli, [self.qubit])
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -574,7 +574,7 @@ class CNOT(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append("CNOT", [self.control, self.target])  # ty: ignore[no-matching-overload]
+        circuit.append("CNOT", [self.control, self.target])
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.
@@ -644,7 +644,7 @@ class Swap(TableauOperation):
         Args:
             circuit: The Stim circuit to append the operation to.
         """
-        circuit.append("SWAP", [self.qubit_a, self.qubit_b])  # ty: ignore[no-matching-overload]
+        circuit.append("SWAP", [self.qubit_a, self.qubit_b])
 
     def qubits(self) -> set[int]:
         """Get the set of qubits involved in the operation.

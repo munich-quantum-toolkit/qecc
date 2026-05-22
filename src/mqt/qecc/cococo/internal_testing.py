@@ -63,7 +63,7 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
         # choose a random Pauli: I, X, Y, Z
         p = random.choice(["I", "X", "Y", "Z"])  # noqa: S311
         if p != "I":
-            c.append(p, [q])  # ty: ignore[no-matching-overload]
+            c.append(p, [q])
     return c
 
 
@@ -118,16 +118,16 @@ def check_order_dyn_gates_st(
     initial_circ_order = initial_state.copy()
     for el3 in terminal_pairs_trans:
         if isinstance(el3, tuple):
-            initial_circ_order.append("CNOT", [el3[0], el3[1]])  # ty: ignore[no-matching-overload]
+            initial_circ_order.append("CNOT", [el3[0], el3[1]])
         elif isinstance(el3, int):
-            initial_circ_order.append("s", el3)  # ty: ignore[no-matching-overload]
+            initial_circ_order.append("s", el3)
 
     dyn_circ_order = initial_state.copy()
     for el2 in gates_schedule:
         if isinstance(el2, tuple):
-            dyn_circ_order.append("CNOT", [el2[0], el2[1]])  # ty: ignore[no-matching-overload]
+            dyn_circ_order.append("CNOT", [el2[0], el2[1]])
         elif isinstance(el2, int):
-            dyn_circ_order.append("s", el2)  # ty: ignore[no-matching-overload]
+            dyn_circ_order.append("s", el2)
 
     sim1 = stim.TableauSimulator()
     sim1.do_circuit(initial_circ_order)
@@ -178,16 +178,16 @@ def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], sched
     initial_circ_order = initial_state.copy()
     for el in terminal_pairs_trans:
         if isinstance(el, tuple):
-            initial_circ_order.append("CNOT", [el[0], el[1]])  # ty: ignore[no-matching-overload]
+            initial_circ_order.append("CNOT", [el[0], el[1]])
         elif isinstance(el, int):  # type: ignore[unreachable]
-            initial_circ_order.append("s", el)  # ty: ignore[no-matching-overload]
+            initial_circ_order.append("s", el)
 
     dyn_circ_order = initial_state.copy()
     for el in gates_schedule:
-        if isinstance(el, tuple):
-            dyn_circ_order.append("CNOT", [el[0], el[1]])  # ty: ignore[no-matching-overload]
+        if isinstance(el, tuple) and isinstance(el[0], int) and isinstance(el[1], int):
+            dyn_circ_order.append("CNOT", [el[0], el[1]])
         elif isinstance(el, int):  # type: ignore[unreachable]
-            dyn_circ_order.append("s", el)  # ty: ignore[no-matching-overload]
+            dyn_circ_order.append("s", el)
 
     sim1 = stim.TableauSimulator()
     sim1.do_circuit(initial_circ_order)

@@ -45,7 +45,7 @@ def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circui
             relabelled_qubits = [qubit_mapping[q.value] for q in op.targets_copy()]
         else:
             relabelled_qubits = [q.value + qubit_mapping for q in op.targets_copy()]
-        new_circ.append(op.name, relabelled_qubits)  # ty: ignore[no-matching-overload]
+        new_circ.append(op.name, relabelled_qubits)
     return new_circ
 
 
@@ -67,10 +67,10 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
         op = gate.operation.name
         qubit = qc.find_bit(gate.qubits[0])[0]
         if op in single_qubit_gate_map:
-            stim_circuit.append(single_qubit_gate_map[op], [qubit])  # ty: ignore[no-matching-overload]
+            stim_circuit.append(single_qubit_gate_map[op], [qubit])
         elif op == "cx":
             target = qc.find_bit(gate.qubits[1])[0]
-            stim_circuit.append("CX", [qubit, target])  # ty: ignore[no-matching-overload]
+            stim_circuit.append("CX", [qubit, target])
         elif op == "barrier":
             stim_circuit.append("TICK")  # ty: ignore[invalid-argument-type]
         else:
@@ -149,8 +149,9 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
         assert isinstance(instr, CircuitInstruction)
         for grp in instr.target_groups():
             qubits = [q.qubit_value for q in grp]
-            circ_copy.append(instr.name, qubits)  # ty: ignore[no-matching-overload]
-            circ_copy.append("TICK", [])  # ty: ignore[no-matching-overload]
+            assert all(qubit is not None for qubit in qubits)
+            circ_copy.append(instr.name, cast("list[int]", qubits))
+            circ_copy.append("TICK", [])
 
     if scheduling_method == "alap":
         circ_copy = circ_copy[::-1]  # Reverse the circuit for ALAP scheduling
@@ -181,7 +182,7 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
 
             # Check if any qubit from this instruction is already used in the layer
             if not any(qubit_layer_used[q] for q in qubits):
-                layer.append(instr.name, qubits)  # ty: ignore[no-matching-overload]
+                layer.append(instr.name, qubits)
                 instr_to_delete.append(idx)  # Mark this instruction for removal
 
             # Mark the qubits used in this instruction
@@ -229,7 +230,7 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
         assert isinstance(op, CircuitInstruction)
         if all(len(grp) == 1 for grp in op.target_groups()):
             continue
-        new_circ.append(op.name, _get_qubit_values(op))  # ty: ignore[no-matching-overload]
+        new_circ.append(op.name, _get_qubit_values(op))
     return new_circ
 
 
@@ -246,7 +247,7 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     for op in circ:
         if op.name == "SWAP":
             continue
-        new_circ.append(op.name, _get_qubit_values(op))  # ty: ignore[no-matching-overload]
+        new_circ.append(op.name, _get_qubit_values(op))
     return new_circ
 
 

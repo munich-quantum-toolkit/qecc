@@ -73,9 +73,9 @@ def cat_state_line(w: int) -> stim.Circuit:
         noisy stim circuit preparing the cat state
     """
     circ = stim.Circuit()
-    circ.append("H", [0])  # ty: ignore[no-matching-overload]
+    circ.append("H", [0])
     for i in reversed(range(1, w)):
-        circ.append("CX", [0, i])  # ty: ignore[no-matching-overload]
+        circ.append("CX", [0, i])
     return circ
 
 
@@ -153,7 +153,7 @@ class CatStatePreparationExperiment:
         circ = self._get_noisy_circ(p)
         # Final, *noise-free* measurement of data qubits
         circ.append("TICK")  # ty: ignore[invalid-argument-type]
-        circ.append("MR", list(range(self.w1)))  # ty: ignore[no-matching-overload]
+        circ.append("MR", list(range(self.w1)))
 
         if batch_size is None:
             batch_size = n_samples
@@ -290,8 +290,8 @@ def _add_qubit_initializations(circ: stim.Circuit) -> stim.Circuit:
             hadamard_qubits.update(t.value for t in gate.targets_copy())
 
     with_inits = with_inits[::-1]
-    with_inits.append("RX", list(hadamard_qubits - is_initialized))  # ty: ignore[no-matching-overload]
-    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits and q not in is_initialized])  # ty: ignore[no-matching-overload]
+    with_inits.append("RX", list(hadamard_qubits - is_initialized))
+    with_inits.append("R", [q for q in range(circ.num_qubits) if q not in hadamard_qubits and q not in is_initialized])
     return with_inits[::-1]
 
 
@@ -417,14 +417,14 @@ def fault_gens_from_circuit(circ: stim.Circuit) -> list[int]:
 
 def _ft_w_4_cat_state() -> tuple[stim.Circuit, list[tuple[list[int], list[int]]]]:
     circ = stim.Circuit()
-    circ.append("RX", [4])  # ty: ignore[no-matching-overload]
-    circ.append("R", [0, 1, 2, 3])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [4, 0])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [0, 1])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [1, 2])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [2, 3])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [3, 4])  # ty: ignore[no-matching-overload]
-    circ.append("MR", [4])  # ty: ignore[no-matching-overload]
+    circ.append("RX", [4])
+    circ.append("R", [0, 1, 2, 3])
+    circ.append("CX", [4, 0])
+    circ.append("CX", [0, 1])
+    circ.append("CX", [1, 2])
+    circ.append("CX", [2, 3])
+    circ.append("CX", [3, 4])
+    circ.append("MR", [4])
     return circ, [([4], [0, 1, 2, 3])]
 
 
@@ -490,10 +490,10 @@ def recursive_fuse_cat_state(w: int, t: int) -> tuple[stim.Circuit, list[tuple[l
         new_measurements = []
         for i in range(n_meas):
             anc = circ.num_qubits
-            circ.append("R", [anc])  # ty: ignore[no-matching-overload]
-            circ.append("CX", [i, anc])  # ty: ignore[no-matching-overload]
-            circ.append("CX", [i + w1, anc])  # ty: ignore[no-matching-overload]
-            circ.append("MR", [anc])  # ty: ignore[no-matching-overload]
+            circ.append("R", [anc])
+            circ.append("CX", [i, anc])
+            circ.append("CX", [i + w1, anc])
+            circ.append("MR", [anc])
             new_measurements.append(anc)
 
         data_to_flip = list(range(w1)) if w1 < w2 else list(range(w1, w1 + w2))
@@ -629,7 +629,7 @@ def simulate_recursive_cat_construction(
     circ_run += circ_base
     circ_run.append("TICK")  # ty: ignore[invalid-argument-type]
     # measure data at the end
-    circ_run.append("MR", list(range(w)))  # ty: ignore[no-matching-overload]
+    circ_run.append("MR", list(range(w)))
     data_cols_start = len(meas_index_of_qubit)  # data bits are at the end
 
     circ_noisy = circ_run
