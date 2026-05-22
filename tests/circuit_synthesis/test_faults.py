@@ -654,7 +654,7 @@ def test_invalid_fault_kind():
 
     with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
         pfs = PureFaultSet.from_fault_array(np.array([[1, 0, 1]], dtype=np.int8), kind="Y")
-    
+
     pfs = PureFaultSet(5)
     with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
         pfs.kind = "Y"
