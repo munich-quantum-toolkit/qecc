@@ -65,6 +65,7 @@ dependencies = [
   "ldpc>=2.3.10",
   "stim>=1.14.0",
   "pymatching>=2.2.2",
+  "pymatching>=2.4.0; python_version >= '3.14'",
   "bposd>=1.6",
   "qecsim>=1.0b9",
   "sinter>=1.14.0",

@@ -1790,6 +1790,7 @@ requires-dist = [
     { name = "numpy", marker = "python_full_version >= '3.13'", specifier = ">=2.1" },
     { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.2" },
     { name = "pymatching", specifier = ">=2.2.2" },
+    { name = "pymatching", marker = "python_full_version >= '3.14'", specifier = ">=2.4.0" },
     { name = "qecsim", specifier = ">=1.0b9" },
     { name = "qiskit", extras = ["qasm3-import"], specifier = ">=1.0.0" },
     { name = "qsample", marker = "extra == 'qsample'", specifier = ">=0.0.2" },
