@@ -89,7 +89,7 @@ def gen_stim_circuit_memory_experiment(
     """Generate a stim circuit for a memory experiment on the 2D color code."""
     data_qubits = range(len(pcm[0]))
     circuit = stim.Circuit()
-    circuit.append("R", data_qubits)  # ty: ignore[no-matching-overload]
+    circuit.append("R", data_qubits)
 
     # initialization
     circuit = add_checks_one_round(pcm, circuit, False, 0)

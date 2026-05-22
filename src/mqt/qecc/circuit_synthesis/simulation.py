@@ -87,9 +87,9 @@ class NoisyNDFTStatePrepSimulator(ABC):
         noisy_circ = noise.apply(self.circ)
 
         if self.zero_state:
-            noisy_circ.append("MR", self.data_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MR", self.data_qubits)
         else:
-            noisy_circ.append("MRX", self.data_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MRX", self.data_qubits)
         self._noisy_circ = noisy_circ
         return noisy_circ
 
@@ -104,13 +104,13 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         ctrls = self.data_qubits if self.zero_state else anc_qubits
         trgts = anc_qubits if self.zero_state else self.data_qubits
-        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts, strict=False) for item in pair])  # ty: ignore[no-matching-overload]
+        noisy_circ.append("CX", [item for pair in zip(ctrls, trgts, strict=False) for item in pair])
         if self.zero_state:
-            noisy_circ.append("MRX", self.data_qubits)  # ty: ignore[no-matching-overload]
-            noisy_circ.append("MRX", anc_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MRX", self.data_qubits)
+            noisy_circ.append("MRX", anc_qubits)
         else:
-            noisy_circ.append("MR", self.data_qubits)  # ty: ignore[no-matching-overload]
-            noisy_circ.append("MR", anc_qubits)  # ty: ignore[no-matching-overload]
+            noisy_circ.append("MR", self.data_qubits)
+            noisy_circ.append("MR", anc_qubits)
         self._noisy_circ = noisy_circ
         return noisy_circ
 

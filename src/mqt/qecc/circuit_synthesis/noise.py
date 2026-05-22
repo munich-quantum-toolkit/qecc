@@ -244,7 +244,7 @@ class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
             assert isinstance(op, CircuitInstruction)
             for grp in op.target_groups():
                 layer_circ = Circuit()
-                layer_circ.append(op.name, grp)  # ty: ignore[no-matching-overload]
+                layer_circ.append(op.name, grp)
                 layers.append(layer_circ)
 
         if self.resets_alap:

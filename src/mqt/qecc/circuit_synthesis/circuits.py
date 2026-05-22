@@ -179,7 +179,7 @@ class CliffordIsometry:
         result = stim.Circuit()
 
         for qubit, basis in self._initializations.items():
-            result.append("R" + basis, [qubit])  # ty: ignore[no-matching-overload]
+            result.append("R" + basis, [qubit])
 
         result += self._circ
 
@@ -387,10 +387,10 @@ class CNOTCircuit(CliffordIsometry):
 
         if with_resets:
             for qubit, basis in self._initializations.items():
-                stim_circuit.append("R" + basis, [qubit])  # ty: ignore[no-matching-overload]
+                stim_circuit.append("R" + basis, [qubit])
 
         if self.cnots:
-            stim_circuit.append("CX", [qubit for pair in self.cnots for qubit in pair])  # ty: ignore[no-matching-overload]
+            stim_circuit.append("CX", [qubit for pair in self.cnots for qubit in pair])
 
         return stim_circuit
 

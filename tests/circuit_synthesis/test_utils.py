@@ -266,10 +266,10 @@ def test_w_flag(w: int, z_measurement: bool) -> None:
 def test_compact_stim_circuit() -> None:
     """Test compaction method."""
     circ = stim.Circuit()
-    circ.append("H", [0])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [0, 1])  # ty: ignore[no-matching-overload]
-    circ.append("H", [2])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [2, 3])  # ty: ignore[no-matching-overload]
+    circ.append("H", [0])
+    circ.append("CX", [0, 1])
+    circ.append("H", [2])
+    circ.append("CX", [2, 3])
 
     assert len(circ) == 4
     compacted = compact_stim_circuit(circ, scheduling_method="asap")
@@ -281,10 +281,10 @@ def test_compact_stim_circuit() -> None:
 def test_compose_compact_stim_circuits() -> None:
     """Test compaction method."""
     circ1 = stim.Circuit()
-    circ1.append("H", [0])  # ty: ignore[no-matching-overload]
-    circ1.append("CX", [0, 1])  # ty: ignore[no-matching-overload]
+    circ1.append("H", [0])
+    circ1.append("CX", [0, 1])
     circ2 = stim.Circuit()
-    circ2.append("CX", [2, 3])  # ty: ignore[no-matching-overload]
+    circ2.append("CX", [2, 3])
 
     compacted1 = compose_compact_stim_circuits([circ1, circ2], align="start")
     assert len(compacted1) == 2
@@ -499,10 +499,10 @@ def test_compact_stim_circuit_empty() -> None:
 def test_collect_circuit_layers_asap() -> None:
     """Test collecting circuit layers with ASAP scheduling."""
     circ = stim.Circuit()
-    circ.append("RX", [0])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [0, 1])  # ty: ignore[no-matching-overload]
+    circ.append("RX", [0])
+    circ.append("CX", [0, 1])
     circ.append("TICK")  # ty: ignore[invalid-argument-type]
-    circ.append("H", [2])  # ty: ignore[no-matching-overload]
+    circ.append("H", [2])
 
     layers = collect_circuit_layers(circ, scheduling_method="asap")
 
@@ -516,10 +516,10 @@ def test_collect_circuit_layers_asap() -> None:
 def test_collect_circuit_layers_alap() -> None:
     """Test collecting circuit layers with ALAP scheduling."""
     circ = stim.Circuit()
-    circ.append("RX", [0])  # ty: ignore[no-matching-overload]
-    circ.append("CX", [0, 1])  # ty: ignore[no-matching-overload]
+    circ.append("RX", [0])
+    circ.append("CX", [0, 1])
     circ.append("TICK")  # ty: ignore[invalid-argument-type]
-    circ.append("H", [2])  # ty: ignore[no-matching-overload]
+    circ.append("H", [2])
 
     layers = collect_circuit_layers(circ, scheduling_method="alap")
 
