@@ -42,9 +42,9 @@ def run_with_timeout(func: Callable[[Any], Any], *args: Any, timeout: int = 10) 
         args: The arguments to pass to the function.
         timeout: The maximum time to allow the function to run for in seconds.
     """
-    manager = multiprocess.Manager()
+    manager = multiprocess.Manager()  # ty: ignore[unresolved-attribute]
     return_list = manager.list()
-    p = multiprocess.Process(target=lambda: return_list.append(func(*args)))
+    p = multiprocess.Process(target=lambda: return_list.append(func(*args)))  # ty: ignore[unresolved-attribute]
     p.start()
     p.join(timeout)
     if p.is_alive():
@@ -54,14 +54,14 @@ def run_with_timeout(func: Callable[[Any], Any], *args: Any, timeout: int = 10) 
 
 
 def iterative_search_with_timeout(
-    fun: Callable[[int], QuantumCircuit],
+    fun: Callable[[int], Any],
     min_param: int,
     max_param: int,
     min_timeout: int,
     max_timeout: int,
     param_factor: float = 2,
     timeout_factor: float = 2,
-) -> tuple[QuantumCircuit | None, int] | None:
+) -> tuple[Any, int] | None:
     """Geometrically increases the parameter and timeout until a result is found or the maximum timeout is reached.
 
     Args:
@@ -370,7 +370,7 @@ def odd_overlap(v_sym: npt.NDArray[np.bool_], v_con: npt.NDArray[np.int8]) -> z3
     if np.array_equal(v_con, np.zeros(len(v_con), dtype=np.int8)):
         return z3.BoolVal(False)
 
-    constraint = False
+    constraint = z3.BoolVal(False)
     for i, c in enumerate(v_con):
         if c != 1:
             continue

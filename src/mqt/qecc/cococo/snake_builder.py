@@ -5,12 +5,12 @@ from __future__ import annotations
 import itertools
 import warnings
 from collections import Counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from matplotlib import cm
+from matplotlib import colormaps
 from matplotlib.lines import Line2D
 from matplotlib.patches import Polygon
 
@@ -489,10 +489,10 @@ class SnakeBuilderSC:
         """Generates Logical Operators of the snake.
 
         Returns:
-            npt.NDArray[np.int8]: logical operators.
+            logical operators.
         """
         hx, hz, _ = self.gen_checks()
-        return CSSCode._compute_logical(np.array(hx), np.array(hz))  # noqa: SLF001
+        return CSSCode._compute_logical(np.array(hx, np.int8), np.array(hz, np.int8))  # noqa: SLF001
 
 
 class SnakeBuilderSTDW:
@@ -754,7 +754,7 @@ class SnakeBuilderSTDW:
                 alpha=0.5,  # Thick and semi-transparent
             )
 
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(plaquettes)))
+        colors = plt.get_cmap("rainbow")(np.linspace(0, 1, len(plaquettes)))
         for idx, face in enumerate(plaquettes):
             # Get the positions for the vertices in the face
             face_positions = [pos[node] for node in face]
@@ -1266,13 +1266,13 @@ class SnakeBuilderSteane:
             for stabilizer in x_stabilizers
             if not temp_keys.isdisjoint(stabilizer.keys())  # Check if there is an intersection
         ]
-        candidates = []
+        candidates: list[dict[NodePos, int]] = []
         for stabilizer_dict in x_stabilizers_temp:
             dict_values = set(stabilizer_dict.values())  # Convert dict values to set
             # Check if all target values are present in the dict's values
             if target_set.issubset(dict_values):
                 candidates.append(stabilizer_dict)
-        return min(candidates, key=len)  # the shortest suitable candidate
+        return cast("dict[NodePos, int]", min(candidates, key=len))  # the shortest suitable candidate
 
     def generate_z_stabilizers(self) -> list[dict[NodePos, int]]:
         """Builds Z stabilizers based on X stabilizers."""
@@ -1428,7 +1428,7 @@ class SnakeBuilderSteane:
         """Plots the faces of the stabilizers for a given list of stabilizers (either x or z)."""
         pos = nx.get_node_attributes(self.g, "pos")
         num_faces = len(stabilizers)
-        colors = cm.rainbow(np.linspace(0, 1, num_faces))  # Generate colors from the rainbow palette
+        colors = colormaps.get_cmap("rainbow")(np.linspace(0, 1, num_faces))  # Generate colors from the rainbow palette
 
         plt.figure(figsize=size)
         nx.draw(

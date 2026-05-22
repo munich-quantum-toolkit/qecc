@@ -95,9 +95,8 @@ def gen_stim_circuit_memory_experiment(
     circuit = add_checks_one_round(pcm, circuit, False, 0)
 
     # rounds of QEC
-    for _i in range(distance):
+    for _ in range(distance):
         circuit.append("X_ERROR", data_qubits, error_probability)
-        #        circuit.append("DEPOLARIZE1", data_qubits, error_probability)
         circuit = add_checks_one_round(pcm, circuit, True, error_probability)
 
     # logical measurement

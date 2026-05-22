@@ -16,9 +16,11 @@ from qiskit.circuit.library import CXGate, TGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from qiskit.dagcircuit import DAGCircuit
 
-pos = tuple[int, int]
+    from .types import pos
 
 
 def count_cx_gates_per_layer(dag: DAGCircuit) -> list[int]:
@@ -50,7 +52,7 @@ def pairs_into_dag_agnostic(pairs: list[tuple[int, int] | int], q: int) -> DAGCi
     return circuit_to_dag(circ)
 
 
-def terminal_pairs_into_dag(terminal_pairs: list[tuple[pos, pos] | pos], layout: dict[int, pos]) -> DAGCircuit:
+def terminal_pairs_into_dag(terminal_pairs: Sequence[pos | tuple[pos, pos]], layout: dict[int, pos]) -> DAGCircuit:
     """Given (a subset of) terminal pairs used in TeleportationRouter translate it back to integer qubit labels using layout and transform it into its dag.
 
     Args:
@@ -64,10 +66,11 @@ def terminal_pairs_into_dag(terminal_pairs: list[tuple[pos, pos] | pos], layout:
     layout_rev: dict[pos, int] = {j: i for i, j in layout.items()}
     terminal_pairs_trans: list[int | tuple[int, int]] = []
     for pair in terminal_pairs:
-        if isinstance(pair[0], int):  # t gate
-            terminal_pairs_trans.append(layout_rev[pair])
-        elif isinstance(pair[0], tuple):  # cnot gate
+        if isinstance(pair[0], tuple) and isinstance(pair[1], tuple):  # cnot gate
             terminal_pairs_trans.append((layout_rev[pair[0]], layout_rev[pair[1]]))
+        elif isinstance(pair, tuple):  # t gate
+            pair = cast("pos", pair)
+            terminal_pairs_trans.append(layout_rev[pair])
         else:
             msg = "other gate types not implemented yet"  # type: ignore[unreachable]
             raise NotImplementedError(msg)
@@ -105,7 +108,7 @@ def extract_layer_from_dag_agnostic(dag: DAGCircuit, layer: int) -> list[tuple[i
     return terminal_pairs_trans
 
 
-def extract_layer_from_dag(dag: DAGCircuit, layout: dict[int, pos], layer: int) -> list[tuple[pos, pos] | pos]:
+def extract_layer_from_dag(dag: DAGCircuit, layout: dict[int, pos], layer: int) -> Sequence[pos | tuple[pos, pos]]:
     """Extracts a layer from the dag and translates it into a terminal pairs list depending on the given layout."""
     layers = dag.layers()
     chosen = list(layers)[layer]["graph"]
@@ -124,7 +127,7 @@ def extract_layer_from_dag(dag: DAGCircuit, layout: dict[int, pos], layer: int) 
             msg = "Gates other than T or CNOT are not implemented yet"
             raise NotImplementedError(msg)
     # translate into the given layout
-    terminal_pairs: list[tuple[pos, pos] | pos] = []
+    terminal_pairs: list[pos | tuple[pos, pos]] = []
     for pair in terminal_pairs_trans:
         if isinstance(pair, int):
             terminal_pairs.append(layout[pair])
@@ -139,10 +142,10 @@ def extract_layer_from_dag(dag: DAGCircuit, layout: dict[int, pos], layer: int) 
 
 def push_remainder_into_layers_dag(
     dag: DAGCircuit,
-    terminal_pairs_remainder: list[tuple[pos, pos] | pos],
+    terminal_pairs_remainder: Sequence[pos | tuple[pos, pos]],
     layout: dict[int, pos],
-    current_layer: list[tuple[pos, pos] | pos],
-) -> tuple[list[list[tuple[pos, pos] | pos]], DAGCircuit]:
+    current_layer: Sequence[pos | tuple[pos, pos]],
+) -> tuple[list[Sequence[pos | tuple[pos, pos]]], DAGCircuit]:
     """This step could be avoided in principle but i do not want to change the structure of utils too much.
 
     Take the dag, remove the very first layer and add terminal pairs remainder as operationis in front.
@@ -165,10 +168,11 @@ def push_remainder_into_layers_dag(
     layout_rev: dict[pos, int] = {j: i for i, j in layout.items()}
     # translate and add to dag in front
     for pair in terminal_pairs_remainder:
-        if isinstance(pair[0], tuple):  # cnot
+        if isinstance(pair[0], tuple) and isinstance(pair[1], tuple):  # cnot
             gate = (layout_rev[pair[0]], layout_rev[pair[1]])
             dag.apply_operation_front(CXGate(), qargs=[dag.qubits[gate[0]], dag.qubits[gate[1]]], cargs=[])
-        elif isinstance(pair[0], int):  # t gate
+        elif isinstance(pair, tuple):  # t gate
+            pair = cast("pos", pair)
             gate2 = layout_rev[pair]
             dag.apply_operation_front(TGate(), qargs=[dag.qubits[gate2]], cargs=[])
         else:

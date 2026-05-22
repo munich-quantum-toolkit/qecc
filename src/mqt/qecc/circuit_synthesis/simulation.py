@@ -468,7 +468,12 @@ class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         circ3.remove_final_measurements()
         circ4.remove_final_measurements()
 
-        combined = circ4.tensor(circ3).tensor(circ2).tensor(circ1)
+        combined = circ4.tensor(circ3)
+        assert combined is not None
+        combined = combined.tensor(circ2)
+        assert combined is not None
+        combined = combined.tensor(circ1)
+        assert combined is not None
 
         combined.barrier()  # need the barrier to retain order of measurements
         # transversal cnots

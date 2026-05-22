@@ -73,6 +73,8 @@ class Pauli:
         """Return a string representation of the Pauli operator."""
         x_part = self.symplectic[: self.n]
         z_part = self.symplectic[self.n :]
+        assert isinstance(x_part, np.ndarray)
+        assert isinstance(z_part, np.ndarray)
         pauli = [
             "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I"
             for x, z in zip(x_part, z_part, strict=False)
@@ -136,7 +138,7 @@ class StabilizerTableau:
             phase: An n x 1 binary vector representing the phase of the stabilizer tableau.
         """
         if isinstance(tableau, np.ndarray):
-            self.tableau = SymplecticMatrix(tableau)
+            self.tableau = SymplecticMatrix(tableau)  # ty: ignore[invalid-argument-type]
         else:
             self.tableau = tableau
         if phase is None:

@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from stim import Circuit
+from stim import Circuit, CircuitInstruction, CircuitRepeatBlock
 
 from .definitions import STIM_MEASUREMENTS
 
@@ -19,18 +19,28 @@ if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
 
 
+def _get_qubit_values(operation: CircuitInstruction | CircuitRepeatBlock) -> list[int]:
+    if isinstance(operation, CircuitRepeatBlock):
+        raise NotImplementedError
+
+    qubits = [target.qubit_value for target in operation.targets_copy()]
+    assert all(qubit is not None for qubit in qubits)
+    return cast("list[int]", qubits)
+
+
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
     """Relabels the qubits in a stim circuit based on the given mapping.
 
     Parameters:
-        circ (Circuit): The original stim circuit.
-        qubit_mapping (dict[int, int] | int): Either a dictionary mapping original qubit indices to new qubit indices or a constant offset to add to all qubit indices.
+        circ: The original stim circuit.
+        qubit_mapping: Either a dictionary mapping original qubit indices to new qubit indices or a constant offset to add to all qubit indices.
 
     Returns:
-        Circuit: A new stim circuit with qubits relabeled.
+        A new stim circuit with qubits relabeled.
     """
     new_circ = Circuit()
     for op in circ:
+        assert isinstance(op, CircuitInstruction)
         if isinstance(qubit_mapping, dict):
             relabelled_qubits = [qubit_mapping[q.value] for q in op.targets_copy()]
         else:
@@ -57,12 +67,12 @@ def qiskit_to_stim_circuit(qc: QuantumCircuit) -> Circuit:
         op = gate.operation.name
         qubit = qc.find_bit(gate.qubits[0])[0]
         if op in single_qubit_gate_map:
-            stim_circuit.append_operation(single_qubit_gate_map[op], [qubit])
+            stim_circuit.append(single_qubit_gate_map[op], [qubit])
         elif op == "cx":
             target = qc.find_bit(gate.qubits[1])[0]
-            stim_circuit.append_operation("CX", [qubit, target])
+            stim_circuit.append("CX", [qubit, target])
         elif op == "barrier":
-            stim_circuit.append("TICK")
+            stim_circuit.append("TICK")  # ty: ignore[invalid-argument-type]
         else:
             msg = f"Unsupported gate: {op}"
             raise ValueError(msg)
@@ -136,10 +146,12 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
     # Copy the circuit and separate all instructions by ticks
     circ_copy = Circuit()
     for instr in circ:
+        assert isinstance(instr, CircuitInstruction)
         for grp in instr.target_groups():
             qubits = [q.qubit_value for q in grp]
-            circ_copy.append_operation(instr.name, qubits)
-            circ_copy.append_operation("TICK", [])
+            assert all(qubit is not None for qubit in qubits)
+            circ_copy.append(instr.name, cast("list[int]", qubits))
+            circ_copy.append("TICK", [])
 
     if scheduling_method == "alap":
         circ_copy = circ_copy[::-1]  # Reverse the circuit for ALAP scheduling
@@ -166,11 +178,11 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
             if instr is None:  # No more instructions to process
                 break
 
-            qubits = [q.qubit_value for q in instr.targets_copy()]
+            qubits = _get_qubit_values(instr)
 
             # Check if any qubit from this instruction is already used in the layer
             if not any(qubit_layer_used[q] for q in qubits):
-                layer.append_operation(instr.name, qubits)
+                layer.append(instr.name, qubits)
                 instr_to_delete.append(idx)  # Mark this instruction for removal
 
             # Mark the qubits used in this instruction
@@ -215,9 +227,10 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
     """
     new_circ = Circuit()
     for op in circ:
+        assert isinstance(op, CircuitInstruction)
         if all(len(grp) == 1 for grp in op.target_groups()):
             continue
-        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+        new_circ.append(op.name, _get_qubit_values(op))
     return new_circ
 
 
@@ -234,7 +247,7 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     for op in circ:
         if op.name == "SWAP":
             continue
-        new_circ.append(op.name, [q.qubit_value for q in op.targets_copy()])
+        new_circ.append(op.name, _get_qubit_values(op))
     return new_circ
 
 
@@ -261,7 +274,7 @@ def unmeasured_qubits(circ: Circuit) -> list[int]:
 
     for instr in circ:
         if instr.name in STIM_MEASUREMENTS:
-            measured_qubits.update(q.qubit_value for q in instr.targets_copy())
+            measured_qubits.update(_get_qubit_values(instr))
 
     all_qubits = set(range(circ.num_qubits))
     return list(all_qubits - measured_qubits)
@@ -276,7 +289,7 @@ def measured_qubits(circ: Circuit) -> list[int]:
 
     for instr in circ:
         if instr.name in STIM_MEASUREMENTS:
-            measured_qubits.extend(q.qubit_value for q in instr.targets_copy())
+            measured_qubits.extend(_get_qubit_values(instr))
 
     return measured_qubits
 
@@ -339,6 +352,7 @@ def num_two_qubit_gates(circ: Circuit, *, count_swaps: bool = False) -> int:
     """
     num_tqg = 0
     for op in circ:
+        assert isinstance(op, CircuitInstruction)
         if op.name == "SWAP" and not count_swaps:
             continue
         for grp in op.target_groups():

@@ -14,7 +14,7 @@ import subprocess  # noqa: S404
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import ldpc.code_util
+import ldpc.codes
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
@@ -149,8 +149,8 @@ def run_compute_distances(codename: str) -> None:
 
 def _compute_distances(hx: NDArray[np.int32], hz: NDArray[np.int32], codename: str) -> None:
     run_compute_distances(codename)
-    code_dict: Any = {}
-    _m, n = hx.shape
+    code_dict: dict[str, Any] = {}
+    _, n = hx.shape
     code_k = n - mod2.rank(hx) - mod2.rank(hz)
     with Path(f"generated_codes/{codename}/info.txt").open(encoding="utf-8") as f:
         code_dict = dict(
@@ -245,7 +245,7 @@ if __name__ == "__main__":
         compute_logicals = True
         create_code(
             constructor,
-            seed_codes,
+            [code.toarray() for code in seed_codes],
             codename,
             compute_distance,
             compute_logicals,

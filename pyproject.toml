@@ -42,6 +42,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
     "Typing :: Typed",
 ]
@@ -51,15 +52,20 @@ dependencies = [
   "numpy>=1.24.1",
   "numpy>=1.26; python_version >= '3.12'",
   "numpy>=2.1; python_version >= '3.13'",
+  "numpy>=2.3.2; python_version >= '3.14'",
   "numba>=0.57",
   "numba>=0.59; python_version >= '3.12'",
   "numba>=0.61; python_version >= '3.13'",
+  "numba>=0.63.1; python_version >= '3.14'",
   "scipy>=1.15.2",
+  "scipy>=1.16.1; python_version >= '3.14'",
   "z3-solver>=4.15.3",
   "multiprocess>=0.70.17",
+  "multiprocess>=0.70.19; python_version >= '3.14'",
   "ldpc>=2.3.10",
   "stim>=1.14.0",
   "pymatching>=2.2.2",
+  "pymatching>=2.4.0; python_version >= '3.14'",
   "bposd>=1.6",
   "qecsim>=1.0b9",
   "sinter>=1.14.0",
@@ -258,7 +264,9 @@ iz = "iz"
 
 [tool.repo-review.ignore]
 GH200 = "We use Renovate instead of Dependabot"
+MY100 = "We use ty instead of mypy"
 PC111 = "We use ruff instead of blacken-docs"
+PC140 = "We use ty instead of mypy"
 PC160 = "We use a mirror of crate-ci/typos"
 PC170 = "We do not use rST files anymore"
 
@@ -273,6 +281,18 @@ environments = [
 
 [tool.uv.sources]
 mqt-qecc = { workspace = true }
+
+
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true
+
+[tool.ty.src]
+exclude = [
+    "**/*.ipynb",
+    "docs/**",
+    "scripts/**",
+]
 
 
 [tool.check-sdist]
@@ -306,4 +326,5 @@ test = [
 dev = [
   {include-group = "test"},
   "nox>=2025.11.12",
+  "ty==0.0.36",
 ]

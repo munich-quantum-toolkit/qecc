@@ -14,6 +14,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from ldpc.bposd_decoder import BpOsdDecoder
 
 from mqt.qecc import QssSimulator
 from mqt.qecc.analog_information_decoding.utils import simulation_utils
@@ -71,6 +72,7 @@ def test_err_channel_setup(qss_simulator: QssSimulator) -> None:
 def test_decoder_error_channel_setup(qss_simulator: QssSimulator) -> None:
     """Test simulator decoder error channel initialization."""
     expected = np.full((1, 20), 0.06666667)
+    assert isinstance(qss_simulator.decoder, BpOsdDecoder)
     assert np.allclose(qss_simulator.decoder.channel_probs, expected)
 
 

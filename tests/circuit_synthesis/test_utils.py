@@ -47,7 +47,7 @@ from mqt.qecc.circuit_synthesis.synthesis_utils import (
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from qiskit import AncillaQubit, ClBit, Qubit
+    from qiskit.circuit import AncillaQubit, Clbit, Qubit
 
 
 class MatrixTest(NamedTuple):
@@ -117,7 +117,7 @@ class MeasurementTest(NamedTuple):
     qc: QuantumCircuit
     stab: list[Qubit]
     ancilla: AncillaQubit
-    measurement_bit: ClBit
+    measurement_bit: Clbit
 
 
 def _make_measurement_test(n: int, stab: list[int]) -> MeasurementTest:
@@ -501,7 +501,7 @@ def test_collect_circuit_layers_asap() -> None:
     circ = stim.Circuit()
     circ.append("RX", [0])
     circ.append("CX", [0, 1])
-    circ.append("TICK")
+    circ.append("TICK")  # ty: ignore[invalid-argument-type]
     circ.append("H", [2])
 
     layers = collect_circuit_layers(circ, scheduling_method="asap")
@@ -518,7 +518,7 @@ def test_collect_circuit_layers_alap() -> None:
     circ = stim.Circuit()
     circ.append("RX", [0])
     circ.append("CX", [0, 1])
-    circ.append("TICK")
+    circ.append("TICK")  # ty: ignore[invalid-argument-type]
     circ.append("H", [2])
 
     layers = collect_circuit_layers(circ, scheduling_method="alap")

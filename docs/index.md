@@ -34,8 +34,6 @@ Encoders
 AnalogInfo
 cococo
 references
-CHANGELOG
-UPGRADING
 ```
 
 ```{toctree}

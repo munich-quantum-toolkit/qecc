@@ -61,11 +61,11 @@ class SymplecticVector:
             (self.vector[: self.n] @ other.vector[self.n :] - self.vector[self.n :] @ other.vector[: self.n]) % 2
         )
 
-    def __getitem__(self, key: int | slice) -> Any:  # noqa: ANN401
+    def __getitem__(self, key: int | slice) -> int | npt.NDArray[np.int8]:
         """Get the value of the vector at index key."""
         return self.vector[key]
 
-    def __setitem__(self, key: int | slice, value: int) -> None:
+    def __setitem__(self, key: int | slice, value: int | npt.NDArray[np.int8]) -> None:
         """Set the value of the vector at index key."""
         self.vector[key] = value
 

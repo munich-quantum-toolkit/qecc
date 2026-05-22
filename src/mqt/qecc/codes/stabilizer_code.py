@@ -255,7 +255,8 @@ class StabilizerCode:
 
     @staticmethod
     def get_generators(
-        generators: StabilizerTableau | list[Pauli] | list[str], n: int | None = None
+        generators: StabilizerTableau | list[Pauli] | list[str],
+        n: int | None = None,
     ) -> StabilizerTableau:
         """Get the stabilizer generators as a StabilizerTableau object.
 
@@ -270,16 +271,17 @@ class StabilizerCode:
                     raise ValueError(msg)
                 return StabilizerTableau.empty(n)
             if isinstance(generators[0], str):
-                return StabilizerTableau.from_pauli_strings(generators)  # type: ignore[arg-type]
+                return StabilizerTableau.from_pauli_strings(generators)  # ty: ignore[invalid-argument-type]
             if isinstance(generators[0], Pauli):
-                return StabilizerTableau.from_paulis(generators)  # type: ignore[arg-type]
+                return StabilizerTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
+        assert isinstance(generators, StabilizerTableau)
         return generators
 
     @classmethod
     def get_trivial_code(cls, n: int) -> StabilizerCode:
         """Get the trivial stabilizer code."""
-        z_logicals = ["I" * i + "Z" + "I" * (n - i - 1) for i in range(n)]
-        x_logicals = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
+        z_logicals: list[str] = ["I" * i + "Z" + "I" * (n - i - 1) for i in range(n)]
+        x_logicals: list[str] = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
 
     def compute_logical_ops(self) -> None:

@@ -36,7 +36,7 @@ class TableauOperation(ABC):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     @abstractmethod
@@ -537,7 +537,7 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the tablau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
@@ -562,7 +562,7 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the check matrix in place. If False, returns a new check matrix.
 
         Returns:
-            CheckMatrix: The resulting CSS check matrix after applying the operation.
+            The resulting CSS check matrix after applying the operation.
         """
         out = check_matrix if inplace else check_matrix.copy()
         out.matrix[:, self.target] ^= out.matrix[:, self.control]
@@ -610,7 +610,7 @@ class Swap(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
         """
         if hasattr(tableau, "is_x_type"):  # check with duck typing faster than isinstance
-            return self.apply_check_matrix(tableau, inplace=inplace)  # type: ignore[arg-type]
+            return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
     def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
@@ -650,7 +650,7 @@ class Swap(TableauOperation):
         """Get the set of qubits involved in the operation.
 
         Returns:
-            set[int]: The set of qubit indices involved in the operation.
+            The set of qubit indices involved in the operation.
         """
         return {self.qubit_a, self.qubit_b}
 

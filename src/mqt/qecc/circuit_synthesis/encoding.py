@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import ldpc.mod2.mod2_numpy as mod2
@@ -690,7 +691,7 @@ def _final_matrix_constraint_partially_full_reduction(
     return z3.And(fully_reduced, partially_reduced, z3.And(overlap_constraints))
 
 
-def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> CliffordIsometry:
+def gottesman_encoding_circuit(tableau: StabilizerTableau | Sequence[str]) -> CliffordIsometry:
     """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
     Assumes all signs of the stabilizers are +1.
@@ -701,8 +702,9 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | list[str]) -> Cliffo
     Returns:
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
     """
-    if isinstance(tableau, list):
-        tableau = StabilizerTableau.from_pauli_strings(tableau)
+    if isinstance(tableau, Sequence):
+        tableau = StabilizerTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
+
     nq = tableau.n
     mat = tableau.tableau.matrix.copy()
     x_part = mat[:, :nq]

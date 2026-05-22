@@ -73,7 +73,7 @@ def cat_state_line(w: int) -> stim.Circuit:
         noisy stim circuit preparing the cat state
     """
     circ = stim.Circuit()
-    circ.append_operation("H", [0])
+    circ.append("H", [0])
     for i in reversed(range(1, w)):
         circ.append("CX", [0, i])
     return circ
@@ -152,7 +152,7 @@ class CatStatePreparationExperiment:
         """
         circ = self._get_noisy_circ(p)
         # Final, *noise-free* measurement of data qubits
-        circ.append("TICK")
+        circ.append("TICK")  # ty: ignore[invalid-argument-type]
         circ.append("MR", list(range(self.w1)))
 
         if batch_size is None:
@@ -209,7 +209,7 @@ class CatStatePreparationExperiment:
         if ax is None:
             _fig, ax = plt.subplots()
 
-        cmap = plt.cm.plasma
+        cmap = plt.get_cmap("plasma")
         colors = cmap(np.linspace(0, 1, len(x)))
 
         bar_width = 0.8
@@ -281,6 +281,7 @@ def _add_qubit_initializations(circ: stim.Circuit) -> stim.Circuit:
     is_initialized: set[int] = set()
     hadamard_qubits: set[int] = set()
     for gate in circ:
+        assert isinstance(gate, stim.CircuitInstruction)
         if gate.name != "H":
             if gate.name in {"RX", "R"}:
                 is_initialized.update(t.value for t in gate.targets_copy())
@@ -387,6 +388,7 @@ def fault_gens_from_circuit(circ: stim.Circuit) -> list[int]:
     for op in circ:
         if op.name != "CX":
             continue
+        assert isinstance(op, stim.CircuitInstruction)
         tgts = op.targets_copy()
         assert len(tgts) % 2 == 0
         for k in range(0, len(tgts), 2):
@@ -514,6 +516,7 @@ def _ancilla_controls_map(circ: stim.Circuit) -> dict[int, list[int]]:
     anc_controls: dict[int, list[int]] = {}
 
     for op in circ:
+        assert isinstance(op, stim.CircuitInstruction)
         name = op.name
         tgts = op.targets_copy()
 
@@ -554,6 +557,7 @@ def _build_meas_index_map(circ: stim.Circuit) -> dict[int, int]:
     col = 0
     for op in circ:
         if op.name == "MR":
+            assert isinstance(op, stim.CircuitInstruction)
             for t in op.targets_copy():
                 m[t.value] = col
                 col += 1
@@ -565,6 +569,7 @@ def _build_anc_controls(circ: stim.Circuit) -> dict[int, list[int]]:
     ctrl = defaultdict(list)
     for op in circ:
         if op.name == "CX":
+            assert isinstance(op, stim.CircuitInstruction)
             tgts = op.targets_copy()
             assert len(tgts) % 2 == 0
             for k in range(0, len(tgts), 2):
@@ -579,6 +584,7 @@ def _rx_prepared_qubits(circ: stim.Circuit) -> set[int]:
     s: set[int] = set()
     for op in circ:
         if op.name == "RX":
+            assert isinstance(op, stim.CircuitInstruction)
             s.update(t.value for t in op.targets_copy())
     return s
 
@@ -621,8 +627,9 @@ def simulate_recursive_cat_construction(
     circ_base = CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(circ_base)
     circ_run = stim.Circuit()
     circ_run += circ_base
-    circ_run.append("TICK")
-    circ_run.append("MR", list(range(w)))  # measure data at the end
+    circ_run.append("TICK")  # ty: ignore[invalid-argument-type]
+    # measure data at the end
+    circ_run.append("MR", list(range(w)))
     data_cols_start = len(meas_index_of_qubit)  # data bits are at the end
 
     circ_noisy = circ_run

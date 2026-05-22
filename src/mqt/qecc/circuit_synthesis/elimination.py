@@ -13,7 +13,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import stim
@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
+
+    from mqt.qecc.circuit_synthesis.rollout import RolloutCandidateGenerator
 
     from .operations import TableauOperation
     from .types import BinaryMatrix
@@ -382,6 +384,8 @@ def _maybe_use_best_solution(
     """
     if not hasattr(generator, "get_best_solution") or not hasattr(generator, "score_fn"):
         return current_ops, current_tableau
+
+    generator = cast("RolloutCandidateGenerator", generator)
 
     best_solution = generator.get_best_solution()
     if best_solution is None:
