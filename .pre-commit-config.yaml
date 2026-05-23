@@ -45,7 +45,7 @@ repos:
 
   ## Check pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.05.12
+    rev: 2026.05.15
     hooks:
       - id: validate-pyproject
         priority: 0
@@ -110,7 +110,7 @@ repos:
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.12
+    rev: v0.15.13
     hooks:
       - id: ruff-format
         types_or: [python, pyi, jupyter, markdown]
