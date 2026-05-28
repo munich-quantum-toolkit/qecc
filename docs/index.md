@@ -31,6 +31,7 @@ StatePrep
 CatStates
 CodeSwitching
 Encoders
+ExactSynthesis
 AnalogInfo
 cococo
 references
