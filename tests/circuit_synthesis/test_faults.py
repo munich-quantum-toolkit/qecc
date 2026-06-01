@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
-from mqt.qecc.circuit_synthesis.faults import PureFaultSet, coset_leader, stabilizer_equivalent, t_distinct, XZFaultList
+from mqt.qecc.circuit_synthesis.faults import PureFaultSet, XZFaultList, coset_leader, stabilizer_equivalent, t_distinct
 
 
 @pytest.fixture
@@ -738,444 +738,441 @@ def test_apply_cnot_not_inplace():
 
 
 """XZFaultList Tests"""
+
+
 @pytest.fixture
 def fault_list() -> XZFaultList:
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
-	faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 1], dtype=np.int8)))
-	return faults
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 1], dtype=np.int8)))
+    return faults
 
 
 def test_initialization_creates_empty_fault_arrays() -> None:
-	faults = XZFaultList(num_qubits=4)
+    faults = XZFaultList(num_qubits=4)
 
-	assert faults.num_qubits == 4
-	assert np.array_equal(faults.faults["X"], np.zeros((0, 4), dtype=np.int8))
-	assert np.array_equal(faults.faults["Z"], np.zeros((0, 4), dtype=np.int8))
+    assert faults.num_qubits == 4
+    assert np.array_equal(faults.faults["X"], np.zeros((0, 4), dtype=np.int8))
+    assert np.array_equal(faults.faults["Z"], np.zeros((0, 4), dtype=np.int8))
 
 
 def test_add_fault_appends_x_and_z_rows() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	assert np.array_equal(faults.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
-	assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(faults.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
 
 
 def test_add_fault_rejects_wrong_length() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"Faults must have length 3."):
-		faults.add_fault((np.array([1, 0], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    with pytest.raises(ValueError, match=r"Faults must have length 3."):
+        faults.add_fault((np.array([1, 0], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
 
 def test_add_fault_replaces_none_with_zeros() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	faults.add_fault((None, np.array([0, 1, 0], dtype=np.int8)))
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), None))
+    faults.add_fault((None, np.array([0, 1, 0], dtype=np.int8)))
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), None))
 
-	assert np.array_equal(faults.faults["X"], np.array([[0, 0, 0], [1, 0, 1]], dtype=np.int8))
-	assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0], [0, 0, 0]], dtype=np.int8))
+    assert np.array_equal(faults.faults["X"], np.array([[0, 0, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0], [0, 0, 0]], dtype=np.int8))
 
 
 def test_add_fault_rejects_both_none() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"At least one fault must be provided."):
-		faults.add_fault((None, None))
+    with pytest.raises(ValueError, match=r"At least one fault must be provided."):
+        faults.add_fault((None, None))
 
 
 def test_add_faults_appends_multiple_rows() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	faults.add_faults(
-		(
-			np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8),
-			np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8),
-		)
-	)
+    faults.add_faults((
+        np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8),
+        np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8),
+    ))
 
-	assert np.array_equal(faults.faults["X"], np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8))
-	assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(faults.faults["X"], np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8))
+    assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
 
 
 def test_add_faults_rejects_wrong_column_count() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"Faults must have 3 columns."):
-		faults.add_faults(
-			(
-				np.array([[1, 0]], dtype=np.int8),
-				np.array([[0, 1]], dtype=np.int8),
-			)
-		)
+    with pytest.raises(ValueError, match=r"Faults must have 3 columns."):
+        faults.add_faults((
+            np.array([[1, 0]], dtype=np.int8),
+            np.array([[0, 1]], dtype=np.int8),
+        ))
 
 
 def test_add_faults_replaces_none_with_zeros() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	faults.add_faults(
-		(
-			None,
-			np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8),
-		)
-	)
-	faults.add_faults(
-		(
-			np.array([[1, 0, 1]], dtype=np.int8),
-			None,
-		)
-	)
+    faults.add_faults((
+        None,
+        np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8),
+    ))
+    faults.add_faults((
+        np.array([[1, 0, 1]], dtype=np.int8),
+        None,
+    ))
 
-	assert np.array_equal(
-		faults.faults["X"],
-		np.array([[0, 0, 0], [0, 0, 0], [1, 0, 1]], dtype=np.int8),
-	)
-	assert np.array_equal(
-		faults.faults["Z"],
-		np.array([[0, 1, 0], [1, 0, 1], [0, 0, 0]], dtype=np.int8),
-	)
+    assert np.array_equal(
+        faults.faults["X"],
+        np.array([[0, 0, 0], [0, 0, 0], [1, 0, 1]], dtype=np.int8),
+    )
+    assert np.array_equal(
+        faults.faults["Z"],
+        np.array([[0, 1, 0], [1, 0, 1], [0, 0, 0]], dtype=np.int8),
+    )
 
 
 def test_add_faults_rejects_both_none() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"At least one fault array must be provided."):
-		faults.add_faults((None, None))
+    with pytest.raises(ValueError, match=r"At least one fault array must be provided."):
+        faults.add_faults((None, None))
 
 
 def test_copy_returns_independent_fault_list(fault_list: XZFaultList) -> None:
-	copied = fault_list.copy()
+    copied = fault_list.copy()
 
-	copied.faults["X"][0, 0] = 0
-	copied.faults["Z"][1, 2] = 0
+    copied.faults["X"][0, 0] = 0
+    copied.faults["Z"][1, 2] = 0
 
-	assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
-	assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
 
 
 def test_iter_yields_fault_pairs_in_order(fault_list: XZFaultList) -> None:
-	pairs = list(fault_list)
+    pairs = list(fault_list)
 
-	assert len(pairs) == 2
-	assert np.array_equal(pairs[0][0], np.array([1, 0, 1], dtype=np.int8))
-	assert np.array_equal(pairs[0][1], np.array([0, 1, 0], dtype=np.int8))
-	assert np.array_equal(pairs[1][0], np.array([0, 1, 0], dtype=np.int8))
-	assert np.array_equal(pairs[1][1], np.array([1, 0, 1], dtype=np.int8))
+    assert len(pairs) == 2
+    assert np.array_equal(pairs[0][0], np.array([1, 0, 1], dtype=np.int8))
+    assert np.array_equal(pairs[0][1], np.array([0, 1, 0], dtype=np.int8))
+    assert np.array_equal(pairs[1][0], np.array([0, 1, 0], dtype=np.int8))
+    assert np.array_equal(pairs[1][1], np.array([1, 0, 1], dtype=np.int8))
 
 
 def test_apply_cnot_updates_x_and_z_faults(fault_list: XZFaultList) -> None:
-	updated = fault_list.apply_cnot(control=0, target=1, inplace=False)
+    updated = fault_list.apply_cnot(control=0, target=1, inplace=False)
 
-	expected_x = np.array([[1, 1, 1], [0, 1, 0]], dtype=np.int8)
-	expected_z = np.array([[1, 1, 0], [1, 0, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 1, 1], [0, 1, 0]], dtype=np.int8)
+    expected_z = np.array([[1, 1, 0], [1, 0, 1]], dtype=np.int8)
 
-	assert np.array_equal(updated.faults["X"], expected_x)
-	assert np.array_equal(updated.faults["Z"], expected_z)
-	assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
-	assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(updated.faults["X"], expected_x)
+    assert np.array_equal(updated.faults["Z"], expected_z)
+    assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
 
 
 def test_apply_cnot_inplace_modifies_current_fault_list(fault_list: XZFaultList) -> None:
-	result = fault_list.apply_cnot(control=1, target=2, inplace=True)
+    result = fault_list.apply_cnot(control=1, target=2, inplace=True)
 
-	expected_x = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
-	expected_z = np.array([[0, 1, 0], [1, 1, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
+    expected_z = np.array([[0, 1, 0], [1, 1, 1]], dtype=np.int8)
 
-	assert result is fault_list
-	assert np.array_equal(fault_list.faults["X"], expected_x)
-	assert np.array_equal(fault_list.faults["Z"], expected_z)
+    assert result is fault_list
+    assert np.array_equal(fault_list.faults["X"], expected_x)
+    assert np.array_equal(fault_list.faults["Z"], expected_z)
 
 
 def test_apply_cnot_rejects_invalid_qubits(fault_list: XZFaultList) -> None:
-	with pytest.raises(ValueError, match=r"All qubits must be different."):
-		fault_list.apply_cnot(control=1, target=1)
+    with pytest.raises(ValueError, match=r"All qubits must be different."):
+        fault_list.apply_cnot(control=1, target=1)
 
-	with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
-		fault_list.apply_cnot(control=3, target=1)
+    with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
+        fault_list.apply_cnot(control=3, target=1)
 
 
 def test_apply_hadamard_swaps_x_and_z_on_target_qubit(fault_list: XZFaultList) -> None:
-	updated = fault_list.apply_hadamard(qubit=1, inplace=False)
+    updated = fault_list.apply_hadamard(qubit=1, inplace=False)
 
-	expected_x = np.array([[1, 1, 1], [0, 0, 0]], dtype=np.int8)
-	expected_z = np.array([[0, 0, 0], [1, 1, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 1, 1], [0, 0, 0]], dtype=np.int8)
+    expected_z = np.array([[0, 0, 0], [1, 1, 1]], dtype=np.int8)
 
-	assert np.array_equal(updated.faults["X"], expected_x)
-	assert np.array_equal(updated.faults["Z"], expected_z)
-	assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
-	assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(updated.faults["X"], expected_x)
+    assert np.array_equal(updated.faults["Z"], expected_z)
+    assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
 
 
 def test_apply_hadamard_inplace_modifies_current_fault_list(fault_list: XZFaultList) -> None:
-	result = fault_list.apply_hadamard(qubit=0, inplace=True)
+    result = fault_list.apply_hadamard(qubit=0, inplace=True)
 
-	expected_x = np.array([[0, 0, 1], [1, 1, 0]], dtype=np.int8)
-	expected_z = np.array([[1, 1, 0], [0, 0, 1]], dtype=np.int8)
+    expected_x = np.array([[0, 0, 1], [1, 1, 0]], dtype=np.int8)
+    expected_z = np.array([[1, 1, 0], [0, 0, 1]], dtype=np.int8)
 
-	assert result is fault_list
-	assert np.array_equal(fault_list.faults["X"], expected_x)
-	assert np.array_equal(fault_list.faults["Z"], expected_z)
+    assert result is fault_list
+    assert np.array_equal(fault_list.faults["X"], expected_x)
+    assert np.array_equal(fault_list.faults["Z"], expected_z)
 
 
 def test_apply_hadamard_rejects_invalid_qubit(fault_list: XZFaultList) -> None:
-	with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
-		fault_list.apply_hadamard(qubit=3)
+    with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
+        fault_list.apply_hadamard(qubit=3)
 
 
 def test_apply_reset_rejects_invalid_qubit(fault_list: XZFaultList) -> None:
-	with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
-		fault_list.apply_reset(qubit=3)
+    with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
+        fault_list.apply_reset(qubit=3)
 
 
 def test_apply_ccz_updates_z_faults_non_inplace() -> None:
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
-	updated = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=False)
+    updated = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=False)
 
-	expected_x = np.array([[1, 1, 1]], dtype=np.int8)
-	expected_z = np.array([[1, 1, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 1, 1]], dtype=np.int8)
+    expected_z = np.array([[1, 1, 1]], dtype=np.int8)
 
-	assert np.array_equal(updated.faults["X"], expected_x)
-	assert np.array_equal(updated.faults["Z"], expected_z)
-	assert np.array_equal(faults.faults["X"], np.array([[1, 1, 1]], dtype=np.int8))
-	assert np.array_equal(faults.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
+    assert np.array_equal(updated.faults["X"], expected_x)
+    assert np.array_equal(updated.faults["Z"], expected_z)
+    assert np.array_equal(faults.faults["X"], np.array([[1, 1, 1]], dtype=np.int8))
+    assert np.array_equal(faults.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
 
 
 def test_apply_ccz_inplace_modifies_current_fault_list() -> None:
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
-	result = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=True)
+    result = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=True)
 
-	expected_x = np.array([[1, 1, 1]], dtype=np.int8)
-	expected_z = np.array([[1, 1, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 1, 1]], dtype=np.int8)
+    expected_z = np.array([[1, 1, 1]], dtype=np.int8)
 
-	assert result is faults
-	assert np.array_equal(faults.faults["X"], expected_x)
-	assert np.array_equal(faults.faults["Z"], expected_z)
+    assert result is faults
+    assert np.array_equal(faults.faults["X"], expected_x)
+    assert np.array_equal(faults.faults["Z"], expected_z)
 
 
 def test_apply_ccz_rejects_invalid_controls() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"All qubits must be different."):
-		faults.apply_ccz(control1=0, control2=0, control3=2)
+    with pytest.raises(ValueError, match=r"All qubits must be different."):
+        faults.apply_ccz(control1=0, control2=0, control3=2)
 
-	with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
-		faults.apply_ccz(control1=0, control2=1, control3=3)
+    with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
+        faults.apply_ccz(control1=0, control2=1, control3=3)
+
 
 def test_apply_ccx_rejects_invalid_qubits() -> None:
-	faults = XZFaultList(num_qubits=3)
+    faults = XZFaultList(num_qubits=3)
 
-	with pytest.raises(ValueError, match=r"All qubits must be different."):
-		faults.apply_ccx(control1=0, control2=1, target=1)
+    with pytest.raises(ValueError, match=r"All qubits must be different."):
+        faults.apply_ccx(control1=0, control2=1, target=1)
 
-	with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
-		faults.apply_ccx(control1=0, control2=1, target=3)
+    with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
+        faults.apply_ccx(control1=0, control2=1, target=3)
+
 
 def test_apply_ccz_unit_tests() -> None:
-	# its always 0,1,2 for the controls
-	# input x, output x, output z
-	unit_tests = [
-		[(0, 0, 0), (0, 0, 0), (0, 0, 0)],
-		[(0, 0, 1), (0, 0, 1), (0, 0, 0)],
-		[(0, 1, 0), (0, 1, 0), (0, 0, 0)],
-		[(0, 1, 1), (0, 1, 1), (1, 0, 0)],
-		[(1, 0, 0), (1, 0, 0), (0, 0, 0)],
-		[(1, 0, 1), (1, 0, 1), (0, 1, 0)],
-		[(1, 1, 0), (1, 1, 0), (0, 0, 1)],
-		[(1, 1, 1), (1, 1, 1), (1, 1, 1)],
-	]
-	
-	for input_x, expected_x, expected_z in unit_tests:
-		faults = XZFaultList(num_qubits=3)
-		faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    # its always 0,1,2 for the controls
+    # input x, output x, output z
+    unit_tests = [
+        [(0, 0, 0), (0, 0, 0), (0, 0, 0)],
+        [(0, 0, 1), (0, 0, 1), (0, 0, 0)],
+        [(0, 1, 0), (0, 1, 0), (0, 0, 0)],
+        [(0, 1, 1), (0, 1, 1), (1, 0, 0)],
+        [(1, 0, 0), (1, 0, 0), (0, 0, 0)],
+        [(1, 0, 1), (1, 0, 1), (0, 1, 0)],
+        [(1, 1, 0), (1, 1, 0), (0, 0, 1)],
+        [(1, 1, 1), (1, 1, 1), (1, 1, 1)],
+    ]
 
-		updated = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=False)
+    for input_x, expected_x, expected_z in unit_tests:
+        faults = XZFaultList(num_qubits=3)
+        faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
-		assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
-		assert np.array_equal(updated.faults["Z"], np.array([expected_z], dtype=np.int8))
+        updated = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=False)
+
+        assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
+        assert np.array_equal(updated.faults["Z"], np.array([expected_z], dtype=np.int8))
 
 
 def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> None:
-	updated = fault_list.apply_reset(qubit=1, inplace=False)
+    updated = fault_list.apply_reset(qubit=1, inplace=False)
 
-	expected_x = np.array([[1, 0, 1], [0, 0, 0]], dtype=np.int8)
-	expected_z = np.array([[0, 0, 0], [1, 0, 1]], dtype=np.int8)
+    expected_x = np.array([[1, 0, 1], [0, 0, 0]], dtype=np.int8)
+    expected_z = np.array([[0, 0, 0], [1, 0, 1]], dtype=np.int8)
 
-	assert np.array_equal(updated.faults["X"], expected_x)
-	assert np.array_equal(updated.faults["Z"], expected_z)
-	assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
-	assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(updated.faults["X"], expected_x)
+    assert np.array_equal(updated.faults["Z"], expected_z)
+    assert np.array_equal(fault_list.faults["X"], np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
+
 
 # based on tests for mqt.qecc.circuit_synthesis.faults.coset_leader
 def test_reduce_to_coset_leaders_no_generators() -> None:
-	"""Test coset leader reduction with no generators (should not modify faults)."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test coset leader reduction with no generators (should not modify faults)."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	# No generators - faults should remain unchanged
-	reduced = faults.reduce_to_coset_leaders((None, None), inplace=False)
+    # No generators - faults should remain unchanged
+    reduced = faults.reduce_to_coset_leaders((None, None), inplace=False)
 
-	assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
-	assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+    assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_x_generators() -> None:
-	"""Test coset leader reduction with X generators."""
-	faults = XZFaultList(num_qubits=3)
-	# Add X fault that is in the stabilizer group
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    """Test coset leader reduction with X generators."""
+    faults = XZFaultList(num_qubits=3)
+    # Add X fault that is in the stabilizer group
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
-	# X generator that matches the X fault
-	x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    # X generator that matches the X fault
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
 
-	reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
-	# X fault should be reduced to zero (it's in the stabilizer group)
-	assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
-	# Z fault should remain unchanged
-	assert np.array_equal(reduced.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
+    # X fault should be reduced to zero (it's in the stabilizer group)
+    assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
+    # Z fault should remain unchanged
+    assert np.array_equal(reduced.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_z_generators() -> None:
-	"""Test coset leader reduction with Z generators."""
-	faults = XZFaultList(num_qubits=3)
-	# Add Z fault that is in the stabilizer group
-	faults.add_fault((np.array([0, 0, 0], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
+    """Test coset leader reduction with Z generators."""
+    faults = XZFaultList(num_qubits=3)
+    # Add Z fault that is in the stabilizer group
+    faults.add_fault((np.array([0, 0, 0], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
 
-	# Z generator that matches the Z fault
-	z_generators = np.array([[0, 1, 1]], dtype=np.int8)
+    # Z generator that matches the Z fault
+    z_generators = np.array([[0, 1, 1]], dtype=np.int8)
 
-	reduced = faults.reduce_to_coset_leaders((None, z_generators), inplace=False)
+    reduced = faults.reduce_to_coset_leaders((None, z_generators), inplace=False)
 
-	# X fault should remain unchanged
-	assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
-	# Z fault should be reduced to zero
-	assert np.array_equal(reduced.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
+    # X fault should remain unchanged
+    assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
+    # Z fault should be reduced to zero
+    assert np.array_equal(reduced.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_both_generators() -> None:
-	"""Test coset leader reduction with both X and Z generators."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
-	faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 0], dtype=np.int8)))
+    """Test coset leader reduction with both X and Z generators."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
+    faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 0], dtype=np.int8)))
 
-	# Generators that match the faults
-	x_generators = np.array([[1, 0, 1]], dtype=np.int8)
-	z_generators = np.array([[0, 1, 1]], dtype=np.int8)
+    # Generators that match the faults
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    z_generators = np.array([[0, 1, 1]], dtype=np.int8)
 
-	reduced = faults.reduce_to_coset_leaders((x_generators, z_generators), inplace=False)
+    reduced = faults.reduce_to_coset_leaders((x_generators, z_generators), inplace=False)
 
-	# Both matching faults should be reduced to zero
-	assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
-	assert np.array_equal(reduced.faults["Z"][0], np.array([0, 0, 0], dtype=np.int8))
-	# Non-matching faults should be reduced to their coset leaders
-	assert reduced.faults["X"].shape[0] == 2
-	assert reduced.faults["Z"].shape[0] == 2
+    # Both matching faults should be reduced to zero
+    assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
+    assert np.array_equal(reduced.faults["Z"][0], np.array([0, 0, 0], dtype=np.int8))
+    # Non-matching faults should be reduced to their coset leaders
+    assert reduced.faults["X"].shape[0] == 2
+    assert reduced.faults["Z"].shape[0] == 2
 
 
 def test_reduce_to_coset_leaders_inplace() -> None:
-	"""Test that inplace=True modifies the original fault list."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test that inplace=True modifies the original fault list."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
 
-	result = faults.reduce_to_coset_leaders((x_generators, None), inplace=True)
+    result = faults.reduce_to_coset_leaders((x_generators, None), inplace=True)
 
-	# Result should be the same object
-	assert result is faults
-	# X fault should be reduced
-	assert np.array_equal(faults.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
-	# Z fault should remain unchanged
-	assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+    # Result should be the same object
+    assert result is faults
+    # X fault should be reduced
+    assert np.array_equal(faults.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
+    # Z fault should remain unchanged
+    assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_not_inplace() -> None:
-	"""Test that inplace=False returns a new independent fault list."""
-	original = XZFaultList(num_qubits=3)
-	original.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test that inplace=False returns a new independent fault list."""
+    original = XZFaultList(num_qubits=3)
+    original.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	x_generators = np.array([[1, 0, 1]], dtype=np.int8)
-	reduced = original.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    reduced = original.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
-	# Result should be a different object
-	assert reduced is not original
-	# Reduced fault list should be modified
-	assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
-	# Original should remain unchanged
-	assert np.array_equal(original.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
+    # Result should be a different object
+    assert reduced is not original
+    # Reduced fault list should be modified
+    assert np.array_equal(reduced.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
+    # Original should remain unchanged
+    assert np.array_equal(original.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_multiple_faults() -> None:
-	"""Test coset leader reduction with multiple faults."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
-	faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
-	faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    """Test coset leader reduction with multiple faults."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+    faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
-	# Two X generators
-	x_generators = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8)
+    # Two X generators
+    x_generators = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8)
 
-	reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
-	# First two faults are in the stabilizer group, third should be reduced to coset leader
-	assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
-	assert np.array_equal(reduced.faults["X"][1], np.array([0, 0, 0], dtype=np.int8))
+    # First two faults are in the stabilizer group, third should be reduced to coset leader
+    assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
+    assert np.array_equal(reduced.faults["X"][1], np.array([0, 0, 0], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_invalid_generator_shape() -> None:
-	"""Test that invalid generator shapes raise ValueError."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test that invalid generator shapes raise ValueError."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	# Wrong number of columns in generator
-	x_generators = np.array([[1, 0]], dtype=np.int8)
+    # Wrong number of columns in generator
+    x_generators = np.array([[1, 0]], dtype=np.int8)
 
-	with pytest.raises(ValueError, match=r"Generators must be a 2D array with 3 columns."):
-		faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    with pytest.raises(ValueError, match=r"Generators must be a 2D array with 3 columns."):
+        faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
 
 def test_reduce_to_coset_leaders_invalid_generator_dimension() -> None:
-	"""Test that 1D generators raise ValueError."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test that 1D generators raise ValueError."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	# 1D array instead of 2D
-	x_generators = np.array([1, 0, 1], dtype=np.int8)
+    # 1D array instead of 2D
+    x_generators = np.array([1, 0, 1], dtype=np.int8)
 
-	with pytest.raises(ValueError, match=r"Generators must be a 2D array with 3 columns."):
-		faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    with pytest.raises(ValueError, match=r"Generators must be a 2D array with 3 columns."):
+        faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
 
 def test_reduce_to_coset_leaders_empty_fault_list() -> None:
-	"""Test coset leader reduction with an empty fault list."""
-	faults = XZFaultList(num_qubits=3)
-	
-	x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    """Test coset leader reduction with an empty fault list."""
+    faults = XZFaultList(num_qubits=3)
 
-	reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
 
-	# Should remain empty
-	assert reduced.faults["X"].shape == (0, 3)
-	assert reduced.faults["Z"].shape == (0, 3)
+    reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+
+    # Should remain empty
+    assert reduced.faults["X"].shape == (0, 3)
+    assert reduced.faults["Z"].shape == (0, 3)
 
 
 def test_reduce_to_coset_leaders_empty_generators() -> None:
-	"""Test coset leader reduction with empty generators (no reduction applied)."""
-	faults = XZFaultList(num_qubits=3)
-	faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+    """Test coset leader reduction with empty generators (no reduction applied)."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
-	# Empty generators
-	x_generators = np.empty((0, 3), dtype=np.int8)
+    # Empty generators
+    x_generators = np.empty((0, 3), dtype=np.int8)
 
-	reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+    reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
-	# Faults should remain unchanged
-	assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
-	assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+    # Faults should remain unchanged
+    assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
+    assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))

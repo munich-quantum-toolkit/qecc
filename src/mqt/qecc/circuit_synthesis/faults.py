@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 import z3
@@ -529,9 +529,9 @@ def t_distinct(fs1: PureFaultSet, fs2: PureFaultSet, t: int, stabs: npt.NDArray[
     return True
 
 
-class XZFaultList():
+class XZFaultList:
     def __init__(self, num_qubits: int) -> None:
-        """Initialise a XZFaultList object
+        """Initialise a XZFaultList object.
 
         Args:
             num_qubits (int): The number of qubits in the circuit
@@ -542,12 +542,12 @@ class XZFaultList():
             "Z": np.zeros((0, num_qubits), dtype=np.int8),
         }
 
-    def add_fault(self, faults: Tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]) -> None:
+    def add_fault(self, faults: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]) -> None:
         """Add a single fault pair (X error, Z error) to the fault list.
 
         Args:
             faults: A tuple of (x_fault, z_fault) where each is a 1D numpy array.
-                Each array must have length num_qubits. 
+                Each array must have length num_qubits.
                 One of the faults may be set to None, which is treated as an all-zero fault.
 
         Raises:
@@ -558,7 +558,8 @@ class XZFaultList():
 
         x_fault, z_fault = faults
         if x_fault is None and z_fault is None:
-            raise ValueError("At least one fault must be provided.")
+            msg = "At least one fault must be provided."
+            raise ValueError(msg)
 
         if x_fault is None:
             z_fault = np.asarray(z_fault, dtype=np.int8)
@@ -577,7 +578,7 @@ class XZFaultList():
         self.faults["X"] = np.vstack([self.faults["X"], x_fault])
         self.faults["Z"] = np.vstack([self.faults["Z"], z_fault])
 
-    def add_faults(self, faults: Tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]) -> None:
+    def add_faults(self, faults: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]) -> None:
         """Add multiple fault pairs to the fault list.
 
         Args:
@@ -591,7 +592,8 @@ class XZFaultList():
         """
         x_faults, z_faults = faults
         if x_faults is None and z_faults is None:
-            raise ValueError("At least one fault array must be provided.")
+            msg = "At least one fault array must be provided."
+            raise ValueError(msg)
 
         if x_faults is None:
             z_faults = np.asarray(z_faults, dtype=np.int8)
@@ -663,7 +665,7 @@ class XZFaultList():
             ret = new_list
 
         # Apply CNOT
-        x_faults[:, target]  ^= x_faults[:, control]
+        x_faults[:, target] ^= x_faults[:, control]
         z_faults[:, control] ^= z_faults[:, target]
 
         return ret
@@ -705,7 +707,7 @@ class XZFaultList():
         )
 
         return new_list
-        
+
     def apply_reset(self, qubit: int, inplace: bool = True) -> XZFaultList:
         """Apply a reset operation to the faults in the list.
 
@@ -734,12 +736,12 @@ class XZFaultList():
         new_list.faults["X"][:, qubit] = 0
         new_list.faults["Z"][:, qubit] = 0
         return new_list
-        
+
     def apply_ccz(self, control1: int, control2: int, control3: int, inplace: bool = True) -> XZFaultList:
         """Apply a CCZ gate to the faults in the list.
 
         The propagation model is adversarial: any pair of X faults on two controls
-        will induce a Z fault on the third control. 
+        will induce a Z fault on the third control.
         We can do this also because the given circuit is assumed to be fault tolerant.
 
         Note: CCZ is symmetrical, thus there is no "target" per se
@@ -762,7 +764,7 @@ class XZFaultList():
 
         # By right, the state of the qubits matter, which is why you can't simply propagate pauli gates through a CCZ gate.
 
-        # Adverserial Fault Propagation for CCZ:
+        # Adversarial Fault Propagation for CCZ:
         # We do a simple logic, that every pair of X faults leads, in the worst case, to a Z fault on the other control. So we can just add all pairs of X faults as Z faults.
         # Z_i ^= (X_j & X_k) for all distinct i, j, k in {control1, control2, control3}
 
@@ -783,9 +785,9 @@ class XZFaultList():
         z_faults[:, control3] ^= x_faults[:, control1] & x_faults[:, control2]
 
         return ret
-    
+
     def apply_ccx(self, control1: int, control2: int, target: int, inplace: bool = True) -> XZFaultList:
-        """Apply a CCX (Toffoli) gate to the faults in the list, by applying a H_target x CCZ x H_target
+        """Apply a CCX (Toffoli) gate to the faults in the list, by applying a H_target x CCZ x H_target.
 
         Args:
             control1: The first control qubit.
@@ -802,12 +804,12 @@ class XZFaultList():
         """
         self.ensure_apply_valid_input(control1, control2, target)
 
-        _fault_list = self.apply_hadamard(target, inplace = inplace)
-        _fault_list.apply_ccz(control1, control2, target)
-        _fault_list.apply_hadamard(target)
+        fault_list = self.apply_hadamard(target, inplace=inplace)
+        fault_list.apply_ccz(control1, control2, target)
+        fault_list.apply_hadamard(target)
 
-        return _fault_list
-    
+        return fault_list
+
     def ensure_apply_valid_input(self, *qubits: int) -> bool:
         """Ensures that the input into apply_* functions are valid.
 
@@ -818,28 +820,30 @@ class XZFaultList():
         Returns:
             bool: True if everything is okay
         """
-        _n_q = len(qubits)
-        if any(not 0 <= _q < self.num_qubits for _q in qubits):
-            msg = f"Qubit {'indices' if _n_q > 1 else 'index'} must be between 0 and {self.num_qubits - 1}."
+        n_q = len(qubits)
+        if any(not 0 <= q < self.num_qubits for q in qubits):
+            msg = f"Qubit {'indices' if n_q > 1 else 'index'} must be between 0 and {self.num_qubits - 1}."
             raise ValueError(msg)
-        if _n_q > 1 and len(set(qubits)) != _n_q:
+        if n_q > 1 and len(set(qubits)) != n_q:
             msg = "All qubits must be different."
             raise ValueError(msg)
-        
+
         return True
 
-    def reduce_to_coset_leaders(self, generators: Tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None], inplace: bool = True) -> XZFaultList:
+    def reduce_to_coset_leaders(
+        self, generators: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None], inplace: bool = True
+    ) -> XZFaultList:
         """Reduce fault list to coset leaders using provided generators.
 
-        Applies coset leader reduction to X and Z type faults independently using the 
-        corresponding generators. This is useful for reducing error syndromes to their 
+        Applies coset leader reduction to X and Z type faults independently using the
+        corresponding generators. This is useful for reducing error syndromes to their
         canonical representatives in quantum error correction.
 
         Args:
-            generators (Tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]): 
-                Tuple of (x_generators, z_generators). Each should be a 2D numpy array with 
+            generators (Tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]):
+                Tuple of (x_generators, z_generators). Each should be a 2D numpy array with
                 shape (num_generators, num_qubits) or None to skip reduction for that error type.
-            inplace (bool, optional): If True, modify this fault list in place. 
+            inplace (bool, optional): If True, modify this fault list in place.
                 If False, return a copy with reductions applied. Defaults to True.
 
         Raises:
@@ -850,33 +854,27 @@ class XZFaultList():
             XZFaultList: The reduced fault list (self if inplace=True, otherwise a copy).
         """
         # Setting the corresponding generator to None means no reduction is done
-        
+
         assert len(generators) == 2, "Generators should be a tuple of x_generators and z_generators"
 
         # use qecc_faults.coset_leader(single_fault, generators) for x and z
         ret = self if inplace else self.copy()
 
-        for error_type, _g in zip(ret.faults, generators):
+        for error_type, g in zip(ret.faults, generators, strict=False):
             # Ensure generators are numpy arrays (may be empty)
-            _g = None if _g is None else np.asarray(_g, dtype=np.int8)
+            g = None if g is None else np.asarray(g, dtype=np.int8)
 
             # Check sizes
-            if _g is not None and (_g.ndim != 2 or _g.shape[1] != self.num_qubits):
+            if g is not None and (g.ndim != 2 or g.shape[1] != self.num_qubits):
                 msg = f"Generators must be a 2D array with {self.num_qubits} columns."
                 raise ValueError(msg)
-            
-            if ret.faults[error_type].shape[0] > 0 and _g is not None and _g.size > 0:
+
+            if ret.faults[error_type].shape[0] > 0 and g is not None and g.size > 0:
                 for i in range(ret.faults[error_type].shape[0]):
-                    ret.faults[error_type][i] = np.asarray(coset_leader(ret.faults[error_type][i], _g), dtype=np.int8)
+                    ret.faults[error_type][i] = np.asarray(coset_leader(ret.faults[error_type][i], g), dtype=np.int8)
 
         return ret
 
     def __repr__(self) -> str:
-        _repr = [
-            object.__repr__(self),
-            "X:",
-            repr(self.faults["X"]),
-            "Z:",
-            repr(self.faults["Z"])
-        ]
-        return "\n".join(_repr)
+        repr_ = [object.__repr__(self), "X:", repr(self.faults["X"]), "Z:", repr(self.faults["Z"])]
+        return "\n".join(repr_)
