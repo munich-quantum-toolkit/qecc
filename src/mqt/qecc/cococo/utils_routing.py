@@ -819,9 +819,8 @@ class TeleportationRouter(BasicRouter):
                 if new_terminal == terminal:  # do not want same terminal again
                     continue
                 try:
-                    path_terminal = nx.dijkstra_path(
-                        g_temp_temp, path2[0], new_terminal
-                    )  # path2[0] is the connecting node on the path
+                    # path2[0] is the connecting node on the path
+                    path_terminal = nx.dijkstra_path(g_temp_temp, path2[0], new_terminal)
                 except nx.NetworkXNoPath:
                     warnings.warn("If this is called you need to check why this is happening.")  # noqa: B028
                 if path_terminal:
@@ -1169,7 +1168,7 @@ class TeleportationRouter(BasicRouter):
                         msg = f"other move type than expected: {move_type}"  # pragma: no cover
                         raise RuntimeError(msg)
                 # 2. compute the crossing metric for next_layer
-                try:
+                try:  # noqa: PLW0717
                     if self.metric == "crossing":
                         candidate_cost = self.count_crossings(
                             cast("Sequence[Sequence[tuple[pos, pos]]]", next_layers_copy[:k_lookahead]),
@@ -1312,27 +1311,26 @@ class TeleportationRouter(BasicRouter):
                 path_idle = None
                 try:
                     path_idle = nx.dijkstra_path(g_copy, gap, danger_qubit)
-                    # danger_qubits_copy.remove(danger_qubit)
-                    del danger_qubits_copy[danger_qubit]
-                    available_gaps.remove(gap)
-                    label_idle = f"idle_{danger_qubit}_to_{gap}"
-                    vdp_dict.update({label_idle: path_idle})
-                    idle_move_labels.append(label_idle)
-                    logical_pos_temp = cast(
-                        "list[pos]",
-                        self.replace_pos(logical_pos_temp, danger_qubit, gap),
-                    )
-                    for j, next_layer in enumerate(next_layers_copy):  # update all future layers
-                        next_layers_copy[j] = self.replace_pos(next_layer, danger_qubit, gap)
-                    label = layout_rev[danger_qubit]
-                    layout_mod[label] = gap
-                    layout_rev = {j: i for i, j in layout_mod.items()}  # !update layout_rev
-                    flag_idle_move = True
-                    break  # because if path found you do not want to find another path to the same danger qubit
                 except nx.NetworkXNoPath:
+                    logger.info(f"No idling path back could be found for danger qubit {danger_qubit}")
                     continue
-            if path_idle is None:
-                logger.info(f"No idling path back could be found for danger qubit {danger_qubit}")
+                assert path_idle is not None
+                del danger_qubits_copy[danger_qubit]
+                available_gaps.remove(gap)
+                label_idle = f"idle_{danger_qubit}_to_{gap}"
+                vdp_dict.update({label_idle: path_idle})
+                idle_move_labels.append(label_idle)
+                logical_pos_temp = cast(
+                    "list[pos]",
+                    self.replace_pos(logical_pos_temp, danger_qubit, gap),
+                )
+                for j, next_layer in enumerate(next_layers_copy):  # update all future layers
+                    next_layers_copy[j] = self.replace_pos(next_layer, danger_qubit, gap)
+                label = layout_rev[danger_qubit]
+                layout_mod[label] = gap
+                layout_rev = {j: i for i, j in layout_mod.items()}  # !update layout_rev
+                flag_idle_move = True
+                break  # because if path found you do not want to find another path to the same danger qubit
 
         # reduce the time stamp of danger_qubits_copy by 1
         if reduce_time_stamp:
