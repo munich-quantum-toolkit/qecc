@@ -169,7 +169,7 @@ class BasicRouter:
         used_qubits: set[pos] = set()
 
         for pair in terminal_pairs:
-            if isinstance(pair[0], tuple) and isinstance(pair[1], tuple):
+            if isinstance(pair[0], tuple) and isinstance(pair[1], tuple):  # cnot
                 pair = cast("tuple[pos, pos]", pair)
                 if pair[0] in used_qubits or pair[1] in used_qubits:
                     layers.append(current_layer)
@@ -178,7 +178,9 @@ class BasicRouter:
                 else:
                     current_layer.append(pair)
                     used_qubits.update(list(pair))
-            elif isinstance(pair[0], int) and isinstance(pair[1], int):
+            else:  # t
+                assert isinstance(pair[0], int)
+                assert isinstance(pair[1], int)
                 pair = cast("pos", pair)
                 if pair in used_qubits:
                     layers.append(current_layer)
@@ -213,10 +215,12 @@ class BasicRouter:
         terminal_pairs_current = list(layer).copy()
         flattened_terminals: list[pos] = []
         for item in list(layer).copy():
-            if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+            if isinstance(item[0], tuple) and isinstance(item[1], tuple):  # cnot
                 item = cast("tuple[pos, pos]", item)
                 flattened_terminals.extend(list(item))
-            elif isinstance(item[0], int) and isinstance(item[1], int):
+            else:  # t
+                assert isinstance(item[0], int)
+                assert isinstance(item[1], int)
                 item = cast("pos", item)
                 flattened_terminals.append(item)
         for t in flattened_terminals:
@@ -232,8 +236,7 @@ class BasicRouter:
             # same order, actually redundant but error otherwise
             tp_list: list[pos | tuple[pos, pos]] = []
             for t_p in terminal_pairs_current:
-                # cnot
-                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
+                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):  # cnot
                     t_p = cast("tuple[pos, pos]", t_p)
                     g_temp_temp = g_temp.copy()
                     # ADAPT THE GRAPH AND REMOVE ALL LOGICAL DATA PATCHES DESPITE THE t_p
@@ -260,8 +263,9 @@ class BasicRouter:
                         # skip the t_p if no path exists
                         pass  # therefore just pass
 
-                # t gate
-                elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
+                else:  # t
+                    assert isinstance(t_p[0], int)
+                    assert isinstance(t_p[1], int)
                     t_p = cast("pos", t_p)
                     g_temp_temp = g_temp.copy()
                     # ADAPT THE GRAPH AND REMOVE ALL LOGICAL DATA PATCHES DESPITE THE t_p position where the t gate is applied
@@ -306,11 +310,13 @@ class BasicRouter:
                 shortest_idx = paths_temp_lst.index(shortest_path)  # index in current terminal_pairs_current
                 t_p = tp_list[shortest_idx]  # terminal_pairs_current[shortest_idx]
                 # update already used qubits based on chosen t_p path
-                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
+                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):  # cnot
                     t_p = cast("tuple[pos, pos]", t_p)
                     dct_qubits[t_p[0]] = True
                     dct_qubits[t_p[1]] = True
-                elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
+                else:  # t
+                    assert isinstance(t_p[0], int)
+                    assert isinstance(t_p[1], int)
                     t_p = cast("pos", t_p)
                     dct_qubits[t_p] = True
                     # update the times of the factory patch (which is the position at one end of the path)
@@ -560,10 +566,12 @@ class BasicRouter:
         for layer in layers:
             temp: list[pos] = []
             for item in layer:
-                if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+                if isinstance(item[0], tuple) and isinstance(item[1], tuple):  # cnot
                     item = cast("tuple[pos, pos]", item)
                     temp.extend(list(item))
-                elif isinstance(item[0], int) and isinstance(item[1], int):
+                else:  # t
+                    assert isinstance(item[0], int)
+                    assert isinstance(item[1], int)
                     item = cast("pos", item)
                     temp.append(item)
             flattened_terminals_and_factories += temp
@@ -572,7 +580,7 @@ class BasicRouter:
             paths: list[list[pos]] = []
             for t_p in layer:
                 g_temp = self.g.copy()
-                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
+                if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):  # cnot
                     terminals_temp = [
                         pair for pair in flattened_terminals_and_factories.copy() if pair != t_p[0] and pair != t_p[1]
                     ]
@@ -744,9 +752,11 @@ class TeleportationRouter(BasicRouter):
                 msg = "steiner_init_type must be on_path_random or full_random."  # pragma: no cover
                 raise ValueError(msg)
             # add to list
-            if isinstance(key[0], tuple) and isinstance(key[1], tuple):  # if CNOT
+            if isinstance(key[0], tuple) and isinstance(key[1], tuple):  # cnot
                 tup = (*key, terminal_node)
-            elif isinstance(key[0], int) and isinstance(key[1], int):  # if T gate
+            else:  # t
+                assert isinstance(key[0], int)
+                assert isinstance(key[1], int)
                 tup = (key, terminal_node)
             steiner_dct.update({cast("tuple[pos, ...]", tup): [pathcopy, path_steiner]})
             # also remove the nodes from the graph such that no overlapping steiner trees can be generated
@@ -926,10 +936,12 @@ class TeleportationRouter(BasicRouter):
         """
         result: list[pos | tuple[pos, pos]] = []
         for item in lst:
-            if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+            if isinstance(item[0], tuple) and isinstance(item[1], tuple):  # cnot
                 item = cast("tuple[pos, pos]", item)
                 result.append(cast("tuple[pos, pos]", tuple(new if sub == old else sub for sub in item)))
-            elif isinstance(item[0], int) and isinstance(item[1], int):
+            else:  # t
+                assert isinstance(item[0], int)
+                assert isinstance(item[1], int)
                 item = cast("pos", item)
                 result.append(new if item == old else item)
         return result

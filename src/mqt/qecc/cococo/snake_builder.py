@@ -14,13 +14,12 @@ from matplotlib import colormaps
 from matplotlib.lines import Line2D
 from matplotlib.patches import Polygon
 
+from mqt.qecc import CSSCode
+
 if TYPE_CHECKING:
     import numpy.typing as npt
 
     from .types import pos
-
-
-from mqt.qecc import CSSCode
 
 
 class SnakeBuilderSC:
