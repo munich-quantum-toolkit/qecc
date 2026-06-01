@@ -296,10 +296,13 @@ def _merge_datasets_x(datasets_: list[dict[str, Any]]) -> dict[str, Any]:
         merged_data["x_success_cnt"] += data.get("x_success_cnt", 0)
 
     # Update logical and word error rates based on accumulated data.
-    runs = merged_data["nr_runs"]
     x_success_cnt = merged_data["x_success_cnt"]
-
-    x_ler, x_ler_eb, x_wer, x_wer_eb = _update_error_rates(x_success_cnt, runs, merged_data["code_K"])
+    assert isinstance(x_success_cnt, int)
+    runs = merged_data["nr_runs"]
+    assert isinstance(runs, int)
+    code_k = merged_data["code_K"]
+    assert isinstance(code_k, int)
+    x_ler, x_ler_eb, x_wer, x_wer_eb = _update_error_rates(x_success_cnt, runs, code_k)
 
     update_dict = {
         "x_ler": x_ler,
@@ -318,10 +321,10 @@ def _merge_datasets_z(datasets_: list[dict[str, Any]]) -> dict[str, Any]:
     "x_success_cnt" and "z_success_cnt" are extracted from each dictionary and added together.
 
     Args:
-        datasets_ (List[Dict[str, Any]]): A list of dictionaries to be merged.
+        datasets_: A list of dictionaries to be merged.
 
     Returns:
-        Dict[str, Any]: A dictionary containing the merged data.
+        A dictionary containing the merged data.
     """
     # remove datasets that do not contain z_success_cnt
     datasets = [data for data in datasets_ if "z_success_cnt" in data]
@@ -343,10 +346,13 @@ def _merge_datasets_z(datasets_: list[dict[str, Any]]) -> dict[str, Any]:
         merged_data["z_success_cnt"] += data.get("z_success_cnt", 0)
 
     # Update logical and word error rates based on accumulated data.
-    runs = merged_data["nr_runs"]
     z_success_cnt = merged_data["z_success_cnt"]
-
-    z_ler, z_ler_eb, z_wer, z_wer_eb = _update_error_rates(z_success_cnt, runs, merged_data["code_K"])
+    assert isinstance(z_success_cnt, int)
+    runs = merged_data["nr_runs"]
+    assert isinstance(runs, int)
+    code_k = merged_data["code_K"]
+    assert isinstance(code_k, int)
+    z_ler, z_ler_eb, z_wer, z_wer_eb = _update_error_rates(z_success_cnt, runs, code_k)
 
     update_dict = {
         "z_ler": z_ler,

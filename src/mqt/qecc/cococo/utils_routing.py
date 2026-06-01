@@ -48,6 +48,8 @@ lock_penalty = 200
 class BasicRouter:
     """Basic Routing for CNOT + T gates based on shortest-first VDP solving."""
 
+    factory_times: dict[pos, int]
+
     def __init__(
         self,
         g: nx.Graph,
@@ -61,13 +63,13 @@ class BasicRouter:
         """Class for shortest-first routing based compilation.
 
         Args:
-            g (nx.Graph): Macroscopic Routing Graph. Created via mqt.cococo.layouts
-            logical_pos (list[pos]): Logical positions on the graph. Also from mqt.cococo.layouts
-            factory_pos (list[pos]): Positions of the factories. Also from mqt.cococo.layouts
-            valid_path (str): Either "cc" or "sc" for color code and surface code. However, revisit usefulness of "sc".
-            t (int): Reset time for the factories
-            metric (str): Either "exact" or "crossing", but it is recommended to use "exact". "crossing" works only for pure cnot circuits.
-            use_dag (bool, optional): Determines whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
+            g: Macroscopic Routing Graph. Created via mqt.cococo.layouts
+            logical_pos: Logical positions on the graph. Also from mqt.cococo.layouts
+            factory_pos: Positions of the factories. Also from mqt.cococo.layouts
+            valid_path: Either "cc" or "sc" for color code and surface code. However, revisit usefulness of "sc".
+            t: Reset time for the factories
+            metric: Either "exact" or "crossing", but it is recommended to use "exact". "crossing" works only for pure cnot circuits.
+            use_dag: Determines whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
         """
         self.g = g
         self.logical_pos = logical_pos
@@ -176,7 +178,7 @@ class BasicRouter:
                 else:
                     current_layer.append(pair)
                     used_qubits.update(list(pair))
-            elif isinstance(pair, tuple):
+            elif isinstance(pair[0], int) and isinstance(pair[1], int):
                 pair = cast("pos", pair)
                 if pair in used_qubits:
                     layers.append(current_layer)
@@ -207,11 +209,16 @@ class BasicRouter:
         successful_terminals = []  # gather successful terminal pairs
         flag_problem = False
         g_temp = self.g.copy()
-        dct_qubits = {}  # a dct which checks whether a qubit was already used in the layer
+        dct_qubits: dict[pos, bool] = {}  # a dct which checks whether a qubit was already used in the layer
         terminal_pairs_current = list(layer).copy()
-        flattened_terminals = [
-            pair for item in list(layer).copy() for pair in (item if isinstance(item[0], tuple) else [item])
-        ]
+        flattened_terminals: list[pos] = []
+        for item in list(layer).copy():
+            if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+                item = cast("tuple[pos, pos]", item)
+                flattened_terminals.extend(list(item))
+            elif isinstance(item[0], int) and isinstance(item[1], int):
+                item = cast("pos", item)
+                flattened_terminals.append(item)
         for t in flattened_terminals:
             dct_qubits.update({t: False})
         dct_qubits_copy = dct_qubits.copy()
@@ -220,13 +227,14 @@ class BasicRouter:
         )  # was using self.flattened before, which was problem because not updated after logical repositioning
 
         while len(terminal_pairs_current) > 0 and flag_problem is False:
-            paths_temp_lst: list[
-                list[pos]
-            ] = []  # gather all possible paths here, between all terminal pairs (cnots) and between all qubits for a tgate with all factories
-            tp_list: list[pos | tuple[pos, pos]] = []  # same order, actually redundant but error otherwise
+            # gather all possible paths here, between all terminal pairs (cnots) and between all qubits for a tgate with all factories
+            paths_temp_lst: list[list[pos]] = []
+            # same order, actually redundant but error otherwise
+            tp_list: list[pos | tuple[pos, pos]] = []
             for t_p in terminal_pairs_current:
                 # cnot
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
+                    t_p = cast("tuple[pos, pos]", t_p)
                     g_temp_temp = g_temp.copy()
                     # ADAPT THE GRAPH AND REMOVE ALL LOGICAL DATA PATCHES DESPITE THE t_p
                     if logical_pos is None:
@@ -253,7 +261,7 @@ class BasicRouter:
                         pass  # therefore just pass
 
                 # t gate
-                elif isinstance(t_p, tuple):
+                elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
                     t_p = cast("pos", t_p)
                     g_temp_temp = g_temp.copy()
                     # ADAPT THE GRAPH AND REMOVE ALL LOGICAL DATA PATCHES DESPITE THE t_p position where the t gate is applied
@@ -266,7 +274,7 @@ class BasicRouter:
                     if dct_qubits[t_p]:
                         flag_problem = True
                         break
-                    dist_factories = {}
+                    dist_factories: dict[pos, list[pos]] = {}
                     for factory in self.factory_pos:
                         g_temp_temp2 = g_temp_temp.copy()
                         if factory_times_temp[factory] == 0:  # only include available factories
@@ -299,9 +307,11 @@ class BasicRouter:
                 t_p = tp_list[shortest_idx]  # terminal_pairs_current[shortest_idx]
                 # update already used qubits based on chosen t_p path
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
+                    t_p = cast("tuple[pos, pos]", t_p)
                     dct_qubits[t_p[0]] = True
                     dct_qubits[t_p[1]] = True
-                elif isinstance(t_p[1], int):
+                elif isinstance(t_p[0], int) and isinstance(t_p[1], int):
+                    t_p = cast("pos", t_p)
                     dct_qubits[t_p] = True
                     # update the times of the factory patch (which is the position at one end of the path)
                     if shortest_path[0] == t_p:
@@ -544,20 +554,22 @@ class BasicRouter:
         Returns:
             Number of crossings per initial layer. len is len(self.layers_cnot_t_orig)
         """
-        # ! TODO: remove redundancies (order_terminal_pairs very similar)
+        # TODO: remove redundancies (order_terminal_pairs very similar)
         lst_crossings = []
         flattened_terminals_and_factories = cast("list[pos | tuple[pos, pos]]", self.factory_pos.copy())
         for layer in layers:
-            temp = []
+            temp: list[pos] = []
             for item in layer:
-                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], tuple):
-                    temp.extend(item)
-                else:
+                if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+                    item = cast("tuple[pos, pos]", item)
+                    temp.extend(list(item))
+                elif isinstance(item[0], int) and isinstance(item[1], int):
+                    item = cast("pos", item)
                     temp.append(item)
             flattened_terminals_and_factories += temp
 
         for layer in layers:
-            paths = []
+            paths: list[list[pos]] = []
             for t_p in layer:
                 g_temp = self.g.copy()
                 if isinstance(t_p[0], tuple) and isinstance(t_p[1], tuple):
@@ -577,7 +589,8 @@ class BasicRouter:
                         raise ValueError(msg) from exc
 
                 elif t_crossings:
-                    dist_factories = {}  # gather distances to each factory to greedily choose the shortest path
+                    # gather distances to each factory to greedily choose the shortest path
+                    dist_factories: dict[pos, list[pos]] = {}
                     for factory in self.factory_pos:
                         g_temp = self.g.copy()
                         terminals_temp = [
@@ -629,14 +642,14 @@ class TeleportationRouter(BasicRouter):
         """Compilation routine that exploits CNOT + teleportation steps based on BasicRouter.
 
         Args:
-            g (nx.Graph): Macroscopic Routing Graph. Created via mqt.cococo.layouts
-            logical_pos (list[pos]): Logical positions on the graph. Also from mqt.cococo.layouts
-            factory_pos (list[pos]): Positions of the factories. Also from mqt.cococo.layouts
-            valid_path (str): Either "cc" or "sc" for color code and surface code. However, revisit usefulness of "sc".
-            t (int): Reset time for the factories
-            metric (str): Either "exact" or "crossing", but it is recommended to use "exact". Using "crossing" is not safe (as it is not tested and not fully implemented.)
-            use_dag (bool, optional): Determines whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
-            seed (int): Seed for the randomized parts in the optimization.
+            g: Macroscopic Routing Graph. Created via mqt.cococo.layouts
+            logical_pos: Logical positions on the graph. Also from mqt.cococo.layouts
+            factory_pos: Positions of the factories. Also from mqt.cococo.layouts
+            valid_path: Either "cc" or "sc" for color code and surface code. However, revisit usefulness of "sc".
+            t: Reset time for the factories
+            metric: Either "exact" or "crossing", but it is recommended to use "exact". Using "crossing" is not safe (as it is not tested and not fully implemented.)
+            use_dag: Determines whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
+            seed: Seed for the randomized parts in the optimization.
         """
         super().__init__(g, logical_pos, factory_pos, valid_path, t, metric, use_dag)
         self.seed = seed
@@ -683,8 +696,7 @@ class TeleportationRouter(BasicRouter):
             msg = "Make sure that `steiner_init_type` is either full_random or on_path_random. Other possibilities not implemented yet."  # pragma: no cover
             raise NotImplementedError(msg)
 
-        steiner_dct = {}
-
+        steiner_dct: SteinerType = {}
         # for each already present path, choose one random ancilla terminal which is allowed to be on the same path, but not on another path
         for key, path in vdp_dict.items():
             if isinstance(key, str) and key.startswith("idle"):
@@ -711,10 +723,10 @@ class TeleportationRouter(BasicRouter):
                 if not flag:
                     continue  # skip this path if no reachable node found
                 # select a random reachable node
-                terminal_node = random.choice(reachable_nodes)  # noqa: S311
+                terminal_node: pos = random.choice(reachable_nodes)  # noqa: S311
                 # determine the path between the node which is ensured on the path and the terminal
-                path_steiner = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
-                paths_lst_temp = []  # collect all paths from path1[1:-1] to new_terminal
+                path_steiner: list[pos] = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
+                paths_lst_temp: list[list[pos]] = []  # collect all paths from path1[1:-1] to new_terminal
                 for node_on_path in path:
                     try:
                         path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
@@ -722,21 +734,21 @@ class TeleportationRouter(BasicRouter):
                     except (nx.NetworkXNoPath, nx.NodeNotFound):  # noqa: PERF203
                         pass
                 if paths_lst_temp:
-                    path_steiner = min(paths_lst_temp, key=len)
+                    path_steiner = cast("list[pos]", min(paths_lst_temp, key=len))
             elif steiner_init_type == "on_path_random":
-                terminal_node = random.choice(path)  # just choose a random terminal ON the path  # noqa: S311
-                path_steiner = [
-                    terminal_node
-                ]  # terminal on the path does not need an extended path, but list should not be empty, otherwise error.
+                # just choose a random terminal ON the path
+                terminal_node = random.choice(path)  # noqa: S311
+                # terminal on the path does not need an extended path, but list should not be empty, otherwise error.
+                path_steiner = [terminal_node]
             else:
                 msg = "steiner_init_type must be on_path_random or full_random."  # pragma: no cover
                 raise ValueError(msg)
             # add to list
-            if isinstance(key[0], tuple):  # if CNOT
+            if isinstance(key[0], tuple) and isinstance(key[1], tuple):  # if CNOT
                 tup = (*key, terminal_node)
-            elif isinstance(key[0], int):  # if T gate
+            elif isinstance(key[0], int) and isinstance(key[1], int):  # if T gate
                 tup = (key, terminal_node)
-            steiner_dct.update({tup: [pathcopy, path_steiner]})
+            steiner_dct.update({cast("tuple[pos, ...]", tup): [pathcopy, path_steiner]})
             # also remove the nodes from the graph such that no overlapping steiner trees can be generated
             g_temp.remove_nodes_from(path_steiner)
         return steiner_dct
@@ -914,10 +926,12 @@ class TeleportationRouter(BasicRouter):
         """
         result: list[pos | tuple[pos, pos]] = []
         for item in lst:
-            if isinstance(item[0], int):
-                result.append(new if item == old else item)
-            else:
+            if isinstance(item[0], tuple) and isinstance(item[1], tuple):
+                item = cast("tuple[pos, pos]", item)
                 result.append(cast("tuple[pos, pos]", tuple(new if sub == old else sub for sub in item)))
+            elif isinstance(item[0], int) and isinstance(item[1], int):
+                item = cast("pos", item)
+                result.append(new if item == old else item)
         return result
 
     def run_annealing(
@@ -1619,7 +1633,7 @@ class TeleportationRouter(BasicRouter):
                 )  # add current layout, the adapted layout is for the next iteration.
                 next_layers_copy = layers.copy()
                 available_gaps_temp = []  # need temporary list, because you do not want to add it to the log already since you cannot move those newly added danger qubits in this current layer, you need to do it in the next
-                danger_qubits_temp = {}
+                danger_qubits_temp: dict[pos, int] = {}
                 for key_tree in best_steiner:
                     if len(key_tree) == 3:
                         (a, b, terminal) = key_tree
@@ -1828,13 +1842,17 @@ class TeleportationRouter(BasicRouter):
                         new_idle_moves = [
                             x for x in schedule[-1]["vdp_dict"] if isinstance(x, str) and x.startswith("idle")
                         ]
-                        danger_gap_list = []
+                        danger_gap_list: list[tuple[pos, pos]] = []
                         for label_idle in new_idle_moves:
                             parts = label_idle.split("_")
                             danger_qubit_str = parts[1]
                             gap_str = parts[3]
                             danger_qubit = tuple(map(int, danger_qubit_str.strip("()").split(",")))  # into tuple again
+                            assert len(danger_qubit) == 2
+                            danger_qubit = cast("pos", danger_qubit)
                             gap = tuple(map(int, gap_str.strip("()").split(",")))
+                            assert len(gap) == 2
+                            gap = cast("pos", gap)
                             danger_gap_list.append((danger_qubit, gap))
                         # also layers_after_k need to be updated if there was something moved back
                         for danger_qubit, gap in danger_gap_list:
