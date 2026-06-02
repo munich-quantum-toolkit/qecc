@@ -273,7 +273,7 @@ class PureFaultSet:
         Returns:
             A new PureFaultSet object with the same faults and number of qubits.
         """
-        new_set = PureFaultSet(self.num_qubits)
+        new_set = PureFaultSet(self.num_qubits, kind = self.kind)
         new_set.faults = np.copy(self.faults)
         return new_set
 

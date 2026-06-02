@@ -735,3 +735,21 @@ def test_apply_cnot_not_inplace():
         "CNOT gate was not applied correctly to the new fault set"
     )
     assert np.array_equal(fault_set.to_array(), faults), "Original fault set should remain unchanged"
+
+
+def test_pure_fault_set_copy():
+    """Test that PureFaultSet.copy() returns an independent copy."""
+    faults = np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
+
+    copied_fault_set = fault_set.copy()
+
+    assert copied_fault_set is not fault_set
+    assert np.array_equal(copied_fault_set.to_array(), fault_set.to_array())
+    assert copied_fault_set.kind == fault_set.kind
+
+    copied_fault_set.apply_cnot(control=0, target=1)
+
+    assert not np.array_equal(copied_fault_set.to_array(), fault_set.to_array())
+    assert np.array_equal(fault_set.to_array(), np.unique(faults, axis=0))
+
