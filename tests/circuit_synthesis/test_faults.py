@@ -653,24 +653,26 @@ def test_not_t_distinct_four_qubits():
 def test_permute_qubits_basic():
     """Test basic permutation of faults."""
     faults = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
-    fault_set = PureFaultSet.from_fault_array(faults)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
     permutation = [2, 0, 1]
 
     permuted_fault_set = fault_set.permute_qubits(permutation, inplace=False)
 
     assert np.array_equal(permuted_fault_set.faults, faults[:, permutation]), "Faults were not permuted correctly"
-    assert fault_set == PureFaultSet.from_fault_array(faults), "Original fault set should remain unchanged"
+    assert fault_set == PureFaultSet.from_fault_array(faults, kind="Z"), "Original fault set should remain unchanged"
+    assert permuted_fault_set.kind == "Z", "Fault kind should be preserved after permutation"
+    assert fault_set.kind == "Z", "Original fault kind should be preserved after permutation"
 
 
 def test_permute_qubits_inplace():
     """Test inplace permutation of fault set."""
     faults = np.array([[1, 1, 0], [0, 0, 1]], dtype=np.int8)
-    fault_set = PureFaultSet.from_fault_array(faults)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
     permutation = [2, 0, 1]
 
     fault_set.permute_qubits(permutation, inplace=True)
 
-    assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"
+    assert fault_set != PureFaultSet.from_fault_array(faults, kind="Z"), "Faults were not permuted correctly in place"
 
 
 def test_invalid_fault_kind():

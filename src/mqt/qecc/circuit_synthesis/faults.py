@@ -261,7 +261,7 @@ class PureFaultSet:
         """
         if not isinstance(other, PureFaultSet):
             return False
-        return self.num_qubits == other.num_qubits and self.to_set() == other.to_set()
+        return self.num_qubits == other.num_qubits and self.to_set() == other.to_set() and self.kind == other.kind
 
     def __hash__(self) -> int:
         """Return a hash of the PureFaultSet.
@@ -392,7 +392,7 @@ class PureFaultSet:
             self.faults = permuted_faults
             return self
 
-        return PureFaultSet.from_fault_array(permuted_faults)
+        return PureFaultSet.from_fault_array(permuted_faults, kind = self.kind)
 
     def apply_cnot(self, control: int, target: int, inplace: bool = True) -> PureFaultSet:
         """Apply a CNOT gate to the faults in the set, based on the type of faults (X or Z).
