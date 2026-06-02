@@ -878,5 +878,6 @@ class XZFaultList:
         return ret
 
     def __repr__(self) -> str:
+        """Return a string representation of the XZFaultList."""
         repr_ = [object.__repr__(self), "X:", repr(self.faults["X"]), "Z:", repr(self.faults["Z"])]
         return "\n".join(repr_)
