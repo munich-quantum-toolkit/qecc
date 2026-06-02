@@ -818,9 +818,9 @@ class XZFaultList:
         # use qecc_faults.coset_leader(single_fault, generators) for x and z
         ret = self if inplace else self.copy()
 
-        for error_type, g in zip(ret.faults, generators, strict=False):
+        for error_type, _g in zip(ret.faults, generators, strict=False):
             # Ensure generators are numpy arrays (may be empty)
-            g = None if g is None else np.asarray(g, dtype=np.int8)
+            g = None if _g is None else np.asarray(_g, dtype=np.int8)
 
             # Check sizes
             if g is not None and (g.ndim != 2 or g.shape[1] != self.num_qubits):
