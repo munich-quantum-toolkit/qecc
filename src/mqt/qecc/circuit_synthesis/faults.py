@@ -85,10 +85,14 @@ class PureFaultSet:
             raise ValueError(msg)
         combined_faults = np.vstack([self.faults, other.faults])
 
+        if self.kind != other.kind:
+            msg = "Fault sets must have the same kind to combine."
+            raise ValueError(msg)
+
         if inplace:
             self.faults = combined_faults
             return self
-        return PureFaultSet.from_fault_array(combined_faults)
+        return PureFaultSet.from_fault_array(combined_faults, kind=self.kind)
 
     def to_array(self) -> npt.NDArray[np.int8]:
         """Convert the fault set to a numpy array.

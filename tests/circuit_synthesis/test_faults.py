@@ -64,16 +64,42 @@ def test_add_fault_invalid_length():
 
 def test_combine_fault_sets():
     """Test combining two fault sets."""
-    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="Z")
     fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
 
-    fault_set_2 = PureFaultSet(num_qubits=3)
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
     fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
 
     # Combine the fault sets
     combined_fault_set = fault_set_1.combine(fault_set_2)
     expected = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8)
     assert combined_fault_set.to_set() == set(map(tuple, expected)), "Fault sets were not combined correctly."
+    assert combined_fault_set.kind == "Z", "Fault kind was not preserved when combining fault sets."
+
+
+def test_combine_fault_sets_different_kind():
+    """Test combining two fault sets with different kinds."""
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="X")
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
+
+    with pytest.raises(ValueError, match=r"Fault sets must have the same kind to combine."):
+        _ = fault_set_1.combine(fault_set_2)
+
+
+def test_combine_fault_sets_inplace_false_propagates_kind():
+    """Test that non-inplace combining preserves the left fault set kind."""
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
+
+    combined_fault_set = fault_set_1.combine(fault_set_2, inplace=False)
+    assert combined_fault_set.kind == "Z", "Fault kind was not propagated for inplace=False combine."
+    assert fault_set_1.kind == "Z", "Original fault set kind should remain unchanged."
 
 
 def test_combine_fault_sets_invalid():
