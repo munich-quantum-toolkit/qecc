@@ -1009,6 +1009,17 @@ def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> No
     assert np.array_equal(fault_list.faults["Z"], np.array([[0, 1, 0], [1, 0, 1]], dtype=np.int8))
 
 
+def test_apply_reset_clears_selected_qubit_errors_inplace(fault_list: XZFaultList) -> None:
+    result = fault_list.apply_reset(qubit=1, inplace=True)
+
+    expected_x = np.array([[1, 0, 1], [0, 0, 0]], dtype=np.int8)
+    expected_z = np.array([[0, 0, 0], [1, 0, 1]], dtype=np.int8)
+
+    assert result is fault_list
+    assert np.array_equal(fault_list.faults["X"], expected_x)
+    assert np.array_equal(fault_list.faults["Z"], expected_z)
+
+
 # based on tests for mqt.qecc.circuit_synthesis.faults.coset_leader
 def test_reduce_to_coset_leaders_no_generators() -> None:
     """Test coset leader reduction with no generators (should not modify faults)."""
