@@ -367,7 +367,7 @@ class PureFaultSet:
             self.faults = filtered
             return self
 
-        return PureFaultSet.from_fault_array(filtered)
+        return PureFaultSet.from_fault_array(filtered, kind = self.kind)
 
     def permute_qubits(self, permutation: npt.NDArray[np.int8] | list[int], inplace: bool = True) -> PureFaultSet:
         """Permute the qubits in the fault set according to a given permutation.
