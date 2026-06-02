@@ -85,10 +85,14 @@ class PureFaultSet:
             raise ValueError(msg)
         combined_faults = np.vstack([self.faults, other.faults])
 
+        if self.kind != other.kind:
+            msg = "Fault sets must have the same kind to combine."
+            raise ValueError(msg)
+
         if inplace:
             self.faults = combined_faults
             return self
-        return PureFaultSet.from_fault_array(combined_faults)
+        return PureFaultSet.from_fault_array(combined_faults, kind=self.kind)
 
     def to_array(self) -> npt.NDArray[np.int8]:
         """Convert the fault set to a numpy array.
@@ -257,7 +261,7 @@ class PureFaultSet:
         """
         if not isinstance(other, PureFaultSet):
             return False
-        return self.num_qubits == other.num_qubits and self.to_set() == other.to_set()
+        return self.num_qubits == other.num_qubits and self.to_set() == other.to_set() and self.kind == other.kind
 
     def __hash__(self) -> int:
         """Return a hash of the PureFaultSet.
@@ -273,7 +277,7 @@ class PureFaultSet:
         Returns:
             A new PureFaultSet object with the same faults and number of qubits.
         """
-        new_set = PureFaultSet(self.num_qubits)
+        new_set = PureFaultSet(self.num_qubits, kind=self.kind)
         new_set.faults = np.copy(self.faults)
         return new_set
 
@@ -367,7 +371,7 @@ class PureFaultSet:
             self.faults = filtered
             return self
 
-        return PureFaultSet.from_fault_array(filtered)
+        return PureFaultSet.from_fault_array(filtered, kind=self.kind)
 
     def permute_qubits(self, permutation: npt.NDArray[np.int8] | list[int], inplace: bool = True) -> PureFaultSet:
         """Permute the qubits in the fault set according to a given permutation.
@@ -388,7 +392,7 @@ class PureFaultSet:
             self.faults = permuted_faults
             return self
 
-        return PureFaultSet.from_fault_array(permuted_faults)
+        return PureFaultSet.from_fault_array(permuted_faults, kind=self.kind)
 
     def apply_cnot(self, control: int, target: int, inplace: bool = True) -> PureFaultSet:
         """Apply a CNOT gate to the faults in the set, based on the type of faults (X or Z).
@@ -401,9 +405,10 @@ class PureFaultSet:
         Returns:
             A new PureFaultSet with updated faults if inplace is False.
         """
-        if control >= self.num_qubits or target >= self.num_qubits:
+        if not (0 <= control < self.num_qubits) or not (0 <= target < self.num_qubits):
             msg = f"Control and target indices must be between 0 and {self.num_qubits - 1}."
             raise ValueError(msg)
+            # Dev Note: We do not allow negative indices so that we can easily check if control and target are different
         if control == target:
             msg = "Control and target qubits must be different."
             raise ValueError(msg)
