@@ -924,6 +924,7 @@ def test_apply_ccz_unit_tests() -> None:
         assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
         assert np.array_equal(updated.faults["Z"], np.array([expected_z], dtype=np.int8))
 
+
 def test_apply_ccx_unit_tests() -> None:
     """Unit tests: verify CCX (Toffoli) X-output mapping for control/target combinations."""
     # controls are always qubits 0 and 1, target is qubit 2
@@ -1170,4 +1171,3 @@ def test_xzfaultlist_repr_empty() -> None:
     # Check that the representation contains relevant information
     assert "XZFaultList" in repr_str
     assert "num_qubits: 2" in repr_str
-
