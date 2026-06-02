@@ -806,6 +806,9 @@ def test_apply_cnot_rejects_invalid_qubits(fault_list: XZFaultList) -> None:
     with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
         fault_list.apply_cnot(control=3, target=1)
 
+    with pytest.raises(ValueError, match=r"Qubit indices must be between 0 and 2."):
+        fault_list.apply_cnot(control=-1, target=1)
+
 
 def test_apply_hadamard_swaps_x_and_z_on_target_qubit(fault_list: XZFaultList) -> None:
     """Hadamard on a qubit swaps X and Z faults on that qubit position."""
