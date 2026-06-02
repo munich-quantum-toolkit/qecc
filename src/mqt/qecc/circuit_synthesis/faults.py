@@ -405,9 +405,10 @@ class PureFaultSet:
         Returns:
             A new PureFaultSet with updated faults if inplace is False.
         """
-        if control >= self.num_qubits or target >= self.num_qubits:
+        if not (0 <= control < self.num_qubits) or not (0 <= target < self.num_qubits):
             msg = f"Control and target indices must be between 0 and {self.num_qubits - 1}."
             raise ValueError(msg)
+            # Dev Note: We do not allow negative indices so that we can easily check if control and target are different
         if control == target:
             msg = "Control and target qubits must be different."
             raise ValueError(msg)

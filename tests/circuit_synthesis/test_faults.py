@@ -749,6 +749,9 @@ def test_apply_cnot_invalid_qubits():
     with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
         fault_set.apply_cnot(control=3, target=1)
 
+    with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
+        fault_set.apply_cnot(control=-1, target=1)
+
 
 def test_apply_cnot_not_inplace():
     """Test that applying a CNOT gate does not modify the original fault set when inplace=False."""
