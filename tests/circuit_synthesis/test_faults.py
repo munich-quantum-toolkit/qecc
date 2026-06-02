@@ -1138,3 +1138,33 @@ def test_reduce_to_coset_leaders_empty_generators() -> None:
     # Faults should remain unchanged
     assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
     assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+
+
+def test_xzfaultlist_repr() -> None:
+    """Test __repr__ of XZFaultList returns a string representation."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+
+    repr_str = repr(faults)
+
+    # Check that repr returns a string
+    assert isinstance(repr_str, str)
+    # Check that the representation contains relevant information
+    assert "XZFaultList" in repr_str
+    assert "num_qubits: 3" in repr_str
+    assert "[1, 0, 1]" in repr_str
+    assert "[0, 1, 0]" in repr_str
+
+
+def test_xzfaultlist_repr_empty() -> None:
+    """Test __repr__ of empty XZFaultList."""
+    faults = XZFaultList(num_qubits=2)
+
+    repr_str = repr(faults)
+
+    # Check that repr returns a string
+    assert isinstance(repr_str, str)
+    # Check that the representation contains relevant information
+    assert "XZFaultList" in repr_str
+    assert "num_qubits: 2" in repr_str
+
