@@ -783,4 +783,3 @@ def test_pure_fault_set_copy():
 
     assert not np.array_equal(copied_fault_set.to_array(), fault_set.to_array())
     assert np.array_equal(fault_set.to_array(), np.unique(faults, axis=0))
-

@@ -277,7 +277,7 @@ class PureFaultSet:
         Returns:
             A new PureFaultSet object with the same faults and number of qubits.
         """
-        new_set = PureFaultSet(self.num_qubits, kind = self.kind)
+        new_set = PureFaultSet(self.num_qubits, kind=self.kind)
         new_set.faults = np.copy(self.faults)
         return new_set
 
@@ -371,7 +371,7 @@ class PureFaultSet:
             self.faults = filtered
             return self
 
-        return PureFaultSet.from_fault_array(filtered, kind = self.kind)
+        return PureFaultSet.from_fault_array(filtered, kind=self.kind)
 
     def permute_qubits(self, permutation: npt.NDArray[np.int8] | list[int], inplace: bool = True) -> PureFaultSet:
         """Permute the qubits in the fault set according to a given permutation.
@@ -392,7 +392,7 @@ class PureFaultSet:
             self.faults = permuted_faults
             return self
 
-        return PureFaultSet.from_fault_array(permuted_faults, kind = self.kind)
+        return PureFaultSet.from_fault_array(permuted_faults, kind=self.kind)
 
     def apply_cnot(self, control: int, target: int, inplace: bool = True) -> PureFaultSet:
         """Apply a CNOT gate to the faults in the set, based on the type of faults (X or Z).
