@@ -996,6 +996,29 @@ def test_apply_ccz_unit_tests() -> None:
         assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
         assert np.array_equal(updated.faults["Z"], np.array([expected_z], dtype=np.int8))
 
+def test_apply_ccx_unit_tests() -> None:
+    # controls are always qubits 0 and 1, target is qubit 2
+    # For CCX (Toffoli) with initial Z=0, the resulting X is (c1, c2, t + c1 & c2)
+    unit_tests = [
+        ((0, 0, 0), (0, 0, 0)),
+        ((0, 0, 1), (0, 0, 1)),
+        ((0, 1, 0), (0, 1, 0)),
+        ((0, 1, 1), (0, 1, 1)),
+        ((1, 0, 0), (1, 0, 0)),
+        ((1, 0, 1), (1, 0, 1)),
+        ((1, 1, 0), (1, 1, 1)),
+        ((1, 1, 1), (1, 1, 0)),
+    ]
+
+    for input_x, expected_x in unit_tests:
+        faults = XZFaultList(num_qubits=3)
+        faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+
+        updated = faults.apply_ccx(control1=0, control2=1, target=2, inplace=False)
+
+        assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
+        assert np.array_equal(updated.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
+
 
 def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> None:
     updated = fault_list.apply_reset(qubit=1, inplace=False)
