@@ -581,7 +581,7 @@ class XZFaultList:
         new_list.faults["Z"] = np.copy(self.faults["Z"])
         return new_list
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]]:
         """Iterate over fault pairs in the list.
 
         Yields:
