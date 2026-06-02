@@ -771,12 +771,12 @@ class XZFaultList:
     def ensure_apply_valid_input(self, *qubits: int) -> bool:
         """Ensures that the input into apply_* functions are valid.
 
+        Returns:
+            bool: True if everything is okay
+
         Raises:
             ValueError: If any qubit index is out of range.
             ValueError: If qubits are not distinct.
-
-        Returns:
-            bool: True if everything is okay
         """
         n_q = len(qubits)
         if any(not 0 <= q < self.num_qubits for q in qubits):
@@ -804,12 +804,12 @@ class XZFaultList:
             inplace (bool, optional): If True, modify this fault list in place.
                 If False, return a copy with reductions applied. Defaults to True.
 
+        Returns:
+            XZFaultList: The reduced fault list (self if inplace=True, otherwise a copy).
+
         Raises:
             ValueError: If any generator array has incorrect dimensions (must be 2D with num_qubits columns).
             AssertionError: If generators tuple length is not 2.
-
-        Returns:
-            XZFaultList: The reduced fault list (self if inplace=True, otherwise a copy).
         """
         # Setting the corresponding generator to None means no reduction is done
 
