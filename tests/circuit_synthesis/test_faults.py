@@ -643,6 +643,7 @@ def test_permute_qubits_inplace():
 
 @pytest.fixture
 def fault_list() -> XZFaultList:
+    """Fixture to create a sample XZFaultList for testing."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
     faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 1], dtype=np.int8)))
@@ -650,6 +651,7 @@ def fault_list() -> XZFaultList:
 
 
 def test_initialization_creates_empty_fault_arrays() -> None:
+    """Verify initialization creates empty X and Z fault arrays for given qubit count."""
     faults = XZFaultList(num_qubits=4)
 
     assert faults.num_qubits == 4
@@ -658,6 +660,7 @@ def test_initialization_creates_empty_fault_arrays() -> None:
 
 
 def test_add_fault_appends_x_and_z_rows() -> None:
+    """Ensure adding a single XZ fault appends rows to X and Z arrays."""
     faults = XZFaultList(num_qubits=3)
 
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
@@ -667,6 +670,7 @@ def test_add_fault_appends_x_and_z_rows() -> None:
 
 
 def test_add_fault_rejects_wrong_length() -> None:
+    """Adding a fault with incorrect length raises a ValueError."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"Faults must have length 3."):
@@ -674,6 +678,7 @@ def test_add_fault_rejects_wrong_length() -> None:
 
 
 def test_add_fault_replaces_none_with_zeros() -> None:
+    """None X or Z entries are replaced by zero rows when adding a fault."""
     faults = XZFaultList(num_qubits=3)
 
     faults.add_fault((None, np.array([0, 1, 0], dtype=np.int8)))
@@ -684,6 +689,7 @@ def test_add_fault_replaces_none_with_zeros() -> None:
 
 
 def test_add_fault_rejects_both_none() -> None:
+    """Adding a fault with both X and Z equal to None raises a ValueError."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"At least one fault must be provided."):
@@ -691,6 +697,7 @@ def test_add_fault_rejects_both_none() -> None:
 
 
 def test_add_faults_appends_multiple_rows() -> None:
+    """Adding multiple faults appends corresponding rows to X and Z arrays."""
     faults = XZFaultList(num_qubits=3)
 
     faults.add_faults((
@@ -703,6 +710,7 @@ def test_add_faults_appends_multiple_rows() -> None:
 
 
 def test_add_faults_rejects_wrong_column_count() -> None:
+    """Adding fault arrays with incorrect column counts raises a ValueError."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"Faults must have 3 columns."):
@@ -713,6 +721,7 @@ def test_add_faults_rejects_wrong_column_count() -> None:
 
 
 def test_add_faults_replaces_none_with_zeros() -> None:
+    """None arrays passed to add_faults are replaced by zero arrays of proper shape."""
     faults = XZFaultList(num_qubits=3)
 
     faults.add_faults((
@@ -735,6 +744,7 @@ def test_add_faults_replaces_none_with_zeros() -> None:
 
 
 def test_add_faults_rejects_both_none() -> None:
+    """add_faults raises ValueError when both X and Z arrays are None."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"At least one fault array must be provided."):
@@ -742,6 +752,7 @@ def test_add_faults_rejects_both_none() -> None:
 
 
 def test_copy_returns_independent_fault_list(fault_list: XZFaultList) -> None:
+    """Copying an XZFaultList returns an independent deep copy."""
     copied = fault_list.copy()
 
     copied.faults["X"][0, 0] = 0
@@ -752,6 +763,7 @@ def test_copy_returns_independent_fault_list(fault_list: XZFaultList) -> None:
 
 
 def test_iter_yields_fault_pairs_in_order(fault_list: XZFaultList) -> None:
+    """Iteration yields X,Z fault pairs in the same insertion order."""
     pairs = list(fault_list)
 
     assert len(pairs) == 2
@@ -762,6 +774,7 @@ def test_iter_yields_fault_pairs_in_order(fault_list: XZFaultList) -> None:
 
 
 def test_apply_cnot_updates_x_and_z_faults(fault_list: XZFaultList) -> None:
+    """Applying a CNOT updates both X and Z arrays according to circuit action."""
     updated = fault_list.apply_cnot(control=0, target=1, inplace=False)
 
     expected_x = np.array([[1, 1, 1], [0, 1, 0]], dtype=np.int8)
@@ -774,6 +787,7 @@ def test_apply_cnot_updates_x_and_z_faults(fault_list: XZFaultList) -> None:
 
 
 def test_apply_cnot_inplace_modifies_current_fault_list(fault_list: XZFaultList) -> None:
+    """Inplace CNOT application modifies the original fault list and returns it."""
     result = fault_list.apply_cnot(control=1, target=2, inplace=True)
 
     expected_x = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
@@ -785,6 +799,7 @@ def test_apply_cnot_inplace_modifies_current_fault_list(fault_list: XZFaultList)
 
 
 def test_apply_cnot_rejects_invalid_qubits(fault_list: XZFaultList) -> None:
+    """Invalid or identical qubit indices for CNOT raise ValueError."""
     with pytest.raises(ValueError, match=r"All qubits must be different."):
         fault_list.apply_cnot(control=1, target=1)
 
@@ -793,6 +808,7 @@ def test_apply_cnot_rejects_invalid_qubits(fault_list: XZFaultList) -> None:
 
 
 def test_apply_hadamard_swaps_x_and_z_on_target_qubit(fault_list: XZFaultList) -> None:
+    """Hadamard on a qubit swaps X and Z faults on that qubit position."""
     updated = fault_list.apply_hadamard(qubit=1, inplace=False)
 
     expected_x = np.array([[1, 1, 1], [0, 0, 0]], dtype=np.int8)
@@ -805,6 +821,7 @@ def test_apply_hadamard_swaps_x_and_z_on_target_qubit(fault_list: XZFaultList) -
 
 
 def test_apply_hadamard_inplace_modifies_current_fault_list(fault_list: XZFaultList) -> None:
+    """Inplace Hadamard modifies the fault list and returns the same object."""
     result = fault_list.apply_hadamard(qubit=0, inplace=True)
 
     expected_x = np.array([[0, 0, 1], [1, 1, 0]], dtype=np.int8)
@@ -816,16 +833,19 @@ def test_apply_hadamard_inplace_modifies_current_fault_list(fault_list: XZFaultL
 
 
 def test_apply_hadamard_rejects_invalid_qubit(fault_list: XZFaultList) -> None:
+    """Applying Hadamard with an out-of-range qubit index raises ValueError."""
     with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
         fault_list.apply_hadamard(qubit=3)
 
 
 def test_apply_reset_rejects_invalid_qubit(fault_list: XZFaultList) -> None:
+    """Applying reset with an out-of-range qubit index raises ValueError."""
     with pytest.raises(ValueError, match=r"Qubit index must be between 0 and 2."):
         fault_list.apply_reset(qubit=3)
 
 
 def test_apply_ccz_updates_z_faults_non_inplace() -> None:
+    """Applying CCZ updates Z faults accordingly when not inplace."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
@@ -841,6 +861,7 @@ def test_apply_ccz_updates_z_faults_non_inplace() -> None:
 
 
 def test_apply_ccz_inplace_modifies_current_fault_list() -> None:
+    """Inplace CCZ modifies the fault list and returns it."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 1, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
 
@@ -855,6 +876,7 @@ def test_apply_ccz_inplace_modifies_current_fault_list() -> None:
 
 
 def test_apply_ccz_rejects_invalid_controls() -> None:
+    """CCZ rejects invalid or non-distinct control indices with ValueError."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"All qubits must be different."):
@@ -865,6 +887,7 @@ def test_apply_ccz_rejects_invalid_controls() -> None:
 
 
 def test_apply_ccx_rejects_invalid_qubits() -> None:
+    """CCX (Toffoli) rejects invalid or non-distinct qubit indices with ValueError."""
     faults = XZFaultList(num_qubits=3)
 
     with pytest.raises(ValueError, match=r"All qubits must be different."):
@@ -875,6 +898,7 @@ def test_apply_ccx_rejects_invalid_qubits() -> None:
 
 
 def test_apply_ccz_unit_tests() -> None:
+    """Unit tests: verify CCZ truth table mapping from input X to output X and Z."""
     # its always 0,1,2 for the controls
     # input x, output x, output z
     unit_tests = [
@@ -898,6 +922,7 @@ def test_apply_ccz_unit_tests() -> None:
         assert np.array_equal(updated.faults["Z"], np.array([expected_z], dtype=np.int8))
 
 def test_apply_ccx_unit_tests() -> None:
+    """Unit tests: verify CCX (Toffoli) X-output mapping for control/target combinations."""
     # controls are always qubits 0 and 1, target is qubit 2
     # For CCX (Toffoli) with initial Z=0, the resulting X is (c1, c2, t + c1 & c2)
     unit_tests = [
@@ -922,6 +947,7 @@ def test_apply_ccx_unit_tests() -> None:
 
 
 def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> None:
+    """Reset clears X and Z errors on the given qubit without modifying source when not inplace."""
     updated = fault_list.apply_reset(qubit=1, inplace=False)
 
     expected_x = np.array([[1, 0, 1], [0, 0, 0]], dtype=np.int8)
@@ -934,6 +960,7 @@ def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> No
 
 
 def test_apply_reset_clears_selected_qubit_errors_inplace(fault_list: XZFaultList) -> None:
+    """Inplace reset clears errors on the specified qubit and returns the same object."""
     result = fault_list.apply_reset(qubit=1, inplace=True)
 
     expected_x = np.array([[1, 0, 1], [0, 0, 0]], dtype=np.int8)
@@ -946,7 +973,7 @@ def test_apply_reset_clears_selected_qubit_errors_inplace(fault_list: XZFaultLis
 
 # based on tests for mqt.qecc.circuit_synthesis.faults.coset_leader
 def test_reduce_to_coset_leaders_no_generators() -> None:
-    """Test coset leader reduction with no generators (should not modify faults)."""
+    """Coset leader reduction with no generators leaves faults unchanged."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
@@ -958,7 +985,7 @@ def test_reduce_to_coset_leaders_no_generators() -> None:
 
 
 def test_reduce_to_coset_leaders_x_generators() -> None:
-    """Test coset leader reduction with X generators."""
+    """Coset leader reduction applies X generators to reduce X faults to leaders."""
     faults = XZFaultList(num_qubits=3)
     # Add X fault that is in the stabilizer group
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
@@ -975,7 +1002,7 @@ def test_reduce_to_coset_leaders_x_generators() -> None:
 
 
 def test_reduce_to_coset_leaders_z_generators() -> None:
-    """Test coset leader reduction with Z generators."""
+    """Coset leader reduction applies Z generators to reduce Z faults to leaders."""
     faults = XZFaultList(num_qubits=3)
     # Add Z fault that is in the stabilizer group
     faults.add_fault((np.array([0, 0, 0], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
@@ -992,7 +1019,7 @@ def test_reduce_to_coset_leaders_z_generators() -> None:
 
 
 def test_reduce_to_coset_leaders_both_generators() -> None:
-    """Test coset leader reduction with both X and Z generators."""
+    """Coset leader reduction handles simultaneous X and Z generator reduction."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 1], dtype=np.int8)))
     faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([1, 0, 0], dtype=np.int8)))
@@ -1012,7 +1039,7 @@ def test_reduce_to_coset_leaders_both_generators() -> None:
 
 
 def test_reduce_to_coset_leaders_inplace() -> None:
-    """Test that inplace=True modifies the original fault list."""
+    """reduce_to_coset_leaders with inplace=True modifies the original fault list."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
@@ -1029,7 +1056,7 @@ def test_reduce_to_coset_leaders_inplace() -> None:
 
 
 def test_reduce_to_coset_leaders_not_inplace() -> None:
-    """Test that inplace=False returns a new independent fault list."""
+    """reduce_to_coset_leaders with inplace=False returns a new modified copy."""
     original = XZFaultList(num_qubits=3)
     original.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
@@ -1045,7 +1072,7 @@ def test_reduce_to_coset_leaders_not_inplace() -> None:
 
 
 def test_reduce_to_coset_leaders_multiple_faults() -> None:
-    """Test coset leader reduction with multiple faults."""
+    """Reduction correctly handles multiple faults, reducing those in stabilizer group."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
     faults.add_fault((np.array([0, 1, 0], dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
@@ -1062,7 +1089,7 @@ def test_reduce_to_coset_leaders_multiple_faults() -> None:
 
 
 def test_reduce_to_coset_leaders_invalid_generator_shape() -> None:
-    """Test that invalid generator shapes raise ValueError."""
+    """reduce_to_coset_leaders raises ValueError for generators with wrong shape."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
@@ -1074,7 +1101,7 @@ def test_reduce_to_coset_leaders_invalid_generator_shape() -> None:
 
 
 def test_reduce_to_coset_leaders_invalid_generator_dimension() -> None:
-    """Test that 1D generators raise ValueError."""
+    """reduce_to_coset_leaders raises ValueError when generators are 1D arrays."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
@@ -1086,7 +1113,7 @@ def test_reduce_to_coset_leaders_invalid_generator_dimension() -> None:
 
 
 def test_reduce_to_coset_leaders_empty_fault_list() -> None:
-    """Test coset leader reduction with an empty fault list."""
+    """Reduction on an empty fault list should remain empty and not error."""
     faults = XZFaultList(num_qubits=3)
 
     x_generators = np.array([[1, 0, 1]], dtype=np.int8)
@@ -1099,7 +1126,7 @@ def test_reduce_to_coset_leaders_empty_fault_list() -> None:
 
 
 def test_reduce_to_coset_leaders_empty_generators() -> None:
-    """Test coset leader reduction with empty generators (no reduction applied)."""
+    """Empty generator arrays result in no reduction and leave faults unchanged."""
     faults = XZFaultList(num_qubits=3)
     faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
 
