@@ -530,6 +530,8 @@ def t_distinct(fs1: PureFaultSet, fs2: PureFaultSet, t: int, stabs: npt.NDArray[
 
 
 class XZFaultList:
+    """Represents an ordered list of coupled pure faults (X-type and Z-type) in a quantum circuit."""
+
     def __init__(self, num_qubits: int) -> None:
         """Initialise a XZFaultList object.
 
