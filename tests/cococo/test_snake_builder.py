@@ -228,7 +228,9 @@ def translate_intstabs_to_str(plaquettes: list[list[int]], q: int, stab_type: st
 
 
 def encoding_circuit(
-    snake: snake_builder.SnakeBuilderSC, opx: list[pos], opz: list[pos]
+    snake: snake_builder.SnakeBuilderSC,
+    opx: list[tuple[pos, pos]],
+    opz: list[tuple[pos, pos]],
 ) -> tuple[stim.Circuit, stim.Circuit]:
     """Checks whether an encoding circuit of a state defined by tableau can be built. just as sanity check."""
     stars_int = [[snake.trans_dict[el] for el in op] for op in snake.stars]
@@ -268,19 +270,12 @@ def encoding_circuit(
 
 
 def logicals(
-    snake: snake_builder.SnakeBuilderSC, d: int, hx: np.ndarray, hz: np.ndarray
-) -> tuple[list[pos], list[pos]]:
-    """Creates logical ops.
-
-    Args:
-        snake (snake_builder.SnakeBuilderSC): _description_
-        d (int): _description_
-        hx (np.ndarray): _description_
-        hz (np.ndarray): _description_
-
-    Returns:
-        tuple[list, list]: _description_
-    """
+    snake: snake_builder.SnakeBuilderSC,
+    d: int,
+    hx: np.ndarray,
+    hz: np.ndarray,
+) -> tuple[list[tuple[pos, pos]], list[tuple[pos, pos]]]:
+    """Creates logical ops."""
     code = CSSCode(distance=d, Hx=hx, Hz=hz)
 
     assert len(code.Lx) == 1, "More than one qubit encoded!"
@@ -356,9 +351,8 @@ def test_snake_builder_sc():
     check_matchable(hz)
 
     opx, opz = logicals(snake, d, hx, hz)
-    _circuit_p, _circuit_0 = encoding_circuit(
-        snake, opx, opz
-    )  # only checks whether construction of encoding circuit works
+    # only checks whether construction of encoding circuit works
+    _ = encoding_circuit(snake, opx, opz)
 
     with patch("matplotlib.pyplot.show"):
         snake.plot_stabs(cast("list[tuple[pos,pos]]|None", opz), cast("list[tuple[pos,pos]]|None", opx), size=(8, 8))
