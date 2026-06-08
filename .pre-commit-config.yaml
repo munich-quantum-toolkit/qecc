@@ -45,14 +45,14 @@ repos:
 
   ## Check pyproject.toml file
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: 2026.05.24
+    rev: 2026.05.28
     hooks:
       - id: validate-pyproject
         priority: 0
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.16
+    rev: 0.11.17
     hooks:
       - id: uv-lock
         priority: 0
@@ -69,7 +69,7 @@ repos:
 
   ## Check for typos
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.46.3
+    rev: v1.47.0
     hooks:
       - id: typos
         priority: 3
@@ -110,7 +110,7 @@ repos:
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.14
+    rev: v0.15.15
     hooks:
       - id: ruff-format
         types_or: [python, pyi, jupyter, markdown]
