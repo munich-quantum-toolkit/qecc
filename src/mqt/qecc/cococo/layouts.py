@@ -344,7 +344,7 @@ def filter_factory_nodes(
             set(cycle) & set(factory_ring) for cycle in cycles if node in list(cycle) and len(list(cycle)) == 6
         ]
         if possible_cycles:
-            best_cycle_part = cast("set[pos]", min(possible_cycles, key=len))
+            best_cycle_part = min(possible_cycles, key=len)
             kept_nodes.update(best_cycle_part)
 
     nodes_to_discard = set(factory_ring) - kept_nodes - set(factories)

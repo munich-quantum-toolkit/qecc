@@ -1276,7 +1276,7 @@ class SnakeBuilderSteane:
             # Check if all target values are present in the dict's values
             if target_set.issubset(dict_values):
                 candidates.append(stabilizer_dict)
-        return cast("dict[pos, int]", min(candidates, key=len))  # the shortest suitable candidate
+        return min(candidates, key=len)  # the shortest suitable candidate
 
     def generate_z_stabilizers(self) -> list[dict[pos, int]]:
         """Builds Z stabilizers based on X stabilizers."""

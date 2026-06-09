@@ -306,7 +306,7 @@ class BasicRouter:
                     break  # type: ignore[unreachable]
 
             if len(paths_temp_lst) != 0 and not flag_problem:
-                shortest_path = cast("list[pos]", min(paths_temp_lst, key=len))
+                shortest_path = min(paths_temp_lst, key=len)
                 shortest_idx = paths_temp_lst.index(shortest_path)  # index in current terminal_pairs_current
                 t_p = tp_list[shortest_idx]  # terminal_pairs_current[shortest_idx]
                 # update already used qubits based on chosen t_p path
@@ -742,7 +742,7 @@ class TeleportationRouter(BasicRouter):
                     except (nx.NetworkXNoPath, nx.NodeNotFound):  # noqa: PERF203
                         pass
                 if paths_lst_temp:
-                    path_steiner = cast("list[pos]", min(paths_lst_temp, key=len))
+                    path_steiner = min(paths_lst_temp, key=len)
             elif steiner_init_type == "on_path_random":
                 # just choose a random terminal ON the path
                 terminal_node = random.choice(path)  # noqa: S311
@@ -858,7 +858,7 @@ class TeleportationRouter(BasicRouter):
                 except nx.NetworkXNoPath:  # noqa: PERF203
                     pass
             if paths_lst_temp:
-                path_terminal = cast("list[pos]", min(paths_lst_temp, key=len))
+                path_terminal = min(paths_lst_temp, key=len)
 
             # delete old entry and add new with updated key
             steiner_dct_update.pop(key_tree, None)
@@ -914,7 +914,7 @@ class TeleportationRouter(BasicRouter):
                     except nx.NetworkXNoPath:  # noqa: PERF203
                         pass
                 if paths_lst_temp:
-                    path_terminal = cast("list[pos]", min(paths_lst_temp, key=len))
+                    path_terminal = min(paths_lst_temp, key=len)
                     if len(key_tree) == 3:
                         (a, b, terminal) = key_tree
                         new_key_tree = (a, b, terminal)
