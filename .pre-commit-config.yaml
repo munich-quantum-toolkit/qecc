@@ -52,7 +52,7 @@ repos:
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.18
+    rev: 0.11.19
     hooks:
       - id: uv-lock
         priority: 0
@@ -69,7 +69,7 @@ repos:
 
   ## Check for typos
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.47.0
+    rev: v1.47.2
     hooks:
       - id: typos
         priority: 3
@@ -110,7 +110,7 @@ repos:
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.15
+    rev: v0.15.16
     hooks:
       - id: ruff-format
         types_or: [python, pyi, jupyter, markdown]
