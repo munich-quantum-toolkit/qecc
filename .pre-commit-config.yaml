@@ -12,7 +12,7 @@ ci:
   autoupdate_commit_msg: "⬆️🪝 update pre-commit hooks"
   autoupdate_schedule: quarterly
   autofix_commit_msg: "🎨 pre-commit fixes"
-  skip: [ty-check]
+  skip: [ty]
 
 repos:
   ## Standard hooks
@@ -112,11 +112,11 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.16
     hooks:
-      - id: ruff-format
-        types_or: [python, pyi, jupyter, markdown]
-        priority: 6
       - id: ruff-check
         require_serial: true
+        priority: 6
+      - id: ruff-format
+        types_or: [python, pyi, jupyter, markdown]
         priority: 7
 
   ## Clean Jupyter notebooks with nb-clean
@@ -131,15 +131,10 @@ repos:
           - --
         priority: 8
 
-    ## Check Python types with ty
-  - repo: local
+  ## Check Python types with ty
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.47
     hooks:
-      - id: ty-check
-        name: ty check
-        entry: uv run ty check
-        language: unsupported
-        require_serial: true
-        types_or: [python, pyi, jupyter]
-        exclude: ^(docs/|scripts/)
-        pass_filenames: false
+      - id: ty
+        args: [--isolated]
         priority: 8
