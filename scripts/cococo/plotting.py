@@ -124,7 +124,7 @@ def plot_lattice_paths(
     num_paths = len(vdp_dict.keys()) if vdp_dict is not None else 0
     num_trees = len(steiner_dct.keys()) if steiner_dct is not None else 0
     num = num_paths + num_trees
-    colormap = plt.cm.get_cmap("rainbow", num)
+    colormap = plt.get_cmap("rainbow", num)
     colors = [mcolors.to_hex(colormap(i)) for i in range(num)]
 
     offset = 0
