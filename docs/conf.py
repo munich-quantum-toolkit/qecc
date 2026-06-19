@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from pybtex.richtext import HRef
 
 # -- Project information -----------------------------------------------------
+
 project = "QECC"
 author = "Chair for Design Automation, TUM"
 language = "en"
@@ -48,20 +49,20 @@ html_css_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
 ]
 
-
 # -- General configuration ---------------------------------------------------
+
 extensions = [
-    "myst_nb",
     "autoapi.extension",
+    "myst_nb",
+    "sphinx_copybutton",
+    "sphinx_design",
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
-    "sphinx_copybutton",
-    "sphinx_design",
-    "sphinxext.opengraph",
     "sphinx.ext.viewcode",
     "sphinxcontrib.inkscapeconverter",
     "sphinxcontrib.bibtex",
+    "sphinxext.opengraph",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -111,7 +112,6 @@ nitpick_ignore = [
     ("py:class", "Ellipsis"),
 ]
 
-
 myst_enable_extensions = [
     "amsmath",
     "colon_fence",
@@ -124,8 +124,8 @@ myst_substitutions = {
 }
 myst_heading_anchors = 3
 
-
 # -- Options for {MyST}NB ----------------------------------------------------
+
 nb_execution_mode = "cache"
 nb_mime_priority_overrides = [
     # builder name, mime type, priority
@@ -174,6 +174,7 @@ napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 
 # -- Options for HTML output -------------------------------------------------
+
 html_theme = "furo"
 html_static_path = ["_static"]
 html_theme_options = {
@@ -200,6 +201,7 @@ html_theme_options = {
 }
 
 # -- Options for LaTeX output ------------------------------------------------
+
 numfig = True
 numfig_secnum_depth = 0
 
