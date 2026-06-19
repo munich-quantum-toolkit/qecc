@@ -3,8 +3,10 @@
 
 # Tooling
 
-This page summarizes the main tools, software, and standards used in MQT QECC.
-It serves as a quick reference for new contributors and users who want to understand the project's ecosystem.
+This page summarizes the main tools, software,
+and standards used in MQT QECC.
+It serves as a quick reference for new contributors
+and users who want to understand the project's ecosystem.
 
 ## Python
 
@@ -17,7 +19,8 @@ It serves as a quick reference for new contributors and users who want to unders
 | **ty**     | Fast Python type checker and language server.                                            | [Documentation](https://docs.astral.sh/ty/).                                                                                                           |
 | **pytest** | Testing framework for Python.                                                            | [Documentation](https://docs.pytest.org/). Run via {code}`nox -s tests` or {code}`uv run pytest`.                                                      |
 
-The project adheres to modern standards and practices. For the Python ecosystem, we make use of the following standards:
+The project adheres to modern standards and practices.
+For the Python ecosystem, we make use of the following standards:
 
 | Standard    | Description                                                     | Links / Notes                                       |
 | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |
@@ -41,8 +44,8 @@ The project adheres to modern standards and practices. For the Python ecosystem,
 | ------------------ | ------------------------------------------- | ---------------------------------------------------------------------- |
 | **GitHub Actions** | CI workflows (build, test, lint, coverage). | [Reusable MQT Workflows] in {code}`.github/workflows/`; see [Actions]. |
 | **Codecov**        | Code coverage reporting.                    | [Codecov] for this repo.                                               |
-| **CodeRabbit**     | Automated code review on PRs.               | [CodeRabbit](https://www.coderabbit.ai/). See {doc}`contributing`.     |
-| **pre-commit.ci**  | Runs pre-commit in CI and can auto-fix.     | [pre-commit.ci](https://pre-commit.ci).                                |
+| **CodeRabbit**     | Initial PR reviews.                         | [CodeRabbit](https://www.coderabbit.ai/). See {doc}`contributing`.     |
+| **pre-commit.ci**  | Runs pre-commit hooks in CI and auto-fixes. | [pre-commit.ci](https://pre-commit.ci).                                |
 
 [Actions]: https://github.com/munich-quantum-toolkit/qecc/actions
 [Codecov]: https://codecov.io/gh/munich-quantum-toolkit/qecc

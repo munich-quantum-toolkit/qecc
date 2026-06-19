@@ -33,7 +33,7 @@ categories:
       - "github-actions"
       - "pre-commit"
       - "submodules"
-change-template: "- $TITLE ([#$NUMBER]($URL)) ([**@$AUTHOR**](https://github.com/$AUTHOR))"
+change-template: "- $TITLE ([#$NUMBER]($URL)) (**@$AUTHOR**)"
 change-title-escapes: '\<*_&'
 exclude-labels:
   - "skip-changelog"
