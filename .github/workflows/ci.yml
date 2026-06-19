@@ -76,11 +76,11 @@ jobs:
         with:
           allowed-skips: >-
             ${{
-              fromJSON(needs.change-detection.outputs.run-python-tests)
-              && '' || 'python-tests,python-coverage,python-linter,'
+              !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && 'python-tests,python-coverage,python-linter,' || ''
             }}
             ${{
-              fromJSON(needs.change-detection.outputs.run-cd)
-              && '' || 'build-sdist,build-wheel'
+              !fromJSON(needs.change-detection.outputs.run-cd)
+              && 'build-sdist,build-wheel' || ''
             }}
           jobs: ${{ toJSON(needs) }}
