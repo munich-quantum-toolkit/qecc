@@ -1861,10 +1861,8 @@ class TeleportationRouter(BasicRouter):
                             gap_str = parts[3]
                             danger_qubit = tuple(map(int, danger_qubit_str.strip("()").split(",")))  # into tuple again
                             assert len(danger_qubit) == 2
-                            danger_qubit = cast("pos", danger_qubit)
                             gap = tuple(map(int, gap_str.strip("()").split(",")))
                             assert len(gap) == 2
-                            gap = cast("pos", gap)
                             danger_gap_list.append((danger_qubit, gap))
                         # also layers_after_k need to be updated if there was something moved back
                         for danger_qubit, gap in danger_gap_list:
