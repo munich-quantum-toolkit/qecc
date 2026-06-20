@@ -28,7 +28,7 @@ repos:
 
   ## Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.2
+    rev: 0.37.3
     hooks:
       - id: check-github-workflows
         priority: 0
@@ -52,7 +52,7 @@ repos:
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.19
+    rev: 0.11.21
     hooks:
       - id: uv-lock
         priority: 0
@@ -102,7 +102,7 @@ repos:
 
   ## Format configuration files with prettier
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.3
+    rev: v3.8.4
     hooks:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json, json5]
@@ -110,7 +110,7 @@ repos:
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16
+    rev: v0.15.17
     hooks:
       - id: ruff-check
         require_serial: true
@@ -133,7 +133,7 @@ repos:
 
   ## Check Python types with ty
   - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: v0.0.47
+    rev: v0.0.49
     hooks:
       - id: ty
         args: [--isolated]
