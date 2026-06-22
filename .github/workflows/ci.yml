@@ -14,7 +14,7 @@ concurrency:
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
 
   python-tests:
     name: 🐍 Test
@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2022]
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
     with:
       runs-on: ${{ matrix.runs-on }}
 
@@ -32,7 +32,7 @@ jobs:
     name: 🐍 Coverage
     needs: [change-detection, python-tests]
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
     permissions:
       contents: read
       id-token: write
@@ -40,8 +40,8 @@ jobs:
   python-linter:
     name: 🐍 Lint
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    if: fromJSON(needs.change-detection.outputs.run-python-linter)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
     with:
       enable-ty: true
       enable-mypy: false
@@ -50,13 +50,13 @@ jobs:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
 
   build-wheel:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
 
   # this job does nothing and is only used for branch protection
   required-checks-pass:
@@ -77,7 +77,11 @@ jobs:
           allowed-skips: >-
             ${{
               !fromJSON(needs.change-detection.outputs.run-python-tests)
-              && 'python-tests,python-coverage,python-linter,' || ''
+              && 'python-tests,python-coverage,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-python-linter)
+              && 'python-linter,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cd)
