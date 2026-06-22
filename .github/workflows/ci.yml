@@ -40,7 +40,7 @@ jobs:
   python-linter:
     name: 🐍 Lint
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-python-tests)
+    if: fromJSON(needs.change-detection.outputs.run-python-linter)
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
     with:
       enable-ty: true
@@ -77,7 +77,11 @@ jobs:
           allowed-skips: >-
             ${{
               !fromJSON(needs.change-detection.outputs.run-python-tests)
-              && 'python-tests,python-coverage,python-linter,' || ''
+              && 'python-tests,python-coverage,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-python-linter)
+              && 'python-linter,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cd)
