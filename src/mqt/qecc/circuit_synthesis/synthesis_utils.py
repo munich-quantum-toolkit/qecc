@@ -191,7 +191,7 @@ def gaussian_elimination_min_column_ops(
         eliminations = [(m[controls[d]].as_long(), m[targets[d]].as_long()) for d in range(max_eliminations)]
         reduced = np.array([
             [bool(m[columns[max_eliminations][i][j]]) for j in range(n)] for i in range(matrix.shape[0])
-        ]).astype(np.int8)  # type: npt.NDArray[np.int8]
+        ]).astype(np.int8)
         return reduced, eliminations
 
     return None
@@ -271,7 +271,7 @@ def gaussian_elimination_min_parallel_eliminations(
         ]
         reduced = np.array([
             [bool(m[columns[max_parallel_steps, i, j]]) for j in range(matrix.shape[1])] for i in range(matrix.shape[0])
-        ]).astype(np.int8)  # type: npt.NDArray[np.int8]
+        ]).astype(np.int8)
         return reduced, eliminations
 
     return None

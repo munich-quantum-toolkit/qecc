@@ -709,7 +709,7 @@ class SingleShotSimulator:
         }
 
         output.update(self.input_values)
-        output["bias"] = replace_inf(output["bias"])  # ty: ignore[invalid-assignment, invalid-argument-type]
+        output["bias"] = replace_inf(output["bias"])  # ty: ignore[invalid-argument-type]
 
         with Path(self.outfile).open(encoding=locale.getpreferredencoding(False)) as f:
             f.write(

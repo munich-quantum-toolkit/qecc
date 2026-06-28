@@ -47,7 +47,7 @@ def construct_bb_code(n: int) -> CSSCode:
 
 
 def _shift_matrix(l_: int) -> npt.NDArray[np.int8]:
-    s = np.zeros((l_, l_), dtype=np.int8)  # type: npt.NDArray[np.int8]
+    s = np.zeros((l_, l_), dtype=np.int8)
     for i in range(l_):
         s[i, (i + 1) % l_] = 1
     return s
