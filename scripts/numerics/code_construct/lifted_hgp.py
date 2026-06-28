@@ -64,29 +64,29 @@ class LiftedHgp(css_code):
 
     @property
     def protograph(self) -> npt.NDArray[np.int_]:
-        """Returns the protograph of the lifted hypergraph product."""
+        """The protograph of the lifted hypergraph product."""
         px = pt.vstack([pt.zeros(self.hz_proto.shape), self.hx_proto])
         pz = pt.vstack([self.hz_proto, pt.zeros(self.hx_proto.shape)])
         return pt.hstack([px, pz])
 
     @property
     def hx1(self) -> npt.NDArray[np.int_]:
-        """Returns the first horizontal protograph of the lifted hypergraph product."""
+        """The first horizontal protograph of the lifted hypergraph product."""
         return self.hx1_proto.to_binary(self.lift_parameter)
 
     @property
     def hx2(self) -> npt.NDArray[np.int_]:
-        """Returns the second horizontal protograph of the lifted hypergraph product."""
+        """The second horizontal protograph of the lifted hypergraph product."""
         return self.hx2_proto.to_binary(self.lift_parameter)
 
     @property
     def hz1(self) -> npt.NDArray[np.int_]:
-        """Returns the first vertical protograph of the lifted hypergraph product."""
+        """The first vertical protograph of the lifted hypergraph product."""
         return self.hz1_proto.to_binary(self.lift_parameter)
 
     @property
     def hz2(self) -> npt.NDArray[np.int_]:
-        """Returns the second vertical protograph of the lifted hypergraph product."""
+        """The second vertical protograph of the lifted hypergraph product."""
         return self.hz2_proto.to_binary(self.lift_parameter)
 
 
@@ -117,7 +117,7 @@ class BiasTailoredLiftedProduct(stab_code):
 
     @property
     def protograph(self) -> npt.NDArray[np.int_]:
-        """Returns the protograph of the lifted hypergraph product."""
+        """The protograph of the lifted hypergraph product."""
         px = pt.vstack([pt.zeros(self.hz_proto.shape), self.hx_proto])
         pz = pt.vstack([self.hz_proto, pt.zeros(self.hx_proto.shape)])
         return pt.hstack([px, pz])
