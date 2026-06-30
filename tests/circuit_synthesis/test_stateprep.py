@@ -348,6 +348,29 @@ def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None
     assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_cnots()
 
 
+@pytest.mark.parametrize("logical_state", ["00", "0+", "+0", "++"])
+def test_heuristic_custom_logical_state(logical_state: str, css_4_2_2_code: CSSCode) -> None:
+    """Test preparation of custom logical states."""
+    sp_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=logical_state)
+
+    plus = [i for i, state in enumerate(logical_state) if state == "+"]
+    zero = [i for i, state in enumerate(logical_state) if state == "0"]
+
+    assert sp_circ.num_qubits == css_4_2_2_code.n
+    assert eq_span(np.vstack((css_4_2_2_code.Hx, css_4_2_2_code.Lx[plus])), sp_circ.x_checks)
+    assert eq_span(np.vstack((css_4_2_2_code.Hz, css_4_2_2_code.Lz[zero])), sp_circ.z_checks)
+
+
+@pytest.mark.parametrize(("logical_state", "equivalent_string"), [(True, "00"), (False, "++")])
+def test_heuristic_bool_str_compatibility(logical_state: bool, equivalent_string: str, css_4_2_2_code: CSSCode) -> None:
+    """Test preparation of custom logical states is still compatible with the old boolean interface."""
+    bool_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=logical_state)
+    str_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=equivalent_string)
+
+    assert eq_span(bool_circ.x_checks, str_circ.x_checks)
+    assert eq_span(bool_circ.z_checks, str_circ.z_checks)
+
+
 # @pytest.mark.skipif(os.getenv("CI") is not None and sys.platform == "win32", reason="Too slow for CI on Windows")
 # def test_error_detection_code() -> None:
 #     """Test that different circuits are obtained when using an error detection code."""

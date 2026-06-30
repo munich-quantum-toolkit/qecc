@@ -200,7 +200,7 @@ def _build_state_prep_circuit_from_back(
 def heuristic_prep_circuit(
     code: CSSCode,
     optimize_depth: bool = True,
-    zero_state: bool = True,
+    zero_state: bool | str = True,
     *,
     rollout: int = 0,
     rollout_candidates: int = 10,
@@ -209,7 +209,7 @@ def heuristic_prep_circuit(
 
     Args:
         code: The CSS code to prepare the state for.
-        zero_state: If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
+        zero_state: k-length string representing the logical state to prepare. If True, prepare the +1 eigenstate of the Z basis. If False, prepare the +1 eigenstate of the X basis.
         optimize_depth: If True, optimize the circuit for depth. If False, optimize for number of gates.
         rollout: The number of rollout steps to use in the heuristic synthesis. Higher values can lead to better circuits but also increase runtime.
         rollout_candidates: The number of candidates to consider in each rollout step. Higher values can lead to better circuits but also increase runtime.
@@ -219,9 +219,24 @@ def heuristic_prep_circuit(
     """
     logger.info("Starting heuristic state preparation.")
 
-    checks = code.Hx if zero_state else code.Hz
+    if isinstance(zero_state, bool):
+        checks = code.Hx if zero_state else code.Hz
+        type_ = "X" if zero_state else "Z"
+    else:
+        assert len(zero_state) == code.k, "Logical state must be a string of length k."
+        assert all(s in {"+", "0"} for s in zero_state), "Logical state must be a string of '+' and '0' characters."
+
+        x_indices = [i for i, state in enumerate(zero_state) if state == "+"]
+        z_indices = [i for i, state in enumerate(zero_state) if state == "0"]
+
+        if len(x_indices) <= len(z_indices):
+            checks = np.vstack((code.Hx, code.Lx[x_indices]))
+            type_ = "X"
+        else:
+            checks = np.vstack((code.Hz, code.Lz[z_indices]))
+            type_ = "Z"
+
     assert checks is not None
-    type_ = "X" if zero_state else "Z"
     config = SynthesisConfig(
         optimization_criterion="depth" if optimize_depth else "gates",
         rollout=rollout,
