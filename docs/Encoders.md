@@ -165,6 +165,28 @@ else:
 
 This mapping tells us that to encode logical qubit $i$, we should prepare the state on physical qubit `mapping[i]`.
 
+### Fixing Input States for Logical Qubits
+
+It is additionally possible to synthesize an encoding circuit of a $[[n, k, d]]$ code, with $f < k$ arbitrary inputs explicitly fixed, thus effectively returning a circuit for a $[[n, k-f, d]]$ code.
+Each input can be fixed with either a $|0\rangle$ or $|+\rangle$ state.
+
+```{code-cell} ipython3
+input_states = [(1, True), (3, False)]
+
+free_input_circ = synthesize_encoding_circuit(hamming_code)
+fixed_input_circ = synthesize_encoding_circuit(
+    hamming_code,
+    fixed_logical_qubits=input_states
+)
+
+print("Original circuit:\n"
+    f"  Logical input qubits  : {free_input_circ.num_inputs()}\n"
+    f"  Physical output qubits: {free_input_circ.num_outputs()}")
+print("Fixed circuit:\n"
+    f"  Logical input qubits  : {fixed_input_circ.num_inputs()}\n"
+    f"  Physical output qubits: {fixed_input_circ.num_outputs()}")
+```
+
 ## Tweaking Parameters for Heuristic Synthesis
 
 Let's consider a slightly larger example, the $[[23,1,7]]$ [Golay code](https://errorcorrectionzoo.org/c/qubit_golay).
