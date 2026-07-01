@@ -14,7 +14,7 @@ mystnb:
 # Fault tolerant state preparation of Pauli eigenstates for CSS codes
 
 The QECC package contains functionality for synthesizing and simulating fault tolerant and non-fault tolerant state preparation circuits for Pauli eigenstates of CSS codes.
-Currently it supports synthesizing circuits for preparing the $|0\rangle_L^k$ and $|+\rangle_L^k$ states of arbitrary $[[n,k,d]]$ CSS codes.
+Currently it supports synthesizing circuits for preparing the any logical state of the form $\{|s\rangle_L \mid s \in \{0,+\}^k\}$ of arbitrary $[[n,k,d]]$ CSS codes.
 
 ## Synthesizing non-FT state preparation circuits
 
