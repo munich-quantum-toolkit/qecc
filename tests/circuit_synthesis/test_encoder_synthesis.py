@@ -405,3 +405,50 @@ def test_local_minimum() -> None:
     )
     enc = synthesize_encoding_circuit(code, config=config)
     assert enc.get_code().is_equivalent(code)
+
+
+@pytest.mark.parametrize("fixed_logical_qubits", [None, [], [0], [(0, True)], [(0, False)], [(1, True), (0, False)]])
+def test_encoding_fixed_logical_qubits(
+    css_4_2_2_code: CSSCode, fixed_logical_qubits: list[tuple[int, bool]] | list[int] | None
+) -> None:
+    """Check that fixed logical qubits are removed from the encoder inputs."""
+    encoder_cnots = synthesize_encoding_circuit(
+        css_4_2_2_code,
+        fixed_logical_qubits=fixed_logical_qubits,
+        use_cnots_if_css=True,
+    )
+    encoder_no_cnots = synthesize_encoding_circuit(
+        css_4_2_2_code,
+        fixed_logical_qubits=fixed_logical_qubits,
+        use_cnots_if_css=False,
+    )
+
+    expected_inputs = css_4_2_2_code.k - (len(fixed_logical_qubits) if fixed_logical_qubits else 0)
+    assert encoder_cnots.num_inputs() == expected_inputs
+    assert encoder_no_cnots.num_inputs() == expected_inputs
+
+    if fixed_logical_qubits is None or len(fixed_logical_qubits) == 0:
+        assert encoder_cnots.get_code().is_equivalent(css_4_2_2_code)
+        assert encoder_no_cnots.get_code().is_equivalent(css_4_2_2_code)
+
+    if (
+        fixed_logical_qubits is not None
+        and len(fixed_logical_qubits) > 0
+        and len(fixed_logical_qubits) < css_4_2_2_code.k
+    ):
+        actual_code_cnots = encoder_cnots.get_code()
+        actual_code_no_cnots = encoder_no_cnots.get_code()
+
+        for lg in fixed_logical_qubits:
+            if isinstance(lg, tuple):
+                q, is_zero = lg
+            else:
+                q = lg
+                is_zero = True
+
+            if is_zero:
+                assert actual_code_cnots.is_stabilizer(css_4_2_2_code.z_logicals[q])
+                assert actual_code_no_cnots.is_stabilizer(css_4_2_2_code.z_logicals[q])
+            else:
+                assert actual_code_no_cnots.is_stabilizer(css_4_2_2_code.x_logicals[q])
+                assert actual_code_cnots.is_stabilizer(css_4_2_2_code.x_logicals[q])

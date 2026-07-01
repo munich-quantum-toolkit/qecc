@@ -829,6 +829,7 @@ def synthesize_encoding_circuit(
     code: StabilizerCode,
     config: SynthesisConfig | None = None,
     use_cnots_if_css: bool = True,
+    fixed_logical_qubits: list[tuple[int, bool]] | list[int] | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
@@ -836,15 +837,33 @@ def synthesize_encoding_circuit(
         code: The stabilizer code to synthesize the encoding circuit for.
         config: Configuration options for the synthesis process.
         use_cnots_if_css: Whether to use CNOT-only synthesis if the code is CSS.
+        fixed_logical_qubits: List of logical qubit indices that should be fixed to a logical zero state in the circuit, or list of tuples (index, is_zero) where is_zero indicates whether the logical qubit is fixed to a logical zero or plus state.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
     """
+    complete_fixed_logical_qubits = [
+        (item, True) if isinstance(item, int) else item for item in (fixed_logical_qubits or [])
+    ]
+
+    if complete_fixed_logical_qubits:
+        assert all(0 <= q < code.k and isinstance(z, bool) for q, z in complete_fixed_logical_qubits), (
+            "Fixed logical qubit indices must be in the range [0, k-1] and is_zero must be a boolean."
+        )
+        assert len({q for q, _ in complete_fixed_logical_qubits}) == len(complete_fixed_logical_qubits), (
+            "Fixed logical qubit indices must be unique."
+        )
+
+    additional_x_checks = sorted(q for q, is_zero in complete_fixed_logical_qubits if not is_zero)
+    additional_z_checks = sorted(q for q, is_zero in complete_fixed_logical_qubits if is_zero)
+    additional_checks = additional_x_checks + additional_z_checks
+
     if use_cnots_if_css and isinstance(code, CSSCode):
-        x_checks = CheckMatrix(code.Hx, pauli_type="X")
-        z_checks = CheckMatrix(code.Hz, pauli_type="Z")
-        x_logicals = CheckMatrix(code.Lx, pauli_type="X")
-        z_logicals = CheckMatrix(code.Lz, pauli_type="Z")
+        x_checks = CheckMatrix(np.vstack((code.Hx, code.Lx[additional_x_checks])), pauli_type="X")
+        z_checks = CheckMatrix(np.vstack((code.Hz, code.Lz[additional_z_checks])), pauli_type="Z")
+        x_logicals = CheckMatrix(np.delete(code.Lx, additional_checks, axis=0), pauli_type="X")
+        z_logicals = CheckMatrix(np.delete(code.Lz, additional_checks, axis=0), pauli_type="Z")
+
         checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
@@ -858,10 +877,28 @@ def synthesize_encoding_circuit(
         "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
     )
 
-    log_mat: npt.NDArray[np.int8] = np.vstack((code.x_logicals.tableau.matrix, code.z_logicals.tableau.matrix))
-    log_phase: npt.NDArray[np.int8] = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
+    gens_mat: npt.NDArray[np.int8] = np.vstack((
+        code.symplectic,
+        code.x_logicals.tableau.matrix[additional_x_checks],
+        code.z_logicals.tableau.matrix[additional_z_checks],
+    ))
+    gens_phase: npt.NDArray[np.int8] = np.hstack((
+        code.generators.phase,
+        np.zeros(len(additional_x_checks), dtype=np.int8),
+        np.zeros(len(additional_z_checks), dtype=np.int8),
+    ))
+    log_mat: npt.NDArray[np.int8] = np.vstack((
+        np.delete(code.x_logicals.tableau.matrix, additional_checks, axis=0),
+        np.delete(code.z_logicals.tableau.matrix, additional_checks, axis=0),
+    ))
+    log_phase: npt.NDArray[np.int8] = np.hstack((
+        np.delete(code.x_logicals.phase, additional_checks, axis=0),
+        np.delete(code.z_logicals.phase, additional_checks, axis=0),
+    ))
 
-    return encoder_from_stabilizers_and_logicals(code.generators, StabilizerTableau(log_mat, log_phase), config=config)
+    return encoder_from_stabilizers_and_logicals(
+        StabilizerTableau(gens_mat, gens_phase), StabilizerTableau(log_mat, log_phase), config=config
+    )
 
 
 def resynthesize_stim_circuit(
