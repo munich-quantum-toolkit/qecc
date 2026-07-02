@@ -94,7 +94,9 @@ class NoisyNDFTStatePrepSimulator(ABC):
         return noisy_circ
 
     def _build_noisy_gadget(self, noise: NoiseModel, p: float) -> stim.Circuit:
-        anc = heuristic_prep_circuit(self.code, zero_state=not self.zero_state).circ.to_stim_circuit()
+        anc = heuristic_prep_circuit(
+            self.code, state="all_zero" if not self.zero_state else "all_plus"
+        ).circ.to_stim_circuit()
         noisy_circ = noise.apply(self.circ)
 
         anc_qubits = list(range(noisy_circ.num_qubits, noisy_circ.num_qubits + anc.num_qubits))

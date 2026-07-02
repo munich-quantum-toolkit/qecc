@@ -198,7 +198,7 @@ def test_plus_state_gate_optimal(code: str, request: pytest.FixtureRequest) -> N
 def test_plus_state_heuristic(code: str, request: pytest.FixtureRequest) -> None:
     """Test synthesis of the plus state."""
     code_ = request.getfixturevalue(code)
-    sp_circ_plus = heuristic_prep_circuit(code_, zero_state=False)
+    sp_circ_plus = heuristic_prep_circuit(code_, state="all_plus")
 
     assert sp_circ_plus is not None
 
@@ -212,7 +212,7 @@ def test_plus_state_heuristic(code: str, request: pytest.FixtureRequest) -> None
     assert eq_span(code_.Hz, sp_circ_plus.z_checks)
     assert eq_span(np.vstack((code_.Hx, code_.Lx)), sp_circ_plus.x_checks)
 
-    sp_circ_zero = heuristic_prep_circuit(code_, zero_state=True)
+    sp_circ_zero = heuristic_prep_circuit(code_, state="all_zero")
 
     if code_.is_self_dual():
         assert eq_span(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
@@ -351,7 +351,7 @@ def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None
 @pytest.mark.parametrize("logical_state", ["00", "0+", "+0", "++"])
 def test_heuristic_custom_logical_state(logical_state: str, css_4_2_2_code: CSSCode) -> None:
     """Test preparation of custom logical states."""
-    sp_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=logical_state)
+    sp_circ = heuristic_prep_circuit(css_4_2_2_code, state=logical_state)
 
     plus = [i for i, state in enumerate(logical_state) if state == "+"]
     zero = [i for i, state in enumerate(logical_state) if state == "0"]
@@ -361,11 +361,11 @@ def test_heuristic_custom_logical_state(logical_state: str, css_4_2_2_code: CSSC
     assert eq_span(np.vstack((css_4_2_2_code.Hz, css_4_2_2_code.Lz[zero])), sp_circ.z_checks)
 
 
-@pytest.mark.parametrize(("logical_state", "equivalent_string"), [(True, "00"), (False, "++")])
-def test_heuristic_bool_str_compatibility(logical_state: bool, equivalent_string: str, css_4_2_2_code: CSSCode) -> None:
-    """Test preparation of custom logical states is still compatible with the old boolean interface."""
-    bool_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=logical_state)
-    str_circ = heuristic_prep_circuit(css_4_2_2_code, zero_state=equivalent_string)
+@pytest.mark.parametrize(("logical_state", "equivalent_string"), [("00", "all_zero"), ("++", "all_plus")])
+def test_heuristic_explicit_compatibility(logical_state: str, equivalent_string: str, css_4_2_2_code: CSSCode) -> None:
+    """Test preparation of custom logical states is compatible with the explicit string interface."""
+    bool_circ = heuristic_prep_circuit(css_4_2_2_code, state=logical_state)
+    str_circ = heuristic_prep_circuit(css_4_2_2_code, state=equivalent_string)
 
     assert eq_span(bool_circ.x_checks, str_circ.x_checks)
     assert eq_span(bool_circ.z_checks, str_circ.z_checks)

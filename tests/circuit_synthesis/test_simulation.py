@@ -51,7 +51,7 @@ def non_ft_steane_zero(steane_code: CSSCode) -> QuantumCircuit:
 @pytest.fixture
 def non_ft_steane_plus(steane_code: CSSCode) -> QuantumCircuit:
     """Return a non fault-tolerant Steane code state preparation circuit."""
-    return heuristic_prep_circuit(steane_code, zero_state=False).circ.to_qiskit_circuit()
+    return heuristic_prep_circuit(steane_code, state="all_plus").circ.to_qiskit_circuit()
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def ft_steane_zero_naive(steane_code: CSSCode) -> QuantumCircuit:
 @pytest.fixture
 def ft_steane_plus(steane_code: CSSCode) -> QuantumCircuit:
     """Return a fault-tolerant Steane code state preparation circuit."""
-    circ = heuristic_prep_circuit(steane_code, zero_state=False)
+    circ = heuristic_prep_circuit(steane_code, state="all_plus")
     return gate_optimal_verification_circuit(circ, max_timeout=2)
 
 

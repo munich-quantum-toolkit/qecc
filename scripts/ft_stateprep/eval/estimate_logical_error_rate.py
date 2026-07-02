@@ -85,7 +85,7 @@ def main() -> None:
         if args.exact_circ:
             circ = gate_optimal_prep_circuit(code, zero_state=args.zero_state, max_timeout=600)
         else:
-            circ = heuristic_prep_circuit(code, zero_state=args.zero_state)
+            circ = heuristic_prep_circuit(code, zero_state="all_zero" if args.zero_state else "all_plus")
 
         assert circ is not None
         if args.naive_ver:

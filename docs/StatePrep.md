@@ -133,7 +133,7 @@ from mqt.qecc.circuit_synthesis import heuristic_prep_circuit
 from mqt.qecc.codes import SquareOctagonColorCode
 
 cc = SquareOctagonColorCode(5)
-cc_non_ft_sp = heuristic_prep_circuit(cc, zero_state=True, optimize_depth=True)
+cc_non_ft_sp = heuristic_prep_circuit(cc, state="all_zero", optimize_depth=True)
 
 cc_non_ft_sp.circ.draw(output="mpl", initial_state=True, scale=0.7)
 ```
