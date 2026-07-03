@@ -66,36 +66,40 @@ class CZGate(SymbolicGateOperation):
         """Instantiate CZ gate from qubit indices."""
         return cls(q1, q2)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: np.ndarray,
         tableau_z_curr: np.ndarray,
         tableau_x_next: np.ndarray,
         tableau_z_next: np.ndarray,
-    ) -> None:
-        """Add CZ gate constraints for Clifford tableau."""
-        num_rows = tableau_x_curr.shape[0]
+    ) -> z3.BoolRef:
+        """Return the CZ tableau relation.
+
+        This is the only method the framework needs to place the gate in synthesis: it
+        returns the constraint between the next and current tableau; the encoder guards it
+        with the gate's selection condition, so no solver or conditions appear here.
+        """
         c = self.control
         t = self.target
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                # X parts unchanged
+                tableau_x_next[row, c] == tableau_x_curr[row, c],
+                tableau_x_next[row, t] == tableau_x_curr[row, t],
+                # Z[:,c] <- Z[:,c] ⊕ X[:,t]
+                tableau_z_next[row, c] == z3.Xor(tableau_z_curr[row, c], tableau_x_curr[row, t]),
+                # Z[:,t] <- Z[:,t] ⊕ X[:,c]
+                tableau_z_next[row, t] == z3.Xor(tableau_z_curr[row, t], tableau_x_curr[row, c]),
+            )
+        ])
 
-        for row in range(num_rows):
-            # X parts unchanged
-            solver.add(tableau_x_next[row, c] == tableau_x_curr[row, c])
-            solver.add(tableau_x_next[row, t] == tableau_x_curr[row, t])
-
-            # Z[:,c] <- Z[:,c] ⊕ X[:,t]
-            solver.add(tableau_z_next[row, c] == z3.Xor(tableau_z_curr[row, c], tableau_x_curr[row, t]))
-
-            # Z[:,t] <- Z[:,t] ⊕ X[:,c]
-            solver.add(tableau_z_next[row, t] == z3.Xor(tableau_z_curr[row, t], tableau_x_curr[row, c]))
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: np.ndarray,
         matrix_next: np.ndarray,
-    ) -> None:
+    ) -> z3.BoolRef:
         """CZ gate not applicable to CSS CNOT-only encoding."""
         msg = "CZ gate cannot be applied in CSS CNOT-only encoding"
         raise NotImplementedError(msg)

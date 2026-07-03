@@ -28,7 +28,6 @@ from mqt.qecc.circuit_synthesis.exact.symmetry import (
     add_clifford_gate_count_symmetry_breaking,
     cz_pair_idx,
 )
-from mqt.qecc.circuit_synthesis.exact.transitions import add_clifford_cz_transition
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.vars import CliffordDepthVars, CliffordGateCountVars
 from mqt.qecc.circuit_synthesis.exact.verification import verify_stabilizer_state
@@ -52,12 +51,12 @@ def test_cz_gate_properties() -> None:
 def test_cz_gate_not_applicable_to_css() -> None:
     """Test that CZ gate raises NotImplementedError for CSS encoding."""
     cz = CZGate(0, 1)
-    solver = z3.Solver()
+    z3.Solver()
     matrix_curr = np.array([[z3.Bool("m_0_0"), z3.Bool("m_0_1")]], dtype=object)
     matrix_next = np.array([[z3.Bool("m_1_0"), z3.Bool("m_1_1")]], dtype=object)
 
     with pytest.raises(NotImplementedError, match="CZ gate cannot be applied in CSS"):
-        cz.add_css_matrix_transition(solver, matrix_curr, matrix_next)
+        cz.css_matrix_effect(matrix_curr, matrix_next)
 
 
 def test_cz_gate_set_contains_cz() -> None:
@@ -96,7 +95,7 @@ def test_cz_transition_x_columns_unchanged(
     solver.add(curr_x[0, 0])  # X[0,0] = 1
     solver.add(z3.Not(curr_x[0, 1]))  # X[0,1] = 0
 
-    add_clifford_cz_transition(solver, 0, 1, curr_x, curr_z, next_x, next_z)
+    solver.add(CZGate(0, 1).clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -120,7 +119,7 @@ def test_cz_transition_z_columns_updated(
     solver.add(z3.Not(curr_z[0, 0]))
     solver.add(z3.Not(curr_z[0, 1]))
 
-    add_clifford_cz_transition(solver, 0, 1, curr_x, curr_z, next_x, next_z)
+    solver.add(CZGate(0, 1).clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -148,7 +147,7 @@ def test_cz_transition_matches_stim() -> None:
             solver.add(curr_x[r, q] == bool(init.tableau.matrix[r, q]))
             solver.add(curr_z[r, q] == bool(init.tableau.matrix[r, q + n]))
 
-    add_clifford_cz_transition(solver, 0, 1, curr_x, curr_z, next_x, next_z)
+    solver.add(CZGate(0, 1).clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
     # qubit 1 is not touched by CZ(0,1)... wait, both are. Leave identity for no other qubit needed.
 
     assert solver.check() == z3.sat

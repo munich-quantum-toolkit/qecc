@@ -73,7 +73,7 @@ def test_h_gate_clifford_transition() -> None:
     solver.add(z3.Not(curr_z[0, 0]))
 
     h = HGate(0)
-    h.add_clifford_tableau_transition(solver, curr_x, curr_z, next_x, next_z)
+    solver.add(h.clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -85,13 +85,12 @@ def test_h_gate_clifford_transition() -> None:
 def test_s_gate_not_applicable_to_css() -> None:
     """Test that S gate raises error for CSS encoding."""
     s = SGate(0)
-    solver = z3.Solver()
 
     matrix_curr = np.array([[z3.Bool("m_0_0")]], dtype=object)
     matrix_next = np.array([[z3.Bool("m_1_0")]], dtype=object)
 
     with pytest.raises(NotImplementedError, match="S gate cannot be applied in CSS"):
-        s.add_css_matrix_transition(solver, matrix_curr, matrix_next)
+        s.css_matrix_effect(matrix_curr, matrix_next)
 
 
 def test_cnot_gate_css_transition() -> None:
@@ -105,7 +104,7 @@ def test_cnot_gate_css_transition() -> None:
     solver.add(z3.Not(matrix_curr[0, 1]))
 
     cx = CNOTGate(0, 1)
-    cx.add_css_matrix_transition(solver, matrix_curr, matrix_next)
+    solver.add(cx.css_matrix_effect(matrix_curr, matrix_next))
 
     assert solver.check() == z3.sat
     model = solver.model()

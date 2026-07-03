@@ -57,37 +57,44 @@ class SymbolicGateOperation(ABC):
         """
 
     @abstractmethod
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
-        """Add constraints for this gate's effect on a Clifford tableau.
+    ) -> z3.BoolRef:
+        """Return the constraint relating the next Clifford tableau to the current one.
+
+        The returned expression fixes only the columns this gate acts on; the caller guards
+        it with the gate-selection condition, e.g. ``solver.add(Implies(selected, effect))``.
+        This is the single place a gate's tableau action is defined — encoders and tests both
+        consume it, so adding a new gate means implementing only this class.
 
         Args:
-            solver: Z3 solver instance.
             tableau_x_curr: Current X part of tableau.
             tableau_z_curr: Current Z part of tableau.
             tableau_x_next: Next X part of tableau.
             tableau_z_next: Next Z part of tableau.
+
+        Returns:
+            A Boolean expression constraining ``tableau_*_next`` given ``tableau_*_curr``.
         """
 
     @abstractmethod
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
-        """Add constraints for this gate's effect on a CSS check matrix.
+    ) -> z3.BoolRef:
+        """Return the constraint relating the next CSS check matrix to the current one.
 
         Args:
-            solver: Z3 solver instance.
             matrix_curr: Current CSS matrix.
             matrix_next: Next CSS matrix.
+
+        Returns:
+            A Boolean expression constraining ``matrix_next`` given ``matrix_curr``.
         """
 
     @abstractmethod
@@ -135,28 +142,29 @@ class HGate(SymbolicGateOperation):
         """Instantiate H gate from qubit indices (_q2 ignored)."""
         return cls(q1)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
-        """H gate: swap X and Z columns."""
-        num_rows = tableau_x_curr.shape[0]
+    ) -> z3.BoolRef:
+        """H gate: swap X and Z columns of the target qubit."""
         q = self.qubit
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, q] == tableau_z_curr[row, q],
+                tableau_z_next[row, q] == tableau_x_curr[row, q],
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, q] == tableau_z_curr[row, q])
-            solver.add(tableau_z_next[row, q] == tableau_x_curr[row, q])
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """H gate not applicable to CSS encoding (requires full Clifford)."""
         msg = "H gate cannot be applied in CSS CNOT-only encoding"
         raise NotImplementedError(msg)
@@ -194,28 +202,29 @@ class SGate(SymbolicGateOperation):
         """Instantiate S gate from qubit indices (_q2 ignored)."""
         return cls(q1)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
-        """S gate: Z <- Z ⊕ X."""
-        num_rows = tableau_x_curr.shape[0]
+    ) -> z3.BoolRef:
+        """S gate: Z <- Z ⊕ X on the target qubit."""
         q = self.qubit
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, q] == tableau_x_curr[row, q],
+                tableau_z_next[row, q] == z3.Xor(tableau_z_curr[row, q], tableau_x_curr[row, q]),
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, q] == tableau_x_curr[row, q])
-            solver.add(tableau_z_next[row, q] == z3.Xor(tableau_z_curr[row, q], tableau_x_curr[row, q]))
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """S gate not applicable to CSS encoding."""
         msg = "S gate cannot be applied in CSS CNOT-only encoding"
         raise NotImplementedError(msg)
@@ -258,28 +267,29 @@ class SqrtXGate(SymbolicGateOperation):
         """Instantiate SX gate from qubit indices (_q2 ignored)."""
         return cls(q1)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
-        """SX gate: X_out = X ⊕ Z, Z_out = Z."""
-        num_rows = tableau_x_curr.shape[0]
+    ) -> z3.BoolRef:
+        """SX gate: X_out = X ⊕ Z, Z_out = Z on the target qubit."""
         q = self.qubit
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, q] == z3.Xor(tableau_x_curr[row, q], tableau_z_curr[row, q]),
+                tableau_z_next[row, q] == tableau_z_curr[row, q],
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, q] == z3.Xor(tableau_x_curr[row, q], tableau_z_curr[row, q]))
-            solver.add(tableau_z_next[row, q] == tableau_z_curr[row, q])
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """SX gate not applicable to CSS encoding."""
         msg = "SX gate cannot be applied in CSS CNOT-only encoding"
         raise NotImplementedError(msg)
@@ -319,39 +329,43 @@ class CNOTGate(SymbolicGateOperation):
         """Instantiate CNOT gate from qubit indices."""
         return cls(q1, q2)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """CNOT gate: X[:,t] <- X[:,t] ⊕ X[:,c], Z[:,c] <- Z[:,c] ⊕ Z[:,t]."""
-        num_rows = tableau_x_curr.shape[0]
         c = self.control
         t = self.target
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, c] == tableau_x_curr[row, c],
+                tableau_x_next[row, t] == z3.Xor(tableau_x_curr[row, t], tableau_x_curr[row, c]),
+                tableau_z_next[row, c] == z3.Xor(tableau_z_curr[row, c], tableau_z_curr[row, t]),
+                tableau_z_next[row, t] == tableau_z_curr[row, t],
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, c] == tableau_x_curr[row, c])
-            solver.add(tableau_x_next[row, t] == z3.Xor(tableau_x_curr[row, t], tableau_x_curr[row, c]))
-            solver.add(tableau_z_next[row, c] == z3.Xor(tableau_z_curr[row, c], tableau_z_curr[row, t]))
-            solver.add(tableau_z_next[row, t] == tableau_z_curr[row, t])
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
-        """CNOT gate for CSS: M[:,t] <- M[:,t] ⊕ M[:,c]."""
-        num_rows = matrix_curr.shape[0]
+    ) -> z3.BoolRef:
+        """CNOT gate for CSS: M[:,t] <- M[:,t] ⊕ M[:,c] (control unchanged)."""
         c = self.control
         t = self.target
-
-        for row in range(num_rows):
-            solver.add(matrix_next[row, c] == matrix_curr[row, c])
-            solver.add(matrix_next[row, t] == z3.Xor(matrix_curr[row, t], matrix_curr[row, c]))
+        return z3.And([
+            eq
+            for row in range(matrix_curr.shape[0])
+            for eq in (
+                matrix_next[row, c] == matrix_curr[row, c],
+                matrix_next[row, t] == z3.Xor(matrix_curr[row, t], matrix_curr[row, c]),
+            )
+        ])
 
     def to_stim_gate(self) -> tuple[str, list[int]]:
         """Convert to Stim gate."""
@@ -388,30 +402,31 @@ class CZGate(SymbolicGateOperation):
         """Instantiate CZ gate from qubit indices."""
         return cls(q1, q2)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """CZ gate: Z[:,i] ^= X[:,j], Z[:,j] ^= X[:,i], X columns unchanged."""
-        num_rows = tableau_x_curr.shape[0]
         i, j = self.qubit1, self.qubit2
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, i] == tableau_x_curr[row, i],
+                tableau_z_next[row, i] == z3.Xor(tableau_z_curr[row, i], tableau_x_curr[row, j]),
+                tableau_x_next[row, j] == tableau_x_curr[row, j],
+                tableau_z_next[row, j] == z3.Xor(tableau_z_curr[row, j], tableau_x_curr[row, i]),
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, i] == tableau_x_curr[row, i])
-            solver.add(tableau_z_next[row, i] == z3.Xor(tableau_z_curr[row, i], tableau_x_curr[row, j]))
-            solver.add(tableau_x_next[row, j] == tableau_x_curr[row, j])
-            solver.add(tableau_z_next[row, j] == z3.Xor(tableau_z_curr[row, j], tableau_x_curr[row, i]))
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
+    ) -> z3.BoolRef:
         """CZ gate not applicable to CSS encoding."""
         msg = "CZ gate cannot be applied in CSS CNOT-only encoding"
         raise NotImplementedError(msg)
@@ -449,34 +464,32 @@ class IdentityGate(SymbolicGateOperation):
         """Instantiate identity gate from qubit indices (_q2 ignored)."""
         return cls(q1)
 
-    def add_clifford_tableau_transition(
+    def clifford_tableau_effect(
         self,
-        solver: z3.Solver,
         tableau_x_curr: npt.NDArray[np.object_],
         tableau_z_curr: npt.NDArray[np.object_],
         tableau_x_next: npt.NDArray[np.object_],
         tableau_z_next: npt.NDArray[np.object_],
-    ) -> None:
-        """Identity: no change."""
-        num_rows = tableau_x_curr.shape[0]
+    ) -> z3.BoolRef:
+        """Identity: preserve the target qubit's columns."""
         q = self.qubit
+        return z3.And([
+            eq
+            for row in range(tableau_x_curr.shape[0])
+            for eq in (
+                tableau_x_next[row, q] == tableau_x_curr[row, q],
+                tableau_z_next[row, q] == tableau_z_curr[row, q],
+            )
+        ])
 
-        for row in range(num_rows):
-            solver.add(tableau_x_next[row, q] == tableau_x_curr[row, q])
-            solver.add(tableau_z_next[row, q] == tableau_z_curr[row, q])
-
-    def add_css_matrix_transition(
+    def css_matrix_effect(
         self,
-        solver: z3.Solver,
         matrix_curr: npt.NDArray[np.object_],
         matrix_next: npt.NDArray[np.object_],
-    ) -> None:
-        """Identity: no change."""
-        num_rows = matrix_curr.shape[0]
+    ) -> z3.BoolRef:
+        """Identity: preserve the target qubit's column."""
         q = self.qubit
-
-        for row in range(num_rows):
-            solver.add(matrix_next[row, q] == matrix_curr[row, q])
+        return z3.And([matrix_next[row, q] == matrix_curr[row, q] for row in range(matrix_curr.shape[0])])
 
     def to_stim_gate(self) -> tuple[str, list[int]]:
         """Convert to Stim gate."""

@@ -43,11 +43,10 @@ def test_sqrt_x_gate_properties() -> None:
 def test_sqrt_x_not_applicable_to_css() -> None:
     """SX gate raises NotImplementedError in CSS context."""
     sx = SqrtXGate(0)
-    solver = z3.Solver()
     matrix_curr = np.array([[z3.Bool("m_0")]], dtype=object)
     matrix_next = np.array([[z3.Bool("m_1")]], dtype=object)
     with pytest.raises(NotImplementedError, match="SX gate cannot be applied"):
-        sx.add_css_matrix_transition(solver, matrix_curr, matrix_next)
+        sx.css_matrix_effect(matrix_curr, matrix_next)
 
 
 def test_sqrt_x_gate_set_contents() -> None:
@@ -79,7 +78,7 @@ def test_sqrt_x_transition_x_unchanged() -> None:
     solver.add(curr_x[0, 0])
     solver.add(z3.Not(curr_z[0, 0]))
 
-    SqrtXGate(0).add_clifford_tableau_transition(solver, curr_x, curr_z, next_x, next_z)
+    solver.add(SqrtXGate(0).clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -98,7 +97,7 @@ def test_sqrt_x_transition_z_maps_to_xz() -> None:
     solver.add(z3.Not(curr_x[0, 0]))
     solver.add(curr_z[0, 0])
 
-    SqrtXGate(0).add_clifford_tableau_transition(solver, curr_x, curr_z, next_x, next_z)
+    solver.add(SqrtXGate(0).clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
 
     assert solver.check() == z3.sat
     model = solver.model()
@@ -131,7 +130,7 @@ def test_sqrt_x_transition_matches_stim() -> None:
 
     # Only qubit 0 is transformed; copy qubit 1 explicitly.
     sx = SqrtXGate(0)
-    sx.add_clifford_tableau_transition(solver, curr_x, curr_z, next_x, next_z)
+    solver.add(sx.clifford_tableau_effect(curr_x, curr_z, next_x, next_z))
     for r in range(num_rows):
         solver.add(next_x[r, 1] == curr_x[r, 1])
         solver.add(next_z[r, 1] == curr_z[r, 1])

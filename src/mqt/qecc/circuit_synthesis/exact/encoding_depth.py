@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
+from .gate_operations import (
+    CNOTGate,
+    IdentityGate,
+    get_standard_clifford_gate_set,
+    get_standard_css_gate_set,
+)
 from .initialization import constrain_initial_clifford_tableau, constrain_initial_css_matrix
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 from .vars import CliffordDepthVars
@@ -138,100 +143,44 @@ def _add_clifford_depth_transitions(
     solver: z3.Solver,
     layer: int,
     n: int,
-    num_rows: int,
     gate_vars: dict[str, list[list[z3.BoolRef]]],
+    gate_set: dict[str, type[SymbolicGateOperation]],
     tableau_x: npt.NDArray[np.object_],
     tableau_z: npt.NDArray[np.object_],
 ) -> None:
-    """Add the tableau-transition constraints for one depth layer (H, S, SX, ID, CX, CZ)."""
-    h_vars = gate_vars["H"]
-    s_vars = gate_vars.get("S", [])
-    sx_vars = gate_vars.get("SX", [])
-    id_vars = gate_vars["ID"]
-    cx_vars = gate_vars["CX"]
-    cz_vars = gate_vars.get("CZ", [])
+    """Add the tableau-transition constraints for one depth layer.
 
-    curr_x = tableau_x[layer]
-    curr_z = tableau_z[layer]
-    next_x = tableau_x[layer + 1]
-    next_z = tableau_z[layer + 1]
+    Guards each gate's :meth:`~SymbolicGateOperation.clifford_tableau_effect` with its
+    per-position layer selection variable. The variable ordering matches
+    :func:`_declare_clifford_depth_vars`: single-qubit gates are indexed by qubit, ordered
+    two-qubit gates by ``(control, target)`` pair, symmetric two-qubit gates by unordered pair.
+    """
+    curr_x, curr_z = tableau_x[layer], tableau_z[layer]
+    next_x, next_z = tableau_x[layer + 1], tableau_z[layer + 1]
 
-    for q in range(n):
-        for row in range(num_rows):
-            h_effect = z3.If(
-                h_vars[layer][q],
-                z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
-                True,
-            )
-            solver.add(h_effect)
-
-            if s_vars:
-                s_effect = z3.If(
-                    s_vars[layer][q],
-                    z3.And(
-                        next_x[row, q] == curr_x[row, q],
-                        next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q]),
-                    ),
-                    True,
-                )
-                solver.add(s_effect)
-
-            if sx_vars:
-                sx_effect = z3.If(
-                    sx_vars[layer][q],
-                    z3.And(
-                        next_x[row, q] == z3.Xor(curr_x[row, q], curr_z[row, q]),
-                        next_z[row, q] == curr_z[row, q],
-                    ),
-                    True,
-                )
-                solver.add(sx_effect)
-
-            id_effect = z3.If(
-                id_vars[layer][q],
-                z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
-                True,
-            )
-            solver.add(id_effect)
-
-    cx_idx = 0
-    for ctrl in range(n):
-        for tgt in range(n):
-            if ctrl == tgt:
-                continue
-
-            for row in range(num_rows):
-                cx_effect = z3.If(
-                    cx_vars[layer][cx_idx],
-                    z3.And(
-                        next_x[row, ctrl] == curr_x[row, ctrl],
-                        next_x[row, tgt] == z3.Xor(curr_x[row, tgt], curr_x[row, ctrl]),
-                        next_z[row, ctrl] == z3.Xor(curr_z[row, ctrl], curr_z[row, tgt]),
-                        next_z[row, tgt] == curr_z[row, tgt],
-                    ),
-                    True,
-                )
-                solver.add(cx_effect)
-
-            cx_idx += 1
-
-    if cz_vars:
-        cz_idx = 0
-        for i in range(n):
-            for j in range(i + 1, n):
-                for row in range(num_rows):
-                    cz_effect = z3.If(
-                        cz_vars[layer][cz_idx],
-                        z3.And(
-                            next_x[row, i] == curr_x[row, i],
-                            next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, j]),
-                            next_x[row, j] == curr_x[row, j],
-                            next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i]),
-                        ),
-                        True,
-                    )
-                    solver.add(cz_effect)
-                cz_idx += 1
+    for gate_name, all_layer_vars in gate_vars.items():
+        gate_cls = gate_set[gate_name]
+        selection = all_layer_vars[layer]
+        if not gate_cls.IS_TWO_QUBIT:
+            for q in range(n):
+                effect = gate_cls.from_qubits(q, q).clifford_tableau_effect(curr_x, curr_z, next_x, next_z)
+                solver.add(z3.Implies(selection[q], effect))
+        elif not gate_cls.IS_SYMMETRIC:
+            idx = 0
+            for ctrl in range(n):
+                for tgt in range(n):
+                    if ctrl == tgt:
+                        continue
+                    effect = gate_cls.from_qubits(ctrl, tgt).clifford_tableau_effect(curr_x, curr_z, next_x, next_z)
+                    solver.add(z3.Implies(selection[idx], effect))
+                    idx += 1
+        else:
+            idx = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    effect = gate_cls.from_qubits(i, j).clifford_tableau_effect(curr_x, curr_z, next_x, next_z)
+                    solver.add(z3.Implies(selection[idx], effect))
+                    idx += 1
 
 
 def encode_clifford_depth(
@@ -273,7 +222,7 @@ def encode_clifford_depth(
 
     for layer in range(max_depth):
         _add_clifford_depth_layer_constraints(solver, layer, n, gate_vars, gate_set)
-        _add_clifford_depth_transitions(solver, layer, n, num_rows, gate_vars, tableau_x, tableau_z)
+        _add_clifford_depth_transitions(solver, layer, n, gate_vars, gate_set, tableau_x, tableau_z)
 
     add_clifford_isometry_terminal(
         solver,
@@ -347,45 +296,29 @@ def _add_css_depth_transitions(
     solver: z3.Solver,
     layer: int,
     n: int,
-    num_rows: int,
     id_vars: list[list[z3.BoolRef]],
     cx_vars: list[list[z3.BoolRef]],
     is_x_type: bool,
     matrix: npt.NDArray[np.object_],
 ) -> None:
-    """Add the ID/CNOT column-operation constraints for one depth layer."""
-    curr = matrix[layer]
-    next_m = matrix[layer + 1]
+    """Add the ID/CNOT column-operation constraints for one depth layer.
+
+    Delegates to :meth:`IdentityGate.css_matrix_effect` and :meth:`CNOTGate.css_matrix_effect`;
+    a Z-type target reverses the CNOT direction by swapping control and target at instantiation.
+    """
+    curr, next_m = matrix[layer], matrix[layer + 1]
 
     for q in range(n):
-        for row in range(num_rows):
-            id_effect = z3.If(
-                id_vars[layer][q],
-                next_m[row, q] == curr[row, q],
-                True,
-            )
-            solver.add(id_effect)
+        solver.add(z3.Implies(id_vars[layer][q], IdentityGate(q).css_matrix_effect(curr, next_m)))
 
     cx_idx = 0
     for ctrl in range(n):
         for tgt in range(n):
             if ctrl == tgt:
                 continue
-
-            # X-type: CNOT(ctrl,tgt) adds column ctrl to column tgt  (col_tgt ^= col_ctrl)
-            # Z-type: CNOT(ctrl,tgt) adds column tgt to column ctrl  (col_ctrl ^= col_tgt)
-            src, dst = (ctrl, tgt) if is_x_type else (tgt, ctrl)
-            for row in range(num_rows):
-                cx_effect = z3.If(
-                    cx_vars[layer][cx_idx],
-                    z3.And(
-                        next_m[row, src] == curr[row, src],
-                        next_m[row, dst] == z3.Xor(curr[row, dst], curr[row, src]),
-                    ),
-                    True,
-                )
-                solver.add(cx_effect)
-
+            control, target = (ctrl, tgt) if is_x_type else (tgt, ctrl)
+            effect = CNOTGate(control, target).css_matrix_effect(curr, next_m)
+            solver.add(z3.Implies(cx_vars[layer][cx_idx], effect))
             cx_idx += 1
 
 
@@ -431,7 +364,7 @@ def encode_css_depth(
 
     for layer in range(max_depth):
         _add_css_depth_layer_constraints(solver, layer, n, id_vars, cx_vars)
-        _add_css_depth_transitions(solver, layer, n, num_rows, id_vars, cx_vars, is_x_type, matrix)
+        _add_css_depth_transitions(solver, layer, n, id_vars, cx_vars, is_x_type, matrix)
 
     add_css_isometry_terminal(
         solver,
