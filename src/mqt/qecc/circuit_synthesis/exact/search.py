@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
@@ -589,50 +589,52 @@ def _ensure_all_qubits_present(circuit: stim.Circuit, n: int) -> stim.Circuit:
     return result
 
 
-def _apply_pauli_sign_correction(
-    circuit: stim.Circuit,
-    n: int,
+class _StimTableauData(NamedTuple):
+    """Decoded stabilizer tableau of a synthesized circuit (all int8).
+
+    ``x2x``/``x2z`` and ``z2x``/``z2z`` are the X- and Z-Pauli images of each qubit,
+    with ``x_sign``/``z_sign`` the corresponding output signs.
+    """
+
+    x2x: npt.NDArray[np.int8]
+    x2z: npt.NDArray[np.int8]
+    z2x: npt.NDArray[np.int8]
+    z2z: npt.NDArray[np.int8]
+    x_sign: npt.NDArray[np.int8]
+    z_sign: npt.NDArray[np.int8]
+
+    @classmethod
+    def from_circuit(cls, circuit: stim.Circuit) -> _StimTableauData:
+        """Decode a circuit's stabilizer tableau into int8 image and sign matrices."""
+        data = circuit.to_tableau().to_numpy()
+        return cls(
+            data[0].astype(np.int8),
+            data[1].astype(np.int8),
+            data[2].astype(np.int8),
+            data[3].astype(np.int8),
+            data[-2].astype(np.int8),
+            data[-1].astype(np.int8),
+        )
+
+
+def _logical_sign_corrections(
+    circ: _StimTableauData,
     target_tableau: StabilizerTableau,
-) -> stim.Circuit:
-    """Apply Pauli sign correction to a circuit to match target phases.
+    n: int,
+) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8], set[int]]:
+    """Compute Pauli sign corrections for the ``2k`` logical rows.
 
-    The circuit U maps source generators to target generators:
-    - X-logical row i  → U(X_{selector_i}) → X_logical_i
-    - Z-logical row i  → U(Z_{selector_i}) → Z_logical_i
-    - Stabilizer rows  → U(Z_{pivot_q})    → some element of target stabilizer group
-
-    To flip the sign of U(X_q): prepend Z_q (anticommutes with X_q) → z_correction[q].
-    To flip the sign of U(Z_q): prepend X_q (anticommutes with Z_q) → x_correction[q].
-
-    For stabilizer rows the circuit may use a different GF(2) basis than the target, so
-    individual row matching does not work. We work at the group level: prepending X on
-    each pivot qubit q flips the sign of that generator in the circuit's stabilizer group.
-    The correct x_correction[q] for pivot qubits is determined by solving the linear system
-    that makes the circuit's signed stabilizer group equal to the target's.
-
-    Args:
-        circuit: The synthesized circuit (without reset gates, may have incorrect signs).
-        n: Number of qubits.
-        target_tableau: Target tableau with correct phases.
+    Each logical row's Pauli image matches a target row exactly, so its sign is fixed
+    by prepending the anticommuting single-qubit Pauli: ``Z_q`` for an X-logical
+    (→ ``z_correction[q]``) and ``X_q`` for a Z-logical (→ ``x_correction[q]``).
 
     Returns:
-        Circuit with Pauli correction prepended if needed.
+        ``(x_correction, z_correction, selector_qubits)`` — length-``n`` correction
+        vectors populated for the logical rows, and the set of selector qubits.
     """
-    circuit = _ensure_all_qubits_present(circuit, n)
-
-    stim_tableau_data = circuit.to_tableau().to_numpy()
-
     num_target_rows = target_tableau.num_rows()
     # num_target_rows = 2k + (n-k) = n+k  →  k = num_target_rows - n
     k = num_target_rows - n
-
-    xs_sign = stim_tableau_data[-2].astype(np.int8)
-    zs_sign = stim_tableau_data[-1].astype(np.int8)
-    x2x = stim_tableau_data[0].astype(np.int8)
-    x2z = stim_tableau_data[1].astype(np.int8)
-    z2x = stim_tableau_data[2].astype(np.int8)
-    z2z = stim_tableau_data[3].astype(np.int8)
-
     target_x = target_tableau.tableau.matrix[:num_target_rows, :n].astype(np.int8)
     target_z = target_tableau.tableau.matrix[:num_target_rows, n:].astype(np.int8)
     target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
@@ -641,79 +643,122 @@ def _apply_pauli_sign_correction(
     z_correction = np.zeros(n, dtype=np.int8)
     selector_qubits: set[int] = set()
 
-    # X-logical rows (0..k-1): U(X_q) exactly matches each target row.
-    # Fix sign by prepending Z_q (anticommutes with X_q) → z_correction[q].
     for row_idx in range(k):
         tx, tz = target_x[row_idx], target_z[row_idx]
         for q in range(n):
-            if np.array_equal(x2x[q], tx) and np.array_equal(x2z[q], tz):
+            if np.array_equal(circ.x2x[q], tx) and np.array_equal(circ.x2z[q], tz):
                 selector_qubits.add(q)
-                if xs_sign[q] ^ target_signs[row_idx]:
+                if circ.x_sign[q] ^ target_signs[row_idx]:
                     z_correction[q] ^= 1
                 break
 
-    # Z-logical rows (k..2k-1): U(Z_q) exactly matches each target row for selector q.
-    # Fix sign by prepending X_q (anticommutes with Z_q) → x_correction[q].
     for row_idx in range(k, 2 * k):
         tx, tz = target_x[row_idx], target_z[row_idx]
         for q in range(n):
-            if np.array_equal(z2x[q], tx) and np.array_equal(z2z[q], tz):
-                if zs_sign[q] ^ target_signs[row_idx]:
+            if np.array_equal(circ.z2x[q], tx) and np.array_equal(circ.z2z[q], tz):
+                if circ.z_sign[q] ^ target_signs[row_idx]:
                     x_correction[q] ^= 1
                 break
 
-    # Stabilizer rows (2k..n+k-1): pivot qubits.
-    # The circuit's stabilizer generators and the target's may span the same group
-    # but use different GF(2) bases. Row-reduce both to the same canonical form;
-    # the canonical sign vectors must agree, and the correction is found by solving
-    # R_A * x_corr = (s_A_can XOR s_B_can) where R_A is the circuit's reduction matrix.
+    return x_correction, z_correction, selector_qubits
 
-    pivot_qubits = [q for q in range(n) if q not in selector_qubits]
-    num_stab = n - k
 
-    if num_stab > 0:
-        target_stab_x = target_x[2 * k :]
-        target_stab_z = target_z[2 * k :]
-        target_stab_signs = target_signs[2 * k :]
+def _stabilizer_sign_corrections(
+    circ: _StimTableauData,
+    target_tableau: StabilizerTableau,
+    n: int,
+    pivot_qubits: list[int],
+    x_correction: npt.NDArray[np.int8],
+) -> None:
+    """Correct stabilizer-row signs at the group level, updating ``x_correction`` in place.
 
-        circ_stab_symp = np.hstack([z2x[pivot_qubits], z2z[pivot_qubits]])  # (num_stab x 2n)
-        circ_stab_sign = zs_sign[np.array(pivot_qubits)]
-        targ_stab_symp = np.hstack([target_stab_x, target_stab_z])  # (num_stab x 2n)
+    The circuit's and target's stabilizer generators may span the same group in
+    different GF(2) bases, so individual row matching does not work. Both are
+    row-reduced to a canonical form and the correction on the pivot qubits is found
+    by solving ``R_circ · x_corr = (s_circ_can XOR s_targ_can)``.
+    """
+    num_target_rows = target_tableau.num_rows()
+    k = num_target_rows - n
+    if n - k == 0:
+        return
 
-        _, r_circ = _gf2_rref_track(circ_stab_symp)
-        _, r_targ = _gf2_rref_track(targ_stab_symp)
+    target_x = target_tableau.tableau.matrix[:num_target_rows, :n].astype(np.int8)
+    target_z = target_tableau.tableau.matrix[:num_target_rows, n:].astype(np.int8)
+    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
 
-        s_circ_can = r_circ @ circ_stab_sign % 2
-        s_targ_can = r_targ @ target_stab_signs % 2
+    circ_stab_symp = np.hstack([circ.z2x[pivot_qubits], circ.z2z[pivot_qubits]])  # (num_stab x 2n)
+    circ_stab_sign = circ.z_sign[np.array(pivot_qubits)]
+    targ_stab_symp = np.hstack([target_x[2 * k :], target_z[2 * k :]])  # (num_stab x 2n)
 
-        phase_diff = (s_circ_can ^ s_targ_can).astype(np.int8)
-        if np.any(phase_diff):
-            aug = np.hstack([r_circ, phase_diff.reshape(-1, 1)])
-            ns = mod2.nullspace(aug)
-            for vec in ns:
-                if vec[-1] == 1:
-                    for idx, q in enumerate(pivot_qubits):
-                        x_correction[q] ^= int(vec[idx])
-                    break
+    _, r_circ = _gf2_rref_track(circ_stab_symp)
+    _, r_targ = _gf2_rref_track(targ_stab_symp)
 
+    s_circ_can = r_circ @ circ_stab_sign % 2
+    s_targ_can = r_targ @ target_signs[2 * k :] % 2
+
+    phase_diff = (s_circ_can ^ s_targ_can).astype(np.int8)
+    if not np.any(phase_diff):
+        return
+
+    aug = np.hstack([r_circ, phase_diff.reshape(-1, 1)])
+    for vec in mod2.nullspace(aug):
+        if vec[-1] == 1:
+            for idx, q in enumerate(pivot_qubits):
+                x_correction[q] ^= int(vec[idx])
+            break
+
+
+def _build_pauli_prefix(
+    n: int,
+    x_correction: npt.NDArray[np.int8],
+    z_correction: npt.NDArray[np.int8],
+) -> stim.Circuit | None:
+    """Build the single-qubit Pauli prefix applying the given corrections, or ``None`` if empty."""
     if np.all(x_correction == 0) and np.all(z_correction == 0):
-        return circuit
+        return None
 
-    corrected_circuit = stim.Circuit()
-
+    prefix = stim.Circuit()
     for q in range(n):
-        xv = x_correction[q]
-        zv = z_correction[q]
+        xv, zv = x_correction[q], z_correction[q]
         if xv == 1 and zv == 1:
-            corrected_circuit.append("Y", [q])
+            prefix.append("Y", [q])
         elif xv == 1:
-            corrected_circuit.append("X", [q])
+            prefix.append("X", [q])
         elif zv == 1:
-            corrected_circuit.append("Z", [q])
+            prefix.append("Z", [q])
+    return prefix
 
-    corrected_circuit += circuit
 
-    return corrected_circuit
+def _apply_pauli_sign_correction(
+    circuit: stim.Circuit,
+    n: int,
+    target_tableau: StabilizerTableau,
+) -> stim.Circuit:
+    """Prepend Pauli corrections so the circuit matches the target phases.
+
+    The synthesized circuit ``U`` maps source generators onto the target generators up
+    to sign. Logical rows are corrected individually and stabilizer rows at the group
+    level (see :func:`_logical_sign_corrections` and :func:`_stabilizer_sign_corrections`).
+
+    Args:
+        circuit: The synthesized circuit (without reset gates, may have incorrect signs).
+        n: Number of qubits.
+        target_tableau: Target tableau with correct phases.
+
+    Returns:
+        Circuit with a Pauli correction prefix prepended if needed.
+    """
+    circuit = _ensure_all_qubits_present(circuit, n)
+    circ = _StimTableauData.from_circuit(circuit)
+
+    x_correction, z_correction, selector_qubits = _logical_sign_corrections(circ, target_tableau, n)
+    pivot_qubits = [q for q in range(n) if q not in selector_qubits]
+    _stabilizer_sign_corrections(circ, target_tableau, n, pivot_qubits, x_correction)
+
+    prefix = _build_pauli_prefix(n, x_correction, z_correction)
+    if prefix is None:
+        return circuit
+    return prefix + circuit
 
 
 def _synthesize_clifford(
