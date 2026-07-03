@@ -20,7 +20,7 @@ from mqt.qecc.circuit_synthesis.operations import (
     Swap,
     Transvection,
 )
-from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc.codes.core.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.fixture

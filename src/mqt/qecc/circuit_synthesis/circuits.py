@@ -17,7 +17,7 @@ from qiskit import QuantumCircuit
 from qiskit.transpiler.passes import RemoveResetInZeroState
 
 from ..codes import CSSCode, StabilizerCode
-from ..codes.pauli import Pauli
+from ..codes.core.pauli import Pauli
 from .circuit_utils import compose_circuits, num_two_qubit_gates, two_qubit_gate_depth
 
 if TYPE_CHECKING:  # pragma: no cover

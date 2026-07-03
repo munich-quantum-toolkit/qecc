@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .css_code import CSSCode
-from .pauli import Pauli
-from .stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
-from .symplectic import SymplecticVector
+from ..core.css_code import CSSCode
+from ..core.pauli import Pauli
+from ..core.stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
+from ..core.symplectic import SymplecticVector
 
 if TYPE_CHECKING:
     import numpy.typing as npt

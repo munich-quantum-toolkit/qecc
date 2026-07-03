@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
     import stim
 
-    from ..codes.css_code import CSSCode
+    from ..codes.core.css_code import CSSCode
     from .noise import NoiseModel
 
 

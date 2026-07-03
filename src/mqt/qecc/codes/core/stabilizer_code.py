@@ -20,7 +20,7 @@ from .pauli import Pauli, StabilizerTableau
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from mqt.qecc.codes.symplectic import SymplecticVector
+    from mqt.qecc.codes.core.symplectic import SymplecticVector
 
 
 class StabilizerCode:

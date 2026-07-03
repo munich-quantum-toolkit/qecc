@@ -19,7 +19,7 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 
-from ..codes.pauli import CheckMatrix
+from ..codes.core.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .encoding import cnot_encoding_circuit
 from .faults import PureFaultSet, coset_leader, product_fault_set
@@ -40,7 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import numpy.typing as npt
 
-    from ..codes.css_code import CSSCode
+    from ..codes.core.css_code import CSSCode
 
 
 class FaultyStatePrepCircuit:

@@ -18,7 +18,7 @@ import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
 
-from ..codes.pauli import CheckMatrix
+from ..codes.core.pauli import CheckMatrix
 from .elimination import (
     CandidateGenerator,
     get_n,

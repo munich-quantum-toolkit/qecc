@@ -15,8 +15,8 @@ import stim
 from qiskit import QuantumCircuit
 
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
-from mqt.qecc.codes.pauli import Pauli
-from mqt.qecc.codes.stabilizer_code import StabilizerCode
+from mqt.qecc.codes.core.pauli import Pauli
+from mqt.qecc.codes.core.stabilizer_code import StabilizerCode
 
 
 def test_add_cnot():

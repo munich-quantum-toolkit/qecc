@@ -9,15 +9,19 @@
 
 from __future__ import annotations
 
-from .bb_codes import construct_bb_code
-from .color_code import ColorCode, LatticeType
-from .concatenation import ConcatenatedCode, ConcatenatedCSSCode
-from .constructions import construct_iceberg_code, construct_many_hypercube_code, construct_quantum_hamming_code
-from .css_code import CSSCode, InvalidCSSCodeError
-from .hexagonal_color_code import HexagonalColorCode
-from .rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
-from .square_octagon_color_code import SquareOctagonColorCode
-from .stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
+from .constructions.bb_codes import construct_bb_code
+from .constructions.color_code import ColorCode, LatticeType
+from .constructions.concatenation import ConcatenatedCode, ConcatenatedCSSCode
+from .constructions.constructions import (
+    construct_iceberg_code,
+    construct_many_hypercube_code,
+    construct_quantum_hamming_code,
+)
+from .constructions.hexagonal_color_code import HexagonalColorCode
+from .constructions.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
+from .constructions.square_octagon_color_code import SquareOctagonColorCode
+from .core.css_code import CSSCode, InvalidCSSCodeError
+from .core.stabilizer_code import InvalidStabilizerCodeError, StabilizerCode
 
 __all__ = [
     "CSSCode",

@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau
 
 # Type alias for matrices that can be used in elimination
 BinaryMatrix = CheckMatrix | StabilizerTableau

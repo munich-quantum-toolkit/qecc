@@ -16,7 +16,7 @@ import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
 
-from ..codes.pauli import StabilizerTableau
+from ..codes.core.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, get_n
 from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
 

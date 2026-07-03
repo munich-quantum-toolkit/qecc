@@ -20,7 +20,7 @@ import stim
 import z3
 
 from ..codes import CSSCode
-from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
 from .operations import CNOT
 from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css

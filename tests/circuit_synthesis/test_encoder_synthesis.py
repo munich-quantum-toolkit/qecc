@@ -31,7 +31,7 @@ from mqt.qecc.circuit_synthesis.encoding import (
 )
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
 from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode, construct_quantum_hamming_code
-from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
+from mqt.qecc.codes.core.pauli import Pauli, StabilizerTableau
 
 
 @pytest.fixture

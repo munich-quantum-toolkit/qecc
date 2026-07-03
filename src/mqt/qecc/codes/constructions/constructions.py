@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .css_code import CSSCode
+from ..core.css_code import CSSCode
 
 if TYPE_CHECKING:
     import numpy.typing as npt

@@ -202,7 +202,7 @@ class CSSCode(StabilizerCode):
             code_name: The name of the code.
             distance: The distance of the code.
         """
-        prefix = (Path(__file__) / "../").resolve()
+        prefix = (Path(__file__) / "../../constructions/").resolve()
         paths = {
             "steane": prefix / "steane/",
             "tetrahedral": prefix / "tetrahedral/",

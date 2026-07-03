@@ -14,8 +14,8 @@ from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig, synthesize_non
 from mqt.qecc.circuit_synthesis.transvection import (
     reduce_with_swaps,
 )
-from mqt.qecc.codes.pauli import StabilizerTableau
-from mqt.qecc.codes.symplectic import SymplecticMatrix
+from mqt.qecc.codes.core.pauli import StabilizerTableau
+from mqt.qecc.codes.core.symplectic import SymplecticMatrix
 
 
 @pytest.fixture

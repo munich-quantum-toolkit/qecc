@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
 
-    from ..codes.pauli import CheckMatrix
+    from ..codes.core.pauli import CheckMatrix
 
 
 logger = logging.getLogger(__name__)
