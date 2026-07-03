@@ -59,6 +59,7 @@ def _symmetric_pair_pb_terms(
 
 
 def _declare_clifford_depth_vars(
+    target: StabilizerTableau,
     n: int,
     num_rows: int,
     max_depth: int,
@@ -69,6 +70,10 @@ def _declare_clifford_depth_vars(
     The gate-variable index structure per layer is: single-qubit (H, S, SX, ID, …) →
     ``[qubit]``; ordered two-qubit (CX-like) → ``[ordered-pair]``; symmetric two-qubit
     (CZ-like) → ``[unordered-pair]``. Returns ``(gate_vars, tableau_x, tableau_z)``.
+
+    When ``max_depth > 0``, tableau slice 0 holds the target's Boolean constants directly so
+    the first transition folds against them; for the degenerate 0-layer case slice 0 is also
+    the terminal slice and stays symbolic (pinned to the target by the caller).
     """
     gate_vars: dict[str, list[list[z3.BoolRef]]] = {}
     for gate_name, gate_cls in gate_set.items():
@@ -100,6 +105,11 @@ def _declare_clifford_depth_vars(
         ],
         dtype=object,
     )
+    if max_depth > 0:
+        for row in range(num_rows):
+            for q in range(n):
+                tableau_x[0, row, q] = bool(target.tableau.matrix[row, q])
+                tableau_z[0, row, q] = bool(target.tableau.matrix[row, q + n])
     return gate_vars, tableau_x, tableau_z
 
 
@@ -257,8 +267,9 @@ def encode_clifford_depth(
     num_rows = target.n_rows
 
     solver = z3.Solver()
-    gate_vars, tableau_x, tableau_z = _declare_clifford_depth_vars(n, num_rows, max_depth, gate_set)
-    constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
+    gate_vars, tableau_x, tableau_z = _declare_clifford_depth_vars(target, n, num_rows, max_depth, gate_set)
+    if max_depth == 0:
+        constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
 
     for layer in range(max_depth):
         _add_clifford_depth_layer_constraints(solver, layer, n, gate_vars, gate_set)
@@ -277,13 +288,16 @@ def encode_clifford_depth(
 
 
 def _declare_css_depth_vars(
+    target: CheckMatrix,
     n: int,
     num_rows: int,
     max_depth: int,
 ) -> tuple[list[list[z3.BoolRef]], list[list[z3.BoolRef]], npt.NDArray[np.object_]]:
     """Allocate the per-layer ID/CX gate and check-matrix SAT variables for a CSS depth encoding.
 
-    Returns ``(id_vars, cx_vars, matrix)`` where ``matrix`` has ``max_depth + 1`` slices.
+    Returns ``(id_vars, cx_vars, matrix)`` where ``matrix`` has ``max_depth + 1`` slices. When
+    ``max_depth > 0``, slice 0 holds the target's Boolean constants directly; for the
+    degenerate 0-layer case it stays symbolic (pinned to the target by the caller).
     """
     id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
     cx_vars = [
@@ -297,6 +311,10 @@ def _declare_css_depth_vars(
         ],
         dtype=object,
     )
+    if max_depth > 0:
+        for row in range(num_rows):
+            for q in range(n):
+                matrix[0, row, q] = bool(target.matrix[row, q])
     return id_vars, cx_vars, matrix
 
 
@@ -407,8 +425,9 @@ def encode_css_depth(
     is_x_type = target.is_x_type()
 
     solver = z3.Solver()
-    id_vars, cx_vars, matrix = _declare_css_depth_vars(n, num_rows, max_depth)
-    constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
+    id_vars, cx_vars, matrix = _declare_css_depth_vars(target, n, num_rows, max_depth)
+    if max_depth == 0:
+        constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
 
     for layer in range(max_depth):
         _add_css_depth_layer_constraints(solver, layer, n, id_vars, cx_vars)

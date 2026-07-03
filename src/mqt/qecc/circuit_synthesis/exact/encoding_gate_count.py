@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 
 def _declare_clifford_gate_count_vars(
+    target: StabilizerTableau,
     n: int,
     num_rows: int,
     max_gates: int,
@@ -45,6 +46,11 @@ def _declare_clifford_gate_count_vars(
     one per-slot selection-boolean list for every non-ID gate ("ID" is a depth-only
     concept); ``alpha``/``beta`` are the per-slot qubit-index bitvectors; the tableaus have
     ``max_gates + 1`` slices.
+
+    When ``max_gates > 0``, slice 0 holds the target's Boolean constants directly (rather
+    than fresh pinned variables) so the first transition folds against them. For the
+    degenerate 0-gate case slice 0 is also the terminal slice and stays symbolic (pinned to
+    the target by the caller).
     """
     gate_sel: dict[str, list[z3.BoolRef]] = {
         name: [z3.Bool(f"{name.lower()}_{slot}") for slot in range(max_gates)] for name in gate_set if name != "ID"
@@ -65,6 +71,11 @@ def _declare_clifford_gate_count_vars(
         ],
         dtype=object,
     )
+    if max_gates > 0:
+        for row in range(num_rows):
+            for q in range(n):
+                tableau_x[0, row, q] = bool(target.tableau.matrix[row, q])
+                tableau_z[0, row, q] = bool(target.tableau.matrix[row, q + n])
     return gate_sel, alpha_vars, beta_vars, tableau_x, tableau_z
 
 
@@ -210,9 +221,10 @@ def encode_clifford_gate_count(
 
     solver = z3.Solver()
     gate_sel, alpha_vars, beta_vars, tableau_x, tableau_z = _declare_clifford_gate_count_vars(
-        n, num_rows, max_gates, n_bits, gate_set
+        target, n, num_rows, max_gates, n_bits, gate_set
     )
-    constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
+    if max_gates == 0:
+        constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
 
     for slot in range(max_gates):
         _add_clifford_gate_count_slot_constraints(solver, slot, n, n_bits, gate_sel, alpha_vars, beta_vars, gate_set)
@@ -233,6 +245,7 @@ def encode_clifford_gate_count(
 
 
 def _declare_css_gate_count_vars(
+    target: CheckMatrix,
     n: int,
     num_rows: int,
     max_gates: int,
@@ -241,6 +254,8 @@ def _declare_css_gate_count_vars(
     """Allocate the qubit-index and check-matrix SAT variables for a CSS gate-count encoding.
 
     Returns ``(alpha_vars, beta_vars, matrix)`` where ``matrix`` has ``max_gates + 1`` slices.
+    When ``max_gates > 0``, slice 0 holds the target's Boolean constants directly; for the
+    degenerate 0-gate case it stays symbolic (pinned to the target by the caller).
     """
     alpha_vars = [z3.BitVec(f"alpha_{slot}", n_bits) for slot in range(max_gates)]
     beta_vars = [z3.BitVec(f"beta_{slot}", n_bits) for slot in range(max_gates)]
@@ -251,6 +266,10 @@ def _declare_css_gate_count_vars(
         ],
         dtype=object,
     )
+    if max_gates > 0:
+        for row in range(num_rows):
+            for q in range(n):
+                matrix[0, row, q] = bool(target.matrix[row, q])
     return alpha_vars, beta_vars, matrix
 
 
@@ -343,8 +362,9 @@ def encode_css_gate_count(
     n_bits = max(1, int(np.ceil(np.log2(n)))) if n > 1 else 1
 
     solver = z3.Solver()
-    alpha_vars, beta_vars, matrix = _declare_css_gate_count_vars(n, num_rows, max_gates, n_bits)
-    constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
+    alpha_vars, beta_vars, matrix = _declare_css_gate_count_vars(target, n, num_rows, max_gates, n_bits)
+    if max_gates == 0:
+        constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
 
     for slot in range(max_gates):
         _add_css_gate_count_slot_constraints(solver, slot, n, alpha_vars, beta_vars)
