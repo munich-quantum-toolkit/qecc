@@ -63,9 +63,9 @@ class StabilizerCode:
         self.distance = 1 if distance is None else distance  # default distance is 1
         self.compute_logical_ops()
         if z_logicals is not None:
-            self.z_logicals = self.get_generators(z_logicals)
+            self.z_logicals = self.get_generators(z_logicals, self.n)
         if x_logicals is not None:
-            self.x_logicals = self.get_generators(x_logicals)
+            self.x_logicals = self.get_generators(x_logicals, self.n)
 
         self._check_code_correct()
 

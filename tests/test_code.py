@@ -518,6 +518,12 @@ def test_too_many_logicals() -> None:
         StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["IZZI"], x_logicals=["XXII", "XXII", "XXII"])
 
 
+def test_empty_logicals() -> None:
+    """Test that an the case of empty logicals is handled gracefully."""
+    code = StabilizerCode(["XX", "ZZ"], z_logicals=[], x_logicals=[])
+    assert code.k == 0
+
+
 def test_code_equality() -> None:
     """Test equality of stabilizer codes."""
     # Equal codes
