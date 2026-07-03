@@ -304,6 +304,55 @@ def _make_success_result(
     )
 
 
+def _solve_bound(
+    encoding: SynthesisEncoding,
+    target: StabilizerTableau | CheckMatrix,
+    k: int,
+    bound: int,
+    timeout_s: int,
+) -> tuple[z3.CheckSatResult, z3.Solver]:
+    """Encode and solve a single resource bound with a per-check timeout (in seconds)."""
+    solver = encoding.encode(target, k, bound)
+    solver.set("timeout", timeout_s * 1000)
+    return solver.check(), solver
+
+
+def _descend_to_optimum(
+    encoding: SynthesisEncoding,
+    target: StabilizerTableau | CheckMatrix,
+    k: int,
+    sat_bound: int,
+    lower_bound: int,
+    best: SynthesisResult,
+    is_depth: bool,
+    verify: bool,
+    verify_fn: Callable[[CliffordIsometry | CNOTCircuit], bool],
+    postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None,
+    max_timeout: int,
+) -> SynthesisResult:
+    """Tighten a known solution by descending from ``sat_bound - 1`` (backoff Phase B).
+
+    Each lower bound is solved at ``max_timeout`` seconds. Returns the best result found,
+    with ``proven_optimal`` set when a lower bound is proven UNSAT or all smaller bounds
+    are exhausted SAT.
+    """
+    proven = False
+    for b in range(sat_bound - 1, lower_bound - 1, -1):
+        result, solver = _solve_bound(encoding, target, k, b, max_timeout)
+        if result == z3.sat:
+            best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+        elif result == z3.unsat:
+            proven = True
+            break
+        else:  # timeout: best known is all we have
+            break
+    else:
+        # Exhausted all smaller bounds — all SAT, so lower_bound is optimal.
+        proven = True
+    best.proven_optimal = proven
+    return best
+
+
 def _search_with_exponential_backoff(
     encoding: SynthesisEncoding,
     target: StabilizerTableau | CheckMatrix,
@@ -352,30 +401,14 @@ def _search_with_exponential_backoff(
     while pending:
         still_pending: list[int] = []
         for bound in pending:
-            solver = encoding.encode(target, k, bound)
-            solver.set("timeout", curr_timeout * 1000)
-            result = solver.check()
+            result, solver = _solve_bound(encoding, target, k, bound, curr_timeout)
 
             if result == z3.sat:
                 best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
-                # Phase B: descend with max_timeout to tighten the solution
-                proven = False
-                for b in range(bound - 1, lower_bound - 1, -1):
-                    s = encoding.encode(target, k, b)
-                    s.set("timeout", max_timeout * 1000)
-                    r = s.check()
-                    if r == z3.sat:
-                        best = _make_success_result(encoding, s.model(), is_depth, verify, verify_fn, postprocess)
-                    elif r == z3.unsat:
-                        proven = True
-                        break
-                    else:  # timeout: best known is all we have
-                        break
-                else:
-                    # Exhausted all smaller bounds — all SAT, so lower_bound is optimal.
-                    proven = True
-                best.proven_optimal = proven
-                return best
+                # Phase B: descend with max_timeout to tighten the solution.
+                return _descend_to_optimum(
+                    encoding, target, k, bound, lower_bound, best, is_depth, verify, verify_fn, postprocess, max_timeout
+                )
 
             if result == z3.unknown:
                 reason = solver.reason_unknown()

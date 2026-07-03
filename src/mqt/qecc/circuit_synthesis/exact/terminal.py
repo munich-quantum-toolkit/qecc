@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 import z3
@@ -88,6 +88,120 @@ def add_clifford_unitary_terminal(
                 )
 
 
+class _LogicalBlocks(NamedTuple):
+    """The four logical-operator sub-blocks of a final tableau (arrays of z3.BoolRef).
+
+    ``x_x``/``x_z`` are the X- and Z-parts of the ``k`` X-logical rows; ``z_x``/``z_z``
+    are those of the ``k`` Z-logical rows.
+    """
+
+    x_x: npt.NDArray[np.object_]
+    x_z: npt.NDArray[np.object_]
+    z_x: npt.NDArray[np.object_]
+    z_z: npt.NDArray[np.object_]
+
+
+def _add_stabilizer_pivot_vars(
+    solver: z3.Solver,
+    n: int,
+    num_stab: int,
+    stab_z: npt.NDArray[np.object_],
+) -> npt.NDArray[np.object_]:
+    """Create per-column pivot booleans (column is a pivot iff a stabilizer row has Z on it).
+
+    Enforces exactly ``num_stab`` pivots and returns the pivot variable array.
+    """
+    pivot = np.array([z3.Bool(f"pivot_{q}") for q in range(n)], dtype=object)
+    for q in range(n):
+        has_support = z3.Or([stab_z[row, q] for row in range(num_stab)])
+        solver.add(pivot[q] == has_support)
+    solver.add(z3.PbEq([(pivot[q], 1) for q in range(n)], num_stab))
+    return pivot
+
+
+def _add_permuted_logical_constraints(
+    solver: z3.Solver,
+    n: int,
+    k: int,
+    pivot: npt.NDArray[np.object_],
+    logicals: _LogicalBlocks,
+) -> None:
+    """Constrain logicals when qubit permutation is allowed.
+
+    Each logical selects exactly one non-pivot column with a canonical X/Z pair,
+    off-selection entries on non-pivot columns vanish, and pivot columns carry no
+    logical X-support.
+    """
+    selector = np.array([[z3.Bool(f"logical_selector_{i}_{q}") for q in range(n)] for i in range(k)], dtype=object)
+
+    for i in range(k):
+        solver.add(z3.PbEq([(selector[i, q], 1) for q in range(n)], 1))
+
+        for q in range(n):
+            solver.add(z3.Implies(selector[i, q], z3.Not(pivot[q])))
+
+    for q in range(n):
+        solver.add(z3.PbLe([(selector[i, q], 1) for i in range(k)], 1))
+
+    for i in range(k):
+        for q in range(n):
+            conditions: list[z3.BoolRef] = []
+            for qp in range(n):
+                conditions.extend((
+                    logicals.x_x[i, qp] == (q == qp),
+                    logicals.x_z[i, qp] == False,
+                    logicals.z_x[i, qp] == False,
+                    logicals.z_z[i, qp] == (q == qp),
+                ))
+
+            solver.add(z3.Implies(selector[i, q], z3.And(conditions)))
+
+            solver.add(
+                z3.Implies(
+                    z3.And(z3.Not(pivot[q]), z3.Not(selector[i, q])),
+                    z3.And(
+                        z3.Not(logicals.x_x[i, q]),
+                        z3.Not(logicals.x_z[i, q]),
+                        z3.Not(logicals.z_x[i, q]),
+                        z3.Not(logicals.z_z[i, q]),
+                    ),
+                )
+            )
+
+    for q in range(n):
+        for i in range(k):
+            solver.add(z3.Implies(pivot[q], z3.Not(logicals.x_x[i, q])))
+            solver.add(z3.Implies(pivot[q], z3.Not(logicals.z_x[i, q])))
+
+
+def _add_fixed_logical_constraints(
+    solver: z3.Solver,
+    n: int,
+    k: int,
+    pivot: npt.NDArray[np.object_],
+    logicals: _LogicalBlocks,
+) -> None:
+    """Constrain each logical ``i`` to its fixed home qubit ``i`` when permutation is disallowed."""
+    for i in range(k):
+        solver.add(z3.Not(pivot[i]))
+
+        for q in range(n):
+            if q == i:
+                solver.add(logicals.x_x[i, q])
+                solver.add(z3.Not(logicals.x_z[i, q]))
+            else:
+                solver.add(z3.Not(logicals.x_x[i, q]))
+                solver.add(z3.Not(logicals.x_z[i, q]))
+
+        for q in range(n):
+            if q == i:
+                solver.add(z3.Not(logicals.z_x[i, q]))
+                solver.add(logicals.z_z[i, q])
+            else:
+                solver.add(z3.Not(logicals.z_x[i, q]))
+                solver.add(z3.Not(logicals.z_z[i, q]))
+
+
 def add_clifford_isometry_terminal(
     solver: z3.Solver,
     n: int,
@@ -129,88 +243,24 @@ def add_clifford_isometry_terminal(
 
     stab_x = tableau_x_final[2 * k : 2 * k + num_stab, :]
     stab_z = tableau_z_final[2 * k : 2 * k + num_stab, :]
-    logical_x_x = tableau_x_final[:k, :]
-    logical_x_z = tableau_z_final[:k, :]
-    logical_z_x = tableau_x_final[k : 2 * k, :]
-    logical_z_z = tableau_z_final[k : 2 * k, :]
+    logicals = _LogicalBlocks(
+        x_x=tableau_x_final[:k, :],
+        x_z=tableau_z_final[:k, :],
+        z_x=tableau_x_final[k : 2 * k, :],
+        z_z=tableau_z_final[k : 2 * k, :],
+    )
 
-    # 1. Stabilizer X-part must be zero
+    # Stabilizer X-part must be zero.
     for row in range(num_stab):
         for q in range(n):
             solver.add(z3.Not(stab_x[row, q]))
 
-    # 2. Pivot variables: column q is a pivot iff any stabilizer row has Z on q
-    pivot = np.array([z3.Bool(f"pivot_{q}") for q in range(n)], dtype=object)
+    pivot = _add_stabilizer_pivot_vars(solver, n, num_stab, stab_z)
 
-    for q in range(n):
-        has_support = z3.Or([stab_z[row, q] for row in range(num_stab)])
-        solver.add(pivot[q] == has_support)
-
-    # Exactly n-k pivots
-    solver.add(z3.PbEq([(pivot[q], 1) for q in range(n)], num_stab))
-
-    # 3. Logical selector variables
     if allow_permutation:
-        selector = np.array([[z3.Bool(f"logical_selector_{i}_{q}") for q in range(n)] for i in range(k)], dtype=object)
-
-        for i in range(k):
-            solver.add(z3.PbEq([(selector[i, q], 1) for q in range(n)], 1))
-
-            for q in range(n):
-                solver.add(z3.Implies(selector[i, q], z3.Not(pivot[q])))
-
-        for q in range(n):
-            solver.add(z3.PbLe([(selector[i, q], 1) for i in range(k)], 1))
-
-        for i in range(k):
-            for q in range(n):
-                conditions: list[z3.BoolRef] = []
-                for qp in range(n):
-                    conditions.extend((
-                        logical_x_x[i, qp] == (q == qp),
-                        logical_x_z[i, qp] == False,
-                        logical_z_x[i, qp] == False,
-                        logical_z_z[i, qp] == (q == qp),
-                    ))
-
-                solver.add(z3.Implies(selector[i, q], z3.And(conditions)))
-
-                solver.add(
-                    z3.Implies(
-                        z3.And(z3.Not(pivot[q]), z3.Not(selector[i, q])),
-                        z3.And(
-                            z3.Not(logical_x_x[i, q]),
-                            z3.Not(logical_x_z[i, q]),
-                            z3.Not(logical_z_x[i, q]),
-                            z3.Not(logical_z_z[i, q]),
-                        ),
-                    )
-                )
-
-        # 4. Pivot columns: no logical X-support
-        for q in range(n):
-            for i in range(k):
-                solver.add(z3.Implies(pivot[q], z3.Not(logical_x_x[i, q])))
-                solver.add(z3.Implies(pivot[q], z3.Not(logical_z_x[i, q])))
+        _add_permuted_logical_constraints(solver, n, k, pivot, logicals)
     else:
-        for i in range(k):
-            solver.add(z3.Not(pivot[i]))
-
-            for q in range(n):
-                if q == i:
-                    solver.add(logical_x_x[i, q])
-                    solver.add(z3.Not(logical_x_z[i, q]))
-                else:
-                    solver.add(z3.Not(logical_x_x[i, q]))
-                    solver.add(z3.Not(logical_x_z[i, q]))
-
-            for q in range(n):
-                if q == i:
-                    solver.add(z3.Not(logical_z_x[i, q]))
-                    solver.add(logical_z_z[i, q])
-                else:
-                    solver.add(z3.Not(logical_z_x[i, q]))
-                    solver.add(z3.Not(logical_z_z[i, q]))
+        _add_fixed_logical_constraints(solver, n, k, pivot, logicals)
 
 
 def add_stabilizer_state_terminal(
