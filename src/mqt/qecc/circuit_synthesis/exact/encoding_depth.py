@@ -19,6 +19,8 @@ from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 from .vars import CliffordDepthVars
 
 if TYPE_CHECKING:
+    import numpy.typing as npt
+
     from ...codes.pauli import CheckMatrix, StabilizerTableau
     from .gate_operations import SymbolicGateOperation
 
@@ -55,6 +57,151 @@ def _symmetric_pair_pb_terms(
     return terms
 
 
+def _declare_clifford_depth_vars(
+    n: int,
+    num_rows: int,
+    max_depth: int,
+    gate_set: dict[str, type[SymbolicGateOperation]],
+) -> tuple[dict[str, list[list[z3.BoolRef]]], npt.NDArray[np.object_], npt.NDArray[np.object_]]:
+    """Allocate the per-layer gate and tableau SAT variables for a Clifford depth encoding.
+
+    The gate-variable index structure per layer is: single-qubit (H, S, SX, ID, …) →
+    ``[qubit]``; ordered two-qubit (CX-like) → ``[ordered-pair]``; symmetric two-qubit
+    (CZ-like) → ``[unordered-pair]``. Returns ``(gate_vars, tableau_x, tableau_z)``.
+    """
+    gate_vars: dict[str, list[list[z3.BoolRef]]] = {}
+    for gate_name, gate_cls in gate_set.items():
+        key = gate_name.lower()
+        if not gate_cls.IS_TWO_QUBIT:
+            gate_vars[gate_name] = [[z3.Bool(f"{key}_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
+        elif not gate_cls.IS_SYMMETRIC:
+            gate_vars[gate_name] = [
+                [z3.Bool(f"{key}_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
+                for layer in range(max_depth)
+            ]
+        else:
+            gate_vars[gate_name] = [
+                [z3.Bool(f"{key}_{layer}_{i}_{j}") for i in range(n) for j in range(i + 1, n)]
+                for layer in range(max_depth)
+            ]
+
+    tableau_x = np.array(
+        [
+            [[z3.Bool(f"tx_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
+            for layer in range(max_depth + 1)
+        ],
+        dtype=object,
+    )
+    tableau_z = np.array(
+        [
+            [[z3.Bool(f"tz_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
+            for layer in range(max_depth + 1)
+        ],
+        dtype=object,
+    )
+    return gate_vars, tableau_x, tableau_z
+
+
+def _add_clifford_depth_transitions(
+    solver: z3.Solver,
+    layer: int,
+    n: int,
+    num_rows: int,
+    gate_vars: dict[str, list[list[z3.BoolRef]]],
+    tableau_x: npt.NDArray[np.object_],
+    tableau_z: npt.NDArray[np.object_],
+) -> None:
+    """Add the tableau-transition constraints for one depth layer (H, S, SX, ID, CX, CZ)."""
+    h_vars = gate_vars["H"]
+    s_vars = gate_vars.get("S", [])
+    sx_vars = gate_vars.get("SX", [])
+    id_vars = gate_vars["ID"]
+    cx_vars = gate_vars["CX"]
+    cz_vars = gate_vars.get("CZ", [])
+
+    curr_x = tableau_x[layer]
+    curr_z = tableau_z[layer]
+    next_x = tableau_x[layer + 1]
+    next_z = tableau_z[layer + 1]
+
+    for q in range(n):
+        for row in range(num_rows):
+            h_effect = z3.If(
+                h_vars[layer][q],
+                z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
+                True,
+            )
+            solver.add(h_effect)
+
+            if s_vars:
+                s_effect = z3.If(
+                    s_vars[layer][q],
+                    z3.And(
+                        next_x[row, q] == curr_x[row, q],
+                        next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q]),
+                    ),
+                    True,
+                )
+                solver.add(s_effect)
+
+            if sx_vars:
+                sx_effect = z3.If(
+                    sx_vars[layer][q],
+                    z3.And(
+                        next_x[row, q] == z3.Xor(curr_x[row, q], curr_z[row, q]),
+                        next_z[row, q] == curr_z[row, q],
+                    ),
+                    True,
+                )
+                solver.add(sx_effect)
+
+            id_effect = z3.If(
+                id_vars[layer][q],
+                z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
+                True,
+            )
+            solver.add(id_effect)
+
+    cx_idx = 0
+    for ctrl in range(n):
+        for tgt in range(n):
+            if ctrl == tgt:
+                continue
+
+            for row in range(num_rows):
+                cx_effect = z3.If(
+                    cx_vars[layer][cx_idx],
+                    z3.And(
+                        next_x[row, ctrl] == curr_x[row, ctrl],
+                        next_x[row, tgt] == z3.Xor(curr_x[row, tgt], curr_x[row, ctrl]),
+                        next_z[row, ctrl] == z3.Xor(curr_z[row, ctrl], curr_z[row, tgt]),
+                        next_z[row, tgt] == curr_z[row, tgt],
+                    ),
+                    True,
+                )
+                solver.add(cx_effect)
+
+            cx_idx += 1
+
+    if cz_vars:
+        cz_idx = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                for row in range(num_rows):
+                    cz_effect = z3.If(
+                        cz_vars[layer][cz_idx],
+                        z3.And(
+                            next_x[row, i] == curr_x[row, i],
+                            next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, j]),
+                            next_x[row, j] == curr_x[row, j],
+                            next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i]),
+                        ),
+                        True,
+                    )
+                    solver.add(cz_effect)
+                cz_idx += 1
+
+
 def encode_clifford_depth(
     target: StabilizerTableau,
     k: int,
@@ -88,51 +235,7 @@ def encode_clifford_depth(
     num_rows = target.n_rows
 
     solver = z3.Solver()
-
-    # Build gate_vars dict generically from the gate set.
-    # Variable index structure per gate type:
-    #   single-qubit (H, S, SX, ID, …) → [layer][qubit]         (n entries per layer)
-    #   ordered two-qubit (CX-like)     → [layer][ordered-pair]  (n*(n-1) entries per layer)
-    #   symmetric two-qubit (CZ-like)   → [layer][unordered-pair] (n*(n-1)//2 entries per layer)
-    gate_vars: dict[str, list[list[z3.BoolRef]]] = {}
-    for gate_name, gate_cls in gate_set.items():
-        key = gate_name.lower()
-        if not gate_cls.IS_TWO_QUBIT:
-            gate_vars[gate_name] = [[z3.Bool(f"{key}_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
-        elif not gate_cls.IS_SYMMETRIC:
-            gate_vars[gate_name] = [
-                [z3.Bool(f"{key}_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
-                for layer in range(max_depth)
-            ]
-        else:
-            gate_vars[gate_name] = [
-                [z3.Bool(f"{key}_{layer}_{i}_{j}") for i in range(n) for j in range(i + 1, n)]
-                for layer in range(max_depth)
-            ]
-
-    # Convenient local aliases for the inline transition constraint logic below.
-    h_vars = gate_vars["H"]
-    s_vars = gate_vars.get("S", [])
-    sx_vars = gate_vars.get("SX", [])
-    id_vars = gate_vars["ID"]
-    cx_vars = gate_vars["CX"]
-    cz_vars = gate_vars.get("CZ", [])
-
-    tableau_x = np.array(
-        [
-            [[z3.Bool(f"tx_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
-            for layer in range(max_depth + 1)
-        ],
-        dtype=object,
-    )
-
-    tableau_z = np.array(
-        [
-            [[z3.Bool(f"tz_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
-            for layer in range(max_depth + 1)
-        ],
-        dtype=object,
-    )
+    gate_vars, tableau_x, tableau_z = _declare_clifford_depth_vars(n, num_rows, max_depth, gate_set)
 
     for row in range(num_rows):
         for q in range(n):
@@ -153,87 +256,7 @@ def encode_clifford_depth(
                     pb_terms.extend(_symmetric_pair_pb_terms(all_layer_vars[layer], q, n))
             solver.add(z3.PbEq(pb_terms, 1))
 
-        curr_x = tableau_x[layer]
-        curr_z = tableau_z[layer]
-        next_x = tableau_x[layer + 1]
-        next_z = tableau_z[layer + 1]
-
-        for q in range(n):
-            for row in range(num_rows):
-                h_effect = z3.If(
-                    h_vars[layer][q],
-                    z3.And(next_x[row, q] == curr_z[row, q], next_z[row, q] == curr_x[row, q]),
-                    True,
-                )
-                solver.add(h_effect)
-
-                if s_vars:
-                    s_effect = z3.If(
-                        s_vars[layer][q],
-                        z3.And(
-                            next_x[row, q] == curr_x[row, q],
-                            next_z[row, q] == z3.Xor(curr_z[row, q], curr_x[row, q]),
-                        ),
-                        True,
-                    )
-                    solver.add(s_effect)
-
-                if sx_vars:
-                    sx_effect = z3.If(
-                        sx_vars[layer][q],
-                        z3.And(
-                            next_x[row, q] == z3.Xor(curr_x[row, q], curr_z[row, q]),
-                            next_z[row, q] == curr_z[row, q],
-                        ),
-                        True,
-                    )
-                    solver.add(sx_effect)
-
-                id_effect = z3.If(
-                    id_vars[layer][q],
-                    z3.And(next_x[row, q] == curr_x[row, q], next_z[row, q] == curr_z[row, q]),
-                    True,
-                )
-                solver.add(id_effect)
-
-        cx_idx = 0
-        for ctrl in range(n):
-            for tgt in range(n):
-                if ctrl == tgt:
-                    continue
-
-                for row in range(num_rows):
-                    cx_effect = z3.If(
-                        cx_vars[layer][cx_idx],
-                        z3.And(
-                            next_x[row, ctrl] == curr_x[row, ctrl],
-                            next_x[row, tgt] == z3.Xor(curr_x[row, tgt], curr_x[row, ctrl]),
-                            next_z[row, ctrl] == z3.Xor(curr_z[row, ctrl], curr_z[row, tgt]),
-                            next_z[row, tgt] == curr_z[row, tgt],
-                        ),
-                        True,
-                    )
-                    solver.add(cx_effect)
-
-                cx_idx += 1
-
-        if cz_vars:
-            cz_idx = 0
-            for i in range(n):
-                for j in range(i + 1, n):
-                    for row in range(num_rows):
-                        cz_effect = z3.If(
-                            cz_vars[layer][cz_idx],
-                            z3.And(
-                                next_x[row, i] == curr_x[row, i],
-                                next_z[row, i] == z3.Xor(curr_z[row, i], curr_x[row, j]),
-                                next_x[row, j] == curr_x[row, j],
-                                next_z[row, j] == z3.Xor(curr_z[row, j], curr_x[row, i]),
-                            ),
-                            True,
-                        )
-                        solver.add(cz_effect)
-                    cz_idx += 1
+        _add_clifford_depth_transitions(solver, layer, n, num_rows, gate_vars, tableau_x, tableau_z)
 
     add_clifford_isometry_terminal(
         solver,
@@ -245,6 +268,76 @@ def encode_clifford_depth(
     )
 
     return CliffordDepthVars(solver, gate_vars, n, gate_set)
+
+
+def _declare_css_depth_vars(
+    n: int,
+    num_rows: int,
+    max_depth: int,
+) -> tuple[list[list[z3.BoolRef]], list[list[z3.BoolRef]], npt.NDArray[np.object_]]:
+    """Allocate the per-layer ID/CX gate and check-matrix SAT variables for a CSS depth encoding.
+
+    Returns ``(id_vars, cx_vars, matrix)`` where ``matrix`` has ``max_depth + 1`` slices.
+    """
+    id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
+    cx_vars = [
+        [z3.Bool(f"cx_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
+        for layer in range(max_depth)
+    ]
+    matrix = np.array(
+        [
+            [[z3.Bool(f"m_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
+            for layer in range(max_depth + 1)
+        ],
+        dtype=object,
+    )
+    return id_vars, cx_vars, matrix
+
+
+def _add_css_depth_transitions(
+    solver: z3.Solver,
+    layer: int,
+    n: int,
+    num_rows: int,
+    id_vars: list[list[z3.BoolRef]],
+    cx_vars: list[list[z3.BoolRef]],
+    is_x_type: bool,
+    matrix: npt.NDArray[np.object_],
+) -> None:
+    """Add the ID/CNOT column-operation constraints for one depth layer."""
+    curr = matrix[layer]
+    next_m = matrix[layer + 1]
+
+    for q in range(n):
+        for row in range(num_rows):
+            id_effect = z3.If(
+                id_vars[layer][q],
+                next_m[row, q] == curr[row, q],
+                True,
+            )
+            solver.add(id_effect)
+
+    cx_idx = 0
+    for ctrl in range(n):
+        for tgt in range(n):
+            if ctrl == tgt:
+                continue
+
+            # X-type: CNOT(ctrl,tgt) adds column ctrl to column tgt  (col_tgt ^= col_ctrl)
+            # Z-type: CNOT(ctrl,tgt) adds column tgt to column ctrl  (col_ctrl ^= col_tgt)
+            src, dst = (ctrl, tgt) if is_x_type else (tgt, ctrl)
+            for row in range(num_rows):
+                cx_effect = z3.If(
+                    cx_vars[layer][cx_idx],
+                    z3.And(
+                        next_m[row, src] == curr[row, src],
+                        next_m[row, dst] == z3.Xor(curr[row, dst], curr[row, src]),
+                    ),
+                    True,
+                )
+                solver.add(cx_effect)
+
+            cx_idx += 1
 
 
 def encode_css_depth(
@@ -283,21 +376,7 @@ def encode_css_depth(
     is_x_type = target.is_x_type()
 
     solver = z3.Solver()
-
-    id_vars = [[z3.Bool(f"id_{layer}_{q}") for q in range(n)] for layer in range(max_depth)]
-
-    cx_vars = [
-        [z3.Bool(f"cx_{layer}_{ctrl}_{tgt}") for ctrl in range(n) for tgt in range(n) if ctrl != tgt]
-        for layer in range(max_depth)
-    ]
-
-    matrix = np.array(
-        [
-            [[z3.Bool(f"m_{layer}_{row}_{q}") for q in range(n)] for row in range(num_rows)]
-            for layer in range(max_depth + 1)
-        ],
-        dtype=object,
-    )
+    id_vars, cx_vars, matrix = _declare_css_depth_vars(n, num_rows, max_depth)
 
     for row in range(num_rows):
         for q in range(n):
@@ -320,39 +399,7 @@ def encode_css_depth(
 
             solver.add(z3.PbEq([(id_vars[layer][q], 1)] + [(v, 1) for v in cx_involving_q], 1))
 
-        curr = matrix[layer]
-        next_m = matrix[layer + 1]
-
-        for q in range(n):
-            for row in range(num_rows):
-                id_effect = z3.If(
-                    id_vars[layer][q],
-                    next_m[row, q] == curr[row, q],
-                    True,
-                )
-                solver.add(id_effect)
-
-        cx_idx = 0
-        for ctrl in range(n):
-            for tgt in range(n):
-                if ctrl == tgt:
-                    continue
-
-                # X-type: CNOT(ctrl,tgt) adds column ctrl to column tgt  (col_tgt ^= col_ctrl)
-                # Z-type: CNOT(ctrl,tgt) adds column tgt to column ctrl  (col_ctrl ^= col_tgt)
-                src, dst = (ctrl, tgt) if is_x_type else (tgt, ctrl)
-                for row in range(num_rows):
-                    cx_effect = z3.If(
-                        cx_vars[layer][cx_idx],
-                        z3.And(
-                            next_m[row, src] == curr[row, src],
-                            next_m[row, dst] == z3.Xor(curr[row, dst], curr[row, src]),
-                        ),
-                        True,
-                    )
-                    solver.add(cx_effect)
-
-                cx_idx += 1
+        _add_css_depth_transitions(solver, layer, n, num_rows, id_vars, cx_vars, is_x_type, matrix)
 
     add_css_isometry_terminal(
         solver,
