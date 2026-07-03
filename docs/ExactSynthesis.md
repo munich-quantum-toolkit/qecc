@@ -284,7 +284,7 @@ print(f"message:        {result.message}")
 Depth-optimal synthesis may leave room to reduce the two-qubit gate count while keeping the depth fixed. The `max_two_qubit_gates` parameter bounds the number of two-qubit gates at a fixed depth, enabling a descent that finds the depth-optimal circuit with fewest two-qubit gates:
 
 ```{code-cell} ipython3
-# Step 1: find depth-optimal circuit
+# Step 1: start from the depth-optimal circuit (depth 5 was established above)
 depth_result = synthesize_isometry_exact(
     target=stab_tab,
     target_kind=TargetKind.CLIFFORD_ISOMETRY,
@@ -292,10 +292,10 @@ depth_result = synthesize_isometry_exact(
     x_logicals=x_log_tab,
     z_logicals=z_log_tab,
     gate_set=get_clifford_extended_gate_set(),
-    lower_bound=3,
-    upper_bound=7,
+    lower_bound=5,
+    upper_bound=5,
     use_symmetry_breaking=True,
-    timeout=120,
+    timeout=30,
 )
 
 d_star = depth_result.depth
@@ -317,7 +317,7 @@ for max_tq in range(tq_count - 1, -1, -1):
         lower_bound=d_star,
         upper_bound=d_star,
         max_two_qubit_gates=max_tq,
-        timeout=30,
+        timeout=6,
     )
     if tq_result.status == SynthesisStatus.SUCCESS:
         best_result = tq_result
