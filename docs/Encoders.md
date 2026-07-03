@@ -171,7 +171,7 @@ It is additionally possible to synthesize an encoding circuit of a $[[n, k, d]]$
 Each input can be fixed with either a $|0\rangle$ or $|+\rangle$ state.
 
 ```{code-cell} ipython3
-input_states = [(1, True), (3, False)]
+input_states = {1: "0", 3:"+"}
 
 free_input_circ = synthesize_encoding_circuit(hamming_code)
 fixed_input_circ = synthesize_encoding_circuit(
