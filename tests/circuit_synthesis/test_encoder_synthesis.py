@@ -407,48 +407,58 @@ def test_local_minimum() -> None:
     assert enc.get_code().is_equivalent(code)
 
 
-@pytest.mark.parametrize("fixed_logical_qubits", [None, [], [0], [(0, True)], [(0, False)], [(1, True), (0, False)]])
+@pytest.mark.parametrize("use_cnots_if_css", [True, False])
+@pytest.mark.parametrize(
+    "fixed_logical_qubits",
+    [
+        None,
+        {},
+        {0: "0"},
+        {0: "+"},
+        {1: "0", 0: "+"},
+        {0: "+", 2: "0"},
+        {0: "0", 1: "+", 2: "0"},
+    ],
+)
 def test_encoding_fixed_logical_qubits(
-    css_4_2_2_code: CSSCode, fixed_logical_qubits: list[tuple[int, bool]] | list[int] | None
+    non_css_8_qubit: StabilizerCode, fixed_logical_qubits: dict[int, str] | None, use_cnots_if_css: bool
 ) -> None:
     """Check that fixed logical qubits are removed from the encoder inputs."""
-    encoder_cnots = synthesize_encoding_circuit(
-        css_4_2_2_code,
+    encoder = synthesize_encoding_circuit(
+        non_css_8_qubit,
         fixed_logical_qubits=fixed_logical_qubits,
-        use_cnots_if_css=True,
-    )
-    encoder_no_cnots = synthesize_encoding_circuit(
-        css_4_2_2_code,
-        fixed_logical_qubits=fixed_logical_qubits,
-        use_cnots_if_css=False,
+        use_cnots_if_css=use_cnots_if_css,
     )
 
-    expected_inputs = css_4_2_2_code.k - (len(fixed_logical_qubits) if fixed_logical_qubits else 0)
-    assert encoder_cnots.num_inputs() == expected_inputs
-    assert encoder_no_cnots.num_inputs() == expected_inputs
+    expected_inputs = non_css_8_qubit.k - (len(fixed_logical_qubits) if fixed_logical_qubits else 0)
+    assert encoder.num_inputs() == expected_inputs
 
     if fixed_logical_qubits is None or len(fixed_logical_qubits) == 0:
-        assert encoder_cnots.get_code().is_equivalent(css_4_2_2_code)
-        assert encoder_no_cnots.get_code().is_equivalent(css_4_2_2_code)
+        assert encoder.get_code().is_equivalent(non_css_8_qubit)
 
     if (
         fixed_logical_qubits is not None
         and len(fixed_logical_qubits) > 0
-        and len(fixed_logical_qubits) < css_4_2_2_code.k
+        and len(fixed_logical_qubits) < non_css_8_qubit.k
     ):
-        actual_code_cnots = encoder_cnots.get_code()
-        actual_code_no_cnots = encoder_no_cnots.get_code()
+        actual_code = encoder.get_code()
 
-        for lg in fixed_logical_qubits:
-            if isinstance(lg, tuple):
-                q, is_zero = lg
+        for q, z in fixed_logical_qubits.items():
+            if z == "0":
+                assert actual_code.is_stabilizer(non_css_8_qubit.z_logicals[q])
             else:
-                q = lg
-                is_zero = True
+                assert actual_code.is_stabilizer(non_css_8_qubit.x_logicals[q])
 
-            if is_zero:
-                assert actual_code_cnots.is_stabilizer(css_4_2_2_code.z_logicals[q])
-                assert actual_code_no_cnots.is_stabilizer(css_4_2_2_code.z_logicals[q])
-            else:
-                assert actual_code_no_cnots.is_stabilizer(css_4_2_2_code.x_logicals[q])
-                assert actual_code_cnots.is_stabilizer(css_4_2_2_code.x_logicals[q])
+
+@pytest.mark.parametrize("use_cnots_if_css", [True, False])
+@pytest.mark.parametrize("fixed_logical_qubits", [{3: "0"}, {0: "+", 5: "+"}, {1: "A", 0: "+"}])
+def test_encoding_invalid_fixed_logical_qubits(
+    css_4_2_2_code: CSSCode, fixed_logical_qubits: dict[int, str] | None, use_cnots_if_css: bool
+) -> None:
+    """Check that invalid inputs for fixed_logical_qubits raise an Error."""
+    with pytest.raises(AssertionError):
+        synthesize_encoding_circuit(
+            css_4_2_2_code,
+            fixed_logical_qubits=fixed_logical_qubits,
+            use_cnots_if_css=use_cnots_if_css,
+        )
