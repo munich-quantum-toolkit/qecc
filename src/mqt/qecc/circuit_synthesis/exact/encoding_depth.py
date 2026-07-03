@@ -15,6 +15,7 @@ import numpy as np
 import z3
 
 from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
+from .initialization import constrain_initial_clifford_tableau, constrain_initial_css_matrix
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 from .vars import CliffordDepthVars
 
@@ -100,6 +101,27 @@ def _declare_clifford_depth_vars(
         dtype=object,
     )
     return gate_vars, tableau_x, tableau_z
+
+
+def _add_clifford_depth_layer_constraints(
+    solver: z3.Solver,
+    layer: int,
+    n: int,
+    gate_vars: dict[str, list[list[z3.BoolRef]]],
+    gate_set: dict[str, type[SymbolicGateOperation]],
+) -> None:
+    """Require exactly one gate to act on each qubit in the given layer."""
+    for q in range(n):
+        pb_terms: list[tuple[z3.BoolRef, int]] = []
+        for gate_name, all_layer_vars in gate_vars.items():
+            gate_cls = gate_set[gate_name]
+            if not gate_cls.IS_TWO_QUBIT:
+                pb_terms.append((all_layer_vars[layer][q], 1))
+            elif not gate_cls.IS_SYMMETRIC:
+                pb_terms.extend(_ordered_pair_pb_terms(all_layer_vars[layer], q, n))
+            else:
+                pb_terms.extend(_symmetric_pair_pb_terms(all_layer_vars[layer], q, n))
+        solver.add(z3.PbEq(pb_terms, 1))
 
 
 def _add_clifford_depth_transitions(
@@ -236,26 +258,10 @@ def encode_clifford_depth(
 
     solver = z3.Solver()
     gate_vars, tableau_x, tableau_z = _declare_clifford_depth_vars(n, num_rows, max_depth, gate_set)
-
-    for row in range(num_rows):
-        for q in range(n):
-            solver.add(tableau_x[0, row, q] == bool(target.tableau.matrix[row, q]))
-            solver.add(tableau_z[0, row, q] == bool(target.tableau.matrix[row, q + n]))
+    constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
 
     for layer in range(max_depth):
-        # PbEq: exactly one gate acts on each qubit in each layer.
-        for q in range(n):
-            pb_terms: list[tuple[z3.BoolRef, int]] = []
-            for gate_name, all_layer_vars in gate_vars.items():
-                gate_cls = gate_set[gate_name]
-                if not gate_cls.IS_TWO_QUBIT:
-                    pb_terms.append((all_layer_vars[layer][q], 1))
-                elif not gate_cls.IS_SYMMETRIC:
-                    pb_terms.extend(_ordered_pair_pb_terms(all_layer_vars[layer], q, n))
-                else:
-                    pb_terms.extend(_symmetric_pair_pb_terms(all_layer_vars[layer], q, n))
-            solver.add(z3.PbEq(pb_terms, 1))
-
+        _add_clifford_depth_layer_constraints(solver, layer, n, gate_vars, gate_set)
         _add_clifford_depth_transitions(solver, layer, n, num_rows, gate_vars, tableau_x, tableau_z)
 
     add_clifford_isometry_terminal(
@@ -292,6 +298,31 @@ def _declare_css_depth_vars(
         dtype=object,
     )
     return id_vars, cx_vars, matrix
+
+
+def _add_css_depth_layer_constraints(
+    solver: z3.Solver,
+    layer: int,
+    n: int,
+    id_vars: list[list[z3.BoolRef]],
+    cx_vars: list[list[z3.BoolRef]],
+) -> None:
+    """Require exactly one gate (an ID or a CX involving it) to act on each qubit in the layer."""
+    for q in range(n):
+        cx_involving_q = []
+        for ctrl in range(n):
+            if ctrl == q:
+                continue
+            cx_idx = ctrl * (n - 1) + (q if q < ctrl else q - 1)
+            cx_involving_q.append(cx_vars[layer][cx_idx])
+
+        for tgt in range(n):
+            if tgt == q:
+                continue
+            cx_idx = q * (n - 1) + (tgt if tgt < q else tgt - 1)
+            cx_involving_q.append(cx_vars[layer][cx_idx])
+
+        solver.add(z3.PbEq([(id_vars[layer][q], 1)] + [(v, 1) for v in cx_involving_q], 1))
 
 
 def _add_css_depth_transitions(
@@ -377,28 +408,10 @@ def encode_css_depth(
 
     solver = z3.Solver()
     id_vars, cx_vars, matrix = _declare_css_depth_vars(n, num_rows, max_depth)
-
-    for row in range(num_rows):
-        for q in range(n):
-            solver.add(matrix[0, row, q] == bool(target.matrix[row, q]))
+    constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
 
     for layer in range(max_depth):
-        for q in range(n):
-            cx_involving_q = []
-            for ctrl in range(n):
-                if ctrl == q:
-                    continue
-                cx_idx = ctrl * (n - 1) + (q if q < ctrl else q - 1)
-                cx_involving_q.append(cx_vars[layer][cx_idx])
-
-            for tgt in range(n):
-                if tgt == q:
-                    continue
-                cx_idx = q * (n - 1) + (tgt if tgt < q else tgt - 1)
-                cx_involving_q.append(cx_vars[layer][cx_idx])
-
-            solver.add(z3.PbEq([(id_vars[layer][q], 1)] + [(v, 1) for v in cx_involving_q], 1))
-
+        _add_css_depth_layer_constraints(solver, layer, n, id_vars, cx_vars)
         _add_css_depth_transitions(solver, layer, n, num_rows, id_vars, cx_vars, is_x_type, matrix)
 
     add_css_isometry_terminal(

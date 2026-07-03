@@ -15,6 +15,7 @@ import numpy as np
 import z3
 
 from .gate_operations import get_standard_clifford_gate_set, get_standard_css_gate_set
+from .initialization import constrain_initial_clifford_tableau, constrain_initial_css_matrix
 from .terminal import add_clifford_isometry_terminal, add_css_isometry_terminal
 from .vars import CliffordGateCountVars
 
@@ -65,6 +66,34 @@ def _declare_clifford_gate_count_vars(
         dtype=object,
     )
     return gate_sel, alpha_vars, beta_vars, tableau_x, tableau_z
+
+
+def _add_clifford_gate_count_slot_constraints(
+    solver: z3.Solver,
+    slot: int,
+    n: int,
+    n_bits: int,
+    gate_sel: dict[str, list[z3.BoolRef]],
+    alpha_vars: list[z3.BitVecRef],
+    beta_vars: list[z3.BitVecRef],
+    gate_set: dict[str, type[SymbolicGateOperation]],
+) -> None:
+    """Add the well-formedness constraints for one gate slot.
+
+    Requires exactly one gate in the slot, bounds the qubit indices, forces distinct
+    control/target for CX, and canonically orders symmetric two-qubit gates (alpha < beta).
+    """
+    solver.add(z3.PbEq([(v[slot], 1) for v in gate_sel.values()], 1))
+
+    if (1 << n_bits) > n:
+        solver.add(z3.ULT(alpha_vars[slot], n))
+        solver.add(z3.ULT(beta_vars[slot], n))
+
+    solver.add(z3.Implies(gate_sel["CX"][slot], alpha_vars[slot] != beta_vars[slot]))
+
+    for gate_name, sel_list in gate_sel.items():
+        if gate_set[gate_name].IS_TWO_QUBIT and gate_set[gate_name].IS_SYMMETRIC:
+            solver.add(z3.Implies(sel_list[slot], z3.ULT(alpha_vars[slot], beta_vars[slot])))
 
 
 def _add_clifford_gate_count_transitions(
@@ -183,28 +212,10 @@ def encode_clifford_gate_count(
     gate_sel, alpha_vars, beta_vars, tableau_x, tableau_z = _declare_clifford_gate_count_vars(
         n, num_rows, max_gates, n_bits, gate_set
     )
-    cx_vars = gate_sel["CX"]
-
-    for row in range(num_rows):
-        for q in range(n):
-            solver.add(tableau_x[0, row, q] == bool(target.tableau.matrix[row, q]))
-            solver.add(tableau_z[0, row, q] == bool(target.tableau.matrix[row, q + n]))
+    constrain_initial_clifford_tableau(solver, target, tableau_x, tableau_z, n, num_rows)
 
     for slot in range(max_gates):
-        pb_terms: list[tuple[z3.BoolRef, int]] = [(v[slot], 1) for v in gate_sel.values()]
-        solver.add(z3.PbEq(pb_terms, 1))
-
-        if (1 << n_bits) > n:
-            solver.add(z3.ULT(alpha_vars[slot], n))
-            solver.add(z3.ULT(beta_vars[slot], n))
-
-        solver.add(z3.Implies(cx_vars[slot], alpha_vars[slot] != beta_vars[slot]))
-
-        # Symmetric two-qubit gates: canonically enforce alpha < beta.
-        for gate_name, sel_list in gate_sel.items():
-            if gate_set[gate_name].IS_TWO_QUBIT and gate_set[gate_name].IS_SYMMETRIC:
-                solver.add(z3.Implies(sel_list[slot], z3.ULT(alpha_vars[slot], beta_vars[slot])))
-
+        _add_clifford_gate_count_slot_constraints(solver, slot, n, n_bits, gate_sel, alpha_vars, beta_vars, gate_set)
         _add_clifford_gate_count_transitions(
             solver, slot, n, num_rows, gate_sel, alpha_vars, beta_vars, gate_set, tableau_x, tableau_z
         )
@@ -241,6 +252,21 @@ def _declare_css_gate_count_vars(
         dtype=object,
     )
     return alpha_vars, beta_vars, matrix
+
+
+def _add_css_gate_count_slot_constraints(
+    solver: z3.Solver,
+    slot: int,
+    n: int,
+    alpha_vars: list[z3.BitVecRef],
+    beta_vars: list[z3.BitVecRef],
+) -> None:
+    """Bound the qubit indices and require distinct control/target for the slot's CNOT."""
+    if n > 1 and n & n - 1 != 0:
+        solver.add(z3.ULT(alpha_vars[slot], n))
+        solver.add(z3.ULT(beta_vars[slot], n))
+
+    solver.add(alpha_vars[slot] != beta_vars[slot])
 
 
 def _add_css_gate_count_transitions(
@@ -318,18 +344,10 @@ def encode_css_gate_count(
 
     solver = z3.Solver()
     alpha_vars, beta_vars, matrix = _declare_css_gate_count_vars(n, num_rows, max_gates, n_bits)
-
-    for row in range(num_rows):
-        for q in range(n):
-            solver.add(matrix[0, row, q] == bool(target.matrix[row, q]))
+    constrain_initial_css_matrix(solver, target, matrix, n, num_rows)
 
     for slot in range(max_gates):
-        if n > 1 and n & n - 1 != 0:
-            solver.add(z3.ULT(alpha_vars[slot], n))
-            solver.add(z3.ULT(beta_vars[slot], n))
-
-        solver.add(alpha_vars[slot] != beta_vars[slot])
-
+        _add_css_gate_count_slot_constraints(solver, slot, n, alpha_vars, beta_vars)
         _add_css_gate_count_transitions(solver, slot, n, num_rows, alpha_vars, beta_vars, is_x_type, matrix)
 
     add_css_isometry_terminal(
