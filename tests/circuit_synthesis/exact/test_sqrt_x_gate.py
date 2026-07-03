@@ -18,7 +18,7 @@ from mqt.qecc.circuit_synthesis.exact.gate_operations import (
     get_clifford_sx_gate_set,
     get_standard_clifford_gate_set,
 )
-from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
+from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import verify_stabilizer_state
 from mqt.qecc.codes.pauli import StabilizerTableau
@@ -160,7 +160,7 @@ def test_sx_gate_count_synthesis_stabilizer_state(
     stabilizers, _xl, _zl = bell_state
     sx_gs = get_clifford_sx_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -184,7 +184,7 @@ def test_sx_depth_synthesis_stabilizer_state(
     stabilizers, _xl, _zl = bell_state
     sx_gs = get_clifford_sx_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.DEPTH,
@@ -208,7 +208,7 @@ def test_sx_circuit_contains_only_valid_gates(
     stabilizers, _xl, _zl = bell_state
     sx_gs = get_clifford_sx_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -231,7 +231,7 @@ def test_sx_synthesis_unsat(
     stabilizers, _xl, _zl = bell_state
     sx_gs = get_clifford_sx_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,

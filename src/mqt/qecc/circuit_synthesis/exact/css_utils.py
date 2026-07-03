@@ -11,49 +11,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
 if TYPE_CHECKING:
     import z3
-
-
-def row_echelon_pivot_cols(matrix: np.ndarray) -> list[int]:
-    """Compute row echelon form and return pivot column indices.
-
-    Args:
-        matrix: Binary matrix (m x n) with dtype np.int8.
-
-    Returns:
-        List of column indices that contain pivots in row echelon form.
-    """
-    mat = matrix.copy()
-    m, n = mat.shape
-    pivot_cols = []
-    current_row = 0
-
-    for col in range(n):
-        pivot_found = False
-        for row in range(current_row, m):
-            if mat[row, col] == 1:
-                if row != current_row:
-                    mat[[current_row, row]] = mat[[row, current_row]]
-                pivot_found = True
-                break
-
-        if not pivot_found:
-            continue
-
-        pivot_cols.append(col)
-
-        for row in range(m):
-            if row != current_row and mat[row, col] == 1:
-                mat[row] ^= mat[current_row]
-
-        current_row += 1
-        if current_row >= m:
-            break
-
-    return pivot_cols
 
 
 def determine_css_initializations(
@@ -92,7 +54,7 @@ def determine_css_initializations(
     logical_part = final_matrix[:k]
     stabilizer_part = final_matrix[k:]
 
-    stabilizer_pivot_cols = row_echelon_pivot_cols(stabilizer_part)
+    stabilizer_pivot_cols = mod2.row_echelon(stabilizer_part, full=True)[3]
 
     input_qubits = []
     for col in range(n):

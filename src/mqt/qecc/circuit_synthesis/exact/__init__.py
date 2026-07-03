@@ -15,7 +15,7 @@ from .gate_operations import (
     get_clifford_sx_gate_set,
     get_standard_clifford_gate_set,
 )
-from .search import synthesize_exact
+from .search import synthesize_isometry_exact
 from .types import (
     Objective,
     SynthesisResult,
@@ -35,5 +35,5 @@ __all__ = [
     "get_clifford_extended_gate_set",
     "get_clifford_sx_gate_set",
     "get_standard_clifford_gate_set",
-    "synthesize_exact",
+    "synthesize_isometry_exact",
 ]

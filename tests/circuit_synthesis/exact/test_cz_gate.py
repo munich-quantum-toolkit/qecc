@@ -22,7 +22,7 @@ from mqt.qecc.circuit_synthesis.exact.gate_operations import (
     get_clifford_cz_gate_set,
     get_standard_clifford_gate_set,
 )
-from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
+from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.symmetry import (
     add_clifford_depth_symmetry_breaking,
     add_clifford_gate_count_symmetry_breaking,
@@ -323,7 +323,7 @@ def test_cz_gate_count_synthesis_stabilizer_state(
     stabilizers, _xl, _zl = bell_state
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -347,7 +347,7 @@ def test_cz_depth_synthesis_stabilizer_state(
     stabilizers, _xl, _zl = bell_state
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.DEPTH,
@@ -374,7 +374,7 @@ def test_cz_gate_count_synthesis_clifford_unitary(
     stabilizers, x_logicals, z_logicals = cnot_unitary
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
         objective=Objective.GATE_COUNT,
@@ -397,7 +397,7 @@ def test_cz_gate_count_circuit_contains_cz(
     stabilizers, _xl, _zl = bell_state
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -424,7 +424,7 @@ def test_cz_synthesis_with_symmetry_breaking(
     stabilizers, _xl, _zl = bell_state
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -447,7 +447,7 @@ def test_cz_synthesis_unsat_returns_unsat(
     stabilizers, _xl, _zl = bell_state
     cz_gs = get_clifford_cz_gate_set()
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,

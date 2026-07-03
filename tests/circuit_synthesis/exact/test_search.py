@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
-from mqt.qecc.circuit_synthesis.exact.search import synthesize_exact
+from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_isometry,
@@ -36,7 +36,7 @@ def test_stabilizer_state_gate_count(fixture_name: str, expected_gates: int, req
     """Test stabilizer state preparation with optimal gate count."""
     stabilizers, _x_logicals, _z_logicals = request.getfixturevalue(fixture_name)
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -64,7 +64,7 @@ def test_clifford_unitary_gate_count(fixture_name: str, expected_gates: int, req
     """Test Clifford unitary synthesis with optimal gate count."""
     stabilizers, x_logicals, z_logicals = request.getfixturevalue(fixture_name)
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
         objective=Objective.GATE_COUNT,
@@ -93,7 +93,7 @@ def test_stabilizer_state_depth(fixture_name: str, expected_depth: int, request:
     """Test stabilizer state preparation with optimal depth."""
     stabilizers, _x_logicals, _z_logicals = request.getfixturevalue(fixture_name)
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.DEPTH,
@@ -121,7 +121,7 @@ def test_clifford_unitary_depth(fixture_name: str, expected_depth: int, request:
     """Test Clifford unitary synthesis with optimal depth."""
     stabilizers, x_logicals, z_logicals = request.getfixturevalue(fixture_name)
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
         objective=Objective.DEPTH,
@@ -140,7 +140,7 @@ def test_clifford_unitary_depth(fixture_name: str, expected_depth: int, request:
 
 def test_css_state_preparation(repetition_code_check_matrix: CheckMatrix) -> None:
     """Test CSS state preparation."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=Objective.GATE_COUNT,
@@ -161,7 +161,7 @@ def test_css_isometry_synthesis(css_isometry_4q: tuple[CheckMatrix, CheckMatrix,
     """Test CSS isometry synthesis."""
     checks, x_logicals, z_logicals = css_isometry_4q
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=Objective.GATE_COUNT,
@@ -182,7 +182,7 @@ def test_css_isometry_synthesis(css_isometry_4q: tuple[CheckMatrix, CheckMatrix,
 
 def test_css_state_depth(repetition_code_check_matrix: CheckMatrix) -> None:
     """Test CSS state preparation with depth optimization."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=Objective.DEPTH,
@@ -202,7 +202,7 @@ def test_css_isometry_depth(css_isometry_4q: tuple[CheckMatrix, CheckMatrix, Che
     """Test CSS isometry synthesis with depth optimization."""
     checks, x_logicals, z_logicals = css_isometry_4q
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=Objective.DEPTH,
@@ -226,7 +226,7 @@ def test_unsat_with_insufficient_bound(
     """Test that synthesis fails when bound is too low."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -242,7 +242,7 @@ def test_unsat_depth_zero(bell_state: tuple[StabilizerTableau, StabilizerTableau
     """Test that Bell state cannot be prepared with depth 0."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.DEPTH,
@@ -261,7 +261,7 @@ def test_verification_flag(
     """Test that verification flag is respected."""
     stabilizers, _x_logicals, _z_logicals = plus_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -278,7 +278,7 @@ def test_lower_bound_respected(bell_state: tuple[StabilizerTableau, StabilizerTa
     """Test that search respects lower bound."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -294,7 +294,7 @@ def test_exact_bound_match(bell_state: tuple[StabilizerTableau, StabilizerTablea
     """Test when optimal solution exactly matches bound."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -312,7 +312,7 @@ def test_qubit_permutation_disabled(
     """Test synthesis with qubit permutation disabled."""
     stabilizers, x_logicals, z_logicals = swap_unitary
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
         objective=Objective.GATE_COUNT,
@@ -334,7 +334,7 @@ def test_zero_bound_with_identity_state(
     """Test that identity state can be prepared with bound 0."""
     stabilizers, _x_logicals, _z_logicals = two_qubit_zero_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -352,7 +352,7 @@ def test_zero_bound_with_nontrivial_state(
     """Test that non-trivial state cannot be prepared with bound 0."""
     stabilizers, _x_logicals, _z_logicals = plus_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -367,7 +367,7 @@ def test_state_with_minus_sign() -> None:
     """Test synthesis handles phases correctly for |-⟩ state."""
     target = StabilizerTableau.from_pauli_strings(["-X"])
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target,
         TargetKind.STABILIZER_STATE,
         Objective.GATE_COUNT,
@@ -383,7 +383,7 @@ def test_css_single_check() -> None:
     """Test CSS state with single check."""
     check_matrix = CheckMatrix(np.array([[1, 1]], dtype=np.int8), pauli_type="X")
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         check_matrix,
         TargetKind.CSS_STATE,
         Objective.GATE_COUNT,
@@ -398,7 +398,7 @@ def test_css_fully_connected_check() -> None:
     """Test CSS state with all-ones check (GHZ-like state)."""
     check_matrix = CheckMatrix(np.array([[1, 1, 1, 1]], dtype=np.int8), pauli_type="X")
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         check_matrix,
         TargetKind.CSS_STATE,
         Objective.GATE_COUNT,
@@ -413,7 +413,7 @@ def test_four_qubit_ghz_state() -> None:
     """Test synthesis on 4-qubit system."""
     target = StabilizerTableau.from_pauli_strings(["XXXX", "ZZII", "IZZI", "IIZZ"])
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target,
         TargetKind.STABILIZER_STATE,
         Objective.GATE_COUNT,
@@ -429,7 +429,7 @@ def test_invalid_bounds(plus_state: tuple[StabilizerTableau, StabilizerTableau, 
     stabilizers, _x_logicals, _z_logicals = plus_state
 
     with pytest.raises(ValueError, match="Invalid bounds"):
-        synthesize_exact(
+        synthesize_isometry_exact(
             target=stabilizers,
             target_kind=TargetKind.STABILIZER_STATE,
             objective=Objective.GATE_COUNT,
@@ -445,7 +445,7 @@ def test_clifford_isometry_missing_logicals(
     stabilizers, _x_logicals, _z_logicals = bell_state
 
     with pytest.raises(ValueError, match="x_logicals and z_logicals must be provided"):
-        synthesize_exact(
+        synthesize_isometry_exact(
             target=stabilizers,
             target_kind=TargetKind.CLIFFORD_ISOMETRY,
             objective=Objective.GATE_COUNT,
@@ -461,7 +461,7 @@ def test_mismatched_logical_count(bell_state: tuple[StabilizerTableau, Stabilize
     z_logicals = StabilizerTableau.from_pauli_strings(["ZI"])
 
     with pytest.raises(ValueError, match=r"Expected.*logical"):
-        synthesize_exact(
+        synthesize_isometry_exact(
             target=stabilizers,
             target_kind=TargetKind.CLIFFORD_ISOMETRY,
             objective=Objective.GATE_COUNT,
@@ -478,7 +478,7 @@ def test_clifford_isometry_synthesis(
     """Test Clifford isometry synthesis for the CSS [[4,2,2]] code."""
     stabilizers, x_logicals, z_logicals = clifford_isometry_422
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_ISOMETRY,
         objective=Objective.GATE_COUNT,
@@ -502,7 +502,7 @@ def test_symmetry_breaking_clifford_unitary(
     """Symmetry breaking produces correct results for Clifford unitary synthesis."""
     stabilizers, x_logicals, z_logicals = cnot_unitary
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_UNITARY,
         objective=objective,
@@ -527,7 +527,7 @@ def test_symmetry_breaking_clifford_isometry(
     """Symmetry breaking produces correct results for Clifford isometry synthesis."""
     stabilizers, x_logicals, z_logicals = clifford_isometry_422
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_ISOMETRY,
         objective=objective,
@@ -549,7 +549,7 @@ def test_symmetry_breaking_css(
     repetition_code_check_matrix: CheckMatrix,
 ) -> None:
     """Symmetry breaking produces correct results for CSS synthesis."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=objective,
@@ -571,7 +571,7 @@ def test_symmetry_breaking_stabilizer_state(
     """Symmetry breaking produces correct results for stabilizer state synthesis."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=objective,
@@ -593,7 +593,7 @@ def test_symmetry_breaking_css_isometry(
     """Symmetry breaking produces correct results for CSS isometry synthesis."""
     checks, x_logicals, _z_logicals = css_isometry_4q
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=objective,
@@ -611,7 +611,7 @@ def test_symmetry_breaking_css_isometry(
 def test_stabilizer_state_requires_stabilizer_tableau(repetition_code_check_matrix: CheckMatrix) -> None:
     """Test that Clifford target kinds require StabilizerTableau."""
     with pytest.raises(ValueError, match="stabilizer_state requires StabilizerTableau"):
-        synthesize_exact(
+        synthesize_isometry_exact(
             target=repetition_code_check_matrix,
             target_kind=TargetKind.STABILIZER_STATE,
             objective=Objective.GATE_COUNT,
@@ -627,7 +627,7 @@ def test_css_state_requires_check_matrix(
     stabilizers, _x_logicals, _z_logicals = plus_state
 
     with pytest.raises(ValueError, match="css_state requires CheckMatrix"):
-        synthesize_exact(
+        synthesize_isometry_exact(
             target=stabilizers,
             target_kind=TargetKind.CSS_STATE,
             objective=Objective.GATE_COUNT,
@@ -638,7 +638,7 @@ def test_css_state_requires_check_matrix(
 
 def test_css_z_state_gate_count(repetition_code_z_check_matrix: CheckMatrix) -> None:
     """Test Z-type CSS state preparation with gate-count optimization."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_z_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=Objective.GATE_COUNT,
@@ -657,7 +657,7 @@ def test_css_z_state_gate_count(repetition_code_z_check_matrix: CheckMatrix) -> 
 
 def test_css_z_state_depth(repetition_code_z_check_matrix: CheckMatrix) -> None:
     """Test Z-type CSS state preparation with depth optimization."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_z_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=Objective.DEPTH,
@@ -677,7 +677,7 @@ def test_css_z_isometry_gate_count(css_isometry_4q_z_type: tuple[CheckMatrix, Ch
     """Test Z-type CSS isometry synthesis with gate-count optimization."""
     checks, z_logicals = css_isometry_4q_z_type
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=Objective.GATE_COUNT,
@@ -699,7 +699,7 @@ def test_css_z_isometry_depth(css_isometry_4q_z_type: tuple[CheckMatrix, CheckMa
     """Test Z-type CSS isometry synthesis with depth optimization."""
     checks, z_logicals = css_isometry_4q_z_type
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=Objective.DEPTH,
@@ -722,7 +722,7 @@ def test_clifford_isometry_five_qubit(
     """Test Clifford isometry synthesis for the non-CSS [[5,1,3]] code."""
     stabilizers, x_logicals, z_logicals = five_qubit_code
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.CLIFFORD_ISOMETRY,
         objective=Objective.DEPTH,
@@ -742,7 +742,7 @@ def test_result_contains_metadata(plus_state: tuple[StabilizerTableau, Stabilize
     """Test that result contains all expected metadata."""
     stabilizers, _x_logicals, _z_logicals = plus_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -772,7 +772,7 @@ def test_min_timeout_stabilizer_state_gate_count(
     """
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,
@@ -794,7 +794,7 @@ def test_min_timeout_stabilizer_state_depth(
     """Exponential-backoff finds optimal depth for a Clifford state."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.DEPTH,
@@ -814,7 +814,7 @@ def test_min_timeout_css_state_gate_count(
     repetition_code_check_matrix: CheckMatrix,
 ) -> None:
     """Exponential-backoff finds optimal gate count for a CSS state."""
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=repetition_code_check_matrix,
         target_kind=TargetKind.CSS_STATE,
         objective=Objective.GATE_COUNT,
@@ -837,7 +837,7 @@ def test_min_timeout_css_isometry_gate_count(
     """Exponential-backoff finds a valid circuit for a CSS isometry."""
     checks, x_logicals, _z_logicals = css_isometry_4q
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=checks,
         target_kind=TargetKind.CSS_ISOMETRY,
         objective=Objective.GATE_COUNT,
@@ -861,7 +861,7 @@ def test_min_timeout_unsat_when_bounds_insufficient(
     """Exponential-backoff returns UNSAT when upper_bound is too small."""
     stabilizers, _x_logicals, _z_logicals = bell_state
 
-    result = synthesize_exact(
+    result = synthesize_isometry_exact(
         target=stabilizers,
         target_kind=TargetKind.STABILIZER_STATE,
         objective=Objective.GATE_COUNT,

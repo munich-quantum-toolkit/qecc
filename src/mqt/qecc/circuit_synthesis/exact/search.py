@@ -53,7 +53,7 @@ _CLIFFORD_KINDS = {TargetKind.CLIFFORD_UNITARY, TargetKind.CLIFFORD_ISOMETRY, Ta
 _CSS_KINDS = {TargetKind.CSS_STATE, TargetKind.CSS_ISOMETRY}
 
 
-def synthesize_exact(
+def synthesize_isometry_exact(
     target: StabilizerTableau | CheckMatrix,
     target_kind: TargetKind,
     objective: Objective,

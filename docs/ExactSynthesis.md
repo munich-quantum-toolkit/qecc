@@ -15,11 +15,11 @@ mystnb:
 
 QECC provides an SMT/SAT-based exact synthesis engine for finding provably optimal Clifford circuits. It supports both CSS and non-CSS stabilizer codes and can optimize for gate count or circuit depth.
 
-The entry point is `synthesize_exact` from `mqt.qecc.circuit_synthesis.exact`.
+The entry point is `synthesize_isometry_exact` from `mqt.qecc.circuit_synthesis.exact`.
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis.exact import (
-    synthesize_exact,
+    synthesize_isometry_exact,
     Objective,
     SynthesisStatus,
     TargetKind,
@@ -48,7 +48,7 @@ To synthesize a gate-count-optimal encoder, pass the X-check matrix as target an
 hx = CheckMatrix(code.Hx, pauli_type="X")
 lx = CheckMatrix(code.Lx, pauli_type="X")
 
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     target=hx,
     target_kind=TargetKind.CSS_ISOMETRY,
     objective=Objective.GATE_COUNT,
@@ -74,7 +74,7 @@ result.circuit.draw("mpl")
 To optimize for depth instead, use `Objective.DEPTH`:
 
 ```{code-cell} ipython3
-result_depth = synthesize_exact(
+result_depth = synthesize_isometry_exact(
     target=hx,
     target_kind=TargetKind.CSS_ISOMETRY,
     objective=Objective.DEPTH,
@@ -108,7 +108,7 @@ stab_tab = StabilizerTableau.from_pauli_strings(stabs)
 x_log_tab = StabilizerTableau.from_pauli_strings(x_log)
 z_log_tab = StabilizerTableau.from_pauli_strings(z_log)
 
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     target=stab_tab,
     target_kind=TargetKind.CLIFFORD_ISOMETRY,
     objective=Objective.DEPTH,
@@ -143,7 +143,7 @@ Here we find the shortest-depth circuit preparing the 3-qubit GHZ state $|GHZ\ra
 ```{code-cell} ipython3
 ghz_stabs = StabilizerTableau.from_pauli_strings(["XXX", "ZZI", "IZZ"])
 
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     target=ghz_stabs,
     target_kind=TargetKind.STABILIZER_STATE,
     objective=Objective.DEPTH,
@@ -200,10 +200,10 @@ The `TargetKind` enum selects the synthesis problem:
 
 ### Bounds and timeouts
 
-`synthesize_exact` performs an exhaustive search from `lower_bound` to `upper_bound` (inclusive). The first feasible bound returns a solution. If all bounds are infeasible the result has status `UNSAT`. A per-bound solver timeout can be set in seconds:
+`synthesize_isometry_exact` performs an exhaustive search from `lower_bound` to `upper_bound` (inclusive). The first feasible bound returns a solution. If all bounds are infeasible the result has status `UNSAT`. A per-bound solver timeout can be set in seconds:
 
 ```python
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     ...,
     lower_bound=0,
     upper_bound=20,
@@ -218,7 +218,7 @@ If the solver times out at any bound, the search returns immediately with status
 Symmetry-breaking constraints prune the SAT search space by forbidding obviously redundant gate sequences (adjacent identical self-inverse gates, unnecessary idle slots). Enable it with `use_symmetry_breaking=True`:
 
 ```python
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     ...,
     use_symmetry_breaking=True,
 )
@@ -231,7 +231,7 @@ Symmetry breaking is most effective for larger problems where the raw SAT instan
 For large instances where a single per-bound timeout is too aggressive, the exponential-backoff strategy can find good solutions faster:
 
 ```python
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     ...,
     use_exponential_backoff=True,
     min_timeout=1,  # start with 1 second per bound
@@ -248,7 +248,7 @@ The strategy works in two phases:
 
 ## Interpreting `SynthesisResult`
 
-The `SynthesisResult` object returned by `synthesize_exact` carries all relevant metadata:
+The `SynthesisResult` object returned by `synthesize_isometry_exact` carries all relevant metadata:
 
 | Attribute        | Type                                      | Description                                             |
 | ---------------- | ----------------------------------------- | ------------------------------------------------------- |
@@ -261,7 +261,7 @@ The `SynthesisResult` object returned by `synthesize_exact` carries all relevant
 | `message`        | `str`                                     | Human-readable status message                           |
 
 ```{code-cell} ipython3
-result = synthesize_exact(
+result = synthesize_isometry_exact(
     target=hx,
     target_kind=TargetKind.CSS_ISOMETRY,
     objective=Objective.GATE_COUNT,
@@ -285,7 +285,7 @@ Depth-optimal synthesis may leave room to reduce the two-qubit gate count while 
 
 ```{code-cell} ipython3
 # Step 1: find depth-optimal circuit
-depth_result = synthesize_exact(
+depth_result = synthesize_isometry_exact(
     target=stab_tab,
     target_kind=TargetKind.CLIFFORD_ISOMETRY,
     objective=Objective.DEPTH,
@@ -307,7 +307,7 @@ print(f"Depth-optimal circuit: depth={d_star}, TQ gates={tq_count}")
 # Step 2: descend on two-qubit gate count at fixed depth d_star
 tq_proven_optimal = False
 for max_tq in range(tq_count - 1, -1, -1):
-    tq_result = synthesize_exact(
+    tq_result = synthesize_isometry_exact(
         target=stab_tab,
         target_kind=TargetKind.CLIFFORD_ISOMETRY,
         objective=Objective.DEPTH,
