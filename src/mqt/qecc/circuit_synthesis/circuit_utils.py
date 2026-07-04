@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
 
 
-def _get_qubit_values(operation: CircuitInstruction | CircuitRepeatBlock) -> list[int]:
+def get_stim_qubit_values(operation: CircuitInstruction | CircuitRepeatBlock) -> list[int]:
+    """Get the qubit values from a stim operation."""
     if isinstance(operation, CircuitRepeatBlock):
         raise NotImplementedError
 
@@ -178,7 +179,7 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
             if instr is None:  # No more instructions to process
                 break
 
-            qubits = _get_qubit_values(instr)
+            qubits = get_stim_qubit_values(instr)
 
             # Check if any qubit from this instruction is already used in the layer
             if not any(qubit_layer_used[q] for q in qubits):
@@ -230,7 +231,7 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
         assert isinstance(op, CircuitInstruction)
         if all(len(grp) == 1 for grp in op.target_groups()):
             continue
-        new_circ.append(op.name, _get_qubit_values(op))
+        new_circ.append(op.name, get_stim_qubit_values(op))
     return new_circ
 
 
@@ -247,7 +248,7 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     for op in circ:
         if op.name == "SWAP":
             continue
-        new_circ.append(op.name, _get_qubit_values(op))
+        new_circ.append(op.name, get_stim_qubit_values(op))
     return new_circ
 
 
@@ -274,7 +275,7 @@ def unmeasured_qubits(circ: Circuit) -> list[int]:
 
     for instr in circ:
         if instr.name in STIM_MEASUREMENTS:
-            measured_qubits.update(_get_qubit_values(instr))
+            measured_qubits.update(get_stim_qubit_values(instr))
 
     all_qubits = set(range(circ.num_qubits))
     return list(all_qubits - measured_qubits)
@@ -289,7 +290,7 @@ def measured_qubits(circ: Circuit) -> list[int]:
 
     for instr in circ:
         if instr.name in STIM_MEASUREMENTS:
-            measured_qubits.extend(_get_qubit_values(instr))
+            measured_qubits.extend(get_stim_qubit_values(instr))
 
     return measured_qubits
 

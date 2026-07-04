@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, cast
 
 from stim import Circuit, CircuitInstruction
 
-from .circuit_utils import collect_circuit_layers
+from .circuit_utils import collect_circuit_layers, get_stim_qubit_values
 from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -305,16 +305,14 @@ def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
     resets = set()
     for instr in circ:
         if instr.name in STIM_RESETS:
-            assert isinstance(instr, CircuitInstruction)
-            resets.update([q.qubit_value for q in instr.targets_copy()])
+            resets.update(get_stim_qubit_values(instr))
     return resets
 
 
 def _get_non_idle_qubits_layer(circ: Circuit) -> set[int]:
     qubits = set()
     for instr in circ:
-        assert isinstance(instr, CircuitInstruction)
-        qubits.update([q.qubit_value for q in instr.targets_copy()])
+        qubits.update(get_stim_qubit_values(instr))
     return qubits
 
 
