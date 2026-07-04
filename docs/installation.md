@@ -4,20 +4,18 @@
 # Installation
 
 MQT QECC is a Python package available on
-[PyPI](https://pypi.org/project/mqt.qecc/).
-It can be installed on all major operating systems with all
+[PyPI](https://pypi.org/project/mqt.qecc/). It can be installed on all
+major operating systems with all
 [officially supported Python versions](https://devguide.python.org/versions/).
 
 :::::{tip}
 :name: uv-recommendation
 
-We recommend using [{code}`uv`][uv].
-It is a fast Python package and project manager by [Astral](https://astral.sh/)
-(creators of [{code}`ruff`][ruff]).
-It can replace {code}`pip` and {code}`virtualenv`,
-automatically manages virtual environments, installs packages,
-and can install Python itself.
-It is significantly faster than {code}`pip`.
+We recommend using [{code}`uv`][uv]. It is a fast Python package and project
+manager by [Astral](https://astral.sh/) (creators of [{code}`ruff`][ruff]). It
+can replace {code}`pip` and {code}`virtualenv`, automatically manages virtual
+environments, installs packages, and can install Python itself. It is
+significantly faster than {code}`pip`.
 
 If you do not have {code}`uv` installed, install it with:
 
@@ -78,9 +76,9 @@ This prints the installed package version.
 
 ## Integrating MQT QECC into Your Project
 
-To use the MQT QECC Python package in your project,
-add it as a dependency in your {code}`pyproject.toml` or {code}`setup.py`.
-This ensures the package is installed when your project is installed.
+To use the MQT QECC Python package in your project, add it as a dependency
+in your {code}`pyproject.toml` or {code}`setup.py`. This ensures the package is
+installed when your project is installed.
 
 ::::{tab-set}
 
@@ -123,9 +121,9 @@ setup(
 
 ## Development Setup
 
-Set up a reproducible development environment for MQT QECC.
-This is the recommended starting point for both bug fixes and new features.
-For detailed guidelines and workflows, see {doc}`contributing`.
+Set up a reproducible development environment for MQT QECC. This is the
+recommended starting point for both bug fixes and new features. For detailed
+guidelines and workflows, see {doc}`contributing`.
 
 1. Get the code: <!-- rumdl-disable-line MD013 -->
 

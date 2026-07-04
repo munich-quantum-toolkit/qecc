@@ -3,10 +3,9 @@
 
 # Tooling
 
-This page summarizes the main tools, software,
-and standards used in MQT QECC.
-It serves as a quick reference for new contributors
-and users who want to understand the project's ecosystem.
+This page summarizes the main tools, software, and standards used in MQT
+QECC. It serves as a quick reference for new contributors and users who want
+to understand the project's ecosystem.
 
 ## Python
 
@@ -19,8 +18,8 @@ and users who want to understand the project's ecosystem.
 | **ty**     | Fast Python type checker and language server.                                            | [Documentation](https://docs.astral.sh/ty/).                                                                                                           |
 | **pytest** | Testing framework for Python.                                                            | [Documentation](https://docs.pytest.org/). Run via {code}`nox -s tests` or {code}`uv run pytest`.                                                      |
 
-The project adheres to modern standards and practices.
-For the Python ecosystem, we make use of the following standards:
+The project adheres to modern standards and practices. For the Python ecosystem,
+we make use of the following standards:
 
 | Standard    | Description                                                     | Links / Notes                                       |
 | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |

@@ -9,10 +9,8 @@ Security updates are applied only to the most recent releases.
 
 ## Reporting a Vulnerability
 
-To report vulnerabilities,
-you can privately report a potential security issue via the GitHub security
-vulnerabilities feature.
-This can be done here:
+To report vulnerabilities, you can privately report a potential security issue
+via the GitHub security vulnerabilities feature. This can be done here:
 
 <https://github.com/munich-quantum-toolkit/qecc/security/advisories>
 
