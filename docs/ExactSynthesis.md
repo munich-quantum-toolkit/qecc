@@ -134,18 +134,21 @@ The synthesized circuit is a `CliffordIsometry`:
 result.circuit.draw("mpl")
 ```
 
-## Stabilizer State Synthesis
+## CSS State Synthesis
 
-Exact synthesis also handles stabilizer state preparation directly. For a state target, only the stabilizer generators are needed (no logicals). This is useful when a specific syndrome-zero logical state is the target.
+Exact synthesis also prepares CSS stabilizer states directly. For a state target only the check matrix is needed (no logicals).
 
-Here we find the shortest-depth circuit preparing the 3-qubit GHZ state $|GHZ\rangle \propto |000\rangle + |111\rangle$, which has stabilizers $\{XXX, ZZI, IZZ\}$:
+The GHZ state $|GHZ\rangle \propto |000\rangle + |111\rangle$ is the cat ($|+\rangle_L$) state of the three-qubit repetition code: it is stabilized by the code's $Z$-checks $\{ZZI, IZZ\}$ together with $X_L = XXX$. We therefore pass those $Z$-checks as a CSS state target and find the shortest-depth preparation circuit:
 
 ```{code-cell} ipython3
-ghz_stabs = StabilizerTableau.from_pauli_strings(["XXX", "ZZI", "IZZ"])
+import numpy as np
+
+# Z-checks of the 3-qubit repetition code (ZZI and IZZ)
+ghz_checks = CheckMatrix(np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8), pauli_type="Z")
 
 result = synthesize_isometry_exact(
-    target=ghz_stabs,
-    target_kind=TargetKind.STABILIZER_STATE,
+    target=ghz_checks,
+    target_kind=TargetKind.CSS_STATE,
     objective=Objective.DEPTH,
     lower_bound=0,
     upper_bound=5,
