@@ -81,7 +81,7 @@
       automerge: true,
     },
     {
-      description: "Disable minimum release age checks for our own GitHub Actions",
+      description: "Disable minimum release age checks for our own GitHub actions",
       matchManagers: ["github-actions"],
       matchPackageNames: [
         "munich-quantum-toolkit/*",

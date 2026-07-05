@@ -3,6 +3,6 @@
 
 # Contributing
 
-Thank you for your interest in contributing to MQT QECC!
-An extensive contribution guide is available in our
+Thank you for your interest in contributing to MQT QECC! An extensive
+contribution guide is available in our
 [documentation](https://mqt.readthedocs.io/projects/qecc/en/latest/contributing.html).
