@@ -15,7 +15,9 @@ mystnb:
 
 ## Encoder Circuit Synthesis for CSS Codes
 
-QECC provides functionality for synthesizing encoding circuits of arbitrary Stabilizer codes. An encoder for an $[[n,k,d]]$ code is an isometry that encodes $k$ logical qubits into $n$ physical qubits.
+QECC provides functionality for synthesizing encoding circuits of arbitrary Stabilizer codes.
+A collection of pre-synthesized encoding circuits can be found at [QECirc.com](https://qecirc.com/).
+An encoder for an $[[n,k,d]]$ code is an isometry that encodes $k$ logical qubits into $n$ physical qubits.
 
 Let's consider the synthesis of the encoding circuit of the $[[7,1,3]]$ Steane code.
 
