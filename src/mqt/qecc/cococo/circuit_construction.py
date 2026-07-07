@@ -96,9 +96,7 @@ def create_random_sequential_circuit_dag(
     return dag, pairs
 
 
-def generate_max_parallel_circuit(
-    q: int, min_depth: int, seed: int = 45
-) -> list[tuple[int, int] | int]:  # actually only tuples but mypy needs the int elements too
+def generate_max_parallel_circuit(q: int, min_depth: int, seed: int = 45) -> list[tuple[int, int]]:
     """Circuits with maximally parallelizable layers, i.e. per layer, ALL qubits are used in disjoint gates.
 
     CNOTS only.
@@ -111,7 +109,7 @@ def generate_max_parallel_circuit(
     if q < 2 or q % 2 != 0:
         msg = "q must be an even integer larger than 2."
         raise ValueError(msg)
-    circuit: list[tuple[int, int] | int] = []
+    circuit: list[tuple[int, int]] = []
     labels = list(range(q))
     while gates_counter <= min_depth:
         rng.shuffle(labels)
@@ -124,9 +122,7 @@ def generate_max_parallel_circuit(
     return circuit
 
 
-def generate_min_parallel_circuit(
-    q: int, min_depth: int, layer_size: int, seed: int = 45
-) -> list[tuple[int, int] | int]:  # same as above
+def generate_min_parallel_circuit(q: int, min_depth: int, layer_size: int, seed: int = 45) -> list[tuple[int, int]]:
     """Circuits which have nearly no parallelism at all.
 
     CNOTS only.
@@ -184,7 +180,7 @@ def generate_min_parallel_circuit(
         lst.append(temp)
 
     # flatten tuples
-    circuit: list[tuple[int, int] | int] = []
+    circuit: list[tuple[int, int]] = []
     for el in lst:
         circuit += el
 
