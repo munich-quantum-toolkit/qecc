@@ -118,9 +118,7 @@ class HillClimbing:
                 num for tup in self.circuit for num in (tup if isinstance(tup, tuple) else (tup,))
             ]
         else:
-            flattened_qubit_labels = [
-                num for tup in self.circuit if isinstance(tup, tuple) for num in tup
-            ]  # isinstance only added for mypy
+            flattened_qubit_labels = [num for tup in self.circuit if isinstance(tup, tuple) for num in tup]
         self.q = max(flattened_qubit_labels) + 1
         if self.q < len(self.data_qubit_locs):
             self.data_qubit_locs = self.data_qubit_locs[: self.q]  # cut-off unnecessary qubit spots.
