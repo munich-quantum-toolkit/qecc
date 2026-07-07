@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ldpc.codes
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
 import scipy.sparse as scs
 from bposd.hgp import hgp
 from scipy import sparse
+
+from mqt.qecc import mod2
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

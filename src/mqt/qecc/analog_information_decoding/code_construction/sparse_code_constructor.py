@@ -17,9 +17,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import scipy.io as sio
 from bposd.hgp import hgp
-from ldpc.mod2.mod2_numpy import rank
 from scipy import sparse
 from scipy.sparse import coo_matrix, csr_matrix
+
+from mqt.qecc.mod2 import rank
 
 from . import code_constructor
 

@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import z3
-from ldpc.mod2.mod2_numpy import row_echelon
+
+from mqt.qecc.mod2 import row_echelon
 
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
 

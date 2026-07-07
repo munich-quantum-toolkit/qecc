@@ -12,9 +12,10 @@ from __future__ import annotations
 import operator
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
+
+from mqt.qecc import mod2
 
 from ..codes.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, get_n

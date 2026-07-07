@@ -14,10 +14,11 @@ import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
+
+from mqt.qecc import mod2
 
 from ..codes.pauli import CheckMatrix
 from .circuits import CNOTCircuit

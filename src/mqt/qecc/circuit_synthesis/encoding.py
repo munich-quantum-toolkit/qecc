@@ -14,10 +14,11 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 import z3
+
+from mqt.qecc import mod2
 
 from ..codes import CSSCode
 from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
