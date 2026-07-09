@@ -204,14 +204,14 @@ class CSSCode(StabilizerCode):
         """
         prefix = (Path(__file__) / "../../constructions/").resolve()
         paths = {
-            "steane": prefix / "steane/",
-            "tetrahedral": prefix / "tetrahedral/",
+            "steane": prefix / "cc/steane/",
+            "tetrahedral": prefix / "cc/tetrahedral/",
             "shor": prefix / "shor/",
-            "surface_3": prefix / "rotated_surface_d3/",
-            "surface_5": prefix / "rotated_surface_d5/",
+            "surface_3": prefix / "rotated_surface/d3/",
+            "surface_5": prefix / "rotated_surface/d5/",
             "golay": prefix / "golay/",
             "carbon": prefix / "carbon/",
-            "hamming": prefix / "hamming_15/",
+            "hamming": prefix / "hamming/n15/",
         }
 
         distances = {
