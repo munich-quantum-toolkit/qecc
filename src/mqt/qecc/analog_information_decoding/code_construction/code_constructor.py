@@ -21,7 +21,7 @@ import scipy.io as sio
 from bposd.hgp import hgp
 from scipy import sparse
 
-from ...codes.constructions.product_code import generate_3d_product_code, generate_4d_product_code
+from ...codes.constructions.hypergraph_product_code import generate_3d_product_code, generate_4d_product_code
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

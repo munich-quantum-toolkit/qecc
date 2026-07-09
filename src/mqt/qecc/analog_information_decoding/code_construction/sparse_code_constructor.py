@@ -21,7 +21,7 @@ from ldpc.mod2.mod2_numpy import rank
 from scipy import sparse
 from scipy.sparse import coo_matrix, csr_matrix
 
-from ...codes.constructions.product_code import generate_sparse_3d_product_code
+from ...codes.constructions.hypergraph_product_code import generate_sparse_3d_product_code
 from . import code_constructor
 
 if TYPE_CHECKING:

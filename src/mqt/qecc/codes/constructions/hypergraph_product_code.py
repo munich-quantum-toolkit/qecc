@@ -20,25 +20,25 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def is_all_zeros(array: NDArray[np.int32]) -> bool:
+def _is_all_zeros(array: NDArray[np.int32]) -> bool:
     """Check if array is all zeros."""
     return not np.any(array)
 
 
-def sparse_all_zeros(mat: csr_matrix) -> bool:
+def _sparse_all_zeros(mat: csr_matrix) -> bool:
     """Check if sparse matrix is all zeros."""
     mat.data %= 2
     return bool(mat.sum() == 0)
 
 
-def run_sparse_checks_scipy(d_1: csr_matrix, d_2: csr_matrix, d_3: csr_matrix, d_4: csr_matrix) -> None:
+def _run_sparse_checks_scipy(d_1: csr_matrix, d_2: csr_matrix, d_3: csr_matrix, d_4: csr_matrix) -> None:
     """Run checks on the boundary maps."""
-    if not (sparse_all_zeros(d_1 @ d_2) and sparse_all_zeros(d_2 @ d_3) and sparse_all_zeros(d_3 @ d_4)):
+    if not (_sparse_all_zeros(d_1 @ d_2) and _sparse_all_zeros(d_2 @ d_3) and _sparse_all_zeros(d_3 @ d_4)):
         msg = "Error generating 4D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
 
 
-def run_checks_scipy(
+def _run_checks_scipy(
     d_1: NDArray[np.int32], d_2: NDArray[np.int32], d_3: NDArray[np.int32], d_4: NDArray[np.int32]
 ) -> None:
     """Run checks on the boundary maps."""
@@ -48,9 +48,9 @@ def run_checks_scipy(
     sd_4 = scs.csr_matrix(d_4)
 
     if not (
-        is_all_zeros((sd_1 * sd_2).todense() % 2)
-        and is_all_zeros((sd_2 * sd_3).todense() % 2)
-        and is_all_zeros((sd_3 * sd_4).todense() % 2)
+        _is_all_zeros((sd_1 * sd_2).todense() % 2)
+        and _is_all_zeros((sd_2 * sd_3).todense() % 2)
+        and _is_all_zeros((sd_3 * sd_4).todense() % 2)
     ):
         msg = "Error generating 4D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
@@ -85,7 +85,7 @@ def generate_4d_product_code(
     d_4: NDArray[np.int32] = np.vstack((np.kron(id_n3, p), np.kron(a_3, id_c)))
 
     if checks:
-        run_checks_scipy(d_1, d_2, d_3, d_4)
+        _run_checks_scipy(d_1, d_2, d_3, d_4)
 
     return d_1, d_2, d_3, d_4
 
@@ -111,7 +111,7 @@ def generate_3d_product_code(
 
     d_3: NDArray[np.int32] = np.vstack((np.kron(id_n2, p), np.kron(a_2, id_c)))
 
-    if not (is_all_zeros(d_1 @ d_2 % 2) and is_all_zeros(d_2 @ d_3 % 2)):
+    if not (_is_all_zeros(d_1 @ d_2 % 2) and _is_all_zeros(d_2 @ d_3 % 2)):
         msg = "Error generating 3D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
 
@@ -154,7 +154,7 @@ def generate_sparse_4d_product_code(
     d_4 = sparse.vstack((sparse.kron(id_n3, p), sparse.kron(a_3, id_c)))
 
     if checks:
-        run_sparse_checks_scipy(d_1, d_2, d_3, d_4)
+        _run_sparse_checks_scipy(d_1, d_2, d_3, d_4)
 
     return d_1, d_2, d_3, d_4
 
@@ -181,7 +181,7 @@ def generate_sparse_3d_product_code(
 
     d_3 = sparse.vstack((sparse.kron(id_n2, p), sparse.kron(a_2, id_c)))
 
-    if not (sparse_all_zeros(d_1 @ d_2) and sparse_all_zeros(d_2 @ d_3)):
+    if not (_sparse_all_zeros(d_1 @ d_2) and _sparse_all_zeros(d_2 @ d_3)):
         msg = "Error generating 3D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
 
