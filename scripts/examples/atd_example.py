@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from mqt.qecc.analog_information_decoding.simulators.analog_tannergraph_decoding import AtdSimulator
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
 
-code_path = "src/mqt/qecc/analog_information_decoding/codes/lifted_product/lp_l="
+code_path = "src/mqt/qecc/codes/constructions/lifted_product/lp_l="
 s = np.linspace(0.10, 0.4, 11)
 p = 0.05
 for bp_method in ["msl"]:

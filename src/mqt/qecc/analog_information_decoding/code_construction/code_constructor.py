@@ -18,97 +18,13 @@ import ldpc.codes
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
-import scipy.sparse as scs
 from bposd.hgp import hgp
 from scipy import sparse
 
+from ...codes.constructions.product_code import generate_3d_product_code, generate_4d_product_code
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-
-
-def is_all_zeros(array: NDArray[np.int32]) -> bool:
-    """Check if array is all zeros."""
-    return not np.any(array)
-
-
-def run_checks_scipy(
-    d_1: NDArray[np.int32], d_2: NDArray[np.int32], d_3: NDArray[np.int32], d_4: NDArray[np.int32]
-) -> None:
-    """Run checks on the boundary maps."""
-    sd_1 = scs.csr_matrix(d_1)
-    sd_2 = scs.csr_matrix(d_2)
-    sd_3 = scs.csr_matrix(d_3)
-    sd_4 = scs.csr_matrix(d_4)
-
-    if not (
-        is_all_zeros((sd_1 * sd_2).todense() % 2)
-        and is_all_zeros((sd_2 * sd_3).todense() % 2)
-        and is_all_zeros((sd_3 * sd_4).todense() % 2)
-    ):
-        msg = "Error generating 4D code, boundary maps do not square to zero"
-        raise RuntimeError(msg)
-
-
-def generate_4d_product_code(
-    a_1: NDArray[np.int32], a_2: NDArray[np.int32], a_3: NDArray[np.int32], p: NDArray[np.int32], checks: bool = True
-) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.int32], NDArray[np.int32]]:
-    """Generate 4D product code."""
-    r, c = p.shape
-    id_r: NDArray[np.int32] = np.identity(r, dtype=np.int32)
-    id_c: NDArray[np.int32] = np.identity(c, dtype=np.int32)
-    id_n0: NDArray[np.int32] = np.identity(a_1.shape[0], dtype=np.int32)
-    id_n1: NDArray[np.int32] = np.identity(a_2.shape[0], dtype=np.int32)
-    id_n2: NDArray[np.int32] = np.identity(a_3.shape[0], dtype=np.int32)
-    id_n3: NDArray[np.int32] = np.identity(a_3.shape[1], dtype=np.int32)
-
-    d_1: NDArray[np.int32] = np.hstack((np.kron(a_1, id_r), np.kron(id_n0, p))).astype(np.int32)
-
-    x = np.hstack((np.kron(a_2, id_r), np.kron(id_n1, p)))
-    y = np.kron(a_1, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = np.hstack((np.zeros(dims, dtype=np.int32), y))
-    d_2 = np.vstack((x, z))
-
-    x = np.hstack((np.kron(a_3, id_r), np.kron(id_n2, p)))
-    y = np.kron(a_2, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = np.hstack((np.zeros(dims, dtype=np.int32), y))
-    d_3: NDArray[np.int32] = np.vstack((x, z)).astype(np.int32)
-
-    d_4: NDArray[np.int32] = np.vstack((np.kron(id_n3, p), np.kron(a_3, id_c)))
-
-    if checks:
-        run_checks_scipy(d_1, d_2, d_3, d_4)
-
-    return d_1, d_2, d_3, d_4
-
-
-def generate_3d_product_code(
-    a_1: NDArray[np.int32], a_2: NDArray[np.int32], p: NDArray[np.int32]
-) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.int32]]:
-    """Generate 3D product code."""
-    r, c = p.shape
-    id_r: NDArray[np.int32] = np.identity(r, dtype=np.int32)
-    id_c: NDArray[np.int32] = np.identity(c, dtype=np.int32)
-    id_n0: NDArray[np.int32] = np.identity(a_1.shape[0], dtype=np.int32)
-    id_n1: NDArray[np.int32] = np.identity(a_2.shape[0], dtype=np.int32)
-    id_n2: NDArray[np.int32] = np.identity(a_2.shape[1], dtype=np.int32)
-
-    d_1: NDArray[np.int32] = np.hstack((np.kron(a_1, id_r), np.kron(id_n0, p)))
-
-    x = np.hstack((np.kron(a_2, id_r), np.kron(id_n1, p)))
-    y = np.kron(a_1, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = np.hstack((np.zeros(dims, dtype=np.int32), y))
-    d_2: NDArray[np.int32] = np.vstack((x, z))
-
-    d_3: NDArray[np.int32] = np.vstack((np.kron(id_n2, p), np.kron(a_2, id_c)))
-
-    if not (is_all_zeros(d_1 @ d_2 % 2) and is_all_zeros(d_2 @ d_3 % 2)):
-        msg = "Error generating 3D code, boundary maps do not square to zero"
-        raise RuntimeError(msg)
-
-    return d_1, d_2, d_3
 
 
 def create_outpath(codename: str) -> str:
