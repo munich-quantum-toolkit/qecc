@@ -202,16 +202,16 @@ class CSSCode(StabilizerCode):
             code_name: The name of the code.
             distance: The distance of the code.
         """
-        prefix = (Path(__file__) / "../../constructions/").resolve()
+        prefix = (Path(__file__) / "../../instances/").resolve()
         paths = {
-            "steane": prefix / "cc/steane/",
-            "tetrahedral": prefix / "cc/tetrahedral/",
+            "steane": prefix / "steane/",
+            "tetrahedral": prefix / "tetrahedral/",
             "shor": prefix / "shor/",
             "surface_3": prefix / "rotated_surface/d3/",
             "surface_5": prefix / "rotated_surface/d5/",
             "golay": prefix / "golay/",
             "carbon": prefix / "carbon/",
-            "hamming": prefix / "hamming/n15/",
+            "hamming": prefix / "hamming_15/",
         }
 
         distances = {
