@@ -193,9 +193,6 @@ class CSSCode(StabilizerCode):
         - [[15, 1, 3]] tetrahedral code (\"Tetrahedral\")
         - [[9, 1, 3]] Shore code (\"Shor\")
         - [[12, 2, 4]] Carbon Code (\"Carbon\")
-        - [[9, 1, 3]] rotated surface code (\"Surface, 3\"), also default when no distance is given
-        - [[25, 1, 5]] rotated surface code (\"Surface, 5\")
-        - [[15, 7, 3]] Hamming code (\"Hamming\")
         - [[23, 1, 7]] golay code (\"Golay\")
 
         Args:
@@ -207,11 +204,8 @@ class CSSCode(StabilizerCode):
             "steane": prefix / "steane/",
             "tetrahedral": prefix / "tetrahedral/",
             "shor": prefix / "shor/",
-            "surface_3": prefix / "rotated_surface/d3/",
-            "surface_5": prefix / "rotated_surface/d5/",
             "golay": prefix / "golay/",
             "carbon": prefix / "carbon/",
-            "hamming": prefix / "hamming_15/",
         }
 
         distances = {
@@ -219,18 +213,10 @@ class CSSCode(StabilizerCode):
             "tetrahedral": (7, 3),
             "shor": (3, 3),
             "golay": (7, 7),
-            "surface_3": (3, 3),
-            "surface_5": (5, 5),
             "carbon": (4, 4),
-            "hamming": (3, 3),
         }  # X, Z distances
 
         code_name = code_name.lower()
-        if code_name == "surface":
-            if distance is None:
-                distance = 3
-            code_name += f"_{distance}"
-
         if code_name in paths:
             hx = np.load(paths[code_name] / "hx.npy")
             hz = np.load(paths[code_name] / "hz.npy")

@@ -23,7 +23,7 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_circuit,
     naive_verification_circuit,
 )
-from mqt.qecc.codes import HexagonalColorCode, SquareOctagonColorCode
+from mqt.qecc.codes import HexagonalColorCode, RotatedSurfaceCode, SquareOctagonColorCode
 
 
 def main() -> None:
@@ -57,7 +57,7 @@ def main() -> None:
     code_name = args.code
     if "surface" in code_name:
         d = args.distance
-        code = CSSCode.from_code_name("surface", d)
+        code = RotatedSurfaceCode(d)
         code_name = f"rotated_surface_d{d}"
     elif "cc_4_8_8" in code_name:
         d = 5

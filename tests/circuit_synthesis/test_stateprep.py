@@ -26,7 +26,7 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_circuit,
     heuristic_verification_stabilizers,
 )
-from mqt.qecc.codes import SquareOctagonColorCode
+from mqt.qecc.codes import RotatedSurfaceCode, SquareOctagonColorCode
 
 from .utils import eq_span, in_span
 
@@ -55,7 +55,7 @@ def css_6_2_2_code() -> CSSCode:
 @pytest.fixture(scope="session")
 def surface_code() -> CSSCode:
     """Return the distance 3 rotated Surface Code."""
-    return CSSCode.from_code_name("surface", 3)
+    return RotatedSurfaceCode(3)
 
 
 @pytest.fixture(scope="session")
