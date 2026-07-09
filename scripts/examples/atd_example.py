@@ -22,10 +22,10 @@ p = 0.05
 for bp_method in ["msl"]:
     for decoder in ["atd"]:
         for c in [16, 21, 30]:
-            Hx = scipy.sparse.load_npz(code_path + str(c) + "_hx.txt").toarray()
-            Hz = scipy.sparse.load_npz(code_path + str(c) + "_hz.txt").toarray()
-            Lx = scipy.sparse.load_npz(code_path + str(c) + "_lx.txt").toarray()
-            Lz = scipy.sparse.load_npz(code_path + str(c) + "_lz.txt").toarray()
+            Hx = scipy.sparse.load_npz(code_path + str(c) + "_hx.npz").toarray()
+            Hz = scipy.sparse.load_npz(code_path + str(c) + "_hz.npz").toarray()
+            Lx = scipy.sparse.load_npz(code_path + str(c) + "_lx.npz").toarray()
+            Lz = scipy.sparse.load_npz(code_path + str(c) + "_lz.npz").toarray()
             lers = []
             ebs = []
             for sigma in s:
