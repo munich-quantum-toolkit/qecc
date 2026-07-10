@@ -1329,12 +1329,12 @@ class SnakeBuilderSteane:
             )
             # add to stabs
             stab_temp: dict[pos, int] = {}
-            if weight_four is not None:  # mypy
+            if weight_four is not None:
                 for label in weight_four["i"]:
                     for key, val in current_patch.items():
                         if label == val:
                             stab_temp.update({key: val})
-            if weight_four is not None:  # mypy
+            if weight_four is not None:
                 for label in weight_four["i+1"]:
                     for key, val in next_patch.items():
                         if label == val:

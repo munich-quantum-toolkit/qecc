@@ -146,26 +146,6 @@ report.exclude_also = [
   '@overload'  # Overloads are only for static typing
 ]
 
-[tool.mypy]
-files = ["src/mqt", "tests", "noxfile.py"]
-mypy_path = ["$MYPY_CONFIG_FILE_DIR/src"]
-python_version = "3.10"
-warn_unused_configs = true
-enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
-strict = true
-disallow_untyped_defs = false
-explicit_package_bases = true
-warn_unreachable = true
-exclude = [
-    "code_construction*",
-    "^data_utils\\.py$"
-]
-
-[[tool.mypy.overrides]]
-module = ["qiskit.*", "qecsim.*", "qiskit_aer.*", "matplotlib.*", "scipy.*", "ldpc.*", "pytest_console_scripts.*",
-    "z3.*", "bposd.*", "numba.*", "pymatching.*", "stim.*", "multiprocess.*", "sinter.*", "qsample.*", "pandas.*", "tqdm.*","networkx.*"]
-ignore_missing_imports = true
-
 
 [tool.check-wheel-contents]
 ignore = ["W002"]  # Triggers on __init__.py's and duplicate data files
@@ -270,7 +250,6 @@ iz = "iz"
 GH200 = "We use Renovate instead of Dependabot"
 MY100 = "We use ty instead of mypy"
 PC111 = "We use ruff instead of blacken-docs"
-PC140 = "We use ty instead of mypy"
 PC160 = "We use a mirror of crate-ci/typos"
 PC170 = "We do not use rST files anymore"
 
