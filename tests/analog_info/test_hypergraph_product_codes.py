@@ -22,6 +22,7 @@ from mqt.qecc.codes.constructions.hypergraph_product_code import (
     generate_3d_product_code,
     generate_4d_product_code,
     generate_sparse_3d_product_code,
+    generate_sparse_4d_product_code,
 )
 
 
@@ -79,6 +80,20 @@ def test_generate_4d_product_code(
     assert not np.any(d_3 @ d_4 % 2)
 
 
+def test_generate_sparse_4d_product_code_matches_dense(
+    boundary_maps: tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.int32]],
+) -> None:
+    """Test sparse 4D HGP code construction against the dense construction."""
+    a_1, a_2, p = boundary_maps
+    a_3 = np.array([[1], [1]], dtype=np.int32)
+    expected = generate_4d_product_code(a_1, a_2, a_3, p)
+
+    result = generate_sparse_4d_product_code(csr_matrix(a_1), csr_matrix(a_2), csr_matrix(a_3), csr_matrix(p))
+
+    for sparse_mat, dense_mat in zip(result, expected, strict=True):
+        assert np.array_equal(sparse_mat.toarray(), dense_mat)
+
+
 def test_generate_3d_product_code_rejects_invalid_boundary_maps() -> None:
     """Test that invalid boundaries are rejected."""
     a_1 = np.array([[1, 0]], dtype=np.int32)
@@ -87,3 +102,14 @@ def test_generate_3d_product_code_rejects_invalid_boundary_maps() -> None:
 
     with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
         generate_3d_product_code(a_1, a_2, p)
+
+
+def test_generate_4d_product_code_rejects_invalid_boundary_maps() -> None:
+    """Test that invalid boundaries are rejected."""
+    a_1 = np.array([[1, 0]], dtype=np.int32)
+    a_2 = np.array([[1], [0]], dtype=np.int32)
+    a_3 = np.array([[1], [0]], dtype=np.int32)
+    p = np.array([[1]], dtype=np.int32)
+
+    with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
+        generate_4d_product_code(a_1, a_2, a_3, p)
