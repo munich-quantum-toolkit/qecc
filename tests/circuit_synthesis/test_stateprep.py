@@ -184,12 +184,14 @@ def test_plus_state_gate_optimal(code: str, request: pytest.FixtureRequest) -> N
 
     assert sp_circ_zero is not None
 
+    # The plus- and zero-state preps are independently optimal circuits, so for a self-dual
+    # code their check matrices are dual up to span (not necessarily identical matrices).
     if code_.is_self_dual():
-        assert np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
+        assert eq_span(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert eq_span(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
     else:
-        assert not np.array_equal(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
-        assert not np.array_equal(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
+        assert not eq_span(sp_circ_plus.x_checks, sp_circ_zero.z_checks)
+        assert not eq_span(sp_circ_plus.z_checks, sp_circ_zero.x_checks)
 
 
 @pytest.mark.parametrize(
