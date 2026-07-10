@@ -103,6 +103,9 @@ def test_generate_3d_product_code_rejects_invalid_boundary_maps() -> None:
     with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
         generate_3d_product_code(a_1, a_2, p)
 
+    with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
+        generate_sparse_3d_product_code(csr_matrix(a_1), csr_matrix(a_2), csr_matrix(p))
+
 
 def test_generate_4d_product_code_rejects_invalid_boundary_maps() -> None:
     """Test that invalid boundaries are rejected."""
@@ -113,3 +116,6 @@ def test_generate_4d_product_code_rejects_invalid_boundary_maps() -> None:
 
     with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
         generate_4d_product_code(a_1, a_2, a_3, p)
+
+    with pytest.raises(RuntimeError, match="boundary maps do not square to zero"):
+        generate_sparse_4d_product_code(csr_matrix(a_1), csr_matrix(a_2), csr_matrix(a_3), csr_matrix(p))
