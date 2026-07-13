@@ -185,7 +185,7 @@ class CSSCode(StabilizerCode):
         return CSSCode(None, None, 1, n=n)
 
     @staticmethod
-    def from_code_name(code_name: str, distance: int | None = None) -> CSSCode:
+    def from_code_name(code_name: str) -> CSSCode:
         r"""Return CSSCode object for a known code.
 
         The following codes are supported:
@@ -197,7 +197,6 @@ class CSSCode(StabilizerCode):
 
         Args:
             code_name: The name of the code.
-            distance: The distance of the code.
         """
         prefix = (Path(__file__) / "../../instances/").resolve()
         paths = {
@@ -217,20 +216,15 @@ class CSSCode(StabilizerCode):
         }  # X, Z distances
 
         code_name = code_name.lower()
-        if code_name in paths:
-            hx = np.load(paths[code_name] / "hx.npy")
-            hz = np.load(paths[code_name] / "hz.npy")
+        if code_name not in paths:
+            msg = f"Unknown code name: {code_name}"
+            raise InvalidCSSCodeError(msg)
 
-            if code_name in distances:
-                x_distance, z_distance = distances[code_name]
-                distance = min(x_distance, z_distance)
-                return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
-
-            if distance is None:
-                msg = f"Distance is not specified for {code_name}"
-                raise InvalidCSSCodeError(msg)
-        msg = f"Unknown code name: {code_name}"
-        raise InvalidCSSCodeError(msg)
+        hx = np.load(paths[code_name] / "hx.npy")
+        hz = np.load(paths[code_name] / "hz.npy")
+        x_distance, z_distance = distances[code_name]
+        distance = min(x_distance, z_distance)
+        return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> CSSCode:
