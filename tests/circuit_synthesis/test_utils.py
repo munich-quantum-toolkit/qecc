@@ -18,7 +18,6 @@ import z3
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
 
-from mqt.qecc import mod2
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
