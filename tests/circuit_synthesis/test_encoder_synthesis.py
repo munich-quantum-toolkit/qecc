@@ -440,11 +440,8 @@ def test_encoding_fixed_logical_qubits(
     if fixed_logical_qubits is None or len(fixed_logical_qubits) == 0:
         assert encoder.get_code().is_equivalent(non_css_8_qubit)
 
-    if (
-        fixed_logical_qubits is not None
-        and len(fixed_logical_qubits) > 0
-        and len(fixed_logical_qubits) < non_css_8_qubit.k
-    ):
+    if fixed_logical_qubits is not None and len(fixed_logical_qubits) > 0:
+        # Also covers the fully-fixed case (len == k), where the encoder has no free inputs.
         actual_code = encoder.get_code()
 
         for q, z in fixed_logical_qubits.items():
