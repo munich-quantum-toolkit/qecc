@@ -479,13 +479,19 @@ def test_invalid_pauli_strings() -> None:
 def test_no_x_logical() -> None:
     """Test that an error is raised if no X logical is provided when a Z logical is provided."""
     with pytest.raises(InvalidStabilizerCodeError):
-        StabilizerCode(["ZZZZ", "XXXX"], x_logicals=["XXII"])
+        StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["XXII"])
 
 
 def test_no_z_logical() -> None:
     """Test that an error is raised if no Z logical is provided when an X logical is provided."""
     with pytest.raises(InvalidStabilizerCodeError):
-        StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["ZZII"])
+        StabilizerCode(["ZZZZ", "XXXX"], x_logicals=["ZZII"])
+
+
+def test_not_compatible_logicals() -> None:
+    """Test that an error is raised if no Z logical is provided when an X logical is provided."""
+    with pytest.raises(InvalidStabilizerCodeError):
+        StabilizerCode([], n=2, z_logicals=["ZI", "IZ"], x_logicals=["XX", "ZZ"])
 
 
 def test_logicals_wrong_length() -> None:
@@ -516,6 +522,12 @@ def test_too_many_logicals() -> None:
         StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["ZZII", "ZZII", "ZZII"], x_logicals=["IXXI"])
     with pytest.raises(InvalidStabilizerCodeError):
         StabilizerCode(["ZZZZ", "XXXX"], z_logicals=["IZZI"], x_logicals=["XXII", "XXII", "XXII"])
+
+
+def test_empty_logicals() -> None:
+    """Test that an the case of empty logicals is handled gracefully."""
+    code = StabilizerCode(["XX", "ZZ"], z_logicals=[], x_logicals=[])
+    assert code.k == 0
 
 
 def test_code_equality() -> None:

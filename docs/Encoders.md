@@ -15,7 +15,9 @@ mystnb:
 
 ## Encoder Circuit Synthesis for CSS Codes
 
-QECC provides functionality for synthesizing encoding circuits of arbitrary Stabilizer codes. An encoder for an $[[n,k,d]]$ code is an isometry that encodes $k$ logical qubits into $n$ physical qubits.
+QECC provides functionality for synthesizing encoding circuits of arbitrary Stabilizer codes.
+A collection of pre-synthesized encoding circuits can be found at [QECirc.com](https://qecirc.com/).
+An encoder for an $[[n,k,d]]$ code is an isometry that encodes $k$ logical qubits into $n$ physical qubits.
 
 Let's consider the synthesis of the encoding circuit of the $[[7,1,3]]$ Steane code.
 
@@ -46,6 +48,10 @@ print_code_operators(steane_code, "Steane Code")
 There is not a unique encoding circuit but usually we would like to obtain an encoding circuit that is optimal with respect to some metric. QECC has functionality for synthesizing gate- or depth-optimal encoding circuits.
 
 Under the hood, this uses the SMT solver [z3](https://github.com/Z3Prover/z3). Of course this method scales only up to a few qubits. Synthesizing depth-optimal circuits is usually faster than synthesizing gate-optimal circuits.
+
+```{note}
+These optimal encoders are thin convenience wrappers around the general exact-synthesis engine. See {doc}`ExactSynthesis` for the full interface — non-CSS codes, gate-count vs. depth objectives, custom gate sets, and two-qubit-gate minimization.
+```
 
 ```{code-cell} ipython3
 depth_opt = depth_optimal_encoding_circuit(steane_code, max_timeout=2)
@@ -263,18 +269,13 @@ For non-CSS codes, depth-optimal synthesis is also available:
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis import depth_optimal_encoding_circuit_non_css
 
-encoder = None
-for d in range(3, 9):
-    result = depth_optimal_encoding_circuit_non_css(five_qubit_code, max_depth=d, exact_two_qubit_count=True, max_two_qubit_gates=6)
+# Search for a depth-optimal encoder with at most six two-qubit gates. `min_depth` skips the
+# (expensive) proofs that no shallower circuit exists.
+result = depth_optimal_encoding_circuit_non_css(five_qubit_code, min_depth=4, max_depth=8, max_two_qubit_gates=6)
 
-    if result == "UNSAT":
-        print(f"No solution for max_depth={d}")
-    else:
-        encoder = result
-        break
-
-if encoder is None:
-    raise RuntimeError("No non-CSS encoder found in the tested depth range.")
+if isinstance(result, str):
+    raise RuntimeError(f"No non-CSS encoder found: {result}")
+encoder = result
 encoding_qubits = encoder.inputs()
 
 print(f"Encoding qubits (logical to physical mapping): {encoding_qubits}")

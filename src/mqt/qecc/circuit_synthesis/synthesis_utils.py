@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import functools
 import logging
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -18,15 +17,11 @@ import numpy as np
 import z3
 from qiskit.circuit import AncillaRegister, ClassicalRegister, QuantumCircuit
 
-from .circuits import CNOTCircuit
-
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
     import numpy.typing as npt
     from qiskit.circuit import AncillaQubit, Clbit, Qubit
-
-    from ..codes.pauli import CheckMatrix
 
 
 logger = logging.getLogger(__name__)
@@ -95,188 +90,6 @@ def iterative_search_with_timeout(
 Objective = Literal["eliminations", "depth"]
 
 
-def build_css_encoder_from_cnot_list(
-    checks: CheckMatrix, logicals: CheckMatrix, cnots: list[tuple[int, int]]
-) -> CNOTCircuit:
-    """Build a CSS encoding circuit from a list of CNOTs, given the stabilizers and logicals.
-
-    Args:
-        checks: The stabilizer check matrix of the CSS code.
-        logicals: The logical operator matrix of the CSS code.
-        cnots: The list of CNOT operations to apply.
-
-    Returns:
-        The synthesized encoding circuit.
-    """
-    if checks.type != logicals.type:
-        msg = "Checks and logicals must be of the same type."
-        raise ValueError(msg)
-
-    check_matrix = checks.matrix
-    logical_matrix = logicals.matrix
-    n = checks.num_qubits()
-    encoding_qubits = np.where(logical_matrix.sum(axis=0) != 0)[0].tolist()
-    if checks.type == "X":
-        hadamards = np.where(check_matrix.sum(axis=0) != 0)[0]
-    else:
-        hadamards = np.where(check_matrix.sum(axis=0) == 0)[0]
-
-    hadamards = np.setdiff1d(hadamards, encoding_qubits)
-    non_hadamards = [i for i in range(n) if i not in hadamards and i not in encoding_qubits]
-    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards, inputs=encoding_qubits)
-
-
-def gaussian_elimination_min_column_ops(
-    matrix: npt.NDArray[np.int8],
-    termination_criteria: Callable[[Any], z3.BoolRef],
-    max_eliminations: int,
-) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]] | None:
-    """Perform Gaussian elimination on the column space of a matrix using at most `max_eliminations` eliminations.
-
-    The algorithm encodes the elimination into an SMT problem and uses Z3 to find the optimal solution.
-
-    Args:
-        matrix: The matrix to perform Gaussian elimination on.
-        termination_criteria: A function that takes a boolean matrix as input and returns a Z3 boolean expression that is true if the matrix is considered reduced.
-        max_eliminations: The maximum number of eliminations to perform.
-
-    Returns:
-        The reduced matrix and a list of the elimination steps taken. The elimination steps are represented as tuples of the form (i, j) where i is the column being eliminated with and j is the column being eliminated.
-    """
-    n = matrix.shape[1]
-    columns = np.array([
-        [[z3.Bool(f"x_{d}_{i}_{j}") for j in range(n)] for i in range(matrix.shape[0])]
-        for d in range(max_eliminations + 1)
-    ])
-
-    n_bits = int(np.ceil(np.log2(n)))
-    targets = [z3.BitVec(f"target_{d}", n_bits) for d in range(max_eliminations)]
-    controls = [z3.BitVec(f"control_{d}", n_bits) for d in range(max_eliminations)]
-    s = z3.Solver()
-
-    additions = np.array([
-        [[z3.And(controls[d] == col_1, targets[d] == col_2) for col_2 in range(n)] for col_1 in range(n)]
-        for d in range(max_eliminations)
-    ])
-
-    # create initial matrix
-    columns[0, :, :] = matrix.astype(bool)
-
-    if max_eliminations != 0:
-        s.add(_column_addition_constraint(columns, additions))
-
-        for d in range(1, max_eliminations + 1):
-            # two columns cannot be in two elimination steps at the same time
-            s.add(controls[d - 1] != targets[d - 1])
-
-            # control and target must be valid qubits
-
-            if n and (n - 1) != 0 and not ((n & (n - 1) == 0) and n != 0):  # check if n is a power of 2 or 1 or 0
-                s.add(z3.ULT(controls[d - 1], n))
-                s.add(z3.ULT(targets[d - 1], n))
-
-        # if column is not involved in any addition at certain depth, it is the same as the previous column
-        for d in range(1, max_eliminations + 1):
-            for col in range(n):
-                s.add(z3.Implies(targets[d - 1] != col, symbolic_vector_eq(columns[d, :, col], columns[d - 1, :, col])))
-
-    # assert that final check matrix has n-checks.shape[0] zero columns
-    s.add(termination_criteria(columns))
-
-    if s.check() == z3.sat:
-        if max_eliminations == 0:
-            return matrix, []
-
-        m = s.model()
-        eliminations = [(m[controls[d]].as_long(), m[targets[d]].as_long()) for d in range(max_eliminations)]
-        reduced = np.array([
-            [bool(m[columns[max_eliminations][i][j]]) for j in range(n)] for i in range(matrix.shape[0])
-        ]).astype(np.int8)
-        return reduced, eliminations
-
-    return None
-
-
-def gaussian_elimination_min_parallel_eliminations(
-    matrix: npt.NDArray[np.int8], termination_criteria: Callable[[Any], z3.BoolRef], max_parallel_steps: int
-) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]] | None:
-    """Perform Gaussian elimination on the column space of a matrix using at most `max_parallel_steps` parallel column elimination steps.
-
-    The algorithm encodes the elimination into a SAT problem and uses Z3 to find the optimal solution.
-
-    Args:
-        matrix: The matrix to perform Gaussian elimination on.
-        termination_criteria: A function that takes a boolean matrix as input and returns a Z3 boolean expression that is true if the matrix is considered reduced.
-        max_parallel_steps: The maximum number of parallel elimination steps to perform.
-
-    Returns:
-        The reduced matrix and a list of the elimination steps taken. The elimination steps are represented as tuples of the form (i, j) where i is the column being eliminated with and j is the column being eliminated.
-    """
-    columns = np.array([
-        [[z3.Bool(f"x_{d}_{i}_{j}") for j in range(matrix.shape[1])] for i in range(matrix.shape[0])]
-        for d in range(max_parallel_steps + 1)
-    ])
-
-    additions = np.array([
-        [[z3.Bool(f"add_{d}_{i}_{j}") for j in range(matrix.shape[1])] for i in range(matrix.shape[1])]
-        for d in range(max_parallel_steps)
-    ])
-    n_cols = matrix.shape[1]
-    s = z3.Solver()
-
-    # create initial matrix
-    columns[0, :, :] = matrix.astype(bool)
-
-    if max_parallel_steps != 0:
-        s.add(_column_addition_constraint(columns, additions))
-
-        # qubit can be involved in at most one addition at each depth
-        for d in range(max_parallel_steps):
-            for col in range(n_cols):
-                s.add(
-                    z3.PbLe(
-                        [(additions[d, col_1, col], 1) for col_1 in range(n_cols) if col != col_1]
-                        + [(additions[d, col, col_2], 1) for col_2 in range(n_cols) if col != col_2],
-                        1,
-                    )
-                )
-
-        # if column is not involved in any addition at certain depth, it is the same as the previous column
-        for d in range(1, max_parallel_steps + 1):
-            for col in range(n_cols):
-                s.add(
-                    z3.Implies(
-                        z3.Not(
-                            z3.Or(
-                                list(np.delete(additions[d - 1, :, col], [col]))
-                                + list(np.delete(additions[d - 1, col, :], [col]))
-                            )
-                        ),
-                        symbolic_vector_eq(columns[d, :, col], columns[d - 1, :, col]),
-                    )
-                )
-
-    s.add(termination_criteria(columns))
-
-    if s.check() == z3.sat:
-        if max_parallel_steps == 0:
-            return matrix, []
-        m = s.model()
-        eliminations = [
-            (i, j)
-            for d in range(max_parallel_steps)
-            for j in range(matrix.shape[1])
-            for i in range(matrix.shape[1])
-            if m[additions[d, i, j]]
-        ]
-        reduced = np.array([
-            [bool(m[columns[max_parallel_steps, i, j]]) for j in range(matrix.shape[1])] for i in range(matrix.shape[0])
-        ]).astype(np.int8)
-        return reduced, eliminations
-
-    return None
-
-
 def build_css_circuit_from_cnot_list(n: int, cnots: list[tuple[int, int]], hadamards: list[int]) -> QuantumCircuit:
     """Build a quantum circuit consisting of Hadamards followed by a layer of CNOTs from a list of CNOTs and a list of checks.
 
@@ -293,43 +106,6 @@ def build_css_circuit_from_cnot_list(n: int, cnots: list[tuple[int, int]], hadam
     for i, j in cnots:
         circ.cx(i, j)
     return circ
-
-
-def _column_addition_constraint(
-    columns: npt.NDArray[np.bool_],
-    col_add_vars: npt.NDArray[np.bool_],
-) -> z3.BoolRef:
-    assert len(columns.shape) == 3
-    max_parallel_steps = col_add_vars.shape[0]
-    n_cols = col_add_vars.shape[2]
-
-    constraints = []
-    for d in range(1, max_parallel_steps + 1):
-        for col_1 in range(n_cols):
-            for col_2 in range(col_1 + 1, n_cols):
-                col_sum = symbolic_vector_add(columns[d - 1, :, col_1], columns[d - 1, :, col_2])
-
-                # encode col_2 += col_1
-                add_col1_to_col2 = z3.Implies(
-                    col_add_vars[d - 1, col_1, col_2],
-                    z3.And(
-                        symbolic_vector_eq(columns[d, :, col_2], col_sum),
-                        symbolic_vector_eq(columns[d, :, col_1], columns[d - 1, :, col_1]),
-                    ),
-                )
-
-                # encode col_1 += col_2
-                add_col2_to_col1 = z3.Implies(
-                    col_add_vars[d - 1, col_2, col_1],
-                    z3.And(
-                        symbolic_vector_eq(columns[d, :, col_1], col_sum),
-                        symbolic_vector_eq(columns[d, :, col_2], columns[d - 1, :, col_2]),
-                    ),
-                )
-
-                constraints.extend([add_col1_to_col2, add_col2_to_col1])
-
-    return z3.And(constraints)
 
 
 def symbolic_vector_eq(v1: npt.NDArray[np.bool_] | list[z3.BoolRef], v2: npt.NDArray[np.bool_]) -> z3.BoolRef:
@@ -410,75 +186,6 @@ def symbolic_vector_add(v1: npt.NDArray[np.bool_], v2: npt.NDArray[np.bool_]) ->
             v_new[i] = z3.Xor(v1[i], v2[i])
 
     return np.array(v_new)
-
-
-def optimal_elimination(
-    matrix: npt.NDArray[np.int8],
-    termination_criteria: Callable[[Any], z3.BoolRef],
-    optimization_metric: str = "column_ops",
-    min_param: int = 1,
-    max_param: int = 10,
-    min_timeout: int = 1,
-    max_timeout: int = 3600,
-) -> tuple[npt.NDArray[np.int8], list[tuple[int, int]]] | None:
-    """Synthesize a state preparation circuit for a CSS code that minimizes the circuit w.r.t. some metric param according to prep_func.
-
-    Args:
-        matrix: The stabilizer matrix of the CSS code.
-        termination_criteria: The termination criteria for when the matrix is considered reduced.
-        optimization_metric: The metric to optimize the circuit w.r.t. to. Can be either "column_ops" or "parallel_ops".
-        zero_state: Whether to start from the zero state.
-        min_param: The minimum value of the metric parameter.
-        max_param: The maximum value of the metric parameter.
-        min_timeout: The minimum time to run one search iteration for.
-        max_timeout: The maximum time to run one search iteration for.
-    """
-    if optimization_metric not in {"column_ops", "parallel_ops"}:
-        msg = "Invalid optimization metric"
-        raise ValueError(msg)
-
-    opt_fun = {
-        "column_ops": gaussian_elimination_min_column_ops,
-        "parallel_ops": gaussian_elimination_min_parallel_eliminations,
-    }[optimization_metric]
-
-    fun = functools.partial(
-        opt_fun,
-        matrix,
-        termination_criteria,
-    )
-
-    res = iterative_search_with_timeout(
-        fun,
-        min_param,
-        max_param,
-        min_timeout,
-        max_timeout,
-    )
-
-    if res is None:
-        return None
-    reduced = res[0]
-    if reduced is None:
-        return None
-    reduced, eliminations = reduced
-    curr_param = res[1]
-
-    logger.info(f"Solution found with param {curr_param}")
-    # Solving a SAT instance is much faster than proving unsat in this case
-    # so we iterate backwards until we find an unsat instance or hit a timeout
-    logger.info("Trying to minimize param")
-    while True:
-        logger.info(f"Trying param {curr_param - 1}")
-        opt_res = run_with_timeout(fun, curr_param - 1, timeout=max_timeout)
-        if opt_res is None or (isinstance(opt_res, str) and opt_res == "timeout"):
-            break
-        assert not isinstance(opt_res, str)
-        reduced, eliminations = opt_res
-        curr_param -= 1
-
-    logger.info(f"Optimal param: {curr_param}")
-    return reduced, eliminations
 
 
 def _ancilla_cnot(qc: QuantumCircuit, qubit: Qubit | AncillaQubit, ancilla: AncillaQubit, z_measurement: bool) -> None:

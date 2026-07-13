@@ -1,0 +1,81 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
+"""Type definitions for exact synthesis framework."""
+
+from __future__ import annotations
+
+from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..circuits import CliffordIsometry, CNOTCircuit
+    from .gate_operations import SymbolicGateOperation
+
+
+class TargetKind(Enum):
+    """Type of synthesis target."""
+
+    CLIFFORD_UNITARY = "clifford_unitary"
+    STABILIZER_STATE = "stabilizer_state"
+    CLIFFORD_ISOMETRY = "clifford_isometry"
+    CSS_STATE = "css_state"
+    CSS_ISOMETRY = "css_isometry"
+
+
+class Objective(Enum):
+    """Optimization objective."""
+
+    GATE_COUNT = "gate_count"
+    DEPTH = "depth"
+
+
+class SynthesisStatus(Enum):
+    """Status of synthesis attempt."""
+
+    SUCCESS = "success"
+    UNSAT = "unsat"
+    TIMEOUT = "timeout"
+    ERROR = "error"
+
+
+class SynthesisResult:
+    """Result of exact synthesis attempt."""
+
+    def __init__(
+        self,
+        status: SynthesisStatus,
+        circuit: CliffordIsometry | CNOTCircuit | None = None,
+        gate_count: int | None = None,
+        depth: int | None = None,
+        verified: bool = False,
+        message: str = "",
+        gate_set: dict[str, type[SymbolicGateOperation]] | None = None,
+        proven_optimal: bool = False,
+    ) -> None:
+        """Initialize synthesis result.
+
+        Args:
+            status: Status of synthesis attempt.
+            circuit: Synthesized circuit (None if failed).
+            gate_count: Number of gates in circuit.
+            depth: Circuit depth.
+            verified: Whether circuit was verified.
+            message: Additional information or error message.
+            gate_set: Gate set used for synthesis.
+            proven_optimal: Whether the returned circuit is proven optimal within
+                the search range.  True when all smaller bounds were proven UNSAT
+                before the solution was found.
+        """
+        self.status = status
+        self.circuit = circuit
+        self.gate_count = gate_count
+        self.depth = depth
+        self.verified = verified
+        self.message = message
+        self.gate_set = gate_set
+        self.proven_optimal = proven_optimal

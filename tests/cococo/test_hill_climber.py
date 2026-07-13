@@ -51,7 +51,7 @@ def test_neighborhood():
         0: (2, 1),
         4: (1, 1),
         2: (0, 1),
-    }  # type to make mypy happy
+    }
 
     neighborhood = hc.gen_neighborhood(layout)
     aim_neighborhood = [

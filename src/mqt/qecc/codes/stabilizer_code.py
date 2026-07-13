@@ -63,9 +63,9 @@ class StabilizerCode:
         self.distance = 1 if distance is None else distance  # default distance is 1
         self.compute_logical_ops()
         if z_logicals is not None:
-            self.z_logicals = self.get_generators(z_logicals)
+            self.z_logicals = self.get_generators(z_logicals, self.n)
         if x_logicals is not None:
-            self.x_logicals = self.get_generators(x_logicals)
+            self.x_logicals = self.get_generators(x_logicals, self.n)
 
         self._check_code_correct()
 
@@ -236,6 +236,10 @@ class StabilizerCode:
             msg = "Number of logical X-operators must be at most the number of logical qubits."
             raise InvalidStabilizerCodeError(msg)
 
+        if self.z_logicals.shape[0] != self.x_logicals.shape[0]:
+            msg = "Number of logical Z-operators must be equal to the number of logical X-operators."
+            raise InvalidStabilizerCodeError(msg)
+
         if not self.z_logicals.all_commute(self.generators):
             msg = "Logical Z-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
@@ -243,12 +247,16 @@ class StabilizerCode:
             msg = "Logical X-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
 
-        commutations = (self.z_logicals.tableau @ self.x_logicals.tableau).matrix
-        if not np.all(np.sum(commutations, axis=1) == 1):
-            msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator."
+        def commutation_matrix(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
+            n = m1.shape[1] // 2
+            return ((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2
+
+        commutations = commutation_matrix(self.z_logicals.tableau.matrix, self.x_logicals.tableau.matrix)
+        if not np.array_equal(commutations, np.eye(self.z_logicals.shape[0], dtype=np.int8)):
+            msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator and vice versa."
             raise InvalidStabilizerCodeError(msg)
 
-        stabilizer_commutations = (self.generators.tableau @ self.generators.tableau).matrix
+        stabilizer_commutations = commutation_matrix(self.generators.tableau.matrix, self.generators.tableau.matrix)
         if not np.all(stabilizer_commutations == 0):
             msg = "Stabilizer generators must commute with each other."
             raise InvalidStabilizerCodeError(msg)
