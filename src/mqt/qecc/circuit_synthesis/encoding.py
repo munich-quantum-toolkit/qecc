@@ -324,9 +324,9 @@ def synthesize_encoding_circuit(
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
     """
     if fixed_logical_qubits:
-        assert all(0 <= q < code.k and z in {"0", "+"} for q, z in fixed_logical_qubits.items()), (
-            "Fixed logical qubit indices must be in the range [0, k-1] and states must be '0' or '+'."
-        )
+        if not all(0 <= q < code.k and z in {"0", "+"} for q, z in fixed_logical_qubits.items()):
+            msg = "Fixed logical qubit indices must be in the range [0, k-1] and states must be '0' or '+'."
+            raise ValueError(msg)
 
         additional_x_checks = sorted(q for q, z in fixed_logical_qubits.items() if z == "+")
         additional_z_checks = sorted(q for q, z in fixed_logical_qubits.items() if z == "0")

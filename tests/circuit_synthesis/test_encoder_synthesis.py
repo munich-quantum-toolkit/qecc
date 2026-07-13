@@ -456,7 +456,7 @@ def test_encoding_invalid_fixed_logical_qubits(
     css_4_2_2_code: CSSCode, fixed_logical_qubits: dict[int, str] | None, use_cnots_if_css: bool
 ) -> None:
     """Check that invalid inputs for fixed_logical_qubits raise an Error."""
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="Fixed logical qubit"):
         synthesize_encoding_circuit(
             css_4_2_2_code,
             fixed_logical_qubits=fixed_logical_qubits,
