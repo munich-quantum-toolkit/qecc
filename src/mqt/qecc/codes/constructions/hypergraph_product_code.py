@@ -140,14 +140,14 @@ def generate_sparse_4d_product_code(
     x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
     y = sparse.kron(a_1, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    nmat = csr_matrix(np.zeros(dims))
+    nmat = csr_matrix(dims, dtype=int)
     z = sparse.hstack((nmat, y))
     d_2 = sparse.vstack((x, z))
 
     x = sparse.hstack((sparse.kron(a_3, id_r), sparse.kron(id_n2, p)))
     y = sparse.kron(a_2, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    mat = csr_matrix(np.zeros(dims))
+    mat = csr_matrix(dims, dtype=int)
     z = sparse.hstack([mat, y])
     d_3 = sparse.vstack((x, z))
 
@@ -176,7 +176,7 @@ def generate_sparse_3d_product_code(
     x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
     y = sparse.kron(a_1, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = sparse.hstack((csr_matrix(np.zeros(dims), dtype=int), y))
+    z = sparse.hstack((csr_matrix(dims, dtype=int), y))
     d_2 = sparse.vstack((x, z))
 
     d_3 = sparse.vstack((sparse.kron(id_n2, p), sparse.kron(a_2, id_c)))
