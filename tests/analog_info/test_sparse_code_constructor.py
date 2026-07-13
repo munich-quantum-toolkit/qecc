@@ -22,7 +22,7 @@ from scipy.sparse import csr_matrix
 # ``filterwarnings = ["error"]`` config this would turn the import into a
 # collection error, so suppress it while importing the module under test.
 with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
+    warnings.simplefilter("ignore", SyntaxWarning)
     import mqt.qecc.analog_information_decoding.code_construction.sparse_code_constructor as scc
 
 if TYPE_CHECKING:
