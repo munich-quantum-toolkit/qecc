@@ -127,10 +127,6 @@ myst_heading_anchors = 3
 # -- Options for {MyST}NB ----------------------------------------------------
 
 nb_execution_mode = "cache"
-nb_mime_priority_overrides = [
-    # builder name, mime type, priority
-    ("latex", "image/svg+xml", 15),
-]
 nb_execution_raise_on_error = True
 
 
@@ -198,69 +194,4 @@ html_theme_options = {
             "class": "fa-brands fa-solid fa-python fa-2x",
         },
     ],
-}
-
-# -- Options for LaTeX output ------------------------------------------------
-
-numfig = True
-numfig_secnum_depth = 0
-
-sd_fontawesome_latex = True
-image_converter_args = ["-density", "300"]
-latex_engine = "pdflatex"
-latex_documents = [
-    (
-        master_doc,
-        "mqt_qecc.tex",
-        r"MQT QECC",
-        r"""Chair for Design Automation\\ Technical University of Munich, Germany\\
-        \href{mailto:quantum.cda@xcit.tum.de}{quantum.cda@xcit.tum.de}\\
-        Munich Quantum Software Company GmbH\\Garching near Munich, Germany""",
-        "howto",
-        False,
-    ),
-]
-latex_logo = "_static/mqt_dark.png"
-latex_elements = {
-    "papersize": "letterpaper",
-    "releasename": "Version",
-    "printindex": r"\footnotesize\raggedright\printindex",
-    "tableofcontents": "",
-    "sphinxsetup": "iconpackage=fontawesome",
-    "extrapackages": r"\usepackage{qrcode,graphicx,calc,amsthm,etoolbox,flushend,mathtools}",
-    "preamble": r"""
-\patchcmd{\thebibliography}{\addcontentsline{toc}{section}{\refname}}{}{}{}
-\DeclarePairedDelimiter\abs{\lvert}{\rvert}
-\DeclarePairedDelimiter\mket{\lvert}{\rangle}
-\DeclarePairedDelimiter\mbra{\langle}{\rvert}
-\DeclareUnicodeCharacter{03C0}{$\pi$}
-\DeclareUnicodeCharacter{2728}{\faicon{star}}
-\DeclareUnicodeCharacter{1F6B8}{\faicon{user-plus}}
-\DeclareUnicodeCharacter{1F4DD}{\faicon{book}}
-\DeclareUnicodeCharacter{1F69A}{\faicon{truck}}
-\DeclareUnicodeCharacter{267B}{\faicon{recycle}}
-\DeclareUnicodeCharacter{2B06}{\faicon{arrow-up}}
-\DeclareUnicodeCharacter{1F4C4}{\faicon{file-alt}}
-\DeclareUnicodeCharacter{1F525}{\faicon{fire}}
-\DeclareUnicodeCharacter{1F41B}{\faicon{bug}}
-\DeclareUnicodeCharacter{1F4DA}{\faicon{book-open}}
-\DeclareUnicodeCharacter{1F389}{\faicon{play}}
-\DeclareUnicodeCharacter{1F44D}{\faicon{thumbs-up}}
-\DeclareUnicodeCharacter{FE0F}{}
-
-\newcommand*{\ket}[1]{\ensuremath{\mket{\mkern1mu#1}}}
-\newcommand*{\bra}[1]{\ensuremath{\mbra{\mkern1mu#1}}}
-\newtheorem{example}{Example}
-\clubpenalty=10000
-\widowpenalty=10000
-\interlinepenalty 10000
-\def\subparagraph{} % because IEEE classes don't define this, but titlesec assumes it's present
-""",
-    "extraclassoptions": r"journal, onecolumn",
-    "fvset": r"\fvset{fontsize=\small}",
-    "figure_align": "htb",
-}
-latex_domain_indices = False
-latex_docclass = {
-    "howto": "IEEEtran",
 }

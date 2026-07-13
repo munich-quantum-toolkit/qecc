@@ -13,9 +13,12 @@ mystnb:
 
 # Exact Circuit Synthesis
 
-QECC provides an SMT/SAT-based exact synthesis engine for finding provably optimal Clifford circuits. It supports both CSS and non-CSS stabilizer codes and can optimize for gate count or circuit depth.
+QECC provides an SMT/SAT-based exact synthesis engine for finding provably
+optimal Clifford circuits. It supports both CSS and non-CSS stabilizer codes and
+can optimize for gate count or circuit depth.
 
-The entry point is `synthesize_isometry_exact` from `mqt.qecc.circuit_synthesis.exact`.
+The entry point is `synthesize_isometry_exact` from
+`mqt.qecc.circuit_synthesis.exact`.
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis.exact import (
@@ -28,9 +31,13 @@ from mqt.qecc.circuit_synthesis.exact import (
 
 ## CSS Encoding Circuits
 
-For CSS codes, encoding circuits consist only of CNOT gates (plus ancilla initialization). The target is specified as a `CheckMatrix` representing the stabilizer generators, and the logicals are provided as a `CheckMatrix` of logical operators.
+For CSS codes, encoding circuits consist only of CNOT gates (plus ancilla
+initialization). The target is specified as a `CheckMatrix` representing the
+stabilizer generators, and the logicals are provided as a `CheckMatrix` of
+logical operators.
 
-Let us synthesize an encoder for the $[[4,2,2]]$ iceberg code — a small CSS code that encodes two logical qubits.
+Let us synthesize an encoder for the $[[4,2,2]]$ iceberg code — a small CSS code
+that encodes two logical qubits.
 
 ```{code-cell} ipython3
 from mqt.qecc.codes import construct_iceberg_code
@@ -42,7 +49,8 @@ print(f"Hx =\n{code.Hx}")
 print(f"Lx =\n{code.Lx}")
 ```
 
-To synthesize a gate-count-optimal encoder, pass the X-check matrix as target and the logical X operators:
+To synthesize a gate-count-optimal encoder, pass the X-check matrix as target
+and the logical X operators:
 
 ```{code-cell} ipython3
 hx = CheckMatrix(code.Hx, pauli_type="X")
@@ -92,9 +100,13 @@ print(f"Proven optimal: {result_depth.proven_optimal}")
 
 ## Non-CSS Encoding Circuits
 
-For non-CSS stabilizer codes, encoding circuits are built from the full Clifford gate set. The target is specified as a `StabilizerTableau`, and the logicals are provided as `StabilizerTableau` objects.
+For non-CSS stabilizer codes, encoding circuits are built from the full Clifford
+gate set. The target is specified as a `StabilizerTableau`, and the logicals are
+provided as `StabilizerTableau` objects.
 
-The gate set for non-CSS synthesis defaults to $\{H, S, \text{CX}\}$ (standard Clifford). The extended gate set $\{H, S, \sqrt{X}, \text{CX}, \text{CZ}\}$ can find shorter circuits:
+The gate set for non-CSS synthesis defaults to $\{H, S, \text{CX}\}$ (standard
+Clifford). The extended gate set $\{H, S, \sqrt{X}, \text{CX}, \text{CZ}\}$ can
+find shorter circuits:
 
 ```{code-cell} ipython3
 from mqt.qecc.codes.core.pauli import StabilizerTableau
@@ -136,9 +148,14 @@ result.circuit.draw("mpl")
 
 ## CSS State Synthesis
 
-Exact synthesis also prepares CSS stabilizer states directly. For a state target only the check matrix is needed (no logicals).
+Exact synthesis also prepares CSS stabilizer states directly. For a state target
+only the check matrix is needed (no logicals).
 
-The GHZ state $|GHZ\rangle \propto |000\rangle + |111\rangle$ is the cat ($|+\rangle_L$) state of the three-qubit repetition code: it is stabilized by the code's $Z$-checks $\{ZZI, IZZ\}$ together with $X_L = XXX$. We therefore pass those $Z$-checks as a CSS state target and find the shortest-depth preparation circuit:
+The GHZ state $|GHZ\rangle \propto |000\rangle + |111\rangle$ is the cat
+($|+\rangle_L$) state of the three-qubit repetition code: it is stabilized by
+the code's $Z$-checks $\{ZZI, IZZ\}$ together with $X_L = XXX$. We therefore
+pass those $Z$-checks as a CSS state target and find the shortest-depth
+preparation circuit:
 
 ```{code-cell} ipython3
 import numpy as np
@@ -164,7 +181,9 @@ result.circuit.draw("mpl")
 
 ## Gate Sets
 
-The synthesis engine supports several Clifford gate sets for non-CSS targets. CSS synthesis always uses CNOT-only circuits and ignores the `gate_set` parameter.
+The synthesis engine supports several Clifford gate sets for non-CSS targets.
+CSS synthesis always uses CNOT-only circuits and ignores the `gate_set`
+parameter.
 
 | Factory function                   | Gates                                  | Notes                                |
 | ---------------------------------- | -------------------------------------- | ------------------------------------ |
@@ -173,7 +192,8 @@ The synthesis engine supports several Clifford gate sets for non-CSS targets. CS
 | `get_clifford_cz_gate_set()`       | $H, S, \text{CX}, \text{CZ}$           | Adds $\text{CZ}$ to the standard set |
 | `get_clifford_extended_gate_set()` | $H, S, \sqrt{X}, \text{CX}, \text{CZ}$ | Full extended set                    |
 
-A larger gate set gives the solver more freedom and can yield shorter circuits, at the cost of a larger search space per depth/count bound.
+A larger gate set gives the solver more freedom and can yield shorter circuits,
+at the cost of a larger search space per depth/count bound.
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis.exact import (
@@ -203,7 +223,10 @@ The `TargetKind` enum selects the synthesis problem:
 
 ### Bounds and timeouts
 
-`synthesize_isometry_exact` performs an exhaustive search from `lower_bound` to `upper_bound` (inclusive). The first feasible bound returns a solution. If all bounds are infeasible the result has status `UNSAT`. A per-bound solver timeout can be set in seconds:
+`synthesize_isometry_exact` performs an exhaustive search from `lower_bound` to
+`upper_bound` (inclusive). The first feasible bound returns a solution. If all
+bounds are infeasible the result has status `UNSAT`. A per-bound solver timeout
+can be set in seconds:
 
 ```python
 result = synthesize_isometry_exact(
@@ -214,11 +237,14 @@ result = synthesize_isometry_exact(
 )
 ```
 
-If the solver times out at any bound, the search returns immediately with status `TIMEOUT`.
+If the solver times out at any bound, the search returns immediately with status
+`TIMEOUT`.
 
 ### Symmetry breaking
 
-Symmetry-breaking constraints prune the SAT search space by forbidding obviously redundant gate sequences (adjacent identical self-inverse gates, unnecessary idle slots). Enable it with `use_symmetry_breaking=True`:
+Symmetry-breaking constraints prune the SAT search space by forbidding obviously
+redundant gate sequences (adjacent identical self-inverse gates, unnecessary
+idle slots). Enable it with `use_symmetry_breaking=True`:
 
 ```python
 result = synthesize_isometry_exact(
@@ -227,11 +253,13 @@ result = synthesize_isometry_exact(
 )
 ```
 
-Symmetry breaking is most effective for larger problems where the raw SAT instance is expensive. It is safe to combine with any gate set.
+Symmetry breaking is most effective for larger problems where the raw SAT
+instance is expensive. It is safe to combine with any gate set.
 
 ### Exponential-backoff search
 
-For large instances where a single per-bound timeout is too aggressive, the exponential-backoff strategy can find good solutions faster:
+For large instances where a single per-bound timeout is too aggressive, the
+exponential-backoff strategy can find good solutions faster:
 
 ```python
 result = synthesize_isometry_exact(
@@ -244,14 +272,20 @@ result = synthesize_isometry_exact(
 
 The strategy works in two phases:
 
-1. **Ascending phase** — scan from `lower_bound` to `upper_bound` with `min_timeout` per bound. Bounds proven UNSAT are dropped permanently. Timed-out bounds are retried with a doubled budget after each pass, up to `timeout`.
-2. **Descending phase** — once a SAT solution is found at bound $b$, descend from $b{-}1$ with the maximum budget to tighten the result.
+1. **Ascending phase** — scan from `lower_bound` to `upper_bound` with
+   `min_timeout` per bound. Bounds proven UNSAT are dropped permanently.
+   Timed-out bounds are retried with a doubled budget after each pass, up to
+   `timeout`.
+2. **Descending phase** — once a SAT solution is found at bound $b$, descend
+   from $b{-}1$ with the maximum budget to tighten the result.
 
-`result.proven_optimal` is `True` only when all smaller bounds were confirmed UNSAT.
+`result.proven_optimal` is `True` only when all smaller bounds were confirmed
+UNSAT.
 
 ## Interpreting `SynthesisResult`
 
-The `SynthesisResult` object returned by `synthesize_isometry_exact` carries all relevant metadata:
+The `SynthesisResult` object returned by `synthesize_isometry_exact` carries all
+relevant metadata:
 
 | Attribute        | Type                                      | Description                                             |
 | ---------------- | ----------------------------------------- | ------------------------------------------------------- |
@@ -284,7 +318,10 @@ print(f"message:        {result.message}")
 
 ## Secondary Two-Qubit Gate Minimization
 
-Depth-optimal synthesis may leave room to reduce the two-qubit gate count while keeping the depth fixed. The `max_two_qubit_gates` parameter bounds the number of two-qubit gates at a fixed depth, enabling a descent that finds the depth-optimal circuit with fewest two-qubit gates:
+Depth-optimal synthesis may leave room to reduce the two-qubit gate count while
+keeping the depth fixed. The `max_two_qubit_gates` parameter bounds the number
+of two-qubit gates at a fixed depth, enabling a descent that finds the
+depth-optimal circuit with fewest two-qubit gates:
 
 ```{code-cell} ipython3
 # Step 1: start from the depth-optimal circuit (depth 5 was established above)
@@ -337,7 +374,8 @@ print(f"TQ count proven optimal: {tq_proven_optimal}")
 
 ## Storing and Reloading Circuits
 
-Synthesized circuits can be serialized to Stim circuit strings for storage (e.g., in JSONL files or databases) and reloaded later:
+Synthesized circuits can be serialized to Stim circuit strings for storage
+(e.g., in JSONL files or databases) and reloaded later:
 
 ```{code-cell} ipython3
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit

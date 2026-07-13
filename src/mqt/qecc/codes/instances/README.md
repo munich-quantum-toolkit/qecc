@@ -23,8 +23,8 @@ These are the codes returned by `CSSCode.from_code_name(...)`, e.g.
 
 ## `lifted_product/`
 
-Pre-generated check matrices for lifted-product codes, stored as sparse
-`.npz` arrays. File names follow `lp_l=<lift>_h{x,z}.npz`.
+Pre-generated check matrices for lifted-product codes, stored as sparse `.npz`
+arrays. File names follow `lp_l=<lift>_h{x,z}.npz`.
 
 ## `misc/`
 
