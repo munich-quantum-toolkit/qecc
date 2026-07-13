@@ -58,7 +58,9 @@ def test_create_code_builds_valid_css_code_via_sparse_3d(monkeypatch: pytest.Mon
     monkeypatch.setattr(scc, "_store_code_params", _capture)
 
     p = csr_matrix(np.array([[1, 1]], dtype=np.int32))
-    scc.create_code("hgp", [hx_seed, hz_seed, p], "unit_test_code")
+    # seed_codes[0:2] are consumed by the stubbed `hgp`; seed_codes[2] (`p`) drives the
+    # 3D extension. Pass them all as csr_matrix to match the `list[csr_matrix]` signature.
+    scc.create_code("hgp", [csr_matrix(hx_seed), csr_matrix(hz_seed), p], "unit_test_code")
 
     hx, hz = captured["hx"], captured["hz"]
     assert hx.size > 0

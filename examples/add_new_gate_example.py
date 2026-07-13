@@ -29,7 +29,7 @@ from mqt.qecc.circuit_synthesis.exact.gate_operations import (
     SymbolicGateOperation,
     get_standard_clifford_gate_set,
 )
-from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.core.pauli import StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy as np
