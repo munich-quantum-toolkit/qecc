@@ -14,9 +14,10 @@ import operator
 from itertools import permutations
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
+
+from mqt.qecc import mod2
 
 from ..codes.pauli import CheckMatrix
 from .elimination import (

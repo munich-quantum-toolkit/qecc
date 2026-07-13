@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc.mod2.mod2_numpy import rank
+
+from mqt.qecc.mod2 import rank
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt

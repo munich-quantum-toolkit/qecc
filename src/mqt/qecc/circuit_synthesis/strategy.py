@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
+
+from mqt.qecc import mod2
 
 from ..codes.pauli import CheckMatrix, StabilizerTableau
 from .cnot import GreedyCNOTGenerator
