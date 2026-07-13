@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 import z3
 
-from ...codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc import mod2
+
+from ...codes.core.pauli import CheckMatrix, StabilizerTableau
 from ..circuits import CliffordIsometry, CNOTCircuit
 from .encoding_interface import (
     CliffordDepthEncoding,

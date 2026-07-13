@@ -17,102 +17,16 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import scipy.io as sio
 from bposd.hgp import hgp
-from ldpc.mod2.mod2_numpy import rank
 from scipy import sparse
 from scipy.sparse import coo_matrix, csr_matrix
 
+from mqt.qecc.mod2 import rank
+
+from ...codes.constructions.hypergraph_product_code import generate_sparse_3d_product_code
 from . import code_constructor
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-
-
-def is_all_zeros(array: NDArray[np.int_]) -> bool:
-    """Check if array is all zeros."""
-    return not np.any(array)
-
-
-def sparse_all_zeros(mat: csr_matrix) -> bool:
-    """Check if sparse matrix is all zeros."""
-    mat.data %= 2
-    return bool(mat.sum() == 0)
-
-
-def run_checks_scipy(d_1: csr_matrix, d_2: csr_matrix, d_3: csr_matrix, d_4: csr_matrix) -> None:
-    """Run checks on the boundary maps."""
-    if not (sparse_all_zeros(d_1 @ d_2) and sparse_all_zeros(d_2 @ d_3) and sparse_all_zeros(d_3 @ d_4)):
-        msg = "Error generating 4D code, boundary maps do not square to zero"
-        raise RuntimeError(msg)
-
-
-def generate_4d_product_code(
-    a_1: csr_matrix,
-    a_2: csr_matrix,
-    a_3: csr_matrix,
-    p: csr_matrix,
-    checks: bool = True,
-) -> tuple[csr_matrix, csr_matrix, csr_matrix, csr_matrix]:
-    """Generate 4D HGP code."""
-    r, c = p.shape
-
-    id_r = sparse.identity(r, dtype=int)
-    id_c = sparse.identity(c, dtype=int)
-    id_n0 = sparse.identity(a_1.shape[0], dtype=int)
-    id_n1 = sparse.identity(a_2.shape[0], dtype=int)
-    id_n2 = sparse.identity(a_3.shape[0], dtype=int)
-    id_n3 = sparse.identity(a_3.shape[1], dtype=int)
-
-    d_1 = sparse.hstack((sparse.kron(a_1, id_r), sparse.kron(id_n0, p)))
-
-    x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
-    y = sparse.kron(a_1, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    nmat = csr_matrix(np.zeros(dims))
-    z = sparse.hstack((nmat, y))
-    d_2 = sparse.vstack((x, z))
-
-    x = sparse.hstack((sparse.kron(a_3, id_r), sparse.kron(id_n2, p)))
-    y = sparse.kron(a_2, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    mat = csr_matrix(np.zeros(dims))
-    z = sparse.hstack([mat, y])
-    d_3 = sparse.vstack((x, z))
-
-    d_4 = sparse.vstack((sparse.kron(id_n3, p), sparse.kron(a_3, id_c)))
-
-    if checks:
-        run_checks_scipy(d_1, d_2, d_3, d_4)
-
-    return d_1, d_2, d_3, d_4
-
-
-def generate_3d_product_code(
-    a_1: csr_matrix, a_2: csr_matrix, p: csr_matrix
-) -> tuple[csr_matrix, csr_matrix, csr_matrix]:
-    """Generate 3D HGP code."""
-    r, c = p.shape
-
-    id_r = sparse.identity(r, dtype=int)
-    id_c = sparse.identity(c, dtype=int)
-    id_n0 = sparse.identity(a_1.shape[0], dtype=int)
-    id_n1 = sparse.identity(a_2.shape[0], dtype=int)
-    id_n2 = sparse.identity(a_2.shape[1], dtype=int)
-
-    d_1 = sparse.hstack((sparse.kron(a_1, id_r), sparse.kron(id_n0, p)))
-
-    x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
-    y = sparse.kron(a_1, id_c)
-    dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = sparse.hstack((csr_matrix(np.zeros(dims), dtype=int), y))
-    d_2 = sparse.vstack((x, z))
-
-    d_3 = sparse.vstack((sparse.kron(id_n2, p), sparse.kron(a_2, id_c)))
-
-    if not (sparse_all_zeros(d_1 @ d_2) and sparse_all_zeros(d_2 @ d_3)):
-        msg = "Error generating 3D code, boundary maps do not square to zero"
-        raise RuntimeError(msg)
-
-    return d_1, d_2, d_3  # mx, hx, hzT # hx, hzT, mzT
 
 
 def create_outpath(codename: str) -> str:
@@ -202,7 +116,7 @@ def create_code(
     # Extend to 3D HGP
     a1 = sparse.csr_matrix(code.hx)
     a2 = sparse.csr_matrix(code.hz.T)
-    res = generate_3d_product_code(a1, a2, sparse.csr_matrix(seed_codes[2]))
+    res = generate_sparse_3d_product_code(a1, a2, sparse.csr_matrix(seed_codes[2]))
     hx, hz_t, mz_t = res
 
     hz = hz_t.transpose()

@@ -11,12 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..codes.color_code import LatticeType
-from ..codes.hexagonal_color_code import HexagonalColorCode
-from ..codes.square_octagon_color_code import SquareOctagonColorCode
+from ..codes.constructions.color_codes.color_code import LatticeType
+from ..codes.constructions.color_codes.hexagonal_color_code import HexagonalColorCode
+from ..codes.constructions.color_codes.square_octagon_color_code import SquareOctagonColorCode
 
 if TYPE_CHECKING:
-    from ..codes.color_code import ColorCode
+    from ..codes.constructions.color_codes.color_code import ColorCode
 
 
 def code_from_string(lattice_type: str, distance: int) -> ColorCode:

@@ -41,7 +41,7 @@ that encodes two logical qubits.
 
 ```{code-cell} ipython3
 from mqt.qecc.codes import construct_iceberg_code
-from mqt.qecc.codes.pauli import CheckMatrix
+from mqt.qecc.codes.core.pauli import CheckMatrix
 
 code = construct_iceberg_code(2)  # [[4,2,2]] iceberg code
 print(f"[[{code.n},{code.k},{code.distance}]] iceberg code")
@@ -109,7 +109,7 @@ Clifford). The extended gate set $\{H, S, \sqrt{X}, \text{CX}, \text{CZ}\}$ can
 find shorter circuits:
 
 ```{code-cell} ipython3
-from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.core.pauli import StabilizerTableau
 from mqt.qecc.circuit_synthesis.exact import get_clifford_extended_gate_set
 
 stabs = ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"]

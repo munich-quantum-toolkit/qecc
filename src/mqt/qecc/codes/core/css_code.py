@@ -12,8 +12,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
+
+from mqt.qecc import mod2
 
 from .pauli import CheckMatrix, StabilizerTableau
 from .stabilizer_code import StabilizerCode
@@ -115,7 +116,7 @@ class CSSCode(StabilizerCode):
         """Compute the logical matrix L."""
         ker_m1 = mod2.nullspace(m1)  # compute the kernel basis of m1
         im_m2_transp = mod2.row_basis(m2)  # compute the image basis of m2
-        log_stack = np.vstack([im_m2_transp, ker_m1])
+        log_stack = np.vstack([im_m2_transp, ker_m1], dtype=np.int8)
         pivots = mod2.row_echelon(log_stack.T)[3]
         log_op_indices = [i for i in range(im_m2_transp.shape[0], log_stack.shape[0]) if i in pivots]
         return log_stack[log_op_indices]
@@ -185,7 +186,7 @@ class CSSCode(StabilizerCode):
         return CSSCode(None, None, 1, n=n)
 
     @staticmethod
-    def from_code_name(code_name: str, distance: int | None = None) -> CSSCode:
+    def from_code_name(code_name: str) -> CSSCode:
         r"""Return CSSCode object for a known code.
 
         The following codes are supported:
@@ -193,25 +194,18 @@ class CSSCode(StabilizerCode):
         - [[15, 1, 3]] tetrahedral code (\"Tetrahedral\")
         - [[9, 1, 3]] Shore code (\"Shor\")
         - [[12, 2, 4]] Carbon Code (\"Carbon\")
-        - [[9, 1, 3]] rotated surface code (\"Surface, 3\"), also default when no distance is given
-        - [[25, 1, 5]] rotated surface code (\"Surface, 5\")
-        - [[15, 7, 3]] Hamming code (\"Hamming\")
         - [[23, 1, 7]] golay code (\"Golay\")
 
         Args:
             code_name: The name of the code.
-            distance: The distance of the code.
         """
-        prefix = (Path(__file__) / "../").resolve()
+        prefix = (Path(__file__) / "../../instances/").resolve()
         paths = {
             "steane": prefix / "steane/",
             "tetrahedral": prefix / "tetrahedral/",
             "shor": prefix / "shor/",
-            "surface_3": prefix / "rotated_surface_d3/",
-            "surface_5": prefix / "rotated_surface_d5/",
             "golay": prefix / "golay/",
             "carbon": prefix / "carbon/",
-            "hamming": prefix / "hamming_15/",
         }
 
         distances = {
@@ -219,32 +213,19 @@ class CSSCode(StabilizerCode):
             "tetrahedral": (7, 3),
             "shor": (3, 3),
             "golay": (7, 7),
-            "surface_3": (3, 3),
-            "surface_5": (5, 5),
             "carbon": (4, 4),
-            "hamming": (3, 3),
         }  # X, Z distances
 
         code_name = code_name.lower()
-        if code_name == "surface":
-            if distance is None:
-                distance = 3
-            code_name += f"_{distance}"
+        if code_name not in paths:
+            msg = f"Unknown code name: {code_name}"
+            raise InvalidCSSCodeError(msg)
 
-        if code_name in paths:
-            hx = np.load(paths[code_name] / "hx.npy")
-            hz = np.load(paths[code_name] / "hz.npy")
-
-            if code_name in distances:
-                x_distance, z_distance = distances[code_name]
-                distance = min(x_distance, z_distance)
-                return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
-
-            if distance is None:
-                msg = f"Distance is not specified for {code_name}"
-                raise InvalidCSSCodeError(msg)
-        msg = f"Unknown code name: {code_name}"
-        raise InvalidCSSCodeError(msg)
+        hx = np.load(paths[code_name] / "hx.npy")
+        hz = np.load(paths[code_name] / "hz.npy")
+        x_distance, z_distance = distances[code_name]
+        distance = min(x_distance, z_distance)
+        return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> CSSCode:

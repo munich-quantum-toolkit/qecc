@@ -31,8 +31,14 @@ from mqt.qecc.circuit_synthesis.encoding import (
     synthesize_encoding_circuit,
 )
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
-from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode, construct_quantum_hamming_code
-from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
+from mqt.qecc.codes import (
+    CSSCode,
+    RotatedSurfaceCode,
+    SquareOctagonColorCode,
+    StabilizerCode,
+    construct_quantum_hamming_code,
+)
+from mqt.qecc.codes.core.pauli import Pauli, StabilizerTableau
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -47,7 +53,7 @@ def steane_code() -> CSSCode:
 @pytest.fixture
 def surface_3() -> CSSCode:
     """Return the surface code."""
-    return CSSCode.from_code_name("surface", 3)
+    return RotatedSurfaceCode(3)
 
 
 @pytest.fixture
@@ -59,7 +65,7 @@ def tetrahedral() -> CSSCode:
 @pytest.fixture
 def hamming() -> CSSCode:
     """Return the Hamming code."""
-    return CSSCode.from_code_name("Hamming")
+    return construct_quantum_hamming_code(4)
 
 
 @pytest.fixture
@@ -376,7 +382,7 @@ def test_logical_mapping_non_css() -> None:
 
 def test_logical_mapping_css() -> None:
     """Test that logical to input mapping is correct for CSS codes."""
-    code = CSSCode.from_code_name("Hamming")
+    code = construct_quantum_hamming_code(4)
     encoder = synthesize_encoding_circuit(code)
     mapping = encoder.logical_to_input_mapping(code)
 

@@ -23,7 +23,12 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_circuit,
     naive_verification_circuit,
 )
-from mqt.qecc.codes import HexagonalColorCode, SquareOctagonColorCode
+from mqt.qecc.codes import (
+    HexagonalColorCode,
+    RotatedSurfaceCode,
+    SquareOctagonColorCode,
+    construct_quantum_hamming_code,
+)
 
 
 def main() -> None:
@@ -57,7 +62,7 @@ def main() -> None:
     code_name = args.code
     if "surface" in code_name:
         d = args.distance
-        code = CSSCode.from_code_name("surface", d)
+        code = RotatedSurfaceCode(d)
         code_name = f"rotated_surface_d{d}"
     elif "cc_4_8_8" in code_name:
         d = 5
@@ -65,6 +70,10 @@ def main() -> None:
     elif "cc_6_6_6" in code_name:
         d = 5
         code = HexagonalColorCode(d)
+    elif "hamming" in code_name:
+        # The [[15, 7, 3]] quantum Hamming code (previously a hard-coded instance,
+        # now generated) since it was removed from CSSCode.from_code_name.
+        code = construct_quantum_hamming_code(4)
     elif code_name in available_codes:
         code = CSSCode.from_code_name(code_name)
     else:

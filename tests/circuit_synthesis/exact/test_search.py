@@ -20,7 +20,7 @@ from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_state,
     verify_stabilizer_state,
 )
-from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc.codes.core.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.mark.parametrize(

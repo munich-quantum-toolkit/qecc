@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc import mod2
+
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .rollout import (

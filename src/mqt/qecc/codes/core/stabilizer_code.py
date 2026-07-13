@@ -13,14 +13,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ldpc.mod2.mod2_numpy import nullspace, rank
+
+from mqt.qecc.mod2 import nullspace, rank
 
 from .pauli import Pauli, StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from mqt.qecc.codes.symplectic import SymplecticVector
+    from mqt.qecc.codes.core.symplectic import SymplecticVector
 
 
 class StabilizerCode:

@@ -21,7 +21,7 @@ from mqt.qecc.circuit_synthesis.exact.gate_operations import (
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import verify_stabilizer_state
-from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.core.pauli import StabilizerTableau
 
 # ---------------------------------------------------------------------------
 # SqrtXGate class properties

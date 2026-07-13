@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     import z3
 
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
+    from ...codes.core.pauli import CheckMatrix, StabilizerTableau
 
 
 def constrain_initial_clifford_tableau(

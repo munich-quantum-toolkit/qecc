@@ -27,7 +27,7 @@ from .vars import CliffordDepthVars
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from ...codes.pauli import CheckMatrix, StabilizerTableau
+    from ...codes.core.pauli import CheckMatrix, StabilizerTableau
     from .gate_operations import SymbolicGateOperation
 
 

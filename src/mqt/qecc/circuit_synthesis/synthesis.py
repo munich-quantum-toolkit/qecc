@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT

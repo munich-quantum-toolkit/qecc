@@ -13,12 +13,13 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
 
+from mqt.qecc import mod2
+
 from ..codes import CSSCode
-from ..codes.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
 from .exact import (
     Objective,
