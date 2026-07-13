@@ -41,6 +41,10 @@ non_ft_sp.circ.draw(output="mpl", initial_state=True)
 
 We see that the minimal number of CNOTs required to prepare the logical $|0\rangle_L$ circuit of the Steane code is $8$.
 
+```{note}
+`gate_optimal_prep_circuit` (and its depth-optimal counterpart) are thin convenience wrappers around the general exact-synthesis engine. See {doc}`ExactSynthesis` for the full interface, including custom gate sets and depth optimization.
+```
+
 ## Synthesizing FT state preparation circuits
 
 The circuit above is not fault-tolerant. For example, an $X$ error on qubit $q_1$ before the last CNOT propagates to a weight $2$ X error on $q_1$ and $q_2$. This is to be expected since we apply two-qubit gates between the qubits of a single logical qubit.
