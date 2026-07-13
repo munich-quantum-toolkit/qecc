@@ -32,6 +32,8 @@ from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
 from .transvection import lexicographical_compare_np, score_symplectic
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Literal
+
     import numpy.typing as npt
 
     from ..codes import StabilizerCode
@@ -310,7 +312,7 @@ def synthesize_encoding_circuit(
     code: StabilizerCode,
     config: SynthesisConfig | None = None,
     use_cnots_if_css: bool = True,
-    fixed_logical_qubits: dict[int, str] | None = None,
+    fixed_logical_qubits: dict[int, Literal["0", "+"]] | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 

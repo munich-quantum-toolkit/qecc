@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -32,6 +33,9 @@ from mqt.qecc.circuit_synthesis.encoding import (
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
 from mqt.qecc.codes import CSSCode, SquareOctagonColorCode, StabilizerCode, construct_quantum_hamming_code
 from mqt.qecc.codes.pauli import Pauli, StabilizerTableau
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 
 @pytest.fixture
@@ -421,7 +425,7 @@ def test_local_minimum() -> None:
     ],
 )
 def test_encoding_fixed_logical_qubits(
-    non_css_8_qubit: StabilizerCode, fixed_logical_qubits: dict[int, str] | None, use_cnots_if_css: bool
+    non_css_8_qubit: StabilizerCode, fixed_logical_qubits: dict[int, Literal["0", "+"]] | None, use_cnots_if_css: bool
 ) -> None:
     """Check that fixed logical qubits are removed from the encoder inputs."""
     encoder = synthesize_encoding_circuit(
@@ -459,6 +463,6 @@ def test_encoding_invalid_fixed_logical_qubits(
     with pytest.raises(ValueError, match="Fixed logical qubit"):
         synthesize_encoding_circuit(
             css_4_2_2_code,
-            fixed_logical_qubits=fixed_logical_qubits,
+            fixed_logical_qubits=fixed_logical_qubits,  # ty: ignore[invalid-argument-type]
             use_cnots_if_css=use_cnots_if_css,
         )
