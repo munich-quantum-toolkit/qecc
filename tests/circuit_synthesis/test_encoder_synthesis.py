@@ -452,6 +452,47 @@ def test_encoding_fixed_logical_qubits(
 
 
 @pytest.mark.parametrize("use_cnots_if_css", [True, False])
+@pytest.mark.parametrize(
+    "fixed_logical_qubits",
+    [
+        None,
+        {},
+        {0: "0"},
+        {1: "+"},
+        {0: "+", 1: "0"},
+    ],
+)
+def test_encoding_fixed_logical_qubits_css(
+    css_4_2_2_code: CSSCode, fixed_logical_qubits: dict[int, Literal["0", "+"]] | None, use_cnots_if_css: bool
+) -> None:
+    """Check fixed logical qubits on a CSS code, exercising the CSS (CNOT) synthesis branch.
+
+    With ``use_cnots_if_css=True`` the CSS-specific branch of ``synthesize_encoding_circuit`` is taken,
+    which is not reachable through ``non_css_8_qubit``.
+    """
+    encoder = synthesize_encoding_circuit(
+        css_4_2_2_code,
+        fixed_logical_qubits=fixed_logical_qubits,
+        use_cnots_if_css=use_cnots_if_css,
+    )
+
+    expected_inputs = css_4_2_2_code.k - (len(fixed_logical_qubits) if fixed_logical_qubits else 0)
+    assert encoder.num_inputs() == expected_inputs
+
+    if fixed_logical_qubits is None or len(fixed_logical_qubits) == 0:
+        assert encoder.get_code().is_equivalent(css_4_2_2_code)
+
+    if fixed_logical_qubits is not None and len(fixed_logical_qubits) > 0:
+        actual_code = encoder.get_code()
+
+        for q, z in fixed_logical_qubits.items():
+            if z == "0":
+                assert actual_code.is_stabilizer(css_4_2_2_code.z_logicals[q])
+            else:
+                assert actual_code.is_stabilizer(css_4_2_2_code.x_logicals[q])
+
+
+@pytest.mark.parametrize("use_cnots_if_css", [True, False])
 @pytest.mark.parametrize("fixed_logical_qubits", [{3: "0"}, {0: "+", 5: "+"}, {1: "A", 0: "+"}])
 def test_encoding_invalid_fixed_logical_qubits(
     css_4_2_2_code: CSSCode, fixed_logical_qubits: dict[int, str] | None, use_cnots_if_css: bool
