@@ -116,7 +116,7 @@ class CSSCode(StabilizerCode):
         """Compute the logical matrix L."""
         ker_m1 = mod2.nullspace(m1)  # compute the kernel basis of m1
         im_m2_transp = mod2.row_basis(m2)  # compute the image basis of m2
-        log_stack = np.vstack([im_m2_transp, ker_m1])
+        log_stack = np.vstack([im_m2_transp, ker_m1], dtype=np.int8)
         pivots = mod2.row_echelon(log_stack.T)[3]
         log_op_indices = [i for i in range(im_m2_transp.shape[0], log_stack.shape[0]) if i in pivots]
         return log_stack[log_op_indices]

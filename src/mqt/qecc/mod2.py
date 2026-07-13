@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -21,7 +21,7 @@ def row_echelon(
     matrix: npt.NDArray[np.integer],
     *,
     full: bool = False,
-) -> tuple[npt.NDArray[Any], int, npt.NDArray[np.int_], list[int]]:
+) -> tuple[npt.NDArray[np.integer], int, npt.NDArray[np.integer], list[int]]:
     """Convert a binary matrix to row echelon form over GF(2).
 
     The input is assumed to be a dense binary integer matrix (entries 0 or 1).
@@ -89,7 +89,7 @@ def rank(matrix: npt.NDArray[np.integer]) -> int:
     return row_echelon(matrix)[1]
 
 
-def nullspace(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.int_]:
+def nullspace(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
     """Compute a basis for the nullspace of a binary matrix over GF(2).
 
     Args:
@@ -105,7 +105,7 @@ def nullspace(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.int_]:
     return transform[matrix_rank:num_rows]
 
 
-def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[Any]:
+def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
     """Compute a basis for the row space of a binary matrix over GF(2).
 
     Args:
