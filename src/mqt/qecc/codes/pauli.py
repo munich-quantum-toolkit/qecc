@@ -727,6 +727,15 @@ class CheckMatrix:
         """Get the number of rows in the check matrix."""
         return int(self.matrix.shape[0])
 
+    def equ_span(self, other: CheckMatrix | npt.NDArray[np.int8]) -> bool:
+        """Check if the row spans of this check matrix and another check matrix are equal."""
+        other_mat = other.matrix if isinstance(other, CheckMatrix) else other
+        combined = np.vstack((self.matrix, other_mat))
+        rank_combined = mod2.rank(combined)
+        rank_self = mod2.rank(self.matrix)
+        rank_other = mod2.rank(other_mat)
+        return bool(rank_combined == rank_self == rank_other)
+
     def __repr__(self) -> str:
         """Return a string representation of the check matrix."""
         return f"CheckMatrix(type={self.type}, matrix=\n{self.matrix})"

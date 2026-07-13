@@ -15,6 +15,7 @@ mystnb:
 
 The QECC package contains functionality for synthesizing and simulating fault tolerant and non-fault tolerant state preparation circuits for Pauli eigenstates of CSS codes.
 Currently, it supports synthesizing circuits for preparing any logical Pauli eigenstate of the form $\{|s\rangle_L \mid s \in \{0,+\}^k\}$ of arbitrary $[[n,k,d]]$ CSS codes.
+A collection of pre-synthesized state preparation circuits can be found at [QECirc.com](https://qecirc.com/)
 
 ## Synthesizing non-FT state preparation circuits
 
@@ -40,6 +41,10 @@ non_ft_sp.circ.draw(output="mpl", initial_state=True)
 ```
 
 We see that the minimal number of CNOTs required to prepare the logical $|0\rangle_L$ circuit of the Steane code is $8$.
+
+```{note}
+`gate_optimal_prep_circuit` (and its depth-optimal counterpart) are thin convenience wrappers around the general exact-synthesis engine. See {doc}`ExactSynthesis` for the full interface, including custom gate sets and depth optimization.
+```
 
 ## Synthesizing FT state preparation circuits
 

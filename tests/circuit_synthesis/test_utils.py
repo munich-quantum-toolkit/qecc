@@ -31,10 +31,7 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
     two_qubit_gate_depth,
     unmeasured_qubits,
 )
-from mqt.qecc.circuit_synthesis.state_prep import final_matrix_constraint
 from mqt.qecc.circuit_synthesis.synthesis_utils import (
-    gaussian_elimination_min_column_ops,
-    gaussian_elimination_min_parallel_eliminations,
     measure_flagged,
     measure_stab_unflagged,
     odd_overlap,
@@ -128,51 +125,6 @@ def _make_measurement_test(n: int, stab: list[int]) -> MeasurementTest:
     ancilla = anc[0]
     measurement_bit = c[0]
     return MeasurementTest(qc, stab_qubits, ancilla, measurement_bit)
-
-
-@pytest.mark.parametrize(
-    "test_vals",
-    ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"],
-)
-def test_min_column_ops(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
-    """Check correct number of column operations are returned."""
-    fixture = request.getfixturevalue(test_vals)
-    matrix = fixture.matrix
-    min_col_ops = fixture.min_col_ops
-    rank = mod2.rank(matrix)
-    res = gaussian_elimination_min_column_ops(
-        matrix,
-        lambda checks: final_matrix_constraint(checks, rank),
-        max_eliminations=fixture.min_col_ops,
-    )
-    assert res is not None
-    reduced, ops = res
-    assert len(ops) == min_col_ops
-    assert check_correct_elimination(matrix, reduced, ops)
-
-
-@pytest.mark.parametrize(
-    "test_vals",
-    ["identity_matrix", "full_matrix", "single_row_matrix", "single_column_matrix"],
-)
-def test_min_parallel_eliminations(test_vals: MatrixTest, request) -> None:  # type: ignore[no-untyped-def]
-    """Check correct number of parallel eliminations are returned."""
-    fixture = request.getfixturevalue(test_vals)
-    matrix = fixture.matrix
-    rank = mod2.rank(matrix)
-    max_parallel_steps = fixture.max_parallel_steps
-    res = gaussian_elimination_min_parallel_eliminations(
-        matrix,
-        lambda checks: final_matrix_constraint(checks, rank),
-        max_parallel_steps=fixture.max_parallel_steps,
-    )
-    assert res is not None
-    reduced, ops = res
-
-    assert check_correct_elimination(matrix, reduced, ops)
-
-    n_parallel_layers = get_n_parallel_layers(ops)
-    assert n_parallel_layers <= max_parallel_steps
 
 
 def correct_stabilizer_propagation(
