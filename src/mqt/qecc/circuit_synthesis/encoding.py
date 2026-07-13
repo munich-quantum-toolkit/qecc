@@ -321,6 +321,9 @@ def synthesize_encoding_circuit(
         config: Configuration options for the synthesis process.
         use_cnots_if_css: Whether to use CNOT-only synthesis if the code is CSS.
         fixed_logical_qubits: Dictionary mapping logical qubit indices to their desired states ('0' or '+') in the circuit.
+            Fixing ``f`` of the ``k`` logical inputs effectively synthesizes an encoder for a ``[[n, k - f, d]]`` code.
+            Note that the returned isometry therefore encodes a different code than ``code``, so helpers that assume the
+            original code (e.g. ``logical_to_input_mapping``) do not behave as expected on such circuits.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
