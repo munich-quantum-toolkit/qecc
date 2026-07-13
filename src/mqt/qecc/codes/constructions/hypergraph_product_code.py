@@ -128,26 +128,26 @@ def generate_sparse_4d_product_code(
     """Generate 4D HGP code."""
     r, c = p.shape
 
-    id_r = sparse.identity(r, dtype=int)
-    id_c = sparse.identity(c, dtype=int)
-    id_n0 = sparse.identity(a_1.shape[0], dtype=int)
-    id_n1 = sparse.identity(a_2.shape[0], dtype=int)
-    id_n2 = sparse.identity(a_3.shape[0], dtype=int)
-    id_n3 = sparse.identity(a_3.shape[1], dtype=int)
+    id_r = sparse.identity(r, dtype=np.int32)
+    id_c = sparse.identity(c, dtype=np.int32)
+    id_n0 = sparse.identity(a_1.shape[0], dtype=np.int32)
+    id_n1 = sparse.identity(a_2.shape[0], dtype=np.int32)
+    id_n2 = sparse.identity(a_3.shape[0], dtype=np.int32)
+    id_n3 = sparse.identity(a_3.shape[1], dtype=np.int32)
 
     d_1 = sparse.hstack((sparse.kron(a_1, id_r), sparse.kron(id_n0, p)))
 
     x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
     y = sparse.kron(a_1, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    nmat = csr_matrix(dims, dtype=int)
+    nmat = csr_matrix(dims, dtype=np.int32)
     z = sparse.hstack((nmat, y))
     d_2 = sparse.vstack((x, z))
 
     x = sparse.hstack((sparse.kron(a_3, id_r), sparse.kron(id_n2, p)))
     y = sparse.kron(a_2, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    mat = csr_matrix(dims, dtype=int)
+    mat = csr_matrix(dims, dtype=np.int32)
     z = sparse.hstack([mat, y])
     d_3 = sparse.vstack((x, z))
 
@@ -165,18 +165,18 @@ def generate_sparse_3d_product_code(
     """Generate 3D HGP code."""
     r, c = p.shape
 
-    id_r = sparse.identity(r, dtype=int)
-    id_c = sparse.identity(c, dtype=int)
-    id_n0 = sparse.identity(a_1.shape[0], dtype=int)
-    id_n1 = sparse.identity(a_2.shape[0], dtype=int)
-    id_n2 = sparse.identity(a_2.shape[1], dtype=int)
+    id_r = sparse.identity(r, dtype=np.int32)
+    id_c = sparse.identity(c, dtype=np.int32)
+    id_n0 = sparse.identity(a_1.shape[0], dtype=np.int32)
+    id_n1 = sparse.identity(a_2.shape[0], dtype=np.int32)
+    id_n2 = sparse.identity(a_2.shape[1], dtype=np.int32)
 
     d_1 = sparse.hstack((sparse.kron(a_1, id_r), sparse.kron(id_n0, p)))
 
     x = sparse.hstack((sparse.kron(a_2, id_r), sparse.kron(id_n1, p)))
     y = sparse.kron(a_1, id_c)
     dims = (y.shape[0], x.shape[1] - y.shape[1])
-    z = sparse.hstack((csr_matrix(dims, dtype=int), y))
+    z = sparse.hstack((csr_matrix(dims, dtype=np.int32), y))
     d_2 = sparse.vstack((x, z))
 
     d_3 = sparse.vstack((sparse.kron(id_n2, p), sparse.kron(a_2, id_c)))
