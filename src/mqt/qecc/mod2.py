@@ -9,13 +9,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
 
 
 def row_echelon(
-    matrix: np.ndarray,
+    matrix: npt.NDArray[np.integer],
+    *,
     full: bool = False,
-) -> tuple[np.ndarray, int, np.ndarray, list[int]]:
+) -> tuple[npt.NDArray[Any], int, npt.NDArray[np.int_], list[int]]:
     """Convert a binary matrix to row echelon form over GF(2).
 
     The input is assumed to be a dense binary integer matrix (entries 0 or 1).
@@ -37,7 +43,7 @@ def row_echelon(
     """
     num_rows, num_cols = matrix.shape
     if num_rows == 0:
-        return np.array(matrix, dtype=int), 0, np.eye(0, dtype=int), []
+        return np.copy(matrix), 0, np.eye(0, dtype=int), []
 
     the_matrix = np.copy(matrix)
     transform_matrix = np.eye(num_rows, dtype=int)
@@ -71,7 +77,7 @@ def row_echelon(
     return the_matrix, pivot_row, transform_matrix, pivot_cols
 
 
-def rank(matrix: np.ndarray) -> int:
+def rank(matrix: npt.NDArray[np.integer]) -> int:
     """Compute the rank of a binary matrix over GF(2).
 
     Args:
@@ -83,7 +89,7 @@ def rank(matrix: np.ndarray) -> int:
     return row_echelon(matrix)[1]
 
 
-def nullspace(matrix: np.ndarray) -> np.ndarray:
+def nullspace(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.int_]:
     """Compute a basis for the nullspace of a binary matrix over GF(2).
 
     Args:
@@ -99,7 +105,7 @@ def nullspace(matrix: np.ndarray) -> np.ndarray:
     return transform[matrix_rank:num_rows]
 
 
-def row_basis(matrix: np.ndarray) -> np.ndarray:
+def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[Any]:
     """Compute a basis for the row space of a binary matrix over GF(2).
 
     Args:

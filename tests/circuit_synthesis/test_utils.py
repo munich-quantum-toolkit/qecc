@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import pytest
 import stim
@@ -19,6 +18,7 @@ import z3
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from stim import Flow, PauliString
 
+from mqt.qecc import mod2
 from mqt.qecc.circuit_synthesis.circuit_utils import (
     collect_circuit_layers,
     compact_stim_circuit,
