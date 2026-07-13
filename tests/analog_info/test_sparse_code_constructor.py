@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
@@ -16,7 +17,13 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_matrix
 
-import mqt.qecc.analog_information_decoding.code_construction.sparse_code_constructor as scc
+# `sparse_code_constructor` imports `bposd`, whose source contains invalid escape
+# sequences that raise a SyntaxWarning on Python >= 3.12. Under the project's
+# ``filterwarnings = ["error"]`` config this would turn the import into a
+# collection error, so suppress it while importing the module under test.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import mqt.qecc.analog_information_decoding.code_construction.sparse_code_constructor as scc
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
