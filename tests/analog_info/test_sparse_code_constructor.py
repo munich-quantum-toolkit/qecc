@@ -18,11 +18,12 @@ import pytest
 from scipy.sparse import csr_matrix
 
 # `sparse_code_constructor` imports `bposd`, whose source contains invalid escape
-# sequences that raise a SyntaxWarning on Python >= 3.12. Under the project's
-# ``filterwarnings = ["error"]`` config this would turn the import into a
-# collection error, so suppress it while importing the module under test.
+# sequences. These raise a DeprecationWarning (Python <= 3.11) or a SyntaxWarning
+# (>= 3.12); under the project's ``filterwarnings = ["error"]`` config either would
+# turn the import into a collection error. Ignore that specific warning by message
+# (category-agnostic) while importing the module under test.
 with warnings.catch_warnings():
-    warnings.simplefilter("ignore", SyntaxWarning)
+    warnings.filterwarnings("ignore", message="invalid escape sequence")
     import mqt.qecc.analog_information_decoding.code_construction.sparse_code_constructor as scc
 
 if TYPE_CHECKING:
