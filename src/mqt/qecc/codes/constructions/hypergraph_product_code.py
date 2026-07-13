@@ -46,19 +46,40 @@ def _run_checks_scipy(
     sd_3 = scs.csr_matrix(d_3)
     sd_4 = scs.csr_matrix(d_4)
 
-    if not (
-        _is_all_zeros((sd_1 * sd_2).todense() % 2)
-        and _is_all_zeros((sd_2 * sd_3).todense() % 2)
-        and _is_all_zeros((sd_3 * sd_4).todense() % 2)
-    ):
+    if not (_sparse_all_zeros(sd_1 @ sd_2) and _sparse_all_zeros(sd_2 @ sd_3) and _sparse_all_zeros(sd_3 @ sd_4)):
         msg = "Error generating 4D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
 
 
 def generate_4d_product_code(
-    a_1: NDArray[np.int32], a_2: NDArray[np.int32], a_3: NDArray[np.int32], p: NDArray[np.int32], checks: bool = True
+    a_1: NDArray[np.int32],
+    a_2: NDArray[np.int32],
+    a_3: NDArray[np.int32],
+    p: NDArray[np.int32],
+    *,
+    checks: bool = True,
 ) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.int32], NDArray[np.int32]]:
-    """Generate 4D product code."""
+    """Generate the boundary maps of a 4D hypergraph product code (dense).
+
+    Builds the 4D chain complex from the boundary maps ``a_1, a_2, a_3`` of a
+    3D input complex and a classical seed parity-check matrix ``p``. The inputs
+    must be compatible, i.e. consecutive maps compose to zero over GF(2).
+
+    Args:
+        a_1: First boundary map of the 3D input complex.
+        a_2: Second boundary map of the 3D input complex.
+        a_3: Third boundary map of the 3D input complex.
+        p: Parity-check matrix of the classical seed code.
+        checks: If ``True``, verify that the resulting boundary maps square to
+            zero over GF(2).
+
+    Returns:
+        The four boundary maps ``(mx, hx, hz^T, mz^T)`` of the 4D complex.
+
+    Raises:
+        RuntimeError: If ``checks`` is enabled and the boundary maps do not
+            square to zero.
+    """
     r, c = p.shape
     id_r: NDArray[np.int32] = np.identity(r, dtype=np.int32)
     id_c: NDArray[np.int32] = np.identity(c, dtype=np.int32)
@@ -92,7 +113,23 @@ def generate_4d_product_code(
 def generate_3d_product_code(
     a_1: NDArray[np.int32], a_2: NDArray[np.int32], p: NDArray[np.int32]
 ) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.int32]]:
-    """Generate 3D product code."""
+    """Generate the boundary maps of a 3D hypergraph product code (dense).
+
+    Builds the 3D chain complex from the boundary maps ``a_1, a_2`` of a 2D
+    input complex and a classical seed parity-check matrix ``p``. The inputs
+    must be compatible, i.e. ``a_1 @ a_2`` is zero over GF(2).
+
+    Args:
+        a_1: First boundary map of the 2D input complex.
+        a_2: Second boundary map of the 2D input complex.
+        p: Parity-check matrix of the classical seed code.
+
+    Returns:
+        The three boundary maps ``(hx, hz^T, mz^T)`` of the 3D complex.
+
+    Raises:
+        RuntimeError: If the boundary maps do not square to zero over GF(2).
+    """
     r, c = p.shape
     id_r: NDArray[np.int32] = np.identity(r, dtype=np.int32)
     id_c: NDArray[np.int32] = np.identity(c, dtype=np.int32)
@@ -122,9 +159,29 @@ def generate_sparse_4d_product_code(
     a_2: csr_matrix,
     a_3: csr_matrix,
     p: csr_matrix,
+    *,
     checks: bool = True,
 ) -> tuple[csr_matrix, csr_matrix, csr_matrix, csr_matrix]:
-    """Generate 4D HGP code."""
+    """Generate the boundary maps of a 4D hypergraph product code (sparse).
+
+    Sparse counterpart of :func:`generate_4d_product_code`; see there for the
+    input requirements.
+
+    Args:
+        a_1: First boundary map of the 3D input complex.
+        a_2: Second boundary map of the 3D input complex.
+        a_3: Third boundary map of the 3D input complex.
+        p: Parity-check matrix of the classical seed code.
+        checks: If ``True``, verify that the resulting boundary maps square to
+            zero over GF(2).
+
+    Returns:
+        The four boundary maps ``(mx, hx, hz^T, mz^T)`` of the 4D complex.
+
+    Raises:
+        RuntimeError: If ``checks`` is enabled and the boundary maps do not
+            square to zero.
+    """
     r, c = p.shape
 
     id_r = sparse.identity(r, dtype=np.int32)
@@ -161,7 +218,22 @@ def generate_sparse_4d_product_code(
 def generate_sparse_3d_product_code(
     a_1: csr_matrix, a_2: csr_matrix, p: csr_matrix
 ) -> tuple[csr_matrix, csr_matrix, csr_matrix]:
-    """Generate 3D HGP code."""
+    """Generate the boundary maps of a 3D hypergraph product code (sparse).
+
+    Sparse counterpart of :func:`generate_3d_product_code`; see there for the
+    input requirements.
+
+    Args:
+        a_1: First boundary map of the 2D input complex.
+        a_2: Second boundary map of the 2D input complex.
+        p: Parity-check matrix of the classical seed code.
+
+    Returns:
+        The three boundary maps ``(hx, hz^T, mz^T)`` of the 3D complex.
+
+    Raises:
+        RuntimeError: If the boundary maps do not square to zero over GF(2).
+    """
     r, c = p.shape
 
     id_r = sparse.identity(r, dtype=np.int32)
