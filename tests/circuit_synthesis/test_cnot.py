@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig, synthesize_cnot
-from mqt.qecc.codes.pauli import CheckMatrix
+from mqt.qecc.codes.core.pauli import CheckMatrix
 
 
 @pytest.fixture

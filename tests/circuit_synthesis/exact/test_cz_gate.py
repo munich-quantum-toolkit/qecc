@@ -31,7 +31,7 @@ from mqt.qecc.circuit_synthesis.exact.symmetry import (
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.vars import CliffordDepthVars, CliffordGateCountVars
 from mqt.qecc.circuit_synthesis.exact.verification import verify_stabilizer_state
-from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.core.pauli import StabilizerTableau
 
 # ---------------------------------------------------------------------------
 # CZGate class

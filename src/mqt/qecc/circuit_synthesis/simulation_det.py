@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
     from qsample.callbacks import Callback, CallbackList  # ty: ignore[unresolved-import]
 
-    from ..codes.css_code import CSSCode
+    from ..codes.core.css_code import CSSCode
     from .state_prep_det import DeterministicCorrection, DeterministicVerification
 
 

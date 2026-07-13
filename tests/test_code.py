@@ -26,14 +26,14 @@ from mqt.qecc.codes import (
     construct_many_hypercube_code,
     construct_quantum_hamming_code,
 )
-from mqt.qecc.codes.pauli import (
+from mqt.qecc.codes.constructions.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
+from mqt.qecc.codes.core.pauli import (
     InvalidPauliError,
     Pauli,
     StabilizerTableau,
     complete_stabilizer_tableau_with_destabilizers,
 )
-from mqt.qecc.codes.rotated_surface_code import InvalidDistanceError, RotatedSurfaceCode
-from mqt.qecc.codes.symplectic import SymplecticMatrix, SymplecticVector
+from mqt.qecc.codes.core.symplectic import SymplecticMatrix, SymplecticVector
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt

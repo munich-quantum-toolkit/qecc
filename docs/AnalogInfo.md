@@ -19,14 +19,14 @@ The {code}`results` directory contains the results used in the paper {cite:label
 
 ## Codes
 
-The {code}`codes` directory contains the parity-check matrices of the codes used in the paper {cite:labelpar}`berent2023analog`.
+The parity-check matrices of the codes used in the paper {cite:labelpar}`berent2023analog` can be found in the directory {code}`src/mqt/qecc/codes/instances/lifted_product`.
 Three dimensional toric codes can either be constructed with the hypergraph product construction
 or with a library, e.g., panqec {cite:labelpar}`huang2023panceq`.
 
 ## Code construction
 
 The {code}`code_construction` directory contains the code used to construct higher-dimensional hypergraph
-product codes and used the {code}`compute_distances.sh` script to automatically compute bounds on the
+product codes, utilizing the generator {code}`src/mqt/qecc/codes/constructions/hypergraph_product_code.py`, and used the {code}`compute_distances.sh` script to automatically compute bounds on the
 distances of the constructed codes using the GAP library QDistRnd {cite:labelpar}`pryadko2023qdistrnd`.
 
 ## Utils

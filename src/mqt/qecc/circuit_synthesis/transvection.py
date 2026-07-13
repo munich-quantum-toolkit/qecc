@@ -17,7 +17,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from ..codes.pauli import StabilizerTableau
+from ..codes.core.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, get_n
 from .operations import PauliOperation, SingleQubitClifford, Swap, Transvection
 

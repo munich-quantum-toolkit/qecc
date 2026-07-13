@@ -17,6 +17,7 @@ import stim
 
 from mqt.qecc import CSSCode
 from mqt.qecc.circuit_synthesis import CNOTCircuit, DeterministicVerificationHelper, FaultyStatePrepCircuit
+from mqt.qecc.codes import RotatedSurfaceCode
 
 from .utils import in_span
 
@@ -77,7 +78,7 @@ def verified_steane_data(
 @pytest.fixture(scope="module")
 def surface_code_sp_zero() -> FaultyStatePrepCircuit:
     """Return a non-ft state preparation circuit for the d=3 rotated surface code."""
-    surface_code = CSSCode.from_code_name("surface", 3)
+    surface_code = RotatedSurfaceCode(3)
     sp_circ = FaultyStatePrepCircuit(
         CNOTCircuit.from_stim_circuit(
             stim.Circuit(
@@ -295,7 +296,7 @@ def test_surface_det_simulation(
     """Test simulated logical error rate for deterministic Steane state preparation."""
     verify_x_opt, verify_z_opt, verify_x_global, verify_z_global = verified_surface_data
 
-    code = CSSCode.from_code_name("surface", 3)
+    code = RotatedSurfaceCode(3)
     for verify_x, verify_z in zip((verify_x_opt, verify_x_global), (verify_z_opt, verify_z_global), strict=False):
         simulator = NoisyDFTStatePrepSimulator(
             surface_code_sp_zero.circ.to_qiskit_circuit(), (verify_x, verify_z), code, err_model, True

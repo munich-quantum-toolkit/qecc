@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
     from z3 import BoolRef, ModelRef
 
-    from ..codes.color_code import ColorCode
+    from ..codes.constructions.color_codes.color_code import ColorCode
 
 
 @dataclass

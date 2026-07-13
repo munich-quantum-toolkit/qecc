@@ -15,7 +15,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from ..codes.pauli import CheckMatrix, StabilizerTableau
+from ..codes.core.pauli import CheckMatrix, StabilizerTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .rollout import (

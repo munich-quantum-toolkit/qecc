@@ -17,7 +17,7 @@ import z3
 
 from mqt.qecc import mod2
 
-from ...codes.pauli import CheckMatrix, StabilizerTableau
+from ...codes.core.pauli import CheckMatrix, StabilizerTableau
 from ..circuits import CliffordIsometry, CNOTCircuit
 from .encoding_interface import (
     CliffordDepthEncoding,

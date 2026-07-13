@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .css_code import CSSCode, InvalidCSSCodeError
+from ..core.css_code import CSSCode, InvalidCSSCodeError
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt

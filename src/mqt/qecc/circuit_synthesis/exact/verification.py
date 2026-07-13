@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ...codes import StabilizerCode
-from ...codes.pauli import CheckMatrix, Pauli, StabilizerTableau
+from ...codes.core.pauli import CheckMatrix, Pauli, StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt

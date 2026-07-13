@@ -34,7 +34,7 @@ Let us synthesize an encoder for the $[[4,2,2]]$ iceberg code — a small CSS co
 
 ```{code-cell} ipython3
 from mqt.qecc.codes import construct_iceberg_code
-from mqt.qecc.codes.pauli import CheckMatrix
+from mqt.qecc.codes.core.pauli import CheckMatrix
 
 code = construct_iceberg_code(2)  # [[4,2,2]] iceberg code
 print(f"[[{code.n},{code.k},{code.distance}]] iceberg code")
@@ -97,7 +97,7 @@ For non-CSS stabilizer codes, encoding circuits are built from the full Clifford
 The gate set for non-CSS synthesis defaults to $\{H, S, \text{CX}\}$ (standard Clifford). The extended gate set $\{H, S, \sqrt{X}, \text{CX}, \text{CZ}\}$ can find shorter circuits:
 
 ```{code-cell} ipython3
-from mqt.qecc.codes.pauli import StabilizerTableau
+from mqt.qecc.codes.core.pauli import StabilizerTableau
 from mqt.qecc.circuit_synthesis.exact import get_clifford_extended_gate_set
 
 stabs = ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"]

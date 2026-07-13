@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.codes.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc.codes.core.pauli import CheckMatrix, StabilizerTableau
 
 
 @pytest.fixture

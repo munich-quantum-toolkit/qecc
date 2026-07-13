@@ -182,3 +182,8 @@ node_modules/
 wheelhouse/
 
 pytest.ini
+
+# Artifacts written to the repo root by some tests/examples
+/res
+/results/
+/schedule_*.pkl

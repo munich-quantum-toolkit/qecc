@@ -16,12 +16,12 @@ import numba as nb
 import numpy as np
 import stim
 
-from ..codes.pauli import StabilizerTableau
+from ..codes.core.pauli import StabilizerTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from ..codes.pauli import CheckMatrix
+    from ..codes.core.pauli import CheckMatrix
     from .types import BinaryMatrix
 
 

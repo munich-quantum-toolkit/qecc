@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from ...codes.pauli import CheckMatrix, StabilizerTableau
+from ...codes.core.pauli import CheckMatrix, StabilizerTableau
 from .css_utils import determine_css_initializations
 from .encoding_depth import encode_clifford_depth, encode_css_depth
 from .encoding_gate_count import encode_clifford_gate_count, encode_css_gate_count

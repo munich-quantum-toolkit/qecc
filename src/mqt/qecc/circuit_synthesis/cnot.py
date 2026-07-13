@@ -19,7 +19,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from ..codes.pauli import CheckMatrix
+from ..codes.core.pauli import CheckMatrix
 from .elimination import (
     CandidateGenerator,
     get_n,
