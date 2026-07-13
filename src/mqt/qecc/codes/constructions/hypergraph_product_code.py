@@ -26,9 +26,8 @@ def _is_all_zeros(array: NDArray[np.int32]) -> bool:
 
 
 def _sparse_all_zeros(mat: csr_matrix) -> bool:
-    """Check if sparse matrix is all zeros."""
-    mat.data %= 2
-    return bool(mat.sum() == 0)
+    """Check if a sparse matrix is all zeros over GF(2), without mutating it."""
+    return not np.any(mat.data % 2)
 
 
 def _run_sparse_checks_scipy(d_1: csr_matrix, d_2: csr_matrix, d_3: csr_matrix, d_4: csr_matrix) -> None:
