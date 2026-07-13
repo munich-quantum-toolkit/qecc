@@ -15,11 +15,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ldpc.codes
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import scipy.io as sio
 from bposd.hgp import hgp
 from scipy import sparse
+
+from mqt.qecc import mod2
 
 from ...codes.constructions.hypergraph_product_code import generate_3d_product_code, generate_4d_product_code
 
@@ -92,7 +93,7 @@ def _compute_logicals(hx: NDArray[np.int32], hz: NDArray[np.int32]) -> tuple[NDA
         im_hz_t = mod2.row_basis(hz)  # compute the image basis of hz.T
 
         # in the below we row reduce to find vectors in kx that are not in the image of hz.T.
-        log_stack = np.vstack([im_hz_t, ker_hx])
+        log_stack = np.vstack([im_hz_t, ker_hx], dtype=np.int32)
         pivots = mod2.row_echelon(log_stack.T)[3]
         log_op_indices = [i for i in range(im_hz_t.shape[0], log_stack.shape[0]) if i in pivots]
         return log_stack[log_op_indices]

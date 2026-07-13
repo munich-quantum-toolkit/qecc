@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from ldpc.mod2.mod2_numpy import rank
 
 from mqt.qecc.circuit_synthesis import CatStatePreparationExperiment, cat_state_balanced_tree, cat_state_line
 from mqt.qecc.circuit_synthesis.cat_states import (
@@ -26,6 +25,7 @@ from mqt.qecc.circuit_synthesis.cat_states import (
     search_ft_cnot_smt,
     simulate_recursive_cat_construction,
 )
+from mqt.qecc.mod2 import rank
 
 if TYPE_CHECKING:
     import stim

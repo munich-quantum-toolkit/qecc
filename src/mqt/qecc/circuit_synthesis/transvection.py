@@ -12,9 +12,10 @@ from __future__ import annotations
 import operator
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numba as nb
 import numpy as np
+
+from mqt.qecc import mod2
 
 from ..codes.core.pauli import StabilizerTableau
 from .elimination import CandidateGenerator, EliminationSequence, get_n
@@ -389,8 +390,11 @@ def fix_tableau_signs_in_place(tableau: StabilizerTableau) -> list[PauliOperatio
 
     tableau_with_phase = np.hstack((x_part, z_part, np.array([phase]).T))
     ker = mod2.nullspace(tableau_with_phase)
-    assert ker[-1, -1] == 1, "Last entry of kernel vector must be 1."
-    correction_symplectic = ker[-1]
+    # A valid correction is any kernel vector with a 1 in the phase (final) column.
+    # Locate it explicitly rather than assuming a particular nullspace row ordering.
+    phase_rows = np.flatnonzero(ker[:, -1] == 1)
+    assert phase_rows.size > 0, "Kernel must contain a vector with a 1 in the phase column."
+    correction_symplectic = ker[phase_rows[-1]]
     xc = correction_symplectic[:n]
     zc = correction_symplectic[n:-1]
     ops: list[PauliOperation] = []

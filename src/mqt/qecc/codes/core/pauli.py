@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
+
+from mqt.qecc import mod2
 
 from .symplectic import SymplecticMatrix, SymplecticVector
 

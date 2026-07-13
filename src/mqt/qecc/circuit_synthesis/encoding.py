@@ -13,9 +13,10 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import stim
+
+from mqt.qecc import mod2
 
 from ..codes import CSSCode
 from ..codes.core.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
@@ -32,6 +33,8 @@ from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
 from .transvection import lexicographical_compare_np, score_symplectic
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Literal
+
     import numpy.typing as npt
 
     from ..codes import StabilizerCode
@@ -310,6 +313,7 @@ def synthesize_encoding_circuit(
     code: StabilizerCode,
     config: SynthesisConfig | None = None,
     use_cnots_if_css: bool = True,
+    fixed_logical_qubits: dict[int, Literal["0", "+"]] | None = None,
 ) -> CliffordIsometry:
     """Synthesize an encoding circuit for the given stabilizer code.
 
@@ -317,15 +321,33 @@ def synthesize_encoding_circuit(
         code: The stabilizer code to synthesize the encoding circuit for.
         config: Configuration options for the synthesis process.
         use_cnots_if_css: Whether to use CNOT-only synthesis if the code is CSS.
+        fixed_logical_qubits: Dictionary mapping logical qubit indices to their desired states ('0' or '+') in the circuit.
+            Fixing ``f`` of the ``k`` logical inputs effectively synthesizes an encoder for a ``[[n, k - f, d]]`` code.
+            Note that the returned isometry therefore encodes a different code than ``code``, so helpers that assume the
+            original code (e.g. ``logical_to_input_mapping``) do not behave as expected on such circuits.
 
     Returns:
         A CliffordIsometry that implements the encoding circuit for the given stabilizer code.
     """
+    if fixed_logical_qubits:
+        if not all(0 <= q < code.k and z in {"0", "+"} for q, z in fixed_logical_qubits.items()):
+            msg = "Fixed logical qubit indices must be in the range [0, k-1] and states must be '0' or '+'."
+            raise ValueError(msg)
+
+        additional_x_checks = sorted(q for q, z in fixed_logical_qubits.items() if z == "+")
+        additional_z_checks = sorted(q for q, z in fixed_logical_qubits.items() if z == "0")
+        additional_checks = additional_x_checks + additional_z_checks
+    else:
+        additional_x_checks = []
+        additional_z_checks = []
+        additional_checks = []
+
     if use_cnots_if_css and isinstance(code, CSSCode):
-        x_checks = CheckMatrix(code.Hx, pauli_type="X")
-        z_checks = CheckMatrix(code.Hz, pauli_type="Z")
-        x_logicals = CheckMatrix(code.Lx, pauli_type="X")
-        z_logicals = CheckMatrix(code.Lz, pauli_type="Z")
+        x_checks = CheckMatrix(np.vstack((code.Hx, code.Lx[additional_x_checks])), pauli_type="X")
+        z_checks = CheckMatrix(np.vstack((code.Hz, code.Lz[additional_z_checks])), pauli_type="Z")
+        x_logicals = CheckMatrix(np.delete(code.Lx, additional_checks, axis=0), pauli_type="X")
+        z_logicals = CheckMatrix(np.delete(code.Lz, additional_checks, axis=0), pauli_type="Z")
+
         checks, logicals = (
             (x_checks, x_logicals) if x_checks.num_rows() <= z_checks.num_rows() else (z_checks, z_logicals)
         )
@@ -339,10 +361,28 @@ def synthesize_encoding_circuit(
         "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
     )
 
-    log_mat: npt.NDArray[np.int8] = np.vstack((code.x_logicals.tableau.matrix, code.z_logicals.tableau.matrix))
-    log_phase: npt.NDArray[np.int8] = np.hstack((code.x_logicals.phase, code.z_logicals.phase))
+    gens_mat: npt.NDArray[np.int8] = np.vstack((
+        code.symplectic,
+        code.x_logicals.tableau.matrix[additional_x_checks],
+        code.z_logicals.tableau.matrix[additional_z_checks],
+    ))
+    gens_phase: npt.NDArray[np.int8] = np.hstack((
+        code.generators.phase,
+        np.zeros(len(additional_x_checks), dtype=np.int8),
+        np.zeros(len(additional_z_checks), dtype=np.int8),
+    ))
+    log_mat: npt.NDArray[np.int8] = np.vstack((
+        np.delete(code.x_logicals.tableau.matrix, additional_checks, axis=0),
+        np.delete(code.z_logicals.tableau.matrix, additional_checks, axis=0),
+    ))
+    log_phase: npt.NDArray[np.int8] = np.hstack((
+        np.delete(code.x_logicals.phase, additional_checks, axis=0),
+        np.delete(code.z_logicals.phase, additional_checks, axis=0),
+    ))
 
-    return encoder_from_stabilizers_and_logicals(code.generators, StabilizerTableau(log_mat, log_phase), config=config)
+    return encoder_from_stabilizers_and_logicals(
+        StabilizerTableau(gens_mat, gens_phase), StabilizerTableau(log_mat, log_phase), config=config
+    )
 
 
 def resynthesize_stim_circuit(
