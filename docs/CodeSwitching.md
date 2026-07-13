@@ -8,30 +8,42 @@ mystnb:
 
 # Code Switching Optimization
 
-Different Quantum Error Correction Codes (QECCs) support distinct sets of gates that can be implemented transversally. Transversal
-gates, which act on individual physical qubits of different logical code blocks, are inherently fault-tolerant as they do not spread
-errors uncontrollably through a quantum circuit. Code switching has been proposed as a technique that employs multiple QECCs
-whose respective sets of transversal gates complement each other to achieve universality. Logical qubits are dynamically transferred
-between these codes depending on which gate needs to be applied; in other words, the logical information is switched from one code
-to the other.
+Different Quantum Error Correction Codes (QECCs) support distinct sets of gates
+that can be implemented transversally. Transversal gates, which act on
+individual physical qubits of different logical code blocks, are inherently
+fault-tolerant as they do not spread errors uncontrollably through a quantum
+circuit. Code switching has been proposed as a technique that employs multiple
+QECCs whose respective sets of transversal gates complement each other to
+achieve universality. Logical qubits are dynamically transferred between these
+codes depending on which gate needs to be applied; in other words, the logical
+information is switched from one code to the other.
 
-However, code switching is a costly operation in terms of space and time overhead. Therefore, given a quantum circuit, we want to find the **minimum number of switches** required to execute it.
+However, code switching is a costly operation in terms of space and time
+overhead. Therefore, given a quantum circuit, we want to find the
+**minimum number of switches** required to execute it.
 
-QECC has functionality to automatically determine the minimum number of switching operations required to perform a circuit using two complementary gate sets.
-The problem can be modelled as a **Min-Cut / Max-Flow** problem on a directed graph. The graph is constructed such that:
+QECC has functionality to automatically determine the minimum number of
+switching operations required to perform a circuit using two complementary gate
+sets. The problem can be modelled as a **Min-Cut / Max-Flow** problem on a
+directed graph. The graph is constructed such that:
 
 - **Source (SRC):** Represents the first code (e.g., 2D Color Code).
 - **Sink (SNK):** Represents the second code (e.g., 3D Color Code).
 - **Nodes:** Quantum gates in the circuit.
 - **Edges:**
-  - **Infinite Capacity:** Connect gates unique to one code (e.g., T gates) to their respective terminal (Sink).
-  - **Temporal Edges:** Finite capacity edges connecting sequential operations on the same qubit. A "cut" here represents a code switch.
+  - **Infinite Capacity:** Connect gates unique to one code (e.g., T gates) to
+    their respective terminal (Sink).
+  - **Temporal Edges:** Finite capacity edges connecting sequential operations
+    on the same qubit. A "cut" here represents a code switch.
 
-The minimum cut separating the Source from the Sink corresponds to the optimal switching strategy.
+The minimum cut separating the Source from the Sink corresponds to the optimal
+switching strategy.
 
 ## Basic Usage
 
-Let's look at how to use the `MinimalCodeSwitchingCompiler` to analyze a simple quantum circuit. Assume the two codes in question are the 2D and 3D color codes, which have transversal gate sets $\{H, CX\}$ and $\{T, CX\}$, respectively.
+Let's look at how to use the `MinimalCodeSwitchingCompiler` to analyze a simple
+quantum circuit. Assume the two codes in question are the 2D and 3D color codes,
+which have transversal gate sets $\{H, CX\}$ and $\{T, CX\}$, respectively.
 
 ```{code-cell} ipython3
 from qiskit import QuantumCircuit
@@ -51,7 +63,9 @@ mcsc = MinimalCodeSwitchingCompiler(
 )
 ```
 
-Next, we create a Qiskit circuit that forces the compiler to make decisions. We will interleave Hadamard gates (Source-favored) and T gates (Sink-favored), separated by CNOTs (Common to both).
+Next, we create a Qiskit circuit that forces the compiler to make decisions. We
+will interleave Hadamard gates (Source-favored) and T gates (Sink-favored),
+separated by CNOTs (Common to both).
 
 ```{code-cell} ipython3
 qc = QuantumCircuit(6)
@@ -79,8 +93,10 @@ qc.t(range(3,6))
 qc.draw('mpl')
 ```
 
-The only optimization potential lies in the middle for the CNOT portion of the circuit, as the initial and final layers of single qubit gates force us to be in specific codes.
-We can now build the graph from the circuit and compute the minimum cut.
+The only optimization potential lies in the middle for the CNOT portion of the
+circuit, as the initial and final layers of single qubit gates force us to be in
+specific codes. We can now build the graph from the circuit and compute the
+minimum cut.
 
 ```{code-cell} ipython3
 # Build the graph representation of the circuit
@@ -95,14 +111,18 @@ for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-The output positions provide the exact locations (qubit, depth) where a code switch operation must be inserted into the circuit.
+The output positions provide the exact locations (qubit, depth) where a code
+switch operation must be inserted into the circuit.
 
-Note that under specific conditions, CNOT operations can be implemented transversally even when the control and target qubits
-are encoded in different codes. This property, however, is directional. In the 2D-3D color code scheme, it holds only when the
-control qubit is encoded in the 3D color code and the target qubit in the 2D color code.
+Note that under specific conditions, CNOT operations can be implemented
+transversally even when the control and target qubits are encoded in different
+codes. This property, however, is directional. In the 2D-3D color code scheme,
+it holds only when the control qubit is encoded in the 3D color code and the
+target qubit in the 2D color code.
 
-To account for this, we can pass a dictionary specifying gates that can be implemented one-way transverally together with their direction.
-To see how this affect the optimization, consider the following circuit:
+To account for this, we can pass a dictionary specifying gates that can be
+implemented one-way transverally together with their direction. To see how this
+affect the optimization, consider the following circuit:
 
 ```{code-cell} ipython3
 qc = QuantumCircuit(2)
@@ -116,7 +136,8 @@ qc.cx(0, 1)
 qc.draw('mpl')
 ```
 
-Calculating the minimum number of switches without considering the one-way transversal CNOT property yields:
+Calculating the minimum number of switches without considering the one-way
+transversal CNOT property yields:
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
@@ -132,7 +153,8 @@ for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-Hence, a single switch right after the T gate on qubit 0 is required. However, if we consider the one-way transversal CNOT property, we can avoid this switch:
+Hence, a single switch right after the T gate on qubit 0 is required. However,
+if we consider the one-way transversal CNOT property, we can avoid this switch:
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
@@ -145,18 +167,30 @@ num_switches, switch_pos, _, _ = mcsc.compute_min_cut()
 print(f"Total switches required: {num_switches}")
 ```
 
-We specify in the graph-construction method `build_from_qiskit` that CNOTs (`CX`) are implemented transversally when the control qubit is encoded in the Sink code (3D color code) and the target qubit is encoded in the Source code (2D color code), i.e., `(control, target) <=> ("SNK", "SRC")`.
+We specify in the graph-construction method `build_from_qiskit` that CNOTs
+(`CX`) are implemented transversally when the control qubit is encoded in the
+Sink code (3D color code) and the target qubit is encoded in the Source code (2D
+color code), i.e., `(control, target) <=> ("SNK", "SRC")`.
 
 ## Extensions to the Min-Cut Model
 
-Finding the minimum number of switches is a good starting point, but in practice, we might want to consider additional factors such as:
+Finding the minimum number of switches is a good starting point, but in
+practice, we might want to consider additional factors such as:
 
-- **Depth Optimization:** Choosing the placing of the switching positions such that switching operations are placed preferably on idling qubits while keeping the total number of switches minimal. This has the potential to reduce the overall circuit depth increase caused by the switching operations.
-- **Code Bias:** If one of the codes has a significantly higher overhead for switching operations, we might want to minimize switches into that code specifically.
+- **Depth Optimization:** Choosing the placing of the switching positions such
+  that switching operations are placed preferably on idling qubits while keeping
+  the total number of switches minimal. This has the potential to reduce the
+  overall circuit depth increase caused by the switching operations.
+- **Code Bias:** If one of the codes has a significantly higher overhead for
+  switching operations, we might want to minimize switches into that code
+  specifically.
 
 ### Depth Optimization
 
-To incorporate depth optimization, we can assign an idle bonus to weights of the temporal edges based on whether the qubit is idling or active. For example, we can assign a lower weight to edges corresponding to idling qubits, encouraging the min-cut algorithm to place switches there.
+To incorporate depth optimization, we can assign an idle bonus to weights of the
+temporal edges based on whether the qubit is idling or active. For example, we
+can assign a lower weight to edges corresponding to idling qubits, encouraging
+the min-cut algorithm to place switches there.
 
 ```{code-cell} ipython3
 qc = QuantumCircuit(3)
@@ -172,7 +206,8 @@ qc.cx(0, 2)
 qc.draw('mpl')
 ```
 
-Running the regular min-cut computation yields a switch on qubit 2 after the T gate (we allow one-way CNOTs here):
+Running the regular min-cut computation yields a switch on qubit 2 after the T
+gate (we allow one-way CNOTs here):
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
@@ -188,7 +223,8 @@ for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-However, if we assign a lower weight to the temporal edge of qubit 0 (which is idling), the algorithm chooses to place the switch there instead:
+However, if we assign a lower weight to the temporal edge of qubit 0 (which is
+idling), the algorithm chooses to place the switch there instead:
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
@@ -206,7 +242,8 @@ for pos in switch_pos:
 
 ### Code Bias
 
-To minimize switches into a specific code, we can add a certain code bias. The implementation already has a bias towards the source code.
+To minimize switches into a specific code, we can add a certain code bias. The
+implementation already has a bias towards the source code.
 
 ```{code-cell} ipython3
 qc = QuantumCircuit(2)
@@ -220,7 +257,8 @@ qc.cx(0, 1)
 qc.draw('mpl')
 ```
 
-The default behavior with a bias towards the source code yields that the switch is placed after the T gate on qubit 0 such that the CNOT is in the source code:
+The default behavior with a bias towards the source code yields that the switch
+is placed after the T gate on qubit 0 such that the CNOT is in the source code:
 
 ```{code-cell} ipython3
 mcsc = MinimalCodeSwitchingCompiler({"H", "CX"}, {"T", "CX"})
@@ -236,7 +274,8 @@ for pos in switch_pos:
     print(f" - Qubit {pos[0]} after operation depth {pos[1]}")
 ```
 
-However, if we wanted to instead bias towards the sink code, we could adjust the compiler configuration as follows:
+However, if we wanted to instead bias towards the sink code, we could adjust the
+compiler configuration as follows:
 
 ```{code-cell} ipython3
 config = CompilerConfig(biased_code="SNK")

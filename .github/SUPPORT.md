@@ -3,8 +3,8 @@
 
 # Support
 
-If you are stuck with a problem using MQT QECC or have questions, please get
-in touch at our [Issues] or [Discussions]. We'd love to help.
+If you are stuck with a problem using MQT QECC or have questions, please get in
+touch at our [Issues] or [Discussions]. We'd love to help.
 
 You can save time by following this procedure when reporting a problem:
 

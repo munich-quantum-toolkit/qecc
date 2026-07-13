@@ -105,8 +105,18 @@ repos:
     rev: v3.9.4
     hooks:
       - id: prettier
-        types_or: [yaml, markdown, html, css, scss, javascript, json, json5]
+        types_or: [yaml, html, css, scss, javascript, json, json5]
         priority: 5
+
+    ## Format Markdown files with rumdl
+  - repo: https://github.com/rvben/rumdl-pre-commit
+    rev: v0.2.28
+    hooks:
+      - id: rumdl
+        args: [--fix]
+        priority: 5
+      - id: rumdl-fmt
+        priority: 6
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit

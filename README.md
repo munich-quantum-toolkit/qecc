@@ -29,29 +29,51 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 ## Key Features
 
 - Decode (triangular) color codes and conduct respective numerical simulations.
-  - The decoder is based on an analogy to the classical LightsOut puzzle and formulated as a MaxSAT problem.
-    The SMT solver Z3 is used to determine minimal solutions of the MaxSAT problem, resulting in minimum-weight decoding estimates.
-- Decode bosonic quantum LDPC codes and conduct numerical simulations for analog information decoding under phenomenological (cat qubit) noise.
-- Synthesize non-deterministic and deterministic fault-tolerant state preparation circuits for qubit CSS codes.
-- Find the minimum number of code switching operations and their placement in a given quantum circuit that employs code switching as a way to implement logical operations fault-tolerantly.
-- Performing lattice surgery compilation for the color code for CNOT + T circuits with static or movable qubits.
+  - The decoder is based on an analogy to the classical LightsOut puzzle and
+    formulated as a MaxSAT problem. The SMT solver Z3 is used to determine
+    minimal solutions of the MaxSAT problem, resulting in minimum-weight
+    decoding estimates.
+- Decode bosonic quantum LDPC codes and conduct numerical simulations for analog
+  information decoding under phenomenological (cat qubit) noise.
+- Synthesize non-deterministic and deterministic fault-tolerant state
+  preparation circuits for qubit CSS codes.
+- Find the minimum number of code switching operations and their placement in a
+  given quantum circuit that employs code switching as a way to implement
+  logical operations fault-tolerantly.
+- Performing lattice surgery compilation for the color code for CNOT + T
+  circuits with static or movable qubits.
 
 > [!NOTE]
-> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch [`ft-stateprep-qubit-perm`](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
-> The documentation is a work in progress and this branch undergoes some final improvements before being merged into `main`.
+> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using
+> Steane-type Error Detection_ can be found in the branch
+> [`ft-stateprep-qubit-perm`](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
+> The documentation is a work in progress and this branch undergoes some final
+> improvements before being merged into `main`.
 
 > [!WARNING]
-> The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.
-> MQT QECC is now entirely a Python package.
-> For up-to-date software for decoding LDPC codes we refer to [quantumgizmos/ldpc](https://github.com/quantumgizmos/ldpc).
-> If you would still like to use these features, they are available in versions before `v2.0.0`.
+> The C++ implementation of the
+> [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the
+> [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been
+> removed with `v2.0.0` and are no longer available. MQT QECC is now entirely a
+> Python package. For up-to-date software for decoding LDPC codes we refer to
+> [quantumgizmos/ldpc](https://github.com/quantumgizmos/ldpc). If you would
+> still like to use these features, they are available in versions before
+> `v2.0.0`.
 
-If you have any questions, feel free to create a [discussion](https://github.com/munich-quantum-toolkit/qecc/discussions) or an [issue](https://github.com/munich-quantum-toolkit/qecc/issues) on [GitHub](https://github.com/munich-quantum-toolkit/qecc).
+If you have any questions, feel free to create a
+[discussion](https://github.com/munich-quantum-toolkit/qecc/discussions) or an
+[issue](https://github.com/munich-quantum-toolkit/qecc/issues) on
+[GitHub](https://github.com/munich-quantum-toolkit/qecc).
 
 ## Contributors and Supporters
 
-The _[Munich Quantum Toolkit (MQT)](https://mqt.readthedocs.io)_ is developed by the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the [Technical University of Munich](https://www.tum.de/) and supported by [MQSC](https://mq.sc).
-Among others, it is part of the [Munich Quantum Software Stack (MQSS)](https://www.munich-quantum-valley.de/research/research-areas/mqss) ecosystem, which is being developed as part of the [Munich Quantum Valley (MQV)](https://www.munich-quantum-valley.de) initiative.
+The _[Munich Quantum Toolkit (MQT)](https://mqt.readthedocs.io)_ is developed by
+the [Chair for Design Automation](https://www.cda.cit.tum.de/) at the
+[Technical University of Munich](https://www.tum.de/) and supported by
+[MQSC](https://mq.sc). Among others, it is part of the
+[Munich Quantum Software Stack (MQSS)](https://www.munich-quantum-valley.de/research/research-areas/mqss)
+ecosystem, which is being developed as part of the
+[Munich Quantum Valley (MQV)](https://www.munich-quantum-valley.de) initiative.
 
 <p align="center">
   <picture>
@@ -68,15 +90,19 @@ Thank you to all the contributors who have helped make MQT QECC a reality!
 </a>
 </p>
 
-The MQT will remain free, open-source, and permissively licensed—now and in the future.
-We are firmly committed to keeping it open and actively maintained for the quantum computing community.
+The MQT will remain free, open-source, and permissively licensed—now and in the
+future. We are firmly committed to keeping it open and actively maintained for
+the quantum computing community.
 
 To support this endeavor, please consider:
 
-- Starring and sharing our repositories: https://github.com/munich-quantum-toolkit
-- Contributing code, documentation, tests, or examples via issues and pull requests
+- Starring and sharing our repositories:
+  <https://github.com/munich-quantum-toolkit>
+- Contributing code, documentation, tests, or examples via issues and pull
+  requests
 - Citing the MQT in your publications (see [Cite This](#cite-this))
-- Citing our research in your publications (see [References](https://mqt.readthedocs.io/projects/qecc/en/latest/references.html))
+- Citing our research in your publications (see
+  [References](https://mqt.readthedocs.io/projects/qecc/en/latest/references.html))
 - Using the MQT in research and teaching, and sharing feedback and use cases
 
 ## Getting Started
@@ -84,15 +110,19 @@ To support this endeavor, please consider:
 `mqt.qecc` is available via [PyPI](https://pypi.org/project/mqt.qecc/).
 
 ```console
-(venv) $ pip install mqt.qecc
+uv pip install mqt.qecc
 ```
 
-**Detailed documentation and examples are available at [ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
+**Detailed documentation and examples are available at
+[ReadTheDocs](https://mqt.readthedocs.io/projects/qecc).**
 
 ## System Requirements
 
-MQT QECC can be installed on all major operating systems with all [officially supported Python versions](https://devguide.python.org/versions/).
-Building (and running) is continuously tested under Linux, macOS, and Windows using the [latest available system versions for GitHub Actions](https://github.com/actions/runner-images).
+MQT QECC can be installed on all major operating systems with all
+[officially supported Python versions](https://devguide.python.org/versions/).
+Building (and running) is continuously tested under Linux, macOS, and Windows
+using the
+[latest available system versions for GitHub Actions](https://github.com/actions/runner-images).
 
 ## Cite This
 
@@ -118,34 +148,33 @@ When discussing the overall MQT project or its ecosystem, cite the MQT Handbook:
 
 ### Peer-Reviewed Research
 
-When citing the underlying methods and research, please reference the most relevant peer-reviewed publications from the list below:
+When citing the underlying methods and research, please reference the most
+relevant peer-reviewed publications from the list below:
 
-[[1]](https://arxiv.org/pdf/2501.05527)
-L. Schmid, T.Peham, L. Berent, M. Müller, and R. Wille.
-Deterministic Fault-Tolerant State Preparation for Near-Term Quantum Error Correction: Automatic Synthesis Using Boolean Satisfiability
+[[1]](https://arxiv.org/pdf/2501.05527) L. Schmid, T.Peham, L. Berent, M.
+Müller, and R. Wille. Deterministic Fault-Tolerant State Preparation for
+Near-Term Quantum Error Correction: Automatic Synthesis Using Boolean
+Satisfiability
 
-[[2]](https://arxiv.org/pdf/2408.11894)
-T. Peham, L. Schmid, L. Berent, M. Müller, and R. Wille.
-Automated Synthesis of Fault-Tolerant State Preparation Circuits for Quantum Error Correction Codes
-_PRX Quantum 6, 020330_, 2025.
+[[2]](https://arxiv.org/pdf/2408.11894) T. Peham, L. Schmid, L. Berent, M.
+Müller, and R. Wille. Automated Synthesis of Fault-Tolerant State Preparation
+Circuits for Quantum Error Correction Codes _PRX Quantum 6, 020330_, 2025.
 
-[[3]](https://arxiv.org/pdf/2311.01328)
-L. Berent, T. Hillmann, J. Eisert, R. Wille, and J. Roffe.
-Analog information decoding of bosonic quantum LDPC codes.
+[[3]](https://arxiv.org/pdf/2311.01328) L. Berent, T. Hillmann, J. Eisert, R.
+Wille, and J. Roffe. Analog information decoding of bosonic quantum LDPC codes.
 _PRX Quantum 5, 020349_, 2024.
 
-[[4]](https://arxiv.org/pdf/2303.14237)
-L. Berent, L. Burgholzer, P. J. Derks, J. Eisert, and R. Wille.
-Decoding quantum color codes with MaxSAT.
+[[4]](https://arxiv.org/pdf/2303.14237) L. Berent, L. Burgholzer, P. J. Derks,
+J. Eisert, and R. Wille. Decoding quantum color codes with MaxSAT.
 _Quantum 8, 1506_, 2024.
 
-[[5]](https://arxiv.org/pdf/2301.05731)
-T. Grurl, C. Pichler, J. Fuss, and R. Wille.
-Automatic Implementation and Evaluation of Error-Correcting Codes for Quantum Computing: An Open-Source Framework for Quantum Error-Correction.
-_International Conference on VLSI Design and International Conference on Embedded Systems (VLSID)_, 2023.
+[[5]](https://arxiv.org/pdf/2301.05731) T. Grurl, C. Pichler, J. Fuss, and R.
+Wille. Automatic Implementation and Evaluation of Error-Correcting Codes for
+Quantum Computing: An Open-Source Framework for Quantum Error-Correction.
+_International Conference on VLSI Design and International Conference on
+Embedded Systems (VLSID)_, 2023.
 
-[[6]](https://arxiv.org/pdf/2209.01180)
-L. Berent, L. Burgholzer, and R. Wille.
+[[6]](https://arxiv.org/pdf/2209.01180) L. Berent, L. Burgholzer, and R. Wille.
 Software Tools for Decoding Quantum Low-Density Parity Check Codes.
 _Asia and South Pacific Design Automation Conference (ASP-DAC)_, 2023.
 
@@ -153,7 +182,12 @@ _Asia and South Pacific Design Automation Conference (ASP-DAC)_, 2023.
 
 ## Acknowledgements
 
-The Munich Quantum Toolkit has been supported by the European Research Council (ERC) under the European Union's Horizon 2020 research and innovation program (grant agreement No. 101001318), the Bavarian State Ministry for Science and Arts through the Distinguished Professorship Program, as well as the Munich Quantum Valley, which is supported by the Bavarian state government with funds from the Hightech Agenda Bayern Plus.
+The Munich Quantum Toolkit has been supported by the European Research Council
+(ERC) under the European Union's Horizon 2020 research and innovation program
+(grant agreement No. 101001318), the Bavarian State Ministry for Science and
+Arts through the Distinguished Professorship Program, as well as the Munich
+Quantum Valley, which is supported by the Bavarian state government with funds
+from the Hightech Agenda Bayern Plus.
 
 <p align="center">
   <picture>
