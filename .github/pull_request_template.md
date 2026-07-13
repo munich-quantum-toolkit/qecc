@@ -8,7 +8,6 @@ List any dependencies that are required for this change.
 Replace `(issue)` with the issue number fixed by this pull request.
 If this PR does not fix an issue, please remove the line.
 -->
-
 Fixes #(issue)
 
 ## Checklist
