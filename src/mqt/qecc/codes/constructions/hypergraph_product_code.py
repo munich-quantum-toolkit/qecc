@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Package for code construction."""
+"""Hypergraph product code constructions (3D and 4D, dense and sparse)."""
 
 from __future__ import annotations
 
@@ -184,4 +184,4 @@ def generate_sparse_3d_product_code(
         msg = "Error generating 3D code, boundary maps do not square to zero"
         raise RuntimeError(msg)
 
-    return d_1, d_2, d_3  # mx, hx, hzT # hx, hzT, mzT
+    return d_1, d_2, d_3  # hx, hz^T, mz^T
