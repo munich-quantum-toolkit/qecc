@@ -259,7 +259,6 @@ guidelines and workflows, see {doc}`contributing`.
    ```
 
 <!-- Links -->
-
 [nox]: https://nox.thea.codes/en/stable/
 [prek]: https://prek.j178.dev
 [uv]: https://docs.astral.sh/uv/
