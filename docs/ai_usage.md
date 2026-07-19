@@ -31,41 +31,59 @@ not submit it.
 
 ### 2. Human in the Loop
 
-> **Autonomous contributions from AI agents are not allowed.**
+**Humans remain accountable for AI-assisted contributions.**
 
-When using AI tools, you must be the driver. The AI is the assistant.
+AI agents may implement changes and manage issue and pull request workflows when
+a human explicitly authorizes the scope and relevant external actions. The human
+remains the driver and is responsible for the resulting contribution.
 
-- **Review:** You must read and review all AI-generated code or text before
-  submitting it.
+- **Review:** You must read and review all AI-generated code and relevant public
+  text before merging or otherwise accepting the contribution. You remain
+  accountable for public text posted within an authorized scope.
 - **Edit:** AI-generated code often requires significant editing to meet project
   standards and correctness.
 - **Verify:** Ensure the code actually solves the problem and doesn't introduce
   subtle bugs or security vulnerabilities.
+- **Authorize:** Explicitly authorize agents before they create, edit, submit,
+  or comment on issues and pull requests. A single authorization may cover a
+  clearly scoped task; per-message approval is not required. Remain accountable
+  for all external communication that agents submit on your behalf. Actions
+  outside the authorized scope require fresh authorization.
 
 ### 3. Communication
 
-**Do not use AI tools to generate issue descriptions, pull request comments, or
-code reviews.**
+**AI tools may be used to prepare and manage issue and pull request workflows,
+including descriptions, comments, and code reviews, when a human has authorized
+the action and remains responsible for the result.**
 
-We value your personal input and communication. LLMs are notoriously unreliable
-and can produce "smart-sounding" but incorrect or irrelevant claims
-("hallucinations"). Phrase your communications in your own words. It is more
-important that we can follow your reasoning than that the text sounds "perfect".
+AI-generated communication can be incorrect, irrelevant, or overly generic. Keep
+it accurate, specific, and useful to reviewers and contributors. Do not post
+low-quality, repetitive, or unsolicited messages.
+
+Every agent-authored or agent-edited public text body must begin with the
+following visible disclosure:
+
+`🤖 *AI text below* 🤖`
+
+This requirement applies to issue and pull request descriptions, review bodies,
+inline review comments, issue-style comments, replies, and other submitted text
+bodies. Pull request and issue titles are exempt. When editing existing
+human-authored text, preserve the original content and add the disclosure at the
+beginning of the edited field.
 
 ### 4. Transparency and Disclosure
 
 Transparency helps the community understand the role of these tools and develop
 best practices.
 
-**We encourage you to disclose any AI assistance.** This helps us understand how
-these tools are being used and identify potential issues. You can disclose this
-information in the following ways:
+**You must disclose AI assistance.** This helps us understand how the tools are
+being used and identify potential issues. Disclose it in the following ways:
 
 - **Commit Messages**: Add a trailer to your commit message in the form
   `Assisted-by: [Model Name] via [Tool Name]` (example:
   `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`)
-- **PR Description**: Mention the tool (name and version) and how it was used in
-  the PR description.
+- **Public issue and pull request text**: Use the visible disclosure required in
+  the [communication policy](#3-communication).
 
 ### 5. Licensing and Copyright
 
@@ -125,10 +143,10 @@ its contributors can thrive.
 - **"Good First Issues"**: Do not use AI tools to solve issues labeled as "good
   first issue". These are intended as learning opportunities for new
   contributors. Automating them defeats the purpose.
-- **Spam**: Do not use AI to generate low-quality or repetitive comments/reviews
-  ("AI Slop").
-- **Unreviewed Code**: Submitting code that you, as a human, have not reviewed
-  and tested yourself.
+- **Spam**: Do not use AI to generate low-quality, repetitive, or unsolicited
+  comments or reviews ("AI Slop").
+- **Unreviewed Code**: Merging or accepting code that you, as a human, have not
+  reviewed and tested yourself.
 
 ## Summary
 

@@ -41,6 +41,9 @@
 
 ### General
 
+- MUST read and follow `docs/ai_usage.md`. A human must review and understand
+  all AI-assisted work. AI assistance must not be used for contributions to
+  issues labeled `good first issue`.
 - MUST run `uvx nox -s lint` after every batch of changes. This runs the full
   `prek` hook set from `.pre-commit-config.yaml` (including `ruff`, `typos`,
   `ty`, formatting, and metadata checks). All hooks must pass before submitting.
@@ -58,6 +61,23 @@
   and changes will be overwritten.
 - PREFER running targeted tests over the full test suite during development.
 
+### GitHub Issues and Pull Requests
+
+- MAY create, submit, and edit pull requests; create and manage issues; and
+  comment on issues or pull requests when the task explicitly authorizes that
+  external action. A single authorization may cover a clearly scoped task;
+  per-message approval is not required. Actions outside that scope require fresh
+  authorization. The human remains responsible for reviewing all submitted work.
+- MUST use the repository's pull request template when one is present.
+- Every agent-authored or agent-edited public text body MUST begin with
+  `🤖 *AI text below* 🤖` on its first line. This applies to issue and pull
+  request descriptions, review bodies, inline review comments, issue comments,
+  replies, and other submitted text bodies; titles are exempt.
+- When editing human-authored public text, preserve its original content and add
+  the disclosure at the beginning of the edited field.
+- MUST keep external communication accurate, specific, and non-repetitive; do
+  not post low-quality or unsolicited comments.
+
 ### Python
 
 - MUST use Google-style docstrings
@@ -73,3 +93,5 @@
 
 - Did `uvx nox -s lint` pass without errors?
 - Are all changes covered by at least one automated test?
+- Were any agent-authored issue or pull request texts explicitly authorized and
+  marked with the required visible disclosure?

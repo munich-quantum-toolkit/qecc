@@ -25,6 +25,7 @@ This checklist serves as a reminder of a couple of things that ensure your pull 
 
 **If PR contains AI-assisted content:**
 
-- [ ] I have disclosed the use of AI tools in the PR description as per our [AI Usage Guidelines](https://github.com/munich-quantum-toolkit/qecc/blob/main/docs/ai_usage.md).
+- [ ] Any agent that created, edited, or submitted GitHub content was explicitly authorized for that scope, as required by our [AI Usage Guidelines](https://github.com/munich-quantum-toolkit/qecc/blob/main/docs/ai_usage.md).
+- [ ] Every agent-authored or agent-edited public text body begins with the visible disclosure `🤖 *AI text below* 🤖` (titles are exempt).
 - [ ] AI-assisted commits include an `Assisted-by: [Model Name] via [Tool Name]` footer.
 - [ ] I confirm that I have personally reviewed and understood all AI-generated content, and accept full responsibility for it.
