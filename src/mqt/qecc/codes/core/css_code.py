@@ -131,7 +131,7 @@ class CSSCode(StabilizerCode):
         return self.Hz @ error % 2
 
     def check_if_logical_x_error(self, residual: npt.NDArray[np.int8]) -> bool:
-        """Check if the residual is a logical error."""
+        """Check if the residual X error acts as a logical operator (anticommutes with some Z logical)."""
         return bool((self.Lz @ residual % 2 == 1).any())
 
     def check_if_x_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
@@ -139,8 +139,8 @@ class CSSCode(StabilizerCode):
         return is_in_row_space(pauli, self.Hx)
 
     def check_if_logical_z_error(self, residual: npt.NDArray[np.int8]) -> bool:
-        """Check if the residual is a logical error."""
-        return (self.Hx.shape[0] != 0) and bool((self.Lx @ residual % 2 == 1).any())
+        """Check if the residual Z error acts as a logical operator (anticommutes with some X logical)."""
+        return bool((self.Lx @ residual % 2 == 1).any())
 
     def check_if_z_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
         """Check if the Z-type Pauli (given by its support) is a Z stabilizer."""
