@@ -18,6 +18,7 @@ from mqt.qecc import mod2
 
 from .pauli import CheckMatrix, PauliTableau
 from .stabilizer_code import StabilizerCode
+from .symplectic import are_in_same_coset, is_in_row_space
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -134,34 +135,24 @@ class CSSCode(StabilizerCode):
         return bool((self.Lz @ residual % 2 == 1).any())
 
     def check_if_x_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
-        """Check if the Pauli is a stabilizer."""
-        return bool(mod2.rank(np.vstack((self.Hx, pauli))) == mod2.rank(self.Hx))
+        """Check if the X-type Pauli (given by its support) is an X stabilizer."""
+        return is_in_row_space(pauli, self.Hx)
 
     def check_if_logical_z_error(self, residual: npt.NDArray[np.int8]) -> bool:
         """Check if the residual is a logical error."""
         return (self.Hx.shape[0] != 0) and bool((self.Lx @ residual % 2 == 1).any())
 
     def check_if_z_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
-        """Check if the Pauli is a stabilizer."""
-        return (self.Hz.shape[0] != 0) and bool(mod2.rank(np.vstack((self.Hz, pauli))) == mod2.rank(self.Hz))
+        """Check if the Z-type Pauli (given by its support) is a Z stabilizer."""
+        return is_in_row_space(pauli, self.Hz)
 
     def stabilizer_eq_x_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
-        """Check if two X errors are in the same coset."""
-        if self.Hx.shape[0] == 0:
-            return bool(np.array_equal(error_1, error_2))
-        m1 = np.vstack([self.Hx, error_1])
-        m2 = np.vstack([self.Hx, error_2])
-        m3 = np.vstack([self.Hx, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        """Check if two X errors are in the same coset of the X stabilizers."""
+        return are_in_same_coset(error_1, error_2, self.Hx)
 
     def stabilizer_eq_z_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
-        """Check if two Z errors are in the same coset."""
-        if self.Hz.shape[0] == 0:
-            return bool(np.array_equal(error_1, error_2))
-        m1 = np.vstack([self.Hz, error_1])
-        m2 = np.vstack([self.Hz, error_2])
-        m3 = np.vstack([self.Hz, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        """Check if two Z errors are in the same coset of the Z stabilizers."""
+        return are_in_same_coset(error_1, error_2, self.Hz)
 
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""

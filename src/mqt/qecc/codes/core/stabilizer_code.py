@@ -17,7 +17,7 @@ import numpy as np
 from mqt.qecc.mod2 import nullspace, rank
 
 from .pauli import Pauli, PauliTableau
-from .symplectic import symplectic_product
+from .symplectic import is_in_row_space, symplectic_product
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -192,15 +192,16 @@ class StabilizerCode:
         return [str(p) for p in self.generators]
 
     def stabilizer_equivalent(self, p1: Pauli | str, p2: Pauli | str) -> bool:
-        """Check if two Pauli strings are equivalent up to stabilizers of the code."""
+        """Check if two Pauli strings are equivalent up to stabilizers of the code.
+
+        The comparison is over binary symplectic supports; phases are ignored.
+        """
         if isinstance(p1, str):
             p1 = Pauli.from_pauli_string(p1)
         if isinstance(p2, str):
             p2 = Pauli.from_pauli_string(p2)
-        return bool(
-            rank(np.vstack((self.generators.as_matrix(), p1.as_vector(), p2.as_vector())))
-            == rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
-        )
+        difference = (p1.symplectic.vector + p2.symplectic.vector) % 2
+        return is_in_row_space(difference, self.generators.symplectic)
 
     def to_tableau(self) -> PauliTableau:
         """Convert the stabilizer code to a tableau with logicals and stabilizers.
