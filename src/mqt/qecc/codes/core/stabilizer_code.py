@@ -94,12 +94,16 @@ class StabilizerCode:
         )
 
     def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
-        """Check if two stabilizer codes have the same stabilizer group."""
+        """Check if two stabilizer codes have the same stabilizer group.
+
+        The comparison is over the symplectic supports of the generators;
+        generator signs are ignored. To include signs, there has to be a sign-aware matrix multiplication for PauliTableaus.
+        """
         if self.n != other.n:
             return False
 
-        self_matrix = self.generators.as_matrix()
-        other_matrix = other.generators.as_matrix()
+        self_matrix = self.generators.symplectic
+        other_matrix = other.generators.symplectic
         stabs_rnk = rank(self_matrix)
 
         return bool(stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix))))
