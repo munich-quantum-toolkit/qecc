@@ -49,7 +49,7 @@ def symplectic_product(
             raise ValueError(msg)
         width = operand.shape[-1]
         if width == 0 or width % 2 != 0:
-            msg = f"{name} must have even nonzero width, got shape {operand.shape}."
+            msg = f"{name} must have even nonzero and even width, got shape {operand.shape}."
             raise ValueError(msg)
         widths.append(width)
     if widths[0] != widths[1]:

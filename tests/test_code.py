@@ -30,10 +30,17 @@ from mqt.qecc.codes.constructions.rotated_surface_code import InvalidDistanceErr
 from mqt.qecc.codes.core.pauli import (
     InvalidPauliError,
     Pauli,
+    PauliTableau,
     StabilizerTableau,
     complete_stabilizer_tableau_with_destabilizers,
 )
-from mqt.qecc.codes.core.symplectic import SymplecticMatrix, SymplecticVector
+from mqt.qecc.codes.core.symplectic import (
+    SymplecticMatrix,
+    SymplecticVector,
+    are_in_same_coset,
+    is_in_row_space,
+    symplectic_product,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -1017,3 +1024,86 @@ def test_set_logicals():
 
     assert np.array_equal(code.Lx, lxs)
     assert np.array_equal(code.Lz, lzs)
+
+
+def test_symplectic_product_shapes() -> None:
+    """Test symplectic_product for vector and matrix operands."""
+    v = np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)  # XIZ
+    u = np.array([0, 0, 1, 0, 0, 0], dtype=np.int8)  # IIX
+    assert symplectic_product(v, v) == 0
+    assert symplectic_product(v, u) == 1
+
+    m = np.array([v, u], dtype=np.int8)
+    assert_array_equal(symplectic_product(m, v), np.array([0, 1]))
+    assert_array_equal(symplectic_product(v, m), np.array([0, 1]))
+    assert_array_equal(symplectic_product(m, m), np.array([[0, 1], [1, 0]]))
+
+    empty = np.zeros((0, 6), dtype=np.int8)
+    assert symplectic_product(empty, m).shape == (0, 2)
+
+
+def test_symplectic_product_validation() -> None:
+    """Test that symplectic_product rejects invalid inputs."""
+    v = np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)
+    with pytest.raises(ValueError, match="even"):
+        symplectic_product(v, np.array([1, 0, 0], dtype=np.int8))
+    with pytest.raises(ValueError, match="same number of qubits"):
+        symplectic_product(v, np.array([1, 0, 0, 0], dtype=np.int8))
+    with pytest.raises(ValueError, match="dimensions"):
+        symplectic_product(v, np.zeros((1, 2, 6), dtype=np.int8))
+    with pytest.raises(ValueError, match="nonzero"):
+        symplectic_product(np.zeros(0, dtype=np.int8), np.zeros(0, dtype=np.int8))
+
+
+def test_row_space_helpers() -> None:
+    """Test is_in_row_space and are_in_same_coset, including empty bases."""
+    basis = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
+    assert is_in_row_space(np.array([1, 0, 1], dtype=np.int8), basis)
+    assert not is_in_row_space(np.array([1, 0, 0], dtype=np.int8), basis)
+    assert is_in_row_space(np.zeros(3, dtype=np.int8), basis)
+
+    empty = np.zeros((0, 3), dtype=np.int8)
+    assert is_in_row_space(np.zeros(3, dtype=np.int8), empty)
+    assert not is_in_row_space(np.array([1, 0, 0], dtype=np.int8), empty)
+
+    e1 = np.array([1, 0, 0], dtype=np.int8)
+    e2 = np.array([0, 1, 1], dtype=np.int8)
+    assert are_in_same_coset(e1, (e1 + basis[0]) % 2, basis)
+    assert not are_in_same_coset(e1, e2, empty)
+    assert are_in_same_coset(e1, e1, empty)
+
+
+def test_independent_of_generator_signs() -> None:
+    """Test that the stabilizer group is independent of the signs of the generators.
+
+    Note: Depending on the demand of a sign-aware matrix multiplication, this test can be removed.
+    """
+    plus = StabilizerCode(["XXXX", "ZZZZ"])
+    minus = StabilizerCode(["-XXXX", "-ZZZZ"])
+    assert plus.k == minus.k == 2
+    assert plus.equal_stabilizer_group(minus)
+
+
+def test_pauli_tableau_alias() -> None:
+    """StabilizerTableau remains available as a deprecated alias of PauliTableau."""
+    assert StabilizerTableau is PauliTableau
+    t = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+    assert t.symplectic.shape == (2, 4)
+    assert_array_equal(t.symplectic, t.tableau.matrix)
+
+
+def test_trivial_code_syndromes_and_cosets() -> None:
+    """Trivial codes (no checks) behave sensibly without special-case guards."""
+    code = CSSCode.get_trivial_code(3)
+    e = np.array([1, 0, 0], dtype=np.int8)
+    zero = np.zeros(3, dtype=np.int8)
+    assert code.get_x_syndrome(e).size == 0
+    assert code.get_z_syndrome(e).size == 0
+    assert code.check_if_x_stabilizer(zero)
+    assert not code.check_if_x_stabilizer(e)
+    assert code.check_if_z_stabilizer(zero)
+    assert not code.check_if_z_stabilizer(e)
+    assert code.stabilizer_eq_x_error(e, e)
+    assert not code.stabilizer_eq_x_error(e, zero)
+    assert code.check_if_logical_x_error(e)
+    assert code.check_if_logical_z_error(e)
