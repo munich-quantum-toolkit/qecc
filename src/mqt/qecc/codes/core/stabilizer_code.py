@@ -44,7 +44,6 @@ class StabilizerCode:
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
         self.generators = self.get_generators(generators, n)
-        self.symplectic = self.generators.tableau.matrix
 
         if n is None:
             self.n = self.generators.n
@@ -52,7 +51,7 @@ class StabilizerCode:
             self.n = n
 
         if self.generators.n_rows != 0:
-            self.k = self.n - rank(self.generators.as_matrix())
+            self.k = self.n - rank(self.generators.symplectic)
         else:
             self.k = self.n
 
@@ -68,6 +67,11 @@ class StabilizerCode:
             self.x_logicals = self.get_generators(x_logicals, self.n)
 
         self._check_code_correct()
+
+    @property
+    def symplectic(self) -> npt.NDArray[np.int8]:
+        """The binary symplectic matrix of the stabilizer generators."""
+        return self.generators.symplectic
 
     def __hash__(self) -> int:
         """Compute a hash for the stabilizer code."""
@@ -303,7 +307,7 @@ class StabilizerCode:
             return
 
         n = self.n
-        mat = self.generators.tableau.matrix
+        mat = self.generators.symplectic
 
         identity = np.eye(n, dtype=np.int8)
         z0 = np.zeros((n, n), dtype=np.int8)
