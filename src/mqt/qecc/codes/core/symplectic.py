@@ -20,6 +20,52 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
+def symplectic_product(
+    lhs: npt.NDArray[np.int8],
+    rhs: npt.NDArray[np.int8],
+) -> np.int8 | npt.NDArray[np.int8]:
+    """Compute the binary symplectic product of vectors or row matrices.
+
+    Both operands are interpreted in ``[X | Z]`` form, i.e. the first half of
+    each row is the X part and the second half is the Z part.
+
+    Args:
+        lhs: A vector of length ``2n`` or a matrix whose rows have length ``2n``.
+        rhs: A vector of length ``2n`` or a matrix whose rows have length ``2n``.
+
+    Returns:
+        A scalar for vector/vector input, a vector for vector/matrix or
+        matrix/vector input, and a matrix for matrix/matrix input.
+
+    Raises:
+        ValueError: If an operand is not one- or two-dimensional, has an odd or
+            zero width, or the operands represent different numbers of qubits.
+    """
+    widths = []
+    for name, operand in (("lhs", lhs), ("rhs", rhs)):
+        if operand.ndim not in {1, 2}:
+            msg = f"{name} must be one- or two-dimensional, got {operand.ndim} dimensions."
+            raise ValueError(msg)
+        width = operand.shape[-1]
+        if width == 0 or width % 2 != 0:
+            msg = f"{name} must have even nonzero width, got shape {operand.shape}."
+            raise ValueError(msg)
+        widths.append(width)
+    if widths[0] != widths[1]:
+        msg = f"Operands must represent the same number of qubits, got widths {widths[0]} and {widths[1]}."
+        raise ValueError(msg)
+    n = widths[0] // 2
+
+    lhs_x, lhs_z = lhs[..., :n], lhs[..., n:]
+    rhs_x, rhs_z = rhs[..., :n], rhs[..., n:]
+    if rhs.ndim == 2:
+        rhs_x, rhs_z = rhs_x.T, rhs_z.T
+    product = (lhs_x @ rhs_z + lhs_z @ rhs_x) % 2
+    if lhs.ndim == 1 and rhs.ndim == 1:
+        return np.int8(product)
+    return product.astype(np.int8)
+
+
 class SymplecticVector:
     """Symplectic Vector Class."""
 
@@ -56,10 +102,7 @@ class SymplecticVector:
 
     def __matmul__(self, other: SymplecticVector) -> int:
         """Compute the symplectic inner product."""
-        assert self.n == other.n, "Vectors must be of the same length."
-        return int(
-            (self.vector[: self.n] @ other.vector[self.n :] - self.vector[self.n :] @ other.vector[: self.n]) % 2
-        )
+        return int(symplectic_product(self.vector, other.vector))
 
     def __getitem__(self, key: int | slice) -> int | npt.NDArray[np.int8]:
         """Get the value of the vector at index key."""
@@ -143,13 +186,9 @@ class SymplecticMatrix:
 
     def __matmul__(self, other: SymplecticMatrix | SymplecticVector) -> Any:  # noqa: ANN401
         """Compute the symplectic product of two matrices."""
-        assert self.n == other.n, "Matrices must be of the same size."
-        n = self.n
         if isinstance(other, SymplecticVector):
-            return SymplecticVector((self.matrix[:, :n] @ other[n:] + self.matrix[:, n:] @ other[:n]) % 2)
-        m1 = self.matrix
-        m2 = other.matrix
-        return SymplecticMatrix(((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2)
+            return SymplecticVector(np.asarray(symplectic_product(self.matrix, other.vector), dtype=np.int8))
+        return SymplecticMatrix(np.asarray(symplectic_product(self.matrix, other.matrix), dtype=np.int8))
 
     @overload
     def __getitem__(self, key: int) -> npt.NDArray[np.int8]: ...

@@ -17,11 +17,10 @@ import numpy as np
 from mqt.qecc.mod2 import nullspace, rank
 
 from .pauli import Pauli, PauliTableau
+from .symplectic import symplectic_product
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-
-    from mqt.qecc.codes.core.symplectic import SymplecticVector
 
 
 class StabilizerCode:
@@ -178,8 +177,7 @@ class StabilizerCode:
         """
         if isinstance(error, str):
             error = Pauli.from_pauli_string(error)
-        vector: SymplecticVector = self.generators.tableau @ error.symplectic
-        return vector.vector
+        return np.asarray(symplectic_product(self.generators.symplectic, error.symplectic.vector), dtype=np.int8)
 
     def stabs_as_pauli_strings(self) -> list[str]:
         """Return the stabilizers as Pauli strings."""
@@ -248,16 +246,12 @@ class StabilizerCode:
             msg = "Logical X-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
 
-        def commutation_matrix(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
-            n = m1.shape[1] // 2
-            return ((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2
-
-        commutations = commutation_matrix(self.z_logicals.tableau.matrix, self.x_logicals.tableau.matrix)
+        commutations = symplectic_product(self.z_logicals.symplectic, self.x_logicals.symplectic)
         if not np.array_equal(commutations, np.eye(self.z_logicals.shape[0], dtype=np.int8)):
             msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator and vice versa."
             raise InvalidStabilizerCodeError(msg)
 
-        stabilizer_commutations = commutation_matrix(self.generators.tableau.matrix, self.generators.tableau.matrix)
+        stabilizer_commutations = symplectic_product(self.generators.symplectic, self.generators.symplectic)
         if not np.all(stabilizer_commutations == 0):
             msg = "Stabilizer generators must commute with each other."
             raise InvalidStabilizerCodeError(msg)
@@ -346,7 +340,7 @@ class StabilizerCode:
         logical_basis_arr = np.array(logical_basis, dtype=np.int8)
 
         def symp(u: np.ndarray, v: np.ndarray) -> int:
-            return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
+            return int(symplectic_product(u, v))
 
         logs = logical_basis_arr.copy()
         vecs = [logs[i].copy() for i in range(logs.shape[0])]

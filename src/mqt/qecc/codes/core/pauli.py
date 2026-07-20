@@ -15,7 +15,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from .symplectic import SymplecticMatrix, SymplecticVector
+from .symplectic import SymplecticMatrix, SymplecticVector, symplectic_product
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -279,9 +279,14 @@ class PauliTableau:
         """Return the number of Paulis in the tableau."""
         return len(self.tableau)
 
+    @property
+    def symplectic(self) -> npt.NDArray[np.int8]:
+        """The binary symplectic matrix of the tableau, shape ``(num_rows, 2n)``."""
+        return self.tableau.matrix
+
     def all_commute(self, other: PauliTableau) -> bool:
         """Check if all Pauli operators in this tableau commute with all Pauli operators in another tableau."""
-        return bool(np.all((self.tableau @ other.tableau).matrix == 0))
+        return bool(np.all(symplectic_product(self.symplectic, other.symplectic) == 0))
 
     def __getitem__(self, key: int) -> Pauli:
         """Get a Pauli operator from the stabilizer tableau."""
