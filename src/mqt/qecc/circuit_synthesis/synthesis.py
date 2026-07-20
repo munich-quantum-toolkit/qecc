@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..codes.core.pauli import CheckMatrix, StabilizerTableau
+from ..codes.core.pauli import CheckMatrix, PauliTableau
 from . import strategy
 from .elimination import EliminationSequence, eliminate
 from .operations import CNOT
@@ -94,9 +94,9 @@ def synthesize_cnot(
 
 
 def synthesize_non_css(
-    tableau: StabilizerTableau,
+    tableau: PauliTableau,
     config: SynthesisConfig | None = None,
-) -> tuple[EliminationSequence, StabilizerTableau]:
+) -> tuple[EliminationSequence, PauliTableau]:
     """Eliminate a non-CSS stabilizer tableau using transvections.
 
     Args:
@@ -126,6 +126,6 @@ def synthesize_non_css(
         strat = strategy.for_non_css(n=tableau.n, optimization_criterion=config.optimization_criterion)
 
     operations, final_tableau = eliminate(tableau, strat)
-    assert isinstance(final_tableau, StabilizerTableau), "Expected StabilizerTableau from non-CSS elimination"
+    assert isinstance(final_tableau, PauliTableau), "Expected PauliTableau from non-CSS elimination"
 
     return operations, final_tableau

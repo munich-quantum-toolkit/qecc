@@ -19,7 +19,7 @@ import stim
 from mqt.qecc import mod2
 
 from ..codes import CSSCode
-from ..codes.core.pauli import CheckMatrix, StabilizerTableau, complete_stabilizer_tableau_with_destabilizers
+from ..codes.core.pauli import CheckMatrix, PauliTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
 from .exact import (
     Objective,
@@ -175,7 +175,7 @@ def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[CheckMatrix, CheckMat
     return CheckMatrix(checks, type_), CheckMatrix(logicals, type_)
 
 
-def gottesman_encoding_circuit(tableau: StabilizerTableau | Sequence[str]) -> CliffordIsometry:
+def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> CliffordIsometry:
     """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
     Assumes all signs of the stabilizers are +1.
@@ -187,7 +187,7 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | Sequence[str]) -> Cl
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
     """
     if isinstance(tableau, Sequence):
-        tableau = StabilizerTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
+        tableau = PauliTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
 
     nq = tableau.n
     mat = tableau.tableau.matrix.copy()
@@ -270,7 +270,7 @@ def gottesman_encoding_circuit(tableau: StabilizerTableau | Sequence[str]) -> Cl
 
 
 def synthesize_clifford(
-    tableau: StabilizerTableau,
+    tableau: PauliTableau,
     use_cnots_if_css: bool = True,
     config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
@@ -381,7 +381,7 @@ def synthesize_encoding_circuit(
     ))
 
     return encoder_from_stabilizers_and_logicals(
-        StabilizerTableau(gens_mat, gens_phase), StabilizerTableau(log_mat, log_phase), config=config
+        PauliTableau(gens_mat, gens_phase), PauliTableau(log_mat, log_phase), config=config
     )
 
 
@@ -400,13 +400,13 @@ def resynthesize_stim_circuit(
     Returns:
         A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
     """
-    tableau = StabilizerTableau.from_stim_circuit(circ)
+    tableau = PauliTableau.from_stim_circuit(circ)
     return synthesize_clifford(tableau, use_cnots_if_css=use_cnots_if_css, config=config).to_stim_circuit()
 
 
 def encoder_from_stabilizers_and_logicals(
-    stabilizers: StabilizerTableau,
-    logicals: StabilizerTableau,
+    stabilizers: PauliTableau,
+    logicals: PauliTableau,
     optimize_tableau_before_synthesis: bool = True,
     config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
@@ -444,7 +444,7 @@ def encoder_from_stabilizers_and_logicals(
     return iso
 
 
-def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> StabilizerTableau:
+def optimize_tableau(tableau: PauliTableau, stab_rows: list[int]) -> PauliTableau:
     """Optimize a stabilizer tableau by performing row operations to reduce the cost of the initial tableau for synthesis."""
     tab = tableau.copy()
 
@@ -469,7 +469,7 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
                 destabs[j] ^= destabs[i]
                 mat[:half][stab_rows] = destabs
                 mat[half:][stab_rows] = stabs
-                new_score, _ = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                new_score, _ = score_symplectic(PauliTableau(mat, tableau.phase.copy()))
                 if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
@@ -487,7 +487,7 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
                 logj ^= stabs[i]
                 mat[:half][stab_rows] = destabs
                 mat[logical_rows[j]] = logj
-                new_score, _ = score_symplectic(StabilizerTableau(mat, tableau.phase.copy()))
+                new_score, _ = score_symplectic(PauliTableau(mat, tableau.phase.copy()))
                 if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
@@ -496,9 +496,7 @@ def optimize_tableau(tableau: StabilizerTableau, stab_rows: list[int]) -> Stabil
     return best[0]
 
 
-def combine_stabilizer_and_logical_tableau(
-    stabilizers: StabilizerTableau, logicals: StabilizerTableau
-) -> StabilizerTableau:
+def combine_stabilizer_and_logical_tableau(stabilizers: PauliTableau, logicals: PauliTableau) -> PauliTableau:
     """Combine a stabilizer tableau and a logical tableau, then complete with destabilizers.
 
     Args:
@@ -522,7 +520,7 @@ def combine_stabilizer_and_logical_tableau(
     combined_matrix = np.vstack([x_logicals, z_logicals, stabilizers.tableau.matrix])
 
     combined_phase = np.hstack([x_logicals_phase, z_logicals_phase, stabilizers.phase])
-    combined_tableau = StabilizerTableau(combined_matrix, combined_phase)
+    combined_tableau = PauliTableau(combined_matrix, combined_phase)
 
     # Complete with destabilizers for the stabilizers only
     # The stabilizer rows are at indices 0 to m-1

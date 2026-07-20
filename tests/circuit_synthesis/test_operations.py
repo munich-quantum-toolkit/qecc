@@ -226,7 +226,7 @@ def test_single_qubit_clifford_apply_inverse(small_tableau: StabilizerTableau, c
 def test_single_qubit_clifford_apply_inverse_wrong_type(check_matrix_x: CheckMatrix) -> None:
     """Test that apply_inverse raises TypeError for non-StabilizerTableau."""
     op = SingleQubitClifford(0, "H")
-    with pytest.raises(TypeError, match="can only be applied to StabilizerTableau"):
+    with pytest.raises(TypeError, match="can only be applied to PauliTableau"):
         op.apply_inverse(check_matrix_x)
 
 

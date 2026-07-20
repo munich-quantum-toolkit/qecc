@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import stim
 
-from ..codes.core.pauli import StabilizerTableau
+from ..codes.core.pauli import PauliTableau
 from .operations import CNOT, Swap, Transvection
 
 logger = logging.getLogger(__name__)
@@ -671,11 +671,11 @@ def _invoke_callback(
         strategy.callback(iteration, op, tableau)
 
 
-def is_identity(tableau: StabilizerTableau) -> bool:
+def is_identity(tableau: PauliTableau) -> bool:
     """Check if the given stabilizer tableau is the identity tableau.
 
     Args:
-        tableau (StabilizerTableau): The stabilizer tableau to check.
+        tableau (PauliTableau): The stabilizer tableau to check.
 
     Returns:
         bool: True if the tableau is the identity tableau, False otherwise.
@@ -694,7 +694,7 @@ def get_n(tableau: BinaryMatrix) -> int:
     Returns:
         int: The number of qubits.
     """
-    if isinstance(tableau, StabilizerTableau):
+    if isinstance(tableau, PauliTableau):
         return int(tableau.n)
 
     return int(tableau.matrix.shape[1])

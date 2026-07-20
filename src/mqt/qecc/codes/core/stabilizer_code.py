@@ -16,7 +16,7 @@ import numpy as np
 
 from mqt.qecc.mod2 import nullspace, rank
 
-from .pauli import Pauli, StabilizerTableau
+from .pauli import Pauli, PauliTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -29,10 +29,10 @@ class StabilizerCode:
 
     def __init__(
         self,
-        generators: StabilizerTableau | list[Pauli] | list[str],
+        generators: PauliTableau | list[Pauli] | list[str],
         distance: int | None = None,
-        z_logicals: StabilizerTableau | list[Pauli] | list[str] | None = None,
-        x_logicals: StabilizerTableau | list[Pauli] | list[str] | None = None,
+        z_logicals: PauliTableau | list[Pauli] | list[str] | None = None,
+        x_logicals: PauliTableau | list[Pauli] | list[str] | None = None,
         n: int | None = None,
     ) -> None:
         """Initialize the code.
@@ -196,11 +196,11 @@ class StabilizerCode:
             == rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
         )
 
-    def to_tableau(self) -> StabilizerTableau:
+    def to_tableau(self) -> PauliTableau:
         """Convert the stabilizer code to a tableau with logicals and stabilizers.
 
         Returns:
-            StabilizerTableau: A tableau with rows ordered as:
+            PauliTableau: A tableau with rows ordered as:
                 - X logical operators
                 - Z logical operators
                 - Stabilizer generators
@@ -217,7 +217,7 @@ class StabilizerCode:
 
         combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
 
-        return StabilizerTableau(combined_matrix, combined_phases)
+        return PauliTableau(combined_matrix, combined_phases)
 
     def _check_code_correct(self) -> None:
         """Check if the code is correct. Throws an exception if not."""
@@ -264,13 +264,13 @@ class StabilizerCode:
 
     @staticmethod
     def get_generators(
-        generators: StabilizerTableau | list[Pauli] | list[str],
+        generators: PauliTableau | list[Pauli] | list[str],
         n: int | None = None,
-    ) -> StabilizerTableau:
-        """Get the stabilizer generators as a StabilizerTableau object.
+    ) -> PauliTableau:
+        """Get the stabilizer generators as a PauliTableau object.
 
         Args:
-            generators: The stabilizer generators as a StabilizerTableau object, a list of Pauli objects, or a list of Pauli strings.
+            generators: The stabilizer generators as a PauliTableau object, a list of Pauli objects, or a list of Pauli strings.
             n: The number of qubits in the code. Required if generators is an empty list.
         """
         if isinstance(generators, list):
@@ -278,12 +278,12 @@ class StabilizerCode:
                 if n is None:
                     msg = "Number of qubits must be given if no generators are provided."
                     raise ValueError(msg)
-                return StabilizerTableau.empty(n)
+                return PauliTableau.empty(n)
             if isinstance(generators[0], str):
-                return StabilizerTableau.from_pauli_strings(generators)  # ty: ignore[invalid-argument-type]
+                return PauliTableau.from_pauli_strings(generators)  # ty: ignore[invalid-argument-type]
             if isinstance(generators[0], Pauli):
-                return StabilizerTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
-        assert isinstance(generators, StabilizerTableau)
+                return PauliTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
+        assert isinstance(generators, PauliTableau)
         return generators
 
     @classmethod
@@ -300,10 +300,10 @@ class StabilizerCode:
         into k symplectic pairs (Z̄_i, X̄_i). Stores results in self.z_logicals/self.x_logicals.
         """
         if self.generators.n_rows == 0:
-            self.z_logicals = StabilizerTableau.from_pauli_strings([
+            self.z_logicals = PauliTableau.from_pauli_strings([
                 "I" * i + "Z" + "I" * (self.n - i - 1) for i in range(self.n)
             ])
-            self.x_logicals = StabilizerTableau.from_pauli_strings([
+            self.x_logicals = PauliTableau.from_pauli_strings([
                 "I" * i + "X" + "I" * (self.n - i - 1) for i in range(self.n)
             ])
             return
@@ -322,8 +322,8 @@ class StabilizerCode:
             if self.k > 0:
                 msg = f"Cannot compute logical operators: nullspace is empty (ns.size=0) but code has k={self.k} logical qubits. This would result in empty z_logicals and x_logicals, creating an inconsistent code state."
                 raise InvalidStabilizerCodeError(msg)
-            self.z_logicals = StabilizerTableau.empty(n)
-            self.x_logicals = StabilizerTableau.empty(n)
+            self.z_logicals = PauliTableau.empty(n)
+            self.x_logicals = PauliTableau.empty(n)
             return
 
         def mod2_rank(mat: np.ndarray) -> int:
@@ -412,8 +412,8 @@ class StabilizerCode:
 
         z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
-        self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
-        self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
+        self.z_logicals = PauliTableau(z_mat, np.zeros((k,), dtype=np.int8))
+        self.x_logicals = PauliTableau(x_mat, np.zeros((k,), dtype=np.int8))
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:

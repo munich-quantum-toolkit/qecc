@@ -16,7 +16,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from .pauli import CheckMatrix, StabilizerTableau
+from .pauli import CheckMatrix, PauliTableau
 from .stabilizer_code import StabilizerCode
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -71,7 +71,7 @@ class CSSCode(StabilizerCode):
         x_padded = np.hstack([self.Hx, z_padding])
         z_padded = np.hstack([x_padding, self.Hz])
         phases = np.zeros((x_padded.shape[0] + z_padded.shape[0]), dtype=np.int8)
-        super().__init__(StabilizerTableau(np.vstack((x_padded, z_padded)), phases), distance)
+        super().__init__(PauliTableau(np.vstack((x_padded, z_padded)), phases), distance)
 
         self.x_distance = x_distance if x_distance is not None else self.distance
         self.z_distance = z_distance if z_distance is not None else self.distance
@@ -344,7 +344,7 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
 
         self.Lx = logicals.copy()
-        self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
+        self.x_logicals = PauliTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
 
     def set_z_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
         """Set all Z logical operators."""
@@ -358,7 +358,7 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
 
         self.Lz = logicals.copy()
-        self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
+        self.z_logicals = PauliTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
 
 
 def _is_css_binary_matrix_format(content: str) -> bool:

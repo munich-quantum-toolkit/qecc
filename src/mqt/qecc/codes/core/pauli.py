@@ -126,8 +126,12 @@ class Pauli:
         return hash((self.symplectic, self.phase))
 
 
-class StabilizerTableau:
-    """Class representing a stabilizer tableau."""
+class PauliTableau:
+    """An ordered collection of signed Pauli rows in binary symplectic form.
+
+    Used for stabilizer generators, logical operators, Clifford tableaus,
+    destabilizers, and arbitrary Pauli rows.
+    """
 
     def __init__(
         self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase: npt.NDArray[np.int8] | None = None
@@ -153,26 +157,26 @@ class StabilizerTableau:
         self.shape = (self.n_rows, self.n)
 
     @classmethod
-    def from_stim_circuit(cls, circ: stim.Circuit) -> StabilizerTableau:
-        """Create a StabilizerTableau from a stim.Circuit.
+    def from_stim_circuit(cls, circ: stim.Circuit) -> PauliTableau:
+        """Create a PauliTableau from a stim.Circuit.
 
         Args:
             circ: A stim.Circuit object.
 
         Returns:
-            A StabilizerTableau instance.
+            A PauliTableau instance.
         """
         return cls.from_stim_tableau(circ.to_tableau())
 
     @classmethod
-    def from_stim_tableau(cls, stim_tableau: stim.Tableau) -> StabilizerTableau:
-        """Create a StabilizerTableau from a stim.Tableau.
+    def from_stim_tableau(cls, stim_tableau: stim.Tableau) -> PauliTableau:
+        """Create a PauliTableau from a stim.Tableau.
 
         Args:
             stim_tableau: A stim.Tableau object.
 
         Returns:
-            A StabilizerTableau instance.
+            A PauliTableau instance.
         """
         x2x, x2z, z2x, z2z, x_signs, z_signs = stim_tableau.to_numpy(bit_packed=False)
 
@@ -185,7 +189,7 @@ class StabilizerTableau:
         return cls(SymplecticMatrix(tableau_matrix), phase)
 
     @classmethod
-    def from_pauli_strings(cls, pauli_strings: Sequence[str]) -> StabilizerTableau:
+    def from_pauli_strings(cls, pauli_strings: Sequence[str]) -> PauliTableau:
         """Create a new stabilizer tableau from a list of Pauli strings."""
         if len(pauli_strings) == 0:
             msg = "At least one Pauli string is required."
@@ -195,7 +199,7 @@ class StabilizerTableau:
         return cls.from_paulis(paulis)
 
     @classmethod
-    def from_paulis(cls, paulis: Sequence[Pauli]) -> StabilizerTableau:
+    def from_paulis(cls, paulis: Sequence[Pauli]) -> PauliTableau:
         """Create a new stabilizer tableau from a list of Pauli operators."""
         if len(paulis) == 0:
             msg = "At least one Pauli operator is required."
@@ -212,24 +216,24 @@ class StabilizerTableau:
         return cls(mat, phase)
 
     @classmethod
-    def empty(cls, n: int) -> StabilizerTableau:
+    def empty(cls, n: int) -> PauliTableau:
         """Create a new empty stabilizer tableau."""
         return cls(SymplecticMatrix.empty(n), np.zeros(0, dtype=np.int8))
 
     @classmethod
-    def identity(cls, n: int) -> StabilizerTableau:
+    def identity(cls, n: int) -> PauliTableau:
         """Create a new identity stabilizer tableau."""
         return cls(SymplecticMatrix.identity(n), np.zeros(2 * n, dtype=np.int8))
 
     @classmethod
-    def from_matrix(cls, matrix: npt.NDArray[np.int8]) -> StabilizerTableau:
-        """Create a StabilizerTableau from a symplectic matrix.
+    def from_matrix(cls, matrix: npt.NDArray[np.int8]) -> PauliTableau:
+        """Create a PauliTableau from a symplectic matrix.
 
         Args:
             matrix: A 2n x 2n symplectic matrix representing the stabilizer tableau.
 
         Returns:
-            A StabilizerTableau instance.
+            A PauliTableau instance.
         """
         if matrix.shape[0] % 2 != 0 or matrix.shape[0] != matrix.shape[1]:
             msg = f"Expected a square 2nx2n symplectic matrix, got shape {matrix.shape}."
@@ -239,14 +243,14 @@ class StabilizerTableau:
         return cls(symplectic_matrix)
 
     @classmethod
-    def from_check_matrix(cls, check_matrix: CheckMatrix) -> StabilizerTableau:
-        """Create a StabilizerTableau from a CSS check matrix.
+    def from_check_matrix(cls, check_matrix: CheckMatrix) -> PauliTableau:
+        """Create a PauliTableau from a CSS check matrix.
 
         Args:
             check_matrix: A CheckMatrix object representing the CSS check matrix.
 
         Returns:
-            A StabilizerTableau instance.
+            A PauliTableau instance.
         """
         if check_matrix.is_x_type():
             x_part = check_matrix.matrix
@@ -263,7 +267,7 @@ class StabilizerTableau:
 
     def __eq__(self, other: object) -> bool:
         """Check if two stabilizer tableaus are equal."""
-        if not isinstance(other, StabilizerTableau):
+        if not isinstance(other, PauliTableau):
             return False
         return bool(self.tableau == other.tableau and np.all(self.phase == other.phase))
 
@@ -275,8 +279,8 @@ class StabilizerTableau:
         """Return the number of Paulis in the tableau."""
         return len(self.tableau)
 
-    def all_commute(self, other: StabilizerTableau) -> bool:
-        """Check if all Pauli operators in this stabilizer tableau commute with all Pauli operators in another stabilizer tableau."""
+    def all_commute(self, other: PauliTableau) -> bool:
+        """Check if all Pauli operators in this tableau commute with all Pauli operators in another tableau."""
         return bool(np.all((self.tableau @ other.tableau).matrix == 0))
 
     def __getitem__(self, key: int) -> Pauli:
@@ -369,9 +373,9 @@ class StabilizerTableau:
         self.apply_x(qubit)
         self.apply_z(qubit)
 
-    def copy(self) -> StabilizerTableau:
+    def copy(self) -> PauliTableau:
         """Return a copy of the stabilizer tableau."""
-        return StabilizerTableau(self.tableau.copy(), self.phase.copy())
+        return PauliTableau(self.tableau.copy(), self.phase.copy())
 
     def to_pauli_list(self) -> list[Pauli]:
         """Return the tableau as a list of Paulis."""
@@ -458,9 +462,7 @@ class StabilizerTableau:
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the stabilizer tableau."""
-        return (
-            f"StabilizerTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.matrix},\nphase={self.phase})"
-        )
+        return f"PauliTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.matrix},\nphase={self.phase})"
 
     def num_rows(self) -> int:
         """Return the number of rows in the stabilizer tableau."""
@@ -483,9 +485,13 @@ class StabilizerTableau:
         return False
 
 
+StabilizerTableau = PauliTableau
+"""Deprecated alias for :class:`PauliTableau`; use :class:`PauliTableau` instead."""
+
+
 def complete_stabilizer_tableau_with_destabilizers(
-    stabilizers: StabilizerTableau, stab_rows: list[int] | None = None
-) -> StabilizerTableau:
+    stabilizers: PauliTableau, stab_rows: list[int] | None = None
+) -> PauliTableau:
     """Given a tableau of stabilizers, complete it to a full tableau by adding destabilizers.
 
     Destabilizer d_i anticommutes with stabilizer s_i but commutes with all other stabilizers,
@@ -611,13 +617,13 @@ def complete_stabilizer_tableau_with_destabilizers(
     combined_matrix = np.vstack(new_rows)
     combined_phase = np.array(new_phases, dtype=np.int8)
 
-    return StabilizerTableau(SymplecticMatrix(combined_matrix), combined_phase)
+    return PauliTableau(SymplecticMatrix(combined_matrix), combined_phase)
 
 
 def _initialize_destabilizer_from_nullspace(
     stab_i: SymplecticVector,
     remaining_stab_indices: list[int],
-    stabilizers: StabilizerTableau,
+    stabilizers: PauliTableau,
 ) -> SymplecticVector | None:
     """Initialize destabilizer from nullspace of remaining stabilizers."""
     n = stabilizers.n
