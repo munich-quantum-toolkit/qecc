@@ -500,9 +500,9 @@ def _combine_stabilizers_and_logicals(
         raise ValueError(msg)
 
     combined_matrix = np.vstack([
-        x_logicals.tableau.matrix,
-        z_logicals.tableau.matrix,
-        stabilizers.tableau.matrix,
+        x_logicals.tableau.data,
+        z_logicals.tableau.data,
+        stabilizers.tableau.data,
     ])
 
     combined_phase = np.concatenate([
@@ -669,8 +669,8 @@ def _logical_sign_corrections(
     num_target_rows = target_tableau.num_rows()
     # num_target_rows = 2k + (n-k) = n+k  →  k = num_target_rows - n
     k = num_target_rows - n
-    target_x = target_tableau.tableau.matrix[:num_target_rows, :n].astype(np.int8)
-    target_z = target_tableau.tableau.matrix[:num_target_rows, n:].astype(np.int8)
+    target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
+    target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
     target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
 
     x_correction = np.zeros(n, dtype=np.int8)
@@ -716,8 +716,8 @@ def _stabilizer_sign_corrections(
     if n - k == 0:
         return
 
-    target_x = target_tableau.tableau.matrix[:num_target_rows, :n].astype(np.int8)
-    target_z = target_tableau.tableau.matrix[:num_target_rows, n:].astype(np.int8)
+    target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
+    target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
     target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
 
     circ_stab_symp = np.hstack([circ.z2x[pivot_qubits], circ.z2z[pivot_qubits]])  # (num_stab x 2n)

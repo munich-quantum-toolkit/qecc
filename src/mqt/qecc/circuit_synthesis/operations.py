@@ -119,7 +119,7 @@ class Transvection(TableauOperation):
     def apply_stabilizer_tableau_inplace(self, tableau: PauliTableau) -> None:
         """Apply the transvection operation to a stabilizer tableau."""
         n = tableau.n
-        mat = tableau.tableau.matrix
+        mat = tableau.tableau.data
 
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
@@ -130,7 +130,7 @@ class Transvection(TableauOperation):
         out = tableau if inplace else tableau.copy()
 
         n = out.n
-        mat = out.tableau.matrix
+        mat = out.tableau.data
 
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v

@@ -192,7 +192,7 @@ class StabilizerCode:
         """
         if isinstance(error, str):
             error = Pauli.from_pauli_string(error)
-        return np.asarray(symplectic_product(self.generators.symplectic, error.symplectic.vector), dtype=np.int8)
+        return np.asarray(symplectic_product(self.generators.symplectic, error.symplectic.data), dtype=np.int8)
 
     def stabs_as_pauli_strings(self) -> list[str]:
         """Return the stabilizers as Pauli strings."""
@@ -207,7 +207,7 @@ class StabilizerCode:
             p1 = Pauli.from_pauli_string(p1)
         if isinstance(p2, str):
             p2 = Pauli.from_pauli_string(p2)
-        difference = (p1.symplectic.vector + p2.symplectic.vector) % 2
+        difference = (p1.symplectic.data + p2.symplectic.data) % 2
         return is_in_row_space(difference, self.generators.symplectic)
 
     def to_tableau(self) -> PauliTableau:
@@ -219,9 +219,9 @@ class StabilizerCode:
                 - Z logical operators
                 - Stabilizer generators
         """
-        x_log_matrix = self.x_logicals.tableau.matrix
-        z_log_matrix = self.z_logicals.tableau.matrix
-        stab_matrix = self.generators.tableau.matrix
+        x_log_matrix = self.x_logicals.tableau.data
+        z_log_matrix = self.z_logicals.tableau.data
+        stab_matrix = self.generators.tableau.data
 
         combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
 

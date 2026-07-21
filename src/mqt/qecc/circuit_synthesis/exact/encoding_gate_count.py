@@ -79,8 +79,8 @@ def _declare_clifford_gate_count_vars(
     if max_gates > 0:
         for row in range(num_rows):
             for q in range(n):
-                tableau_x[0, row, q] = bool(target.tableau.matrix[row, q])
-                tableau_z[0, row, q] = bool(target.tableau.matrix[row, q + n])
+                tableau_x[0, row, q] = bool(target.tableau.data[row, q])
+                tableau_z[0, row, q] = bool(target.tableau.data[row, q + n])
     return gate_sel, alpha_vars, beta_vars, tableau_x, tableau_z
 
 

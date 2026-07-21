@@ -682,7 +682,7 @@ def is_identity(tableau: PauliTableau) -> bool:
     """
     n = get_n(tableau)
     identity_matrix = np.eye(2 * n, dtype=np.int8)
-    return bool(np.array_equal(tableau.tableau.matrix, identity_matrix))
+    return bool(np.array_equal(tableau.tableau.data, identity_matrix))
 
 
 def get_n(tableau: BinaryMatrix) -> int:

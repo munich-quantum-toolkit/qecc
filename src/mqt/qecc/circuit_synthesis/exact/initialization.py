@@ -30,8 +30,8 @@ def constrain_initial_clifford_tableau(
     """Constrain the step-0 tableau variables to equal the target stabilizer tableau."""
     for row in range(num_rows):
         for q in range(n):
-            solver.add(tableau_x[0, row, q] == bool(target.tableau.matrix[row, q]))
-            solver.add(tableau_z[0, row, q] == bool(target.tableau.matrix[row, q + n]))
+            solver.add(tableau_x[0, row, q] == bool(target.tableau.data[row, q]))
+            solver.add(tableau_z[0, row, q] == bool(target.tableau.data[row, q + n]))
 
 
 def constrain_initial_css_matrix(

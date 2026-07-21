@@ -129,7 +129,7 @@ def test_stabilizer_tableau() -> None:
     t2 = StabilizerTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
     assert t1 == t2
     assert str(t1) == "XIZ\nZIX\nIZX"
-    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.matrix},\nphase={t1.phase})"
+    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase})"
     assert not t1.is_row(Pauli.from_pauli_string("III"))
 
     t3 = StabilizerTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
@@ -249,7 +249,7 @@ def test_pauli_tableau_alias() -> None:
     assert StabilizerTableau is PauliTableau
     t = PauliTableau.from_pauli_strings(["XX", "ZZ"])
     assert t.symplectic.shape == (2, 4)
-    assert_array_equal(t.symplectic, t.tableau.matrix)
+    assert_array_equal(t.symplectic, t.tableau.data)
 
 
 def test_complete_stabilizer_tableau_with_destabilizers():

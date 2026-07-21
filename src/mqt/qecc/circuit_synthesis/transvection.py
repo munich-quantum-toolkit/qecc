@@ -116,7 +116,7 @@ def _sp_gate_options(symplectic: npt.NDArray[np.int8]) -> list[tuple[int, int]]:
 def _generate_transvection_operations(tableau: PauliTableau) -> list[Transvection]:
     """Generate all transvection operations without scoring."""
     n = get_n(tableau)
-    symplectic = tableau.tableau.matrix
+    symplectic = tableau.tableau.data
     pairs = _sp_gate_options(symplectic)
 
     if not pairs:
@@ -137,7 +137,7 @@ def _score_transvections(
     base_score, _ = score_symplectic(tableau)
     scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
 
-    original_state = tableau.tableau.matrix.copy()
+    original_state = tableau.tableau.data.copy()
     original_phase = tableau.phase.copy()
     for op in operations:
         op.apply_stabilizer_tableau_inplace(tableau)
@@ -147,7 +147,7 @@ def _score_transvections(
             score_value = tuple(int(v) for v in h_vec.tolist())
             scored.append((op, score_value))
 
-        tableau.tableau.matrix[:] = original_state
+        tableau.tableau.data[:] = original_state
         tableau.phase[:] = original_phase
     scored.sort(key=operator.itemgetter(1))
     return scored
@@ -207,7 +207,7 @@ def r1_r2(symplectic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 def is_terminal_transvection(tableau: PauliTableau) -> bool:
     """Check if the given stabilizer tableau is in terminal form for transvection elimination."""
-    r1, r2 = r1_r2(tableau.tableau.matrix)
+    r1, r2 = r1_r2(tableau.tableau.data)
     if np.any(r1):
         return False
     if not np.all(r2.sum(axis=0) == 1):
@@ -245,7 +245,7 @@ def score_symplectic_numba(symplectic: np.ndarray, n: int) -> tuple[np.ndarray, 
 def score_symplectic(tableau: PauliTableau) -> tuple[np.ndarray, int]:
     """Numba-optimized score_symplectic function."""
     n = get_n(tableau)
-    symplectic = tableau.tableau.matrix
+    symplectic = tableau.tableau.data
     h_vec, h_scalar = score_symplectic_numba(symplectic, n)
     return h_vec, h_scalar
 
@@ -324,7 +324,7 @@ def reduce_without_swaps(
 def _extract_perm_in_to_out_and_blocks(tableau: PauliTableau) -> tuple[np.ndarray, list[npt.NDArray[np.int8]]]:
     """Extract the permutation and corresponding 2x2 blocks from a terminal symplectic matrix."""
     n = get_n(tableau)
-    symplectic = tableau.tableau.matrix
+    symplectic = tableau.tableau.data
     r2 = _compute_r2_matrix(symplectic)
 
     perm = np.full(n, -1, dtype=int)
@@ -380,8 +380,8 @@ def _perm_to_swaps(perm_in_to_out: np.ndarray) -> list[Swap]:
 def fix_tableau_signs_in_place(tableau: PauliTableau) -> list[PauliOperation]:
     """Determine Pauli corrections so that the tableau matches the desired sign bits."""
     n = get_n(tableau)
-    x_part = tableau.tableau.matrix[:, :n]
-    z_part = tableau.tableau.matrix[:, n:]
+    x_part = tableau.tableau.data[:, :n]
+    z_part = tableau.tableau.data[:, n:]
 
     phase = tableau.phase.copy()
 

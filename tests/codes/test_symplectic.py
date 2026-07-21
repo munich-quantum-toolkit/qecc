@@ -75,12 +75,12 @@ def test_symplectic_matrix_arithmetic() -> None:
         [1, 0, 0, 0, 0, 1],
     ])
     m = SymplecticMatrix(np.array(vs))
-    assert eye @ m.transpose() == m
-    assert m @ eye == m
+    assert_array_equal(m @ eye, m.data)
+    assert_array_equal(eye @ m, m.data.T)
     assert repr(m) == repr(vs)
 
     vector = SymplecticVector(vs[0])
-    assert eye @ vector == vector
+    assert_array_equal(eye @ vector, vector.data)
 
     for i, row in enumerate(m):
         assert np.array_equal(row, vs[i])

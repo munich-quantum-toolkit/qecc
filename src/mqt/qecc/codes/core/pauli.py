@@ -84,7 +84,7 @@ class Pauli:
 
     def as_vector(self) -> npt.NDArray[np.int8]:
         """Convert the Pauli operator to a binary vector."""
-        return np.concatenate((self.symplectic.vector, np.array([self.phase])))
+        return np.concatenate((self.symplectic.data, np.array([self.phase])))
 
     def __len__(self) -> int:
         """Return the number of qubits in the Pauli operator."""
@@ -211,7 +211,7 @@ class PauliTableau:
         mat = SymplecticMatrix.zeros(len(paulis), n)
         phase = np.zeros((len(paulis)), dtype=np.int8)
         for i, p in enumerate(paulis):
-            mat[i] = p.symplectic.vector
+            mat[i] = p.symplectic.data
             phase[i] = p.phase
         return cls(mat, phase)
 
@@ -235,11 +235,7 @@ class PauliTableau:
         Returns:
             A PauliTableau instance.
         """
-        if matrix.shape[0] % 2 != 0:
-            msg = f"Expected a rx2n symplectic matrix, got shape {matrix.shape}."
-            raise ValueError(msg)
-
-        symplectic_matrix = SymplecticMatrix(matrix)
+        symplectic_matrix = SymplecticMatrix(matrix)  # validity checks delegated to SymplecticMatrix
         return cls(symplectic_matrix)
 
     @classmethod
@@ -282,7 +278,7 @@ class PauliTableau:
     @property
     def symplectic(self) -> npt.NDArray[np.int8]:
         """The binary symplectic matrix of the tableau, shape ``(num_rows, 2n)``."""
-        return self.tableau.matrix
+        return self.tableau.data
 
     def all_commute(self, other: PauliTableau) -> bool:
         """Check if all Pauli operators in this tableau commute with all Pauli operators in another tableau."""
@@ -303,7 +299,7 @@ class PauliTableau:
 
     def as_matrix(self) -> npt.NDArray[np.int8]:
         """Convert the stabilizer tableau to a binary matrix."""
-        return np.hstack((self.tableau.matrix, self.phase[..., np.newaxis]))
+        return np.hstack((self.tableau.data, self.phase[..., np.newaxis]))
 
     def apply_h(self, qubit: int) -> None:
         """Apply the Hadamard gate to the stabilizer tableau.
@@ -393,12 +389,12 @@ class PauliTableau:
             A NumPy array where the first 2n columns represent the symplectic matrix
             and the last column represents the phase vector.
         """
-        return np.hstack((self.tableau.matrix, self.phase[:, np.newaxis]))
+        return np.hstack((self.tableau.data, self.phase[:, np.newaxis]))
 
     def is_css(self) -> bool:
         """Check if the stabilizer tableau is in CSS form."""
-        x_part = self.tableau.matrix[:, : self.n]
-        z_part = self.tableau.matrix[:, self.n :]
+        x_part = self.tableau.data[:, : self.n]
+        z_part = self.tableau.data[:, self.n :]
         return bool(np.all(x_part[z_part.any(axis=1)] == 0) and np.all(z_part[x_part.any(axis=1)] == 0))
 
     def to_css(self) -> tuple[CheckMatrix, CheckMatrix]:
@@ -418,11 +414,11 @@ class PauliTableau:
 
     def get_x_part(self) -> npt.NDArray[np.int8]:
         """Get the X part of the stabilizer tableau."""
-        return self.tableau.matrix[:, : self.n]
+        return self.tableau.data[:, : self.n]
 
     def get_z_part(self) -> npt.NDArray[np.int8]:
         """Get the Z part of the stabilizer tableau."""
-        return self.tableau.matrix[:, self.n :]
+        return self.tableau.data[:, self.n :]
 
     def symplectic_submatrix(self, q: int) -> npt.NDArray[np.int8]:
         """Get the 2x2 symplectic submatrix for a given qubit.
@@ -454,8 +450,8 @@ class PauliTableau:
         """
         return bool(
             np.array_equal(
-                self.tableau.matrix,
-                SymplecticMatrix.identity(self.n).matrix,
+                self.tableau.data,
+                SymplecticMatrix.identity(self.n).data,
             )
             and np.all(self.phase == 0)
         )
@@ -467,7 +463,7 @@ class PauliTableau:
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the stabilizer tableau."""
-        return f"PauliTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.matrix},\nphase={self.phase})"
+        return f"PauliTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.data},\nphase={self.phase})"
 
     def num_rows(self) -> int:
         """Return the number of rows in the stabilizer tableau."""
@@ -594,7 +590,7 @@ def complete_stabilizer_tableau_with_destabilizers(
             msg = f"Destabilizer construction failed for stabilizer at row {stab_row_idx}."
             raise ValueError(msg)
 
-        destabilizers.append(d_i.vector.copy())
+        destabilizers.append(d_i.data.copy())
 
     if len(destabilizers) != m:
         msg = f"Could not find {m} valid destabilizers, only found {len(destabilizers)}."
@@ -699,6 +695,7 @@ class CheckMatrix:
         if pauli_type not in {"X", "Z"}:
             msg = f"Check matrix type must be either 'X' or 'Z', got {pauli_type!r}."
             raise ValueError(msg)
+        assert matrix.ndim == 2, "Matrix must be 2D."
         self.matrix = matrix.copy()
         self.type = pauli_type
 

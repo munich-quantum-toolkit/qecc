@@ -190,7 +190,7 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
         tableau = PauliTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
 
     nq = tableau.n
-    mat = tableau.tableau.matrix.copy()
+    mat = tableau.tableau.data.copy()
     x_part = mat[:, :nq]
     z_part = mat[:, nq:]
 
@@ -363,8 +363,8 @@ def synthesize_encoding_circuit(
 
     gens_mat: npt.NDArray[np.int8] = np.vstack((
         code.symplectic,
-        code.x_logicals.tableau.matrix[additional_x_checks],
-        code.z_logicals.tableau.matrix[additional_z_checks],
+        code.x_logicals.tableau.data[additional_x_checks],
+        code.z_logicals.tableau.data[additional_z_checks],
     ))
     gens_phase: npt.NDArray[np.int8] = np.hstack((
         code.generators.phase,
@@ -372,8 +372,8 @@ def synthesize_encoding_circuit(
         np.zeros(len(additional_z_checks), dtype=np.int8),
     ))
     log_mat: npt.NDArray[np.int8] = np.vstack((
-        np.delete(code.x_logicals.tableau.matrix, additional_checks, axis=0),
-        np.delete(code.z_logicals.tableau.matrix, additional_checks, axis=0),
+        np.delete(code.x_logicals.tableau.data, additional_checks, axis=0),
+        np.delete(code.z_logicals.tableau.data, additional_checks, axis=0),
     ))
     log_phase: npt.NDArray[np.int8] = np.hstack((
         np.delete(code.x_logicals.phase, additional_checks, axis=0),
@@ -462,7 +462,7 @@ def optimize_tableau(tableau: PauliTableau, stab_rows: list[int]) -> PauliTablea
                 if i == j:
                     continue
                 tab = tableau.copy()
-                mat = tab.tableau.matrix
+                mat = tab.tableau.data
                 destabs = mat[:half][stab_rows]
                 stabs = mat[half:][stab_rows]
                 stabs[i] ^= stabs[j]
@@ -475,7 +475,7 @@ def optimize_tableau(tableau: PauliTableau, stab_rows: list[int]) -> PauliTablea
                     improved = True
             for j in range(len(logical_rows)):
                 tab = tableau.copy()
-                mat = tab.tableau.matrix
+                mat = tab.tableau.data
                 destabs = mat[:half][stab_rows]
                 stabs = mat[half:][stab_rows]
 
@@ -513,11 +513,11 @@ def combine_stabilizer_and_logical_tableau(stabilizers: PauliTableau, logicals: 
     m = stabilizers.num_rows()
 
     # Combine stabilizers and logicals into a single tableau
-    x_logicals = logicals.tableau.matrix[: logicals.num_rows() // 2]
-    z_logicals = logicals.tableau.matrix[logicals.num_rows() // 2 :]
+    x_logicals = logicals.tableau.data[: logicals.num_rows() // 2]
+    z_logicals = logicals.tableau.data[logicals.num_rows() // 2 :]
     x_logicals_phase = logicals.phase[: logicals.num_rows() // 2]
     z_logicals_phase = logicals.phase[logicals.num_rows() // 2 :]
-    combined_matrix = np.vstack([x_logicals, z_logicals, stabilizers.tableau.matrix])
+    combined_matrix = np.vstack([x_logicals, z_logicals, stabilizers.tableau.data])
 
     combined_phase = np.hstack([x_logicals_phase, z_logicals_phase, stabilizers.phase])
     combined_tableau = PauliTableau(combined_matrix, combined_phase)
