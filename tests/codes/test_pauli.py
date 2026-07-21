@@ -17,6 +17,7 @@ import stim
 from numpy.testing import assert_array_equal
 
 from mqt.qecc.codes.core.pauli import (
+    CheckMatrix,
     InvalidPauliError,
     Pauli,
     PauliTableau,
@@ -56,6 +57,20 @@ def test_pauli() -> None:
     p7 = Pauli.from_pauli_string("XI")
     p8 = Pauli.from_pauli_string("IZ")
     assert p8.commute(p7)
+
+    obj = "abc"
+    assert p1 != obj
+    assert_array_equal(p1.as_vector(), np.array([1, 0, 0, 0, 0, 1, 0], dtype=np.int8))
+    assert hash(p1) == hash((SymplecticVector(np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)), 0))
+
+
+def test_invalid_arithmetic() -> None:
+    """Test that invalid arithmetic operations raise an error."""
+    p1 = Pauli.from_pauli_string("XZ")
+    p2 = Pauli.from_pauli_string("ZIX")
+
+    with pytest.raises(InvalidPauliError):
+        p1 * p2
 
     with pytest.raises(IndexError):
         p1[3]
@@ -113,6 +128,9 @@ def test_stabilizer_tableau() -> None:
     t1 = StabilizerTableau.from_paulis([p1, p2, p3])
     t2 = StabilizerTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
     assert t1 == t2
+    assert str(t1) == "XIZ\nZIX\nIZX"
+    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.matrix},\nphase={t1.phase})"
+    assert not t1.is_row(Pauli.from_pauli_string("III"))
 
     t3 = StabilizerTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
     assert t1 != t3
@@ -121,6 +139,39 @@ def test_stabilizer_tableau() -> None:
     assert t1 != t4
 
     assert len(t1) == 3
+
+    with pytest.raises(AssertionError):
+        StabilizerTableau.from_matrix(np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
+
+    obj = "abc"
+    assert t1 != obj
+
+    assert_array_equal(
+        t1.to_numpy(), np.array([[1, 0, 0, 0, 0, 1, 0], [0, 0, 1, 1, 0, 0, 0], [0, 0, 1, 0, 1, 0, 0]], dtype=np.int8)
+    )
+
+    t5 = StabilizerTableau.from_matrix(np.array([[1, 0, 0, 0], [0, 1, 0, 1]], dtype=np.int8))
+    with pytest.raises(ValueError, match="full"):
+        t5.symplectic_submatrix(1)
+
+
+def test_stabilizer_tableau_to_css() -> None:
+    """Test the function to_css of the StabilizerTableau class."""
+    p1 = Pauli.from_pauli_string("XII")
+    p2 = Pauli.from_pauli_string("IXI")
+    p3 = Pauli.from_pauli_string("ZIZ")
+    p4 = Pauli.from_pauli_string("YIZ")
+
+    t1 = StabilizerTableau.from_paulis([p1, p2, p3])
+    assert t1.is_css()
+    cx, cz = t1.to_css()
+    assert_array_equal(cx.matrix, np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
+    assert_array_equal(cz.matrix, np.array([[1, 0, 1]], dtype=np.int8))
+
+    t2 = StabilizerTableau.from_paulis([p1, p2, p4])
+    assert not t2.is_css()
+    with pytest.raises(InvalidPauliError):
+        t2.to_css()
 
 
 @pytest.fixture
@@ -243,3 +294,26 @@ def test_complete_stabilizer_tableau_with_destabilizers():
                 assert destab_i.anticommute(stab_j)
             else:
                 assert destab_i.commute(stab_j)
+
+
+def test_check_matrix() -> None:
+    """Test the CheckMatrix class."""
+    matrix = np.eye(2, dtype=np.int8)
+    x_checks = CheckMatrix(matrix, "X")
+    z_checks = CheckMatrix(matrix, "Z")
+
+    with pytest.raises(ValueError, match="must be either 'X' or 'Z'"):
+        CheckMatrix(matrix, "Y")
+
+    assert x_checks.is_x_type()
+    assert not x_checks.is_z_type()
+    assert z_checks.is_z_type()
+    assert x_checks.is_identity()
+    assert x_checks.num_qubits() == 2
+    assert x_checks.num_rows() == 2
+    assert x_checks.copy() == x_checks
+    assert x_checks != z_checks
+    assert x_checks != "not a check matrix"
+    assert hash(x_checks) == hash(x_checks.copy())
+    assert x_checks.equ_span(z_checks)
+    assert repr(x_checks) == "CheckMatrix(type=X, matrix=\n[[1 0]\n [0 1]])"

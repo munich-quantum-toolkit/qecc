@@ -230,13 +230,13 @@ class PauliTableau:
         """Create a PauliTableau from a symplectic matrix.
 
         Args:
-            matrix: A 2n x 2n symplectic matrix representing the stabilizer tableau.
+            matrix: A r x 2n symplectic matrix representing the stabilizer tableau.
 
         Returns:
             A PauliTableau instance.
         """
-        if matrix.shape[0] % 2 != 0 or matrix.shape[0] != matrix.shape[1]:
-            msg = f"Expected a square 2nx2n symplectic matrix, got shape {matrix.shape}."
+        if matrix.shape[0] % 2 != 0:
+            msg = f"Expected a rx2n symplectic matrix, got shape {matrix.shape}."
             raise ValueError(msg)
 
         symplectic_matrix = SymplecticMatrix(matrix)
