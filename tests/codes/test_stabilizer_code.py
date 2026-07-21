@@ -362,3 +362,48 @@ def test_independent_of_generator_signs() -> None:
     minus = StabilizerCode(["-XXXX", "-ZZZZ"])
     assert plus.k == minus.k == 2
     assert plus.equal_stabilizer_group(minus)
+
+
+def test_inequality_due_to_incompatible_codes() -> None:
+    """Test that the stabilizer group is independent of the signs of the generators.
+
+    Note: Depending on the demand of a sign-aware matrix multiplication, this test can be removed.
+    """
+    c1 = StabilizerCode(["XXXX", "ZZZZ"])
+    c2 = StabilizerCode(["XX", "ZZ"])
+    assert c1.n == 4
+    assert c2.n == 2
+    assert c1.k == 2
+    assert c2.k == 0
+    assert not c1.equal_stabilizer_group(c2)
+    assert not c1.equal_logical_basis(c2)
+    assert c1.get_logical_mapping(c2) is None
+
+
+def test_logical_operator_checks() -> None:
+    """Test checks for logical and stabilizer operators."""
+    c1 = StabilizerCode(["XXXX", "ZZZZ"])
+    p_str = "XIII"
+    p = Pauli.from_pauli_string(p_str)
+
+    assert c1.is_z_logical(p) == c1.is_z_logical(p_str) == False
+    assert c1.is_x_logical(p) == c1.is_x_logical(p_str) == False
+    assert c1.is_logical(p) == c1.is_logical(p_str) == False
+
+    r_str = "ZZII"
+    r = Pauli.from_pauli_string(r_str)
+    assert c1.is_stabilizer(r) == c1.is_stabilizer(r_str) == False
+
+
+def test_string_representation() -> None:
+    """Test the human-readable string representation of a stabilizer code."""
+    code = StabilizerCode(["ZZ"], distance=1, z_logicals=["ZI"], x_logicals=["XX"])
+    assert str(code) == (
+        "Stabilizer Code: n=2, k=1, distance=1\n"
+        "Stabilizer Generators:\n"
+        "  ZZ\n"
+        "Logical Z operators:\n"
+        "  ZI\n"
+        "Logical X operators:\n"
+        "  XX"
+    )
