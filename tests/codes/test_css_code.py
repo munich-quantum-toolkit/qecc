@@ -168,6 +168,14 @@ def test_steane(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.i
     assert x_paulis == ["XXXXIII", "XIXIXIX", "IXXIXXI"]
     assert z_paulis == ["ZZZZIII", "ZIZIZIZ", "IZZIZZI"]
 
+    x_logicals = code.x_logicals_as_pauli_strings()
+    z_logicals = code.z_logicals_as_pauli_strings()
+    assert x_logicals is not None
+    assert z_logicals is not None
+    assert len(x_logicals) == len(z_logicals) == 1
+    assert x_logicals == ["XXIIXII"]
+    assert z_logicals == ["ZZIIZII"]
+
     hx_reordered = hx[::-1, :]
     code_reordered = CSSCode(distance=3, Hx=hx_reordered, Hz=hz)
     assert code.is_equivalent(code_reordered)
@@ -315,6 +323,12 @@ def test_css_code_from_invalid_pauli_string(tmp_path) -> None:  # type: ignore[n
         CSSCode.from_file(file_path)
 
 
+def test_css_code_from_invalid_name() -> None:
+    """Test that an error is raised for an invalid code name."""
+    with pytest.raises(InvalidCSSCodeError, match="Unknown code name"):
+        CSSCode.from_code_name("mqt-invalid-code")
+
+
 def test_set_logicals():
     """Test that set_logicals correctly sets the logical operators."""
     h = np.array([[1, 1, 1, 1]])
@@ -332,6 +346,18 @@ def test_set_logicals():
 
     assert np.array_equal(code.Lx, lxs)
     assert np.array_equal(code.Lz, lzs)
+
+    with pytest.raises(InvalidCSSCodeError, match="Number of logicals"):
+        code.set_x_logicals(lxs[:1])
+
+    with pytest.raises(InvalidCSSCodeError, match="Number of logicals"):
+        code.set_z_logicals(lzs[:1])
+
+    invalid = np.array([[1, 0, 0, 0], [1, 1, 0, 0]], dtype=np.int8)
+    with pytest.raises(InvalidCSSCodeError, match="commute"):
+        code.set_x_logicals(invalid)
+    with pytest.raises(InvalidCSSCodeError, match="commute"):
+        code.set_z_logicals(invalid)
 
 
 def test_trivial_code_syndromes_and_cosets() -> None:
