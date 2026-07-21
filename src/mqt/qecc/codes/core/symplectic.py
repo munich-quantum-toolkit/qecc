@@ -12,7 +12,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, overload
 
 import numpy as np
-from ldpc.mod2.mod2_numpy import rank
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -65,41 +64,6 @@ def symplectic_product(
     if lhs.ndim == 1 and rhs.ndim == 1:
         return np.int8(product)
     return product.astype(np.int8)
-
-
-def is_in_row_space(vector: npt.NDArray[np.int8], basis: npt.NDArray[np.int8]) -> bool:
-    """Check whether a binary vector lies in the binary row space of a basis.
-
-    Args:
-        vector: The binary vector to test.
-        basis: A binary matrix whose rows span the space.
-
-    Returns:
-        True if the vector is a binary linear combination of the basis rows.
-    """
-    if basis.shape[0] == 0:
-        return not np.any(vector % 2)
-    return bool(rank(np.vstack((basis, vector)) % 2) == rank(basis % 2))
-
-
-def are_in_same_coset(
-    lhs: npt.NDArray[np.int8],
-    rhs: npt.NDArray[np.int8],
-    basis: npt.NDArray[np.int8],
-) -> bool:
-    """Check whether two binary vectors lie in the same coset of a binary row space of a basis.
-
-    Equivalently, can rhs be obtained from lhs by adding a linear combination of the rows of basis.
-
-    Args:
-        lhs: The first binary vector.
-        rhs: The second binary vector.
-        basis: A binary matrix whose rows span the space.
-
-    Returns:
-        True if the difference of the vectors is in the row space of the basis.
-    """
-    return is_in_row_space((lhs + rhs) % 2, basis)
 
 
 class SymplecticVector:

@@ -16,9 +16,9 @@ import numpy as np
 
 from mqt.qecc import mod2
 
+from ...mod2 import are_in_same_coset, is_in_row_space
 from .pauli import CheckMatrix, PauliTableau
 from .stabilizer_code import StabilizerCode
-from .symplectic import are_in_same_coset, is_in_row_space
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt

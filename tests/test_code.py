@@ -37,10 +37,9 @@ from mqt.qecc.codes.core.pauli import (
 from mqt.qecc.codes.core.symplectic import (
     SymplecticMatrix,
     SymplecticVector,
-    are_in_same_coset,
-    is_in_row_space,
     symplectic_product,
 )
+from mqt.qecc.mod2 import are_in_same_coset, is_in_row_space
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt

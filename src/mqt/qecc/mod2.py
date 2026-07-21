@@ -116,3 +116,38 @@ def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
         ``matrix`` that spans the same row space.
     """
     return matrix[row_echelon(matrix.T)[3]]
+
+
+def is_in_row_space(vector: npt.NDArray[np.integer], basis: npt.NDArray[np.integer]) -> bool:
+    """Check whether a binary vector lies in the binary row space of a basis.
+
+    Args:
+        vector: The binary vector to test.
+        basis: A binary matrix whose rows span the space.
+
+    Returns:
+        True if the vector is a binary linear combination of the basis rows.
+    """
+    if basis.shape[0] == 0:
+        return not np.any(vector % 2)
+    return bool(rank(np.vstack((basis, vector)) % 2) == rank(basis % 2))
+
+
+def are_in_same_coset(
+    lhs: npt.NDArray[np.integer],
+    rhs: npt.NDArray[np.integer],
+    basis: npt.NDArray[np.integer],
+) -> bool:
+    """Check whether two binary vectors lie in the same coset of a binary row space of a basis.
+
+    Equivalently, can rhs be obtained from lhs by adding a linear combination of the rows of basis.
+
+    Args:
+        lhs: The first binary vector.
+        rhs: The second binary vector.
+        basis: A binary matrix whose rows span the space.
+
+    Returns:
+        True if the difference of the vectors is in the row space of the basis.
+    """
+    return is_in_row_space((lhs + rhs) % 2, basis)

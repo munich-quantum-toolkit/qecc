@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mqt.qecc.mod2 import nullspace, rank
+from mqt.qecc.mod2 import is_in_row_space, nullspace, rank
 
 from .pauli import Pauli, PauliTableau
-from .symplectic import is_in_row_space, symplectic_product
+from .symplectic import symplectic_product
 
 if TYPE_CHECKING:
     import numpy.typing as npt
