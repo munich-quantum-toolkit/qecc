@@ -23,6 +23,26 @@ from mqt.qecc.circuit_synthesis.simulation import SteaneNDFTStatePrepSimulator
 from mqt.qecc.codes import HexagonalColorCode, RotatedSurfaceCode, SquareOctagonColorCode
 
 
+def load_circuit_with_resets(path: Path) -> QuantumCircuit:
+    """Load a state-preparation circuit from a QASM file and prepend a reset on every qubit.
+
+    The synthesized QASM circuits initialize their qubits implicitly (``qreg q[n];``), so the
+    stim circuit produced from them contains no explicit reset (``R``) operations. The
+    circuit-level noise model attaches the initialization/state-preparation error
+    (``DEPOLARIZE1(p_init)``) *only* to reset operations, which means that without explicit
+    resets the state-preparation error is silently dropped from every noisy circuit.
+
+    Prepending a reset on all qubits fixes this: after conversion to stim each ``reset`` becomes
+    an ``R`` instruction, which the noise model then follows with ``DEPOLARIZE1(p_init)``. The
+    reset lands at the very start of the block (before the encoding gates), which is the correct
+    location for an initialization error.
+    """
+    qc = QuantumCircuit.from_qasm_file(path)
+    prep = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+    prep.reset(range(qc.num_qubits))
+    return prep.compose(qc)
+
+
 def main() -> None:
     """Run the logical error rate estimation for a given code and physical error rate."""
     available_codes = ["eve_20_2_6"]
@@ -45,6 +65,23 @@ def main() -> None:
     parser.add_argument("-n", "--n_errors", type=int, default=500, help="Number of errors to sample")
     parser.add_argument(
         "-d", "--distance", type=int, default=3, help="Code Distance (only required for surface and color codes)"
+    )
+    parser.add_argument(
+        "--shots",
+        type=int,
+        default=100000,
+        help="Total number of shots. Used as a hard cap when --fixed-shots is set.",
+    )
+    parser.add_argument("--shots_per_batch", type=int, default=100000, help="Number of shots per sampling batch.")
+    parser.add_argument(
+        "--fixed-shots",
+        dest="fixed_shots",
+        default=False,
+        action="store_true",
+        help=(
+            "Run exactly --shots shots and report whatever logical error rate results, instead of "
+            "sampling until --n_errors logical errors have been found (which is unbounded for low p)."
+        ),
     )
 
     args = parser.parse_args()
@@ -84,11 +121,11 @@ def main() -> None:
     circ_file_core = f"{code_name}_heuristic_"
 
     circuits = []
-    # load circuit from file
+    # load circuit from file (with explicit resets so that init noise is applied, see above)
     for id_ in [0, 1, 2, 3]:
         circ_file = circ_file_core + str(id_)
         path = prefix / code_name / (circ_file + ".qasm")
-        circuits.append(QuantumCircuit.from_qasm_file(path))
+        circuits.append(load_circuit_with_resets(path))
 
     sim = SteaneNDFTStatePrepSimulator(
         circ1=circuits[0],
@@ -100,10 +137,26 @@ def main() -> None:
     )
     p = args.p_error
     noise = CircuitLevelNoiseIdlingParallel(p, p, p * 2 / 3, p, p * args.p_idle_factor)
+    # at_least_min_errors=True  -> sample until n_errors logical errors are found (unbounded time)
+    # at_least_min_errors=False -> run exactly --shots shots and report whatever rate results
+    at_least_min_errors = not args.fixed_shots
     if args.x_errors:
-        res = sim.logical_error_rate(noise=noise, min_errors=args.n_errors)
+        res = sim.logical_error_rate(
+            noise=noise,
+            shots=args.shots,
+            shots_per_batch=args.shots_per_batch,
+            at_least_min_errors=at_least_min_errors,
+            min_errors=args.n_errors,
+        )
     else:
-        res = sim.secondary_logical_error_rate(noise=noise, p=p, min_errors=args.n_errors)
+        res = sim.secondary_logical_error_rate(
+            noise=noise,
+            p=p,
+            shots=args.shots,
+            shots_per_batch=args.shots_per_batch,
+            at_least_min_errors=at_least_min_errors,
+            min_errors=args.n_errors,
+        )
 
     print(",".join([str(x) for x in res]))
 
