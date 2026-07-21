@@ -20,7 +20,7 @@ from mqt.qecc.codes.core.symplectic import (
 )
 
 
-def test_symplectic() -> None:
+def test_symplectic_vector_arithmetic() -> None:
     """Test the SymplecticMatrix and SymplecticVector classes."""
     ones = SymplecticVector.ones(3)
     zeros = SymplecticVector.zeros(3)
@@ -39,23 +39,64 @@ def test_symplectic() -> None:
     u = SymplecticVector(np.array([0, 0, 1, 0, 0, 0]))
     assert v @ u == 1
 
+
+def test_symplectic_vector_validation() -> None:
+    """Test that SymplecticVector rejects invalid inputs."""
+    with pytest.raises(AssertionError, match="even"):
+        SymplecticVector(np.array([1, 0, 0], dtype=np.int8))
+    with pytest.raises(AssertionError, match="1D"):
+        SymplecticVector(np.zeros((1, 2), dtype=np.int8))
+
+
+def test_symplectic_vector_properties() -> None:
+    """Test that SymplecticVector rejects invalid inputs."""
+    vector = np.array([1, 0, 0, 0, 0, 1])
+    v = SymplecticVector(vector)
+
+    assert len(v) == 6
+    assert hash(v) == hash(vector.tobytes())
+    assert repr(v) == repr(vector)
+    assert_array_equal(v.copy(), v)
+
+
+def test_symplectic_matrix_arithmetic() -> None:
+    """Test the SymplecticMatrix class."""
     eye = SymplecticMatrix.symplectic_identity(3)
     zero_mat = SymplecticMatrix.zeros(6, 3)
     assert eye + eye == zero_mat
     assert eye - eye == zero_mat
 
-    vs = [v.vector, w.vector, u.vector, ones.vector, zeros.vector, v.vector]
+    vs = np.array([
+        [1, 0, 0, 0, 0, 1],
+        [0, 1, 0, 0, 0, 1],
+        [0, 0, 1, 0, 0, 0],
+        [1, 1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 1],
+    ])
     m = SymplecticMatrix(np.array(vs))
     assert eye @ m.transpose() == m
     assert m @ eye == m
+    assert repr(m) == repr(vs)
+
+    vector = SymplecticVector(vs[0])
+    assert eye @ vector == vector
 
     for i, row in enumerate(m):
         assert np.array_equal(row, vs[i])
 
-    assert m != obj
+    assert m != "abc"
     assert len(m) == 6
     assert m.shape == (6, 6)
     assert m.n == 3
+
+
+def test_symplectic_matrix_validation() -> None:
+    """Test that SymplecticMatrix rejects invalid inputs."""
+    with pytest.raises(AssertionError, match="even"):
+        SymplecticMatrix(np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
+    with pytest.raises(AssertionError, match="2D"):
+        SymplecticMatrix(np.zeros((1, 2, 6), dtype=np.int8))
 
 
 def test_symplectic_product_shapes() -> None:

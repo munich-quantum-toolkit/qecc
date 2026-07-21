@@ -71,6 +71,8 @@ class SymplecticVector:
 
     def __init__(self, vector: npt.NDArray[np.int8]) -> None:
         """Initialize the Symplectic Vector."""
+        assert vector.ndim == 1, "Vector must be 1D."
+        assert vector.shape[0] % 2 == 0, "Vector must have even length."
         self.vector = vector
         self.n = vector.shape[0] // 2
 
@@ -141,6 +143,7 @@ class SymplecticMatrix:
     def __init__(self, matrix: npt.NDArray[np.int8]) -> None:
         """Initialize the Symplectic Matrix."""
         assert matrix.ndim == 2, "Matrix must be 2D."
+        assert matrix.shape[1] % 2 == 0, "Matrix must have even width."
         self.matrix = matrix
         self.n = matrix.shape[1] // 2
         self.shape = matrix.shape
