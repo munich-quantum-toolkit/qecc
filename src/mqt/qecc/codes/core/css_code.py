@@ -94,7 +94,7 @@ class CSSCode(StabilizerCode):
 
         self.set_x_logicals(self.Lx)
         self.set_z_logicals(self.Lz)
-        self._check_code_correct()
+        self._check_logicals_correct()
 
     def x_checks_as_pauli_strings(self) -> list[str]:
         """Return the x checks as Pauli strings."""
