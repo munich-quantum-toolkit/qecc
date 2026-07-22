@@ -360,6 +360,14 @@ def test_set_logicals():
         code.set_z_logicals(invalid)
 
 
+def test_css_matrices_are_views_of_tableaus(steane_code: CSSCode) -> None:
+    """CSS check and logical matrices share storage with their canonical tableaus."""
+    assert np.shares_memory(steane_code.Hx, steane_code.generators.symplectic)
+    assert np.shares_memory(steane_code.Hz, steane_code.generators.symplectic)
+    assert np.shares_memory(steane_code.Lx, steane_code.x_logicals.symplectic)
+    assert np.shares_memory(steane_code.Lz, steane_code.z_logicals.symplectic)
+
+
 def test_trivial_code_syndromes_and_cosets() -> None:
     """Trivial codes (no checks) behave sensibly without special-case guards."""
     code = CSSCode.get_trivial_code(3)
