@@ -85,7 +85,7 @@ def test_invalid_arithmetic() -> None:
 )
 def test_is_css(tableau_matrix: npt.NDArray[np.int8], expected: bool) -> None:
     """Test the is_css method."""
-    tableau = StabilizerTableau(SymplecticMatrix(tableau_matrix))
+    tableau = PauliTableau(SymplecticMatrix(tableau_matrix))
     assert tableau.is_css() == expected
 
 
@@ -111,37 +111,37 @@ def test_get_x_and_z_parts(
 
 
 def test_stabilizer_tableau() -> None:
-    """Test the StabilizerTableau class."""
+    """Test the PauliTableau class."""
     with pytest.raises(InvalidPauliError):
-        StabilizerTableau.from_pauli_strings([])
+        PauliTableau.from_pauli_strings([])
 
     with pytest.raises(InvalidPauliError):
-        StabilizerTableau.from_paulis([])
+        PauliTableau.from_paulis([])
 
     m = SymplecticMatrix(np.array([[1, 0], [0, 1]]))
     with pytest.raises(InvalidPauliError):
-        StabilizerTableau(m, np.array([1]))
+        PauliTableau(m, np.array([1]))
 
     p1 = Pauli.from_pauli_string("XIZ")
     p2 = Pauli.from_pauli_string("ZIX")
     p3 = Pauli.from_pauli_string("IZX")
-    t1 = StabilizerTableau.from_paulis([p1, p2, p3])
-    t2 = StabilizerTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
+    t1 = PauliTableau.from_paulis([p1, p2, p3])
+    t2 = PauliTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
     assert t1 == t2
     assert str(t1) == "XIZ\nZIX\nIZX"
     assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase})"
     assert not t1.is_row(Pauli.from_pauli_string("III"))
 
-    t3 = StabilizerTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
+    t3 = PauliTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
     assert t1 != t3
 
-    t4 = StabilizerTableau.from_pauli_strings(["ZII"])
+    t4 = PauliTableau.from_pauli_strings(["ZII"])
     assert t1 != t4
 
     assert len(t1) == 3
 
     with pytest.raises(AssertionError):
-        StabilizerTableau.from_matrix(np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
+        PauliTableau.from_matrix(np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
 
     obj = "abc"
     assert t1 != obj
@@ -150,46 +150,46 @@ def test_stabilizer_tableau() -> None:
         t1.to_numpy(), np.array([[1, 0, 0, 0, 0, 1, 0], [0, 0, 1, 1, 0, 0, 0], [0, 0, 1, 0, 1, 0, 0]], dtype=np.int8)
     )
 
-    t5 = StabilizerTableau.from_matrix(np.array([[1, 0, 0, 0], [0, 1, 0, 1]], dtype=np.int8))
+    t5 = PauliTableau.from_matrix(np.array([[1, 0, 0, 0], [0, 1, 0, 1]], dtype=np.int8))
     with pytest.raises(ValueError, match="full"):
         t5.symplectic_submatrix(1)
 
 
 def test_stabilizer_tableau_to_css() -> None:
-    """Test the function to_css of the StabilizerTableau class."""
+    """Test the function to_css of the PauliTableau class."""
     p1 = Pauli.from_pauli_string("XII")
     p2 = Pauli.from_pauli_string("IXI")
     p3 = Pauli.from_pauli_string("ZIZ")
     p4 = Pauli.from_pauli_string("YIZ")
 
-    t1 = StabilizerTableau.from_paulis([p1, p2, p3])
+    t1 = PauliTableau.from_paulis([p1, p2, p3])
     assert t1.is_css()
     cx, cz = t1.to_css()
     assert_array_equal(cx.matrix, np.array([[1, 0, 0], [0, 1, 0]], dtype=np.int8))
     assert_array_equal(cz.matrix, np.array([[1, 0, 1]], dtype=np.int8))
 
-    t2 = StabilizerTableau.from_paulis([p1, p2, p4])
+    t2 = PauliTableau.from_paulis([p1, p2, p4])
     assert not t2.is_css()
     with pytest.raises(InvalidPauliError):
         t2.to_css()
 
 
 @pytest.fixture
-def identity_tableau() -> StabilizerTableau:
+def identity_tableau() -> PauliTableau:
     """Fixture for the identity stabilizer tableau."""
-    return StabilizerTableau.from_matrix(np.eye(2, dtype=np.int8))
+    return PauliTableau.from_matrix(np.eye(2, dtype=np.int8))
 
 
 @pytest.fixture
-def hadamard_tableau() -> StabilizerTableau:
+def hadamard_tableau() -> PauliTableau:
     """Fixture for the Hadamard stabilizer tableau."""
-    return StabilizerTableau.from_matrix(np.array([[0, 1], [1, 0]], dtype=np.int8))
+    return PauliTableau.from_matrix(np.array([[0, 1], [1, 0]], dtype=np.int8))
 
 
 @pytest.fixture
-def cnot_tableau() -> StabilizerTableau:
+def cnot_tableau() -> PauliTableau:
     """Fixture for the CNOT stabilizer tableau."""
-    return StabilizerTableau.from_matrix(
+    return PauliTableau.from_matrix(
         np.array(
             [
                 [1, 1, 0, 0],
@@ -213,9 +213,9 @@ def cnot_tableau() -> StabilizerTableau:
 def test_stabilizer_tableau_from_stim_tableau(
     stim_tableau: stim.Tableau, expected_tableau_fixture: str, request: pytest.FixtureRequest
 ) -> None:
-    """Test the from_stim_tableau method of StabilizerTableau."""
+    """Test the from_stim_tableau method of PauliTableau."""
     expected_tableau = request.getfixturevalue(expected_tableau_fixture)
-    tableau = StabilizerTableau.from_stim_tableau(stim_tableau)
+    tableau = PauliTableau.from_stim_tableau(stim_tableau)
     assert tableau == expected_tableau
 
 
@@ -230,15 +230,15 @@ def test_stabilizer_tableau_from_stim_tableau(
 def test_stabilizer_tableau_from_stim_circuit(
     stim_circuit: stim.Circuit, expected_tableau_fixture: str, request: pytest.FixtureRequest
 ) -> None:
-    """Test the from_stim_circuit method of StabilizerTableau."""
+    """Test the from_stim_circuit method of PauliTableau."""
     expected_tableau = request.getfixturevalue(expected_tableau_fixture)
-    tableau = StabilizerTableau.from_stim_circuit(stim_circuit)
+    tableau = PauliTableau.from_stim_circuit(stim_circuit)
     assert tableau == expected_tableau
 
 
 def test_complete_stabilizer_tableau_invalid_cases():
     """Test error handling for invalid inputs."""
-    stabs = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "YY"])
+    stabs = PauliTableau.from_pauli_strings(["XX", "ZZ", "YY"])
 
     with pytest.raises(ValueError, match="Cannot have more stabilizers than qubits"):
         complete_stabilizer_tableau_with_destabilizers(stabs)
@@ -254,7 +254,7 @@ def test_pauli_tableau_alias() -> None:
 
 def test_complete_stabilizer_tableau_with_destabilizers():
     """Test completing a stabilizer tableau with destabilizers."""
-    stabs = StabilizerTableau.from_pauli_strings(["ZZ"])
+    stabs = PauliTableau.from_pauli_strings(["ZZ"])
     completed = complete_stabilizer_tableau_with_destabilizers(stabs)
 
     assert completed.num_rows() == 2
@@ -263,7 +263,7 @@ def test_complete_stabilizer_tableau_with_destabilizers():
     stab = completed[1]
     assert destab.anticommute(stab)
 
-    stabs = StabilizerTableau.from_pauli_strings(["XXXXIII", "ZZZZIII"])
+    stabs = PauliTableau.from_pauli_strings(["XXXXIII", "ZZZZIII"])
     completed = complete_stabilizer_tableau_with_destabilizers(stabs)
 
     assert completed.num_rows() == 4
@@ -281,7 +281,7 @@ def test_complete_stabilizer_tableau_with_destabilizers():
         for j in range(i + 1, 2):
             assert completed[i].commute(completed[j])
 
-    stabs = StabilizerTableau.from_pauli_strings(["XII", "IZI", "IIX"])
+    stabs = PauliTableau.from_pauli_strings(["XII", "IZI", "IIX"])
     completed = complete_stabilizer_tableau_with_destabilizers(stabs)
 
     assert completed.num_rows() == 6
