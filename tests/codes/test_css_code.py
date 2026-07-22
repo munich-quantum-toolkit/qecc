@@ -71,6 +71,9 @@ def test_invalid_css_codes() -> None:
     with pytest.raises(InvalidCSSCodeError):
         CSSCode(distance=3)
 
+    with pytest.raises(InvalidCSSCodeError, match="does not match check-matrix width"):
+        CSSCode(Hx=hx, n=4)
+
 
 @pytest.mark.parametrize("checks", ["steane_code_checks", "rep_code_checks", "rep_code_checks_reverse"])
 def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:

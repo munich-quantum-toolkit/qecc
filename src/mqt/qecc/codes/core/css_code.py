@@ -57,8 +57,35 @@ class CSSCode(StabilizerCode):
                 hx = np.zeros((0, inferred_n), dtype=np.int8)
                 hz = Hz
 
+        num_qubits = hx.shape[1]
+        if n is not None and n != num_qubits:
+            msg = f"Given code size n={n} does not match check-matrix width {num_qubits}."
+            raise InvalidCSSCodeError(msg)
+        num_logicals = num_qubits - mod2.rank(hx) - mod2.rank(hz)
+
+        lx = Lx.copy() if Lx is not None else CSSCode._compute_logical(hz, hx)
+        lz = Lz.copy() if Lz is not None else CSSCode._compute_logical(hx, hz)
+
+        if Lx is None or Lz is None:
+            CSSCode._normalize_logicals(lx, lz, num_logicals)
+
+        if len(lx) == 0:
+            lx = np.zeros((0, num_qubits), dtype=np.int8)
+        if len(lz) == 0:
+            lz = np.zeros((0, num_qubits), dtype=np.int8)
+
+        generators = _tableau_from_css_checks(hx, hz)
+        x_logicals = PauliTableau.from_check_matrix(CheckMatrix(lx, "X"))
+        z_logicals = PauliTableau.from_check_matrix(CheckMatrix(lz, "Z"))
+
         self._num_x_checks = hx.shape[0]
-        super().__init__(_tableau_from_css_checks(hx, hz), distance)
+        super().__init__(
+            generators,
+            distance,
+            x_logicals=x_logicals,
+            z_logicals=z_logicals,
+            n=num_qubits,
+        )
 
         self.x_distance = x_distance if x_distance is not None else self.distance
         self.z_distance = z_distance if z_distance is not None else self.distance
@@ -66,21 +93,6 @@ class CSSCode(StabilizerCode):
         if self.x_distance < self.distance or self.z_distance < self.distance:
             msg = "The x and z distances must be greater than or equal to the distance"
             raise InvalidCSSCodeError(msg)
-
-        lx = Lx.copy() if Lx is not None else CSSCode._compute_logical(hz, hx)
-        lz = Lz.copy() if Lz is not None else CSSCode._compute_logical(hx, hz)
-
-        if Lx is None or Lz is None:
-            CSSCode._normalize_logicals(lx, lz, self.k)
-
-        if len(lx) == 0:
-            lx = np.zeros((0, self.n), dtype=np.int8)
-        if len(lz) == 0:
-            lz = np.zeros((0, self.n), dtype=np.int8)
-
-        self.set_x_logicals(lx)
-        self.set_z_logicals(lz)
-        self._check_logicals_correct()
 
     @property
     def Hx(self) -> npt.NDArray[np.int8]:  # noqa: N802
