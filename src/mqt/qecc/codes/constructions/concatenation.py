@@ -107,7 +107,7 @@ class ConcatenatedCode(StabilizerCode):
         return Pauli(concatenated, phase)
 
 
-# def _valid_logicals(lst: list[StabilizerTableau | None]) -> TypeGuard[list[StabilizerTableau]]:
+# def _valid_logicals(lst: list[PauliTableau | None]) -> TypeGuard[list[PauliTableau]]:
 #     return None not in lst
 
 

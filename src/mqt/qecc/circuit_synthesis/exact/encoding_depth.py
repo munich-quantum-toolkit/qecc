@@ -113,8 +113,8 @@ def _declare_clifford_depth_vars(
     if max_depth > 0:
         for row in range(num_rows):
             for q in range(n):
-                tableau_x[0, row, q] = bool(target.tableau.matrix[row, q])
-                tableau_z[0, row, q] = bool(target.tableau.matrix[row, q + n])
+                tableau_x[0, row, q] = bool(target.tableau.data[row, q])
+                tableau_z[0, row, q] = bool(target.tableau.data[row, q + n])
     return gate_vars, tableau_x, tableau_z
 
 

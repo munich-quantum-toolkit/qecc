@@ -14,14 +14,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mqt.qecc.mod2 import nullspace, rank
+from mqt.qecc.mod2 import is_in_row_space, nullspace, rank
 
-from .pauli import Pauli, StabilizerTableau
+from .pauli import Pauli, PauliTableau
+from .symplectic import symplectic_product
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-
-    from mqt.qecc.codes.core.symplectic import SymplecticVector
 
 
 class StabilizerCode:
@@ -29,10 +28,10 @@ class StabilizerCode:
 
     def __init__(
         self,
-        generators: StabilizerTableau | list[Pauli] | list[str],
+        generators: PauliTableau | list[Pauli] | list[str],
         distance: int | None = None,
-        z_logicals: StabilizerTableau | list[Pauli] | list[str] | None = None,
-        x_logicals: StabilizerTableau | list[Pauli] | list[str] | None = None,
+        z_logicals: PauliTableau | list[Pauli] | list[str] | None = None,
+        x_logicals: PauliTableau | list[Pauli] | list[str] | None = None,
         n: int | None = None,
     ) -> None:
         """Initialize the code.
@@ -45,15 +44,19 @@ class StabilizerCode:
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
         self.generators = self.get_generators(generators, n)
-        self.symplectic = self.generators.tableau.matrix
+        # check that the generators commute before computing log. operators for a more informative error message
+        self._check_stabilizers_commute()
 
         if n is None:
             self.n = self.generators.n
         else:
+            if n != self.generators.n:
+                msg = f"Given code size n={n} does not match generator width {self.generators.n}."
+                raise InvalidStabilizerCodeError(msg)
             self.n = n
 
         if self.generators.n_rows != 0:
-            self.k = self.n - rank(self.generators.as_matrix())
+            self.k = self.n - rank(self.generators.symplectic)
         else:
             self.k = self.n
 
@@ -62,13 +65,23 @@ class StabilizerCode:
             raise InvalidStabilizerCodeError(msg)
 
         self.distance = 1 if distance is None else distance  # default distance is 1
-        self.compute_logical_ops()
-        if z_logicals is not None:
+        if z_logicals is None and x_logicals is None:
+            l_x, l_z = self.compute_logical_ops()
+            self.x_logicals = self.get_generators(l_x, self.n)
+            self.z_logicals = self.get_generators(l_z, self.n)
+        elif z_logicals is not None and x_logicals is not None:
             self.z_logicals = self.get_generators(z_logicals, self.n)
-        if x_logicals is not None:
             self.x_logicals = self.get_generators(x_logicals, self.n)
+        else:
+            msg = "Both z_logicals and x_logicals must be provided together or both must be None."
+            raise InvalidStabilizerCodeError(msg)
 
-        self._check_code_correct()
+        self._check_logicals_correct()
+
+    @property
+    def symplectic(self) -> npt.NDArray[np.int8]:
+        """The binary symplectic matrix of the stabilizer generators."""
+        return self.generators.symplectic
 
     def __hash__(self) -> int:
         """Compute a hash for the stabilizer code."""
@@ -91,12 +104,16 @@ class StabilizerCode:
         )
 
     def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
-        """Check if two stabilizer codes have the same stabilizer group."""
+        """Check if two stabilizer codes have the same stabilizer group.
+
+        The comparison is over the symplectic supports of the generators;
+        generator signs are ignored. To include signs, there has to be a sign-aware matrix multiplication for PauliTableaus.
+        """
         if self.n != other.n:
             return False
 
-        self_matrix = self.generators.as_matrix()
-        other_matrix = other.generators.as_matrix()
+        self_matrix = self.generators.symplectic
+        other_matrix = other.generators.symplectic
         stabs_rnk = rank(self_matrix)
 
         return bool(stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix))))
@@ -178,36 +195,36 @@ class StabilizerCode:
         """
         if isinstance(error, str):
             error = Pauli.from_pauli_string(error)
-        vector: SymplecticVector = self.generators.tableau @ error.symplectic
-        return vector.vector
+        return np.asarray(symplectic_product(self.generators.symplectic, error.symplectic.data), dtype=np.int8)
 
     def stabs_as_pauli_strings(self) -> list[str]:
         """Return the stabilizers as Pauli strings."""
         return [str(p) for p in self.generators]
 
     def stabilizer_equivalent(self, p1: Pauli | str, p2: Pauli | str) -> bool:
-        """Check if two Pauli strings are equivalent up to stabilizers of the code."""
+        """Check if two Pauli strings are equivalent up to stabilizers of the code.
+
+        The comparison is over binary symplectic supports; phases are ignored.
+        """
         if isinstance(p1, str):
             p1 = Pauli.from_pauli_string(p1)
         if isinstance(p2, str):
             p2 = Pauli.from_pauli_string(p2)
-        return bool(
-            rank(np.vstack((self.generators.as_matrix(), p1.as_vector(), p2.as_vector())))
-            == rank(np.vstack((self.generators.as_matrix(), p1.as_vector())))
-        )
+        difference = (p1.symplectic.data + p2.symplectic.data) % 2
+        return is_in_row_space(difference, self.generators.symplectic)
 
-    def to_tableau(self) -> StabilizerTableau:
+    def to_tableau(self) -> PauliTableau:
         """Convert the stabilizer code to a tableau with logicals and stabilizers.
 
         Returns:
-            StabilizerTableau: A tableau with rows ordered as:
+            PauliTableau: A tableau with rows ordered as:
                 - X logical operators
                 - Z logical operators
                 - Stabilizer generators
         """
-        x_log_matrix = self.x_logicals.tableau.matrix
-        z_log_matrix = self.z_logicals.tableau.matrix
-        stab_matrix = self.generators.tableau.matrix
+        x_log_matrix = self.x_logicals.tableau.data
+        z_log_matrix = self.z_logicals.tableau.data
+        stab_matrix = self.generators.tableau.data
 
         combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
 
@@ -217,9 +234,16 @@ class StabilizerCode:
 
         combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
 
-        return StabilizerTableau(combined_matrix, combined_phases)
+        return PauliTableau(combined_matrix, combined_phases)
 
-    def _check_code_correct(self) -> None:
+    def _check_stabilizers_commute(self) -> None:
+        """Check that the stabilizer generators pairwise commute. Throws an exception if not."""
+        stabilizer_commutations = symplectic_product(self.generators.symplectic, self.generators.symplectic)
+        if not np.all(stabilizer_commutations == 0):
+            msg = "Stabilizer generators must commute with each other."
+            raise InvalidStabilizerCodeError(msg)
+
+    def _check_logicals_correct(self) -> None:
         """Check if the code is correct. Throws an exception if not."""
         if self.z_logicals.n != self.n:
             msg = "Logical operators must have the same number of qubits as the stabilizer generators."
@@ -248,29 +272,20 @@ class StabilizerCode:
             msg = "Logical X-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
 
-        def commutation_matrix(m1: np.ndarray, m2: np.ndarray) -> np.ndarray:
-            n = m1.shape[1] // 2
-            return ((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2
-
-        commutations = commutation_matrix(self.z_logicals.tableau.matrix, self.x_logicals.tableau.matrix)
+        commutations = symplectic_product(self.z_logicals.symplectic, self.x_logicals.symplectic)
         if not np.array_equal(commutations, np.eye(self.z_logicals.shape[0], dtype=np.int8)):
             msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator and vice versa."
             raise InvalidStabilizerCodeError(msg)
 
-        stabilizer_commutations = commutation_matrix(self.generators.tableau.matrix, self.generators.tableau.matrix)
-        if not np.all(stabilizer_commutations == 0):
-            msg = "Stabilizer generators must commute with each other."
-            raise InvalidStabilizerCodeError(msg)
-
     @staticmethod
     def get_generators(
-        generators: StabilizerTableau | list[Pauli] | list[str],
+        generators: PauliTableau | list[Pauli] | list[str],
         n: int | None = None,
-    ) -> StabilizerTableau:
-        """Get the stabilizer generators as a StabilizerTableau object.
+    ) -> PauliTableau:
+        """Get the stabilizer generators as a PauliTableau object.
 
         Args:
-            generators: The stabilizer generators as a StabilizerTableau object, a list of Pauli objects, or a list of Pauli strings.
+            generators: The stabilizer generators as a PauliTableau object, a list of Pauli objects, or a list of Pauli strings.
             n: The number of qubits in the code. Required if generators is an empty list.
         """
         if isinstance(generators, list):
@@ -278,12 +293,12 @@ class StabilizerCode:
                 if n is None:
                     msg = "Number of qubits must be given if no generators are provided."
                     raise ValueError(msg)
-                return StabilizerTableau.empty(n)
+                return PauliTableau.empty(n)
             if isinstance(generators[0], str):
-                return StabilizerTableau.from_pauli_strings(generators)  # ty: ignore[invalid-argument-type]
+                return PauliTableau.from_pauli_strings(generators)  # ty: ignore[invalid-argument-type]
             if isinstance(generators[0], Pauli):
-                return StabilizerTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
-        assert isinstance(generators, StabilizerTableau)
+                return PauliTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
+        assert isinstance(generators, PauliTableau)
         return generators
 
     @classmethod
@@ -293,23 +308,26 @@ class StabilizerCode:
         x_logicals: list[str] = ["I" * i + "X" + "I" * (n - i - 1) for i in range(n)]
         return StabilizerCode([], distance=1, z_logicals=z_logicals, x_logicals=x_logicals, n=n)
 
-    def compute_logical_ops(self) -> None:
+    def compute_logical_ops(self) -> tuple[PauliTableau, PauliTableau]:
         """Compute logical Z/X operators from stabilizer generators.
 
         Finds a basis of the centralizer modulo the stabilizers and canonicalizes it
-        into k symplectic pairs (Z̄_i, X̄_i). Stores results in self.z_logicals/self.x_logicals.
+        into k symplectic pairs (Z̄_i, X̄_i).
+
+        Returns:
+            The tuple (L_x, L_z) of logical X and Z operators as PauliTableau objects, ordered such that rows i represent X̄_i and Z̄_i.
         """
         if self.generators.n_rows == 0:
-            self.z_logicals = StabilizerTableau.from_pauli_strings([
+            z_logicals = PauliTableau.from_pauli_strings([
                 "I" * i + "Z" + "I" * (self.n - i - 1) for i in range(self.n)
             ])
-            self.x_logicals = StabilizerTableau.from_pauli_strings([
+            x_logicals = PauliTableau.from_pauli_strings([
                 "I" * i + "X" + "I" * (self.n - i - 1) for i in range(self.n)
             ])
-            return
+            return x_logicals, z_logicals
 
         n = self.n
-        mat = self.generators.tableau.matrix
+        mat = self.generators.symplectic
 
         identity = np.eye(n, dtype=np.int8)
         z0 = np.zeros((n, n), dtype=np.int8)
@@ -322,15 +340,10 @@ class StabilizerCode:
             if self.k > 0:
                 msg = f"Cannot compute logical operators: nullspace is empty (ns.size=0) but code has k={self.k} logical qubits. This would result in empty z_logicals and x_logicals, creating an inconsistent code state."
                 raise InvalidStabilizerCodeError(msg)
-            self.z_logicals = StabilizerTableau.empty(n)
-            self.x_logicals = StabilizerTableau.empty(n)
-            return
-
-        def mod2_rank(mat: np.ndarray) -> int:
-            return int(rank(mat % 2))
+            return PauliTableau.empty(n), PauliTableau.empty(n)
 
         base = mat.copy()
-        base_rank = mod2_rank(base)
+        base_rank = rank(base)
         target = 2 * self.k
 
         logical_basis: list[np.ndarray] = []
@@ -338,15 +351,12 @@ class StabilizerCode:
             if len(logical_basis) == target:
                 break
             test = np.vstack((base, v))
-            if mod2_rank(test) > base_rank:
+            if rank(test) > base_rank:
                 logical_basis.append(v.copy())
                 base = test
                 base_rank += 1
 
         logical_basis_arr = np.array(logical_basis, dtype=np.int8)
-
-        def symp(u: np.ndarray, v: np.ndarray) -> int:
-            return int((u[:n] @ v[n:] + u[n:] @ v[:n]) % 2)
 
         logs = logical_basis_arr.copy()
         vecs = [logs[i].copy() for i in range(logs.shape[0])]
@@ -356,9 +366,9 @@ class StabilizerCode:
         def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
             a = a.copy()
             for zp, xp in zip(zs, xs, strict=False):
-                if symp(a, xp):
+                if symplectic_product(a, xp):
                     a ^= zp
-                if symp(a, zp):
+                if symplectic_product(a, zp):
                     a ^= xp
             return a
 
@@ -375,7 +385,7 @@ class StabilizerCode:
                 if t == i or t in used:
                     continue
                 w_cand = ortho_against_pairs(vecs[t])
-                if symp(v, w_cand) == 1:
+                if symplectic_product(v, w_cand) == 1:
                     maybe_j = t
                     w = w_cand
                     break
@@ -386,7 +396,7 @@ class StabilizerCode:
 
             v = ortho_against_pairs(v)
             w = ortho_against_pairs(w)
-            if symp(v, w) != 1:
+            if symplectic_product(v, w) != 1:
                 i += 1
                 continue
 
@@ -394,9 +404,9 @@ class StabilizerCode:
                 if t in {i, j} or t in used:
                     continue
                 u = vecs[t]
-                if symp(u, w):
+                if symplectic_product(u, w):
                     u ^= v
-                if symp(u, v):
+                if symplectic_product(u, v):
                     u ^= w
                 vecs[t] = u
 
@@ -412,8 +422,7 @@ class StabilizerCode:
 
         z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
-        self.z_logicals = StabilizerTableau(z_mat, np.zeros((k,), dtype=np.int8))
-        self.x_logicals = StabilizerTableau(x_mat, np.zeros((k,), dtype=np.int8))
+        return PauliTableau(x_mat, np.zeros((k,), dtype=np.int8)), PauliTableau(z_mat, np.zeros((k,), dtype=np.int8))
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:

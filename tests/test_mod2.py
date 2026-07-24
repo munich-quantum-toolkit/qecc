@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.mod2 import nullspace, rank, row_basis, row_echelon
+from mqt.qecc.mod2 import are_in_same_coset, is_in_row_space, nullspace, rank, row_basis, row_echelon
 
 
 def test_row_echelon_empty_matrix() -> None:
@@ -106,3 +106,21 @@ def test_row_basis() -> None:
         assert any(np.array_equal(row, original) for original in matrix)
     # The basis spans the same row space as the full matrix.
     assert rank(np.vstack((matrix, basis))) == rank(matrix)
+
+
+def test_row_space_helpers() -> None:
+    """Test is_in_row_space and are_in_same_coset, including empty bases."""
+    basis = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
+    assert is_in_row_space(np.array([1, 0, 1], dtype=np.int8), basis)
+    assert not is_in_row_space(np.array([1, 0, 0], dtype=np.int8), basis)
+    assert is_in_row_space(np.zeros(3, dtype=np.int8), basis)
+
+    empty = np.zeros((0, 3), dtype=np.int8)
+    assert is_in_row_space(np.zeros(3, dtype=np.int8), empty)
+    assert not is_in_row_space(np.array([1, 0, 0], dtype=np.int8), empty)
+
+    e1 = np.array([1, 0, 0], dtype=np.int8)
+    e2 = np.array([0, 1, 1], dtype=np.int8)
+    assert are_in_same_coset(e1, (e1 + basis[0]) % 2, basis)
+    assert not are_in_same_coset(e1, e2, empty)
+    assert are_in_same_coset(e1, e1, empty)

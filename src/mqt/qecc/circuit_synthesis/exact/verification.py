@@ -47,13 +47,13 @@ def verify_clifford_unitary(circuit: CliffordIsometry, target: StabilizerTableau
     if actual.n_rows != 2 * n:
         return actual == target
 
-    act_x: npt.NDArray[np.int8] = actual.tableau.matrix[:n]
-    act_z: npt.NDArray[np.int8] = actual.tableau.matrix[n:]
+    act_x: npt.NDArray[np.int8] = actual.tableau.data[:n]
+    act_z: npt.NDArray[np.int8] = actual.tableau.data[n:]
     act_xp: npt.NDArray[np.int8] = actual.phase[:n]
     act_zp: npt.NDArray[np.int8] = actual.phase[n:]
 
-    tgt_x: npt.NDArray[np.int8] = target.tableau.matrix[:n]
-    tgt_z: npt.NDArray[np.int8] = target.tableau.matrix[n:]
+    tgt_x: npt.NDArray[np.int8] = target.tableau.data[:n]
+    tgt_z: npt.NDArray[np.int8] = target.tableau.data[n:]
     tgt_xp: npt.NDArray[np.int8] = target.phase[:n]
     tgt_zp: npt.NDArray[np.int8] = target.phase[n:]
 
@@ -117,9 +117,9 @@ def verify_clifford_isometry(
     if num_rows != expected_rows:
         return False
 
-    x_logicals = StabilizerTableau(target.tableau.matrix[:k, :], target.phase[:k])
-    z_logicals = StabilizerTableau(target.tableau.matrix[k : 2 * k, :], target.phase[k : 2 * k])
-    stabilizers = StabilizerTableau(target.tableau.matrix[2 * k :, :], target.phase[2 * k :])
+    x_logicals = StabilizerTableau(target.tableau.data[:k, :], target.phase[:k])
+    z_logicals = StabilizerTableau(target.tableau.data[k : 2 * k, :], target.phase[k : 2 * k])
+    stabilizers = StabilizerTableau(target.tableau.data[2 * k :, :], target.phase[2 * k :])
 
     circuit_code = circuit.get_code()
     target_code = StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals)

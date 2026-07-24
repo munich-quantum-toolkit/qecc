@@ -16,7 +16,7 @@ import numba as nb
 import numpy as np
 import stim
 
-from ..codes.core.pauli import StabilizerTableau
+from ..codes.core.pauli import PauliTableau
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -70,7 +70,7 @@ class TableauOperation(ABC):
         return f"{self.__class__.__name__}(qubits={self.qubits()})"
 
     @abstractmethod
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the operation to a stabilizer tableau.
 
         Args:
@@ -78,7 +78,7 @@ class TableauOperation(ABC):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+            PauliTableau: The resulting stabilizer tableau after applying the operation.
         """
 
     @abstractmethod
@@ -116,21 +116,21 @@ class Transvection(TableauOperation):
         self.j = j
         self.v = v
 
-    def apply_stabilizer_tableau_inplace(self, tableau: StabilizerTableau) -> None:
+    def apply_stabilizer_tableau_inplace(self, tableau: PauliTableau) -> None:
         """Apply the transvection operation to a stabilizer tableau."""
         n = tableau.n
-        mat = tableau.tableau.matrix
+        mat = tableau.tableau.data
 
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
         )
 
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the transvection operation to a stabilizer tableau."""
         out = tableau if inplace else tableau.copy()
 
         n = out.n
-        mat = out.tableau.matrix
+        mat = out.tableau.data
 
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v
@@ -244,7 +244,7 @@ class SingleQubitClifford(TableauOperation):
         self.qubit = qubit
         self.clifford = clifford
 
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the single-qubit Clifford operation to a stabilizer tableau.
 
         Args:
@@ -252,7 +252,7 @@ class SingleQubitClifford(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+            PauliTableau: The resulting stabilizer tableau after applying the operation.
         """
         q = self.qubit
 
@@ -317,8 +317,8 @@ class SingleQubitClifford(TableauOperation):
         Returns:
             BinaryMatrix: The resulting stabilizer tableau after applying the inverse operation.
         """
-        if not isinstance(tableau, StabilizerTableau):
-            msg = "SingleQubitClifford operations can only be applied to StabilizerTableau instances."
+        if not isinstance(tableau, PauliTableau):
+            msg = "SingleQubitClifford operations can only be applied to PauliTableau instances."
             raise TypeError(msg)
         q = self.qubit
 
@@ -473,7 +473,7 @@ class PauliOperation(TableauOperation):
         """
         return check_matrix if inplace else check_matrix.copy()  # Pauli operations do not change the check matrix
 
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the Pauli operation to a stabilizer tableau.
 
         Args:
@@ -481,7 +481,7 @@ class PauliOperation(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+            PauliTableau: The resulting stabilizer tableau after applying the operation.
         """
         out = tableau if inplace else tableau.copy()
         if self.pauli == "X":
@@ -540,7 +540,7 @@ class CNOT(TableauOperation):
             return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the CNOT operation to a stabilizer tableau.
 
         Args:
@@ -548,7 +548,7 @@ class CNOT(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+            PauliTableau: The resulting stabilizer tableau after applying the operation.
         """
         out = tableau if inplace else tableau.copy()
         out.apply_cx(self.control, self.target)
@@ -613,7 +613,7 @@ class Swap(TableauOperation):
             return self.apply_check_matrix(tableau, inplace=inplace)  # ty: ignore[invalid-argument-type]
         return self.apply_stabilizer_tableau(tableau, inplace=inplace)
 
-    def apply_stabilizer_tableau(self, tableau: StabilizerTableau, inplace: bool = False) -> StabilizerTableau:
+    def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the SWAP operation to a stabilizer tableau.
 
         Args:
@@ -621,7 +621,7 @@ class Swap(TableauOperation):
             inplace: If True, modifies the tableau in place. If False, returns a new tableau.
 
         Returns:
-            StabilizerTableau: The resulting stabilizer tableau after applying the operation.
+            PauliTableau: The resulting stabilizer tableau after applying the operation.
         """
         out = tableau if inplace else tableau.copy()
         out.apply_swap(self.qubit_a, self.qubit_b)

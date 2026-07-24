@@ -125,8 +125,8 @@ def test_sqrt_x_transition_matches_stim() -> None:
 
     for r in range(num_rows):
         for q in range(n):
-            solver.add(curr_x[r, q] == bool(init.tableau.matrix[r, q]))
-            solver.add(curr_z[r, q] == bool(init.tableau.matrix[r, q + n]))
+            solver.add(curr_x[r, q] == bool(init.tableau.data[r, q]))
+            solver.add(curr_z[r, q] == bool(init.tableau.data[r, q + n]))
 
     # Only qubit 0 is transformed; copy qubit 1 explicitly.
     sx = SqrtXGate(0)
@@ -141,8 +141,8 @@ def test_sqrt_x_transition_matches_stim() -> None:
         for q in range(n):
             sym_x = z3.is_true(model.eval(next_x[r, q], model_completion=True))
             sym_z = z3.is_true(model.eval(next_z[r, q], model_completion=True))
-            stim_x = bool(stim_tab.tableau.matrix[r, q])
-            stim_z = bool(stim_tab.tableau.matrix[r, q + n])
+            stim_x = bool(stim_tab.tableau.data[r, q])
+            stim_z = bool(stim_tab.tableau.data[r, q + n])
             assert sym_x == stim_x, f"X mismatch at row={r}, q={q}"
             assert sym_z == stim_z, f"Z mismatch at row={r}, q={q}"
 

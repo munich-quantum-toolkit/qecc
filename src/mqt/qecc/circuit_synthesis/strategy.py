@@ -15,7 +15,7 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from ..codes.core.pauli import CheckMatrix, StabilizerTableau
+from ..codes.core.pauli import CheckMatrix, PauliTableau
 from .cnot import GreedyCNOTGenerator
 from .elimination import EliminationStrategy, ParallelFilter
 from .rollout import (
@@ -170,12 +170,12 @@ def for_non_css(
     filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
-        if not isinstance(tbl, StabilizerTableau):
+        if not isinstance(tbl, PauliTableau):
             return False
         return is_terminal_transvection(tbl)
 
     def post_process_fn(ops: EliminationSequence, tbl: BinaryMatrix) -> tuple[EliminationSequence, BinaryMatrix]:
-        if not isinstance(tbl, StabilizerTableau):
+        if not isinstance(tbl, PauliTableau):
             return ops, tbl
         return reduce_single_qubit_gates_and_swaps(ops, tbl)
 
@@ -224,7 +224,7 @@ def for_non_css_with_rollout(
     filters = [ParallelFilter(n)] if optimization_criterion == "depth" else []
 
     def termination_criterion(tbl: BinaryMatrix) -> bool:
-        if not isinstance(tbl, StabilizerTableau):
+        if not isinstance(tbl, PauliTableau):
             return False
         return is_terminal_transvection(tbl)
 
@@ -248,7 +248,7 @@ def for_non_css_with_rollout(
         policy = NonAdditiveCachePolicy()
 
     def post_process_fn(ops: EliminationSequence, tbl: BinaryMatrix) -> tuple[EliminationSequence, BinaryMatrix]:
-        if not isinstance(tbl, StabilizerTableau):
+        if not isinstance(tbl, PauliTableau):
             return ops, tbl
         return reduce_single_qubit_gates_and_swaps(ops, tbl)
 

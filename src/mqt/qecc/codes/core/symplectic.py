@@ -20,17 +20,65 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
+def symplectic_product(
+    lhs: npt.NDArray[np.int8],
+    rhs: npt.NDArray[np.int8],
+) -> np.int8 | npt.NDArray[np.int8]:
+    """Compute the binary symplectic product of vectors or row matrices.
+
+    Both operands are interpreted in ``[X | Z]`` form, i.e. the first half of
+    each row is the X part and the second half is the Z part.
+
+    Args:
+        lhs: A vector of length ``2n`` or a matrix whose rows have length ``2n``.
+        rhs: A vector of length ``2n`` or a matrix whose rows have length ``2n``.
+
+    Returns:
+        A scalar for vector/vector input, a vector for vector/matrix or
+        matrix/vector input, and a matrix for matrix/matrix input.
+
+    Raises:
+        ValueError: If an operand is not one- or two-dimensional, has an odd or
+            zero width, or the operands represent different numbers of qubits.
+    """
+    widths = []
+    for name, operand in (("lhs", lhs), ("rhs", rhs)):
+        if operand.ndim not in {1, 2}:
+            msg = f"{name} must be one- or two-dimensional, got {operand.ndim} dimensions."
+            raise ValueError(msg)
+        width = operand.shape[-1]
+        if width == 0 or width % 2 != 0:
+            msg = f"{name} must have nonzero even width, got shape {operand.shape}."
+            raise ValueError(msg)
+        widths.append(width)
+    if widths[0] != widths[1]:
+        msg = f"Operands must represent the same number of qubits, got widths {widths[0]} and {widths[1]}."
+        raise ValueError(msg)
+    n = widths[0] // 2
+
+    lhs_x, lhs_z = lhs[..., :n], lhs[..., n:]
+    rhs_x, rhs_z = rhs[..., :n], rhs[..., n:]
+    if rhs.ndim == 2:
+        rhs_x, rhs_z = rhs_x.T, rhs_z.T
+    product = (lhs_x @ rhs_z + lhs_z @ rhs_x) % 2
+    if lhs.ndim == 1 and rhs.ndim == 1:
+        return np.int8(product)
+    return product.astype(np.int8)
+
+
 class SymplecticVector:
     """Symplectic Vector Class."""
 
     def __init__(self, vector: npt.NDArray[np.int8]) -> None:
         """Initialize the Symplectic Vector."""
-        self.vector = vector
+        assert vector.ndim == 1, "Vector must be 1D."
+        assert vector.shape[0] % 2 == 0, "Vector must have even length."
+        self.data = vector
         self.n = vector.shape[0] // 2
 
     def copy(self) -> SymplecticVector:
         """Return a copy of the vector."""
-        return SymplecticVector(self.vector.copy())
+        return SymplecticVector(self.data.copy())
 
     @classmethod
     def zeros(cls, n: int) -> SymplecticVector:
@@ -44,36 +92,33 @@ class SymplecticVector:
 
     def __add__(self, other: SymplecticVector) -> SymplecticVector:
         """Add two symplectic vectors."""
-        return SymplecticVector((self.vector + other.vector) % 2)
+        return SymplecticVector((self.data + other.data) % 2)
 
     def __sub__(self, other: SymplecticVector) -> SymplecticVector:
         """Subtract two symplectic vectors."""
-        return SymplecticVector((self.vector - other.vector) % 2)
+        return SymplecticVector((self.data - other.data) % 2)
 
     def __neg__(self) -> SymplecticVector:
         """Negate the vector."""
-        return SymplecticVector(-self.vector)
+        return SymplecticVector(-self.data)
 
     def __matmul__(self, other: SymplecticVector) -> int:
         """Compute the symplectic inner product."""
-        assert self.n == other.n, "Vectors must be of the same length."
-        return int(
-            (self.vector[: self.n] @ other.vector[self.n :] - self.vector[self.n :] @ other.vector[: self.n]) % 2
-        )
+        return int(symplectic_product(self.data, other.data))
 
     def __getitem__(self, key: int | slice) -> int | npt.NDArray[np.int8]:
         """Get the value of the vector at index key."""
-        return self.vector[key]
+        return self.data[key]
 
     def __setitem__(self, key: int | slice, value: int | npt.NDArray[np.int8]) -> None:
         """Set the value of the vector at index key."""
-        self.vector[key] = value
+        self.data[key] = value
 
     def __eq__(self, other: object) -> bool:
         """Check if two vectors are equal."""
         if not isinstance(other, SymplecticVector):
             return False
-        return np.array_equal(self.vector, other.vector)
+        return np.array_equal(self.data, other.data)
 
     def __ne__(self, other: object) -> bool:
         """Check if two vectors are not equal."""
@@ -81,15 +126,15 @@ class SymplecticVector:
 
     def __hash__(self) -> int:
         """Return the hash of the vector."""
-        return hash(self.vector.tobytes())
+        return hash(self.data.tobytes())
 
     def __repr__(self) -> str:
         """Return the string representation of the vector."""
-        return str(self.vector.__repr__())
+        return str(self.data.__repr__())
 
     def __len__(self) -> int:
         """Return the length of the vector."""
-        return len(self.vector)
+        return len(self.data)
 
 
 class SymplecticMatrix:
@@ -98,17 +143,14 @@ class SymplecticMatrix:
     def __init__(self, matrix: npt.NDArray[np.int8]) -> None:
         """Initialize the Symplectic Matrix."""
         assert matrix.ndim == 2, "Matrix must be 2D."
-        self.matrix = matrix
+        assert matrix.shape[1] % 2 == 0, "Matrix must have even width."
+        self.data = matrix
         self.n = matrix.shape[1] // 2
         self.shape = matrix.shape
 
-    def transpose(self) -> SymplecticMatrix:
-        """Return the transpose of the matrix."""
-        return SymplecticMatrix(self.matrix.T)
-
     def copy(self) -> SymplecticMatrix:
         """Return a copy of the matrix."""
-        return SymplecticMatrix(self.matrix.copy())
+        return SymplecticMatrix(self.data.copy())
 
     @classmethod
     def zeros(cls, n_rows: int, n: int) -> SymplecticMatrix:
@@ -135,21 +177,15 @@ class SymplecticMatrix:
 
     def __add__(self, other: SymplecticMatrix) -> SymplecticMatrix:
         """Add two symplectic matrices."""
-        return SymplecticMatrix((self.matrix + other.matrix) % 2)
+        return SymplecticMatrix((self.data + other.data) % 2)
 
     def __sub__(self, other: SymplecticMatrix) -> SymplecticMatrix:
         """Subtract two symplectic matrices."""
-        return SymplecticMatrix((self.matrix - other.matrix) % 2)
+        return SymplecticMatrix((self.data - other.data) % 2)
 
-    def __matmul__(self, other: SymplecticMatrix | SymplecticVector) -> Any:  # noqa: ANN401
-        """Compute the symplectic product of two matrices."""
-        assert self.n == other.n, "Matrices must be of the same size."
-        n = self.n
-        if isinstance(other, SymplecticVector):
-            return SymplecticVector((self.matrix[:, :n] @ other[n:] + self.matrix[:, n:] @ other[:n]) % 2)
-        m1 = self.matrix
-        m2 = other.matrix
-        return SymplecticMatrix(((m1[:, :n] @ m2[:, n:].T) + (m1[:, n:] @ m2[:, :n].T)) % 2)
+    def __matmul__(self, other: SymplecticMatrix | SymplecticVector) -> npt.NDArray[np.int8]:
+        """Compute the symplectic product with another matrix or vector."""
+        return np.asarray(symplectic_product(self.data, other.data), dtype=np.int8)
 
     @overload
     def __getitem__(self, key: int) -> npt.NDArray[np.int8]: ...
@@ -174,7 +210,7 @@ class SymplecticMatrix:
         key: int | slice | tuple[int, int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, list[int]],
     ) -> Any:
         """Get the value of the matrix at index key."""
-        return self.matrix[key]
+        return self.data[key]
 
     def __setitem__(
         self,
@@ -182,21 +218,21 @@ class SymplecticMatrix:
         value: npt.NDArray[np.int8] | np.int8,
     ) -> None:
         """Set the value of the matrix at index key."""
-        self.matrix[key] = value
+        self.data[key] = value
 
     def __repr__(self) -> str:
         """Return the string representation of the matrix."""
-        return str(self.matrix.__repr__())
+        return str(self.data.__repr__())
 
     def __iter__(self) -> Iterator[npt.NDArray[np.int8]]:
         """Iterate over the rows of the matrix."""
-        return self.matrix.__iter__()
+        return self.data.__iter__()
 
     def __eq__(self, other: object) -> bool:
         """Check if two matrices are equal."""
         if not isinstance(other, SymplecticMatrix):
             return False
-        return np.array_equal(self.matrix, other.matrix)
+        return np.array_equal(self.data, other.data)
 
     def __ne__(self, other: object) -> bool:
         """Check if two matrices are not equal."""
@@ -204,8 +240,8 @@ class SymplecticMatrix:
 
     def __hash__(self) -> int:
         """Return the hash of the matrix."""
-        return hash(self.matrix.tobytes())
+        return hash(self.data.tobytes())
 
     def __len__(self) -> int:
         """Return the number of rows in the matrix."""
-        return len(self.matrix)
+        return len(self.data)

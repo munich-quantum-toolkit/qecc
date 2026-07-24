@@ -160,7 +160,7 @@ def test_elimination_sequence_apply() -> None:
 def test_elimination_sequence_apply_inplace() -> None:
     """Test applying elimination sequence in-place."""
     tableau = StabilizerTableau.from_pauli_strings(["ZZ", "XX"])
-    original_matrix = tableau.tableau.matrix.copy()
+    original_matrix = tableau.tableau.data.copy()
 
     ops = [CNOT(0, 1)]
     seq = EliminationSequence(ops)
@@ -169,7 +169,7 @@ def test_elimination_sequence_apply_inplace() -> None:
 
     assert result is tableau
     assert isinstance(result, StabilizerTableau)
-    assert not np.array_equal(result.tableau.matrix, original_matrix)
+    assert not np.array_equal(result.tableau.data, original_matrix)
 
 
 def test_elimination_sequence_extend() -> None:

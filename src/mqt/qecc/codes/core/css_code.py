@@ -16,7 +16,8 @@ import numpy as np
 
 from mqt.qecc import mod2
 
-from .pauli import CheckMatrix, StabilizerTableau
+from ...mod2 import are_in_same_coset, is_in_row_space
+from .pauli import CheckMatrix, PauliTableau
 from .stabilizer_code import StabilizerCode
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -42,36 +43,55 @@ class CSSCode(StabilizerCode):
             if n is None:
                 msg = "If no check matrices are provided, the code size must be specified."
                 raise InvalidCSSCodeError(msg)
-            self.Hx = np.zeros((0, n), dtype=np.int8)
-            self.Hz = np.zeros((0, n), dtype=np.int8)
-            self.Lx = np.eye(n, dtype=np.int8)
-            self.Lz = np.eye(n, dtype=np.int8)
-            triv = StabilizerCode.get_trivial_code(n)
-            super().__init__(triv.generators, triv.distance, triv.x_logicals, triv.z_logicals)
-            return
-
-        self._check_valid_check_matrices(Hx, Hz)
-
-        if Hx is None:
-            assert Hz is not None
-            self.n = Hz.shape[1]
-            self.Hx = np.zeros((0, self.n), dtype=np.int8)
+            hx = np.zeros((0, n), dtype=np.int8)
+            hz = np.zeros((0, n), dtype=np.int8)
         else:
-            self.Hx = Hx
-        if Hz is None:
-            assert Hx is not None
-            self.n = Hx.shape[1]
-            self.Hz = np.zeros((0, self.n), dtype=np.int8)
+            self._check_valid_check_matrices(Hx, Hz)
+            if Hx is not None:
+                inferred_n = Hx.shape[1]
+                hx = Hx
+                hz = Hz if Hz is not None else np.zeros((0, inferred_n), dtype=np.int8)
+            else:
+                assert Hz is not None
+                inferred_n = Hz.shape[1]
+                hx = np.zeros((0, inferred_n), dtype=np.int8)
+                hz = Hz
+
+        num_qubits = hx.shape[1]
+        if n is not None and n != num_qubits:
+            msg = f"Given code size n={n} does not match check-matrix width {num_qubits}."
+            raise InvalidCSSCodeError(msg)
+        num_logicals = num_qubits - mod2.rank(hx) - mod2.rank(hz)
+
+        if (Lx is None) != (Lz is None):
+            msg = "Both Lx and Lz must be provided together or both must be None."
+            raise InvalidCSSCodeError(msg)
+
+        if Lx is not None and Lz is not None:
+            lx = Lx.copy()
+            lz = Lz.copy()
         else:
-            self.Hz = Hz
+            lx = CSSCode._compute_logical(hz, hx)
+            lz = CSSCode._compute_logical(hx, hz)
+            CSSCode._normalize_logicals(lx, lz, num_logicals)
 
-        z_padding = np.zeros(self.Hx.shape, dtype=np.int8)
-        x_padding = np.zeros(self.Hz.shape, dtype=np.int8)
+        if len(lx) == 0:
+            lx = np.zeros((0, num_qubits), dtype=np.int8)
+        if len(lz) == 0:
+            lz = np.zeros((0, num_qubits), dtype=np.int8)
 
-        x_padded = np.hstack([self.Hx, z_padding])
-        z_padded = np.hstack([x_padding, self.Hz])
-        phases = np.zeros((x_padded.shape[0] + z_padded.shape[0]), dtype=np.int8)
-        super().__init__(StabilizerTableau(np.vstack((x_padded, z_padded)), phases), distance)
+        generators = _tableau_from_css_checks(hx, hz)
+        x_logicals = PauliTableau.from_check_matrix(CheckMatrix(lx, "X"))
+        z_logicals = PauliTableau.from_check_matrix(CheckMatrix(lz, "Z"))
+
+        self._num_x_checks = hx.shape[0]
+        super().__init__(
+            generators,
+            distance,
+            x_logicals=x_logicals,
+            z_logicals=z_logicals,
+            n=num_qubits,
+        )
 
         self.x_distance = x_distance if x_distance is not None else self.distance
         self.z_distance = z_distance if z_distance is not None else self.distance
@@ -80,20 +100,25 @@ class CSSCode(StabilizerCode):
             msg = "The x and z distances must be greater than or equal to the distance"
             raise InvalidCSSCodeError(msg)
 
-        self.Lx = Lx if Lx is not None else CSSCode._compute_logical(self.Hz, self.Hx)
-        self.Lz = Lz if Lz is not None else CSSCode._compute_logical(self.Hx, self.Hz)
+    @property
+    def Hx(self) -> npt.NDArray[np.int8]:  # noqa: N802
+        """The X-check matrix as a view into the stabilizer generators."""
+        return self.generators.symplectic[: self._num_x_checks, : self.n]
 
-        if Lx is None or Lz is None:
-            self._normalize_logicals()
+    @property
+    def Hz(self) -> npt.NDArray[np.int8]:  # noqa: N802
+        """The Z-check matrix as a view into the stabilizer generators."""
+        return self.generators.symplectic[self._num_x_checks :, self.n :]
 
-        if len(self.Lx) == 0:
-            self.Lx = np.zeros((0, self.n), dtype=np.int8)
-        if len(self.Lz) == 0:
-            self.Lz = np.zeros((0, self.n), dtype=np.int8)
+    @property
+    def Lx(self) -> npt.NDArray[np.int8]:  # noqa: N802
+        """The logical X matrix as a view into the logical X operators."""
+        return self.x_logicals.get_x_part()
 
-        self.set_x_logicals(self.Lx)
-        self.set_z_logicals(self.Lz)
-        self._check_code_correct()
+    @property
+    def Lz(self) -> npt.NDArray[np.int8]:  # noqa: N802
+        """The logical Z matrix as a view into the logical Z operators."""
+        return self.z_logicals.get_z_part()
 
     def x_checks_as_pauli_strings(self) -> list[str]:
         """Return the x checks as Pauli strings."""
@@ -130,38 +155,28 @@ class CSSCode(StabilizerCode):
         return self.Hz @ error % 2
 
     def check_if_logical_x_error(self, residual: npt.NDArray[np.int8]) -> bool:
-        """Check if the residual is a logical error."""
+        """Check if the residual X error acts as a logical operator (anticommutes with some Z logical)."""
         return bool((self.Lz @ residual % 2 == 1).any())
 
     def check_if_x_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
-        """Check if the Pauli is a stabilizer."""
-        return bool(mod2.rank(np.vstack((self.Hx, pauli))) == mod2.rank(self.Hx))
+        """Check if the X-type Pauli (given by its support) is an X stabilizer."""
+        return is_in_row_space(pauli, self.Hx)
 
     def check_if_logical_z_error(self, residual: npt.NDArray[np.int8]) -> bool:
-        """Check if the residual is a logical error."""
-        return (self.Hx.shape[0] != 0) and bool((self.Lx @ residual % 2 == 1).any())
+        """Check if the residual Z error acts as a logical operator (anticommutes with some X logical)."""
+        return bool((self.Lx @ residual % 2 == 1).any())
 
     def check_if_z_stabilizer(self, pauli: npt.NDArray[np.int8]) -> bool:
-        """Check if the Pauli is a stabilizer."""
-        return (self.Hz.shape[0] != 0) and bool(mod2.rank(np.vstack((self.Hz, pauli))) == mod2.rank(self.Hz))
+        """Check if the Z-type Pauli (given by its support) is a Z stabilizer."""
+        return is_in_row_space(pauli, self.Hz)
 
     def stabilizer_eq_x_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
-        """Check if two X errors are in the same coset."""
-        if self.Hx.shape[0] == 0:
-            return bool(np.array_equal(error_1, error_2))
-        m1 = np.vstack([self.Hx, error_1])
-        m2 = np.vstack([self.Hx, error_2])
-        m3 = np.vstack([self.Hx, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        """Check if two X errors are in the same coset of the X stabilizers."""
+        return are_in_same_coset(error_1, error_2, self.Hx)
 
     def stabilizer_eq_z_error(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
-        """Check if two Z errors are in the same coset."""
-        if self.Hz.shape[0] == 0:
-            return bool(np.array_equal(error_1, error_2))
-        m1 = np.vstack([self.Hz, error_1])
-        m2 = np.vstack([self.Hz, error_2])
-        m3 = np.vstack([self.Hz, error_1, error_2])
-        return bool(mod2.rank(m1) == mod2.rank(m2) == mod2.rank(m3))
+        """Check if two Z errors are in the same coset of the Z stabilizers."""
+        return are_in_same_coset(error_1, error_2, self.Hz)
 
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""
@@ -305,7 +320,8 @@ class CSSCode(StabilizerCode):
 
         return CSSCode(x_stabs_array, z_stabs_array)
 
-    def _normalize_logicals(self) -> None:
+    @staticmethod
+    def _normalize_logicals(lx: npt.NDArray[np.int8], lz: npt.NDArray[np.int8], num_logicals: int) -> None:
         """Normalize the logical operators.
 
         The basis of logical operators computed by `_compute_logical` do not necessarily
@@ -313,24 +329,23 @@ class CSSCode(StabilizerCode):
         This method normalizes the logical operators such that each logical qubit
         is represented by a pair of logical X and Z operators that anti-commute
         only with each other, i.e. Lx[i]@Lz[j].T = 1 if i == j else 0.
-        Assumes that `_compute_logical` has already been called to compute `Lx` and `Lz`.
+        Assumes that `_compute_logical` has already been called to compute ``lx`` and ``lz``.
         """
-        k = self.Lx.shape[0]
-        assert k == self.Lz.shape[0], "Number of X and Z logicals must be the same."
+        assert lx.shape[0] == lz.shape[0], "Number of X and Z logicals must be the same."
 
-        for i in range(self.k):
-            xl = self.Lx[i]
-            anticommute_x = np.where(xl @ self.Lz.T % 2)[0]
+        for i in range(num_logicals):
+            xl = lx[i]
+            anticommute_x = np.where(xl @ lz.T % 2)[0]
             first = anticommute_x[0]
-            zl = self.Lz[first]
-            anticommute_z = np.where(zl @ self.Lx.T % 2)[0]
+            zl = lz[first]
+            anticommute_z = np.where(zl @ lx.T % 2)[0]
             for j in anticommute_x[1:]:
-                self.Lz[j] ^= zl
+                lz[j] ^= zl
 
             for j in anticommute_z:
                 if j != i:
-                    self.Lx[j] ^= xl
-            self.Lz[[i, first]] = self.Lz[[first, i]]
+                    lx[j] ^= xl
+            lz[[i, first]] = lz[[first, i]]
 
     def set_x_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
         """Set all X logical operators."""
@@ -343,8 +358,7 @@ class CSSCode(StabilizerCode):
             msg = "Logical operators must commute with the Z stabilizers"
             raise InvalidCSSCodeError(msg)
 
-        self.Lx = logicals.copy()
-        self.x_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lx, pauli_type="X"))
+        self.x_logicals = PauliTableau.from_check_matrix(CheckMatrix(logicals, pauli_type="X"))
 
     def set_z_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
         """Set all Z logical operators."""
@@ -357,8 +371,14 @@ class CSSCode(StabilizerCode):
             msg = "Logical operators must commute with the X stabilizers"
             raise InvalidCSSCodeError(msg)
 
-        self.Lz = logicals.copy()
-        self.z_logicals = StabilizerTableau.from_check_matrix(CheckMatrix(self.Lz, pauli_type="Z"))
+        self.z_logicals = PauliTableau.from_check_matrix(CheckMatrix(logicals, pauli_type="Z"))
+
+
+def _tableau_from_css_checks(hx: npt.NDArray[np.int8], hz: npt.NDArray[np.int8]) -> PauliTableau:
+    """Combine CSS check matrices into a Pauli tableau."""
+    x_rows = np.hstack((hx, np.zeros_like(hx)))
+    z_rows = np.hstack((np.zeros_like(hz), hz))
+    return PauliTableau(np.vstack((x_rows, z_rows)))
 
 
 def _is_css_binary_matrix_format(content: str) -> bool:
