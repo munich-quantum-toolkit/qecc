@@ -53,13 +53,17 @@ class CSSCode(StabilizerCode):
             self._check_valid_check_matrices(Hx, Hz)
             if Hx is not None:
                 inferred_n = Hx.shape[1]
-                hx = np.asarray(Hx, dtype=np.int8)
-                hz = np.asarray(Hz, dtype=np.int8) if Hz is not None else np.zeros((0, inferred_n), dtype=np.int8)
+                hx = np.asarray(mod2.row_basis(Hx), dtype=np.int8)
+                hz = (
+                    np.asarray(mod2.row_basis(Hz), dtype=np.int8)
+                    if Hz is not None
+                    else np.zeros((0, inferred_n), dtype=np.int8)
+                )
             else:
                 assert Hz is not None
                 inferred_n = Hz.shape[1]
                 hx = np.zeros((0, inferred_n), dtype=np.int8)
-                hz = np.asarray(Hz, dtype=np.int8)
+                hz = np.asarray(mod2.row_basis(Hz), dtype=np.int8)
 
         num_qubits = hx.shape[1]
         if n is not None and n != num_qubits:
@@ -88,7 +92,7 @@ class CSSCode(StabilizerCode):
         x_logicals = PauliTableau.from_check_matrix(CheckMatrix(lx, "X"))
         z_logicals = PauliTableau.from_check_matrix(CheckMatrix(lz, "Z"))
 
-        self._num_x_checks = hx.shape[0]
+        self._num_x_checks = mod2.rank(hx)
         super().__init__(
             generators,
             distance,

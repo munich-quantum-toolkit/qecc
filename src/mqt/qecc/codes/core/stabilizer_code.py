@@ -46,6 +46,7 @@ class StabilizerCode:
         self.generators = self.get_generators(generators, n)
         # check that the generators commute before computing log. operators for a more informative error message
         self._check_stabilizers_commute()
+        self.generators = self.generators.independent_rows()
 
         if n is None:
             self.n = self.generators.n

@@ -155,6 +155,17 @@ def test_stabilizer_tableau() -> None:
         t5.symplectic_submatrix(1)
 
 
+def test_independent_rows() -> None:
+    """Test that independent_rows returns a reduced copy with phases preserved."""
+    tableau = PauliTableau.from_pauli_strings(["ZII", "-IZI", "ZZI"])
+
+    reduced = tableau.independent_rows()
+
+    assert reduced == PauliTableau.from_pauli_strings(["ZII", "-IZI"])
+    assert tableau == PauliTableau.from_pauli_strings(["ZII", "-IZI", "ZZI"])
+    assert reduced is not tableau
+
+
 def test_stabilizer_tableau_to_css() -> None:
     """Test the function to_css of the PauliTableau class."""
     p1 = Pauli.from_pauli_string("XII")

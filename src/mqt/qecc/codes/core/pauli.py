@@ -456,6 +456,14 @@ class PauliTableau:
             and np.all(self.phase == 0)
         )
 
+    def independent_rows(self) -> PauliTableau:
+        """Return a new tableau containing an independent subset of the rows, phase-insensitive."""
+        independent_indices = mod2.row_echelon(self.tableau.data.T)[3]
+        return PauliTableau(
+            SymplecticMatrix(self.tableau.data[independent_indices].copy()),
+            self.phase[independent_indices].copy(),
+        )
+
     def __str__(self) -> str:
         """Return a string representation of the stabilizer tableau."""
         paulis = [str(self[i]) for i in range(self.n_rows)]
