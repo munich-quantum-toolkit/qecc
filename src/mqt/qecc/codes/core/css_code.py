@@ -63,10 +63,16 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
         num_logicals = num_qubits - mod2.rank(hx) - mod2.rank(hz)
 
-        lx = Lx.copy() if Lx is not None else CSSCode._compute_logical(hz, hx)
-        lz = Lz.copy() if Lz is not None else CSSCode._compute_logical(hx, hz)
+        if (Lx is None) != (Lz is None):
+            msg = "Both Lx and Lz must be provided together or both must be None."
+            raise InvalidCSSCodeError(msg)
 
-        if Lx is None or Lz is None:
+        if Lx is not None and Lz is not None:
+            lx = Lx.copy()
+            lz = Lz.copy()
+        else:
+            lx = CSSCode._compute_logical(hz, hx)
+            lz = CSSCode._compute_logical(hx, hz)
             CSSCode._normalize_logicals(lx, lz, num_logicals)
 
         if len(lx) == 0:

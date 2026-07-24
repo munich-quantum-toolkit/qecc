@@ -50,6 +50,9 @@ class StabilizerCode:
         if n is None:
             self.n = self.generators.n
         else:
+            if n != self.generators.n:
+                msg = f"Given code size n={n} does not match generator width {self.generators.n}."
+                raise InvalidStabilizerCodeError(msg)
             self.n = n
 
         if self.generators.n_rows != 0:

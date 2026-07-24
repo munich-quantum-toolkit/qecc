@@ -22,4 +22,4 @@ def test_bb_codes(n: int) -> None:
     assert code.n == n
     assert code.Hx is not None
     assert code.Hz is not None
-    assert np.all(code.Hx @ code.Hx.T % 2) == 0
+    assert np.all(code.Hx @ code.Hz.T % 2 == 0)

@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 
@@ -18,6 +20,9 @@ from mqt.qecc.codes.core.pauli import (
     InvalidPauliError,
     Pauli,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
@@ -90,6 +95,12 @@ def test_negative_distance() -> None:
     """Test that an error is raised if a negative distance is provided."""
     with pytest.raises(InvalidStabilizerCodeError):
         StabilizerCode(["ZZZZ", "XXXX"], distance=-1)
+
+
+def test_mismatched_n() -> None:
+    """Test that an error is raised if the explicit n does not match the generator width."""
+    with pytest.raises(InvalidStabilizerCodeError, match="does not match generator width"):
+        StabilizerCode(["ZZZZ", "XXXX"], n=5)
 
 
 def test_different_length_stabilizers() -> None:
@@ -221,7 +232,7 @@ def test_logical_mapping() -> None:
     assert mapping is None
 
 
-def test_stabilizer_code_from_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_stabilizer_code_from_file(tmp_path: Path) -> None:
     """Test that a stabilizer code can be constructed from a file."""
     file_content = "XZZXI\nIXZZX\nXIXZZ\nZXIXZ"
     file_path = tmp_path / "test_file.txt"
@@ -386,13 +397,17 @@ def test_logical_operator_checks() -> None:
     p_str = "XIII"
     p = Pauli.from_pauli_string(p_str)
 
-    assert c1.is_z_logical(p) == c1.is_z_logical(p_str) == False
-    assert c1.is_x_logical(p) == c1.is_x_logical(p_str) == False
-    assert c1.is_logical(p) == c1.is_logical(p_str) == False
+    assert not c1.is_z_logical(p)
+    assert not c1.is_z_logical(p_str)
+    assert not c1.is_x_logical(p)
+    assert not c1.is_x_logical(p_str)
+    assert not c1.is_logical(p)
+    assert not c1.is_logical(p_str)
 
     r_str = "ZZII"
     r = Pauli.from_pauli_string(r_str)
-    assert c1.is_stabilizer(r) == c1.is_stabilizer(r_str) == False
+    assert not c1.is_stabilizer(r)
+    assert not c1.is_stabilizer(r_str)
 
 
 def test_string_representation() -> None:

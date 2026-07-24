@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -33,6 +32,7 @@ from .synthesis import SynthesisConfig, synthesize_cnot, synthesize_non_css
 from .transvection import lexicographical_compare_np, score_symplectic
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Sequence
     from typing import Literal
 
     import numpy.typing as npt
@@ -186,8 +186,8 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
     Returns:
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
     """
-    if isinstance(tableau, Sequence):
-        tableau = PauliTableau.from_pauli_strings(tableau)  # ty: ignore[invalid-argument-type]
+    if not isinstance(tableau, PauliTableau):
+        tableau = PauliTableau.from_pauli_strings(tableau)
 
     nq = tableau.n
     mat = tableau.tableau.data.copy()

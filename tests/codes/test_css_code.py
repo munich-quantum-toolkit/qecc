@@ -75,6 +75,16 @@ def test_invalid_css_codes() -> None:
         CSSCode(Hx=hx, n=4)
 
 
+def test_partial_logicals_rejected(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]) -> None:
+    """Test that providing only one of Lx/Lz raises an error."""
+    hx, hz = steane_code_checks
+    lx = np.array([[1, 1, 0, 0, 1, 0, 0]], dtype=np.int8)
+    with pytest.raises(InvalidCSSCodeError, match="Both Lx and Lz must be provided together"):
+        CSSCode(distance=3, Hx=hx, Hz=hz, Lx=lx)
+    with pytest.raises(InvalidCSSCodeError, match="Both Lx and Lz must be provided together"):
+        CSSCode(distance=3, Hx=hx, Hz=hz, Lz=lx)
+
+
 @pytest.mark.parametrize("checks", ["steane_code_checks", "rep_code_checks", "rep_code_checks_reverse"])
 def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:
     """Test the logical operators of the CSSCode class."""
@@ -85,7 +95,7 @@ def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:
     assert code.Lx.shape[1] == code.Lz.shape[1] == code.n
     assert code.Lx.shape[0] == code.Lz.shape[0]
 
-    assert code.Lx @ code.Lz.T % 2 != 0
+    assert np.array_equal(code.Lx @ code.Lz.T % 2, np.eye(code.Lx.shape[0], dtype=np.int8))
 
     if code.Hz is not None:
         assert np.all(code.Lx @ code.Hz.T % 2 == 0)
