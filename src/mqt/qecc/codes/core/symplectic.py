@@ -48,7 +48,7 @@ def symplectic_product(
             raise ValueError(msg)
         width = operand.shape[-1]
         if width == 0 or width % 2 != 0:
-            msg = f"{name} must have even nonzero and even width, got shape {operand.shape}."
+            msg = f"{name} must have nonzero even width, got shape {operand.shape}."
             raise ValueError(msg)
         widths.append(width)
     if widths[0] != widths[1]:
@@ -183,10 +183,8 @@ class SymplecticMatrix:
         """Subtract two symplectic matrices."""
         return SymplecticMatrix((self.data - other.data) % 2)
 
-    def __matmul__(self, other: SymplecticMatrix | SymplecticVector) -> Any:  # noqa: ANN401
-        """Compute the symplectic product of two matrices."""
-        if isinstance(other, SymplecticVector):
-            return np.asarray(symplectic_product(self.data, other.data), dtype=np.int8)
+    def __matmul__(self, other: SymplecticMatrix | SymplecticVector) -> npt.NDArray[np.int8]:
+        """Compute the symplectic product with another matrix or vector."""
         return np.asarray(symplectic_product(self.data, other.data), dtype=np.int8)
 
     @overload

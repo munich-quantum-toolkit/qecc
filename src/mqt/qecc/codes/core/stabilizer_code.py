@@ -44,8 +44,8 @@ class StabilizerCode:
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
         self.generators = self.get_generators(generators, n)
-        # check for non-trivial stabilizers before computing log. operators for a more informative error message
-        self._check_nontrivial_stabilizer()
+        # check that the generators commute before computing log. operators for a more informative error message
+        self._check_stabilizers_commute()
 
         if n is None:
             self.n = self.generators.n
@@ -233,8 +233,8 @@ class StabilizerCode:
 
         return PauliTableau(combined_matrix, combined_phases)
 
-    def _check_nontrivial_stabilizer(self) -> None:
-        """Check if the stabilizer generators are non-trivial. Throws an exception if not."""
+    def _check_stabilizers_commute(self) -> None:
+        """Check that the stabilizer generators pairwise commute. Throws an exception if not."""
         stabilizer_commutations = symplectic_product(self.generators.symplectic, self.generators.symplectic)
         if not np.all(stabilizer_commutations == 0):
             msg = "Stabilizer generators must commute with each other."
