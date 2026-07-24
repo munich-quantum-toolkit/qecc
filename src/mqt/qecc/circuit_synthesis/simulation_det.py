@@ -430,6 +430,6 @@ def qiskit_to_qsample(qiskit_circuit: QuantumCircuit) -> qs.Circuit:
         if len(qargs) == 1:
             qubits = {qiskit_circuit.qubits.index(qargs[0])}
         else:
-            qubits = {qiskit_circuit.qubits.index(q) for q in qargs}
+            qubits = {tuple(qiskit_circuit.qubits.index(q) for q in qargs)}
         custom_circuit.append({gate_name: qubits})
     return qs.Circuit(custom_circuit, noisy=True)
