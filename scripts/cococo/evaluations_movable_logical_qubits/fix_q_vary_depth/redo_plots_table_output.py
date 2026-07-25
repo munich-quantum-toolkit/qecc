@@ -9,7 +9,7 @@
 
 import datetime
 import pathlib
-import pickle  # noqa: S403
+import pickle  # ruff:ignore[suspicious-pickle-import]
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,7 +65,7 @@ print("path: ", path)
 
 # reload
 with pathlib.Path(path).open("rb") as f:
-    saved = pickle.load(f)  # noqa: S301
+    saved = pickle.load(f)  # ruff:ignore[suspicious-pickle-usage]
 [results_list_st, results_list_opt, histories, layers_tot] = saved
 
 

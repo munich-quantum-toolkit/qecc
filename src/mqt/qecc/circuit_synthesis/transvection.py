@@ -72,7 +72,7 @@ class GreedyTransvectionGenerator(CandidateGenerator):
         for f in self.filters:
             f.reset()
 
-    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # ruff:ignore[unused-method-argument]
         """Update operation history and filters after applying an operation."""
         self.operation_history.append(op)
         for f in self.filters:

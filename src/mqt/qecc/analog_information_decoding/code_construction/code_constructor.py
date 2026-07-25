@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import json
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -61,7 +61,7 @@ def save_code(
 def run_compute_distances(codename: str) -> None:
     """Run compute distances bash script."""
     path = "generated_codes/" + codename
-    subprocess.run(["bash", "compute_distances.sh", path], check=False)  # noqa: S603, S607
+    subprocess.run(["bash", "compute_distances.sh", path], check=False)  # ruff:ignore[subprocess-without-shell-equals-true, start-process-with-partial-path]
 
 
 def _compute_distances(hx: NDArray[np.int32], hz: NDArray[np.int32], codename: str) -> None:

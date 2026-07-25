@@ -19,7 +19,7 @@ from mqt.qecc.cc_decoder.stim_interface.color_code_stim import gen_pcm_and_logic
 from mqt.qecc.cc_decoder.stim_interface.max_sat_sinter_decoder import sinter_decoders
 
 
-def generate_example_tasks() -> Any:  # noqa: ANN401
+def generate_example_tasks() -> Any:  # ruff:ignore[any-type]
     """Generate example stim tasks."""
     for p in np.arange(0.001, 0.005, 0.002):
         for d in [3]:

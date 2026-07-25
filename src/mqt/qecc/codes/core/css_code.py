@@ -29,14 +29,14 @@ class CSSCode(StabilizerCode):
 
     def __init__(
         self,
-        Hx: npt.NDArray[np.int8] | None = None,  # noqa: N803
-        Hz: npt.NDArray[np.int8] | None = None,  # noqa: N803
+        Hx: npt.NDArray[np.int8] | None = None,  # ruff:ignore[invalid-argument-name]
+        Hz: npt.NDArray[np.int8] | None = None,  # ruff:ignore[invalid-argument-name]
         distance: int | None = None,
         x_distance: int | None = None,
         z_distance: int | None = None,
         n: int | None = None,
-        Lx: npt.NDArray[np.int8] | None = None,  # noqa: N803
-        Lz: npt.NDArray[np.int8] | None = None,  # noqa: N803
+        Lx: npt.NDArray[np.int8] | None = None,  # ruff:ignore[invalid-argument-name]
+        Lz: npt.NDArray[np.int8] | None = None,  # ruff:ignore[invalid-argument-name]
     ) -> None:
         """Initialize the code."""
         if Hx is None and Hz is None:
@@ -101,22 +101,22 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
 
     @property
-    def Hx(self) -> npt.NDArray[np.int8]:  # noqa: N802
+    def Hx(self) -> npt.NDArray[np.int8]:  # ruff:ignore[invalid-function-name]
         """The X-check matrix as a view into the stabilizer generators."""
         return self.generators.symplectic[: self._num_x_checks, : self.n]
 
     @property
-    def Hz(self) -> npt.NDArray[np.int8]:  # noqa: N802
+    def Hz(self) -> npt.NDArray[np.int8]:  # ruff:ignore[invalid-function-name]
         """The Z-check matrix as a view into the stabilizer generators."""
         return self.generators.symplectic[self._num_x_checks :, self.n :]
 
     @property
-    def Lx(self) -> npt.NDArray[np.int8]:  # noqa: N802
+    def Lx(self) -> npt.NDArray[np.int8]:  # ruff:ignore[invalid-function-name]
         """The logical X matrix as a view into the logical X operators."""
         return self.x_logicals.get_x_part()
 
     @property
-    def Lz(self) -> npt.NDArray[np.int8]:  # noqa: N802
+    def Lz(self) -> npt.NDArray[np.int8]:  # ruff:ignore[invalid-function-name]
         """The logical Z matrix as a view into the logical Z operators."""
         return self.z_logicals.get_z_part()
 
@@ -185,7 +185,7 @@ class CSSCode(StabilizerCode):
         )
 
     @staticmethod
-    def _check_valid_check_matrices(Hx: npt.NDArray[np.int8] | None, Hz: npt.NDArray[np.int8] | None) -> None:  # noqa: N803
+    def _check_valid_check_matrices(Hx: npt.NDArray[np.int8] | None, Hz: npt.NDArray[np.int8] | None) -> None:  # ruff:ignore[invalid-argument-name]
         """Check if the code is a valid CSS code."""
         if Hx is not None and Hz is not None:
             if Hx.shape[1] != Hz.shape[1]:

@@ -71,7 +71,7 @@ class SingleShotSimulator:
         analog_info: bool = False,
         cutoff: int = 0,
         analog_tg: bool = False,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Initialize simulator."""
         set_seed(seed)
@@ -312,8 +312,8 @@ class SingleShotSimulator:
     def _decode_ss_no_meta(
         self,
         syndrome_w_err: NDArray[np.float64],
-        analog_tg_decoder: Any,  # noqa: ANN401
-        standard_decoder: Any,  # noqa: ANN401
+        analog_tg_decoder: Any,  # ruff:ignore[any-type]
+        standard_decoder: Any,  # ruff:ignore[any-type]
         bit_err_channel: NDArray[np.float64],
         sigma: float,
     ) -> tuple[NDArray[np.int32], int]:
@@ -339,7 +339,7 @@ class SingleShotSimulator:
     def _decode_ss_with_meta(
         self,
         syndrome_w_err: NDArray[np.float64],
-        ss_bpd: Any,  # noqa: ANN401
+        ss_bpd: Any,  # ruff:ignore[any-type]
         meta_pcm: NDArray[np.int32],
         bit_err_channel: NDArray[np.float64],
         sigma: float,
@@ -376,7 +376,7 @@ class SingleShotSimulator:
 
     def _ss_analog_tg_decoding(
         self,
-        decoder: Any,  # noqa: ANN401
+        decoder: Any,  # ruff:ignore[any-type]
         analog_syndrome: NDArray[np.float64],
         meta_pcm: NDArray[np.int32],
         bit_err_channel: NDArray[np.float64],
@@ -457,7 +457,7 @@ class SingleShotSimulator:
         self,
         syndrome_w_err: NDArray[np.float64],
         meta_pcm: NDArray[np.int32],
-        m_bp: Any,  # noqa: ANN401
+        m_bp: Any,  # ruff:ignore[any-type]
     ) -> NDArray[np.int32]:
         """Decodes the noisy syndrome using the meta code.
 
@@ -479,7 +479,7 @@ class SingleShotSimulator:
 
     def _analog_tg_decoding(
         self,
-        decoder: Any,  # noqa: ANN401
+        decoder: Any,  # ruff:ignore[any-type]
         analog_syndrome: NDArray[np.float64],
         hard_syndrome: NDArray[np.int32],
         bit_err_channel: NDArray[np.float64],
@@ -652,7 +652,7 @@ class SingleShotSimulator:
         # cutoff: int = 0,
         # sigma: float = 0.0,
         # analog_info: bool = False,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:  # ruff:ignore[any-type]
         """Initialize decoder objects.
 
         If analog_info is activated, the SoftInfoBpDecoder is used instead of the BPOSD decoder.
@@ -746,7 +746,7 @@ class SingleShotSimulator:
                     self.code_params,
                     self.eb_precision,
                 ):
-                    print("Result has converged.")  # noqa: T201
+                    print("Result has converged.")  # ruff:ignore[print]
                     break
 
         x_ler, x_ler_eb, x_wer, x_wer_eb = calculate_error_rates(x_success_cnt, runs, self.code_params)

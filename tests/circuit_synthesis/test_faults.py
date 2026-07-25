@@ -549,7 +549,7 @@ def test_filter_faults_no_match():
     fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
 
     # Define a predicate that no fault satisfies
-    def always_false(fault: np.ndarray) -> bool:  # noqa: ARG001
+    def always_false(fault: np.ndarray) -> bool:  # ruff:ignore[unused-function-argument]
         return False
 
     # Apply the filter
@@ -567,7 +567,7 @@ def test_filter_faults_all_match():
     fault_set.add_fault(np.array([0, 1, 1], dtype=np.int8))  # Weight = 2
 
     # Define a predicate that all faults satisfy
-    def always_true(fault: np.ndarray) -> bool:  # noqa: ARG001
+    def always_true(fault: np.ndarray) -> bool:  # ruff:ignore[unused-function-argument]
         return True
 
     # Apply the filter

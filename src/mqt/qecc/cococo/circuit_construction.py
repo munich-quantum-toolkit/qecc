@@ -23,7 +23,7 @@ def create_random_sequential_circuit_dag(
 
     takes layers from perspective of DAG into account
     """
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
 
     dag = DAGCircuit()
     qreg = QuantumRegister(q, "q")
@@ -61,7 +61,7 @@ def create_random_sequential_circuit_dag(
     temp_reuse = []
     temp_noreuse = []
     for pair in layer_int_temp:
-        chosen = random.choice(pair)  # noqa: S311
+        chosen = random.choice(pair)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
         temp_reuse.append(chosen)
         other = pair[0] if chosen == pair[1] else pair[1]
         temp_noreuse.append(other)
@@ -103,7 +103,7 @@ def generate_max_parallel_circuit(q: int, min_depth: int, seed: int = 45) -> lis
     To make it less arbitrary, you should choose min depth to be a multiple of q, i.e. s*q, s.t. you get 2s layers
     Otherwise, the last layer might be a bit empty.
     """
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
 
     gates_counter = 0
     if q < 2 or q % 2 != 0:
@@ -130,7 +130,7 @@ def generate_min_parallel_circuit(q: int, min_depth: int, layer_size: int, seed:
     NO parallelism at all and then, the hc and routing would trivially have no benefit and no parallelism.
     Hence, choose a layer_size, maybe 2 or 3 which ensures that there are max. 2 or 3 gates per layer until a qubit is shared again.
     """
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
 
     num_layers = min_depth // layer_size
     lst = []
@@ -213,7 +213,7 @@ def generate_random_circuit(
     Returns:
         list[tuple[int, int]]: random circuit of cnot gates and t gates.
     """
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
 
     if q < 2:
         msg = "q must be at least 2 to form pairs."

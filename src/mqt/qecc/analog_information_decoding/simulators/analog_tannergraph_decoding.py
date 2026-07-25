@@ -119,7 +119,7 @@ class AtdSimulator:
         experiment: str = "atd",
         decoding_method: str = "atd",
         output_path: str = "./",
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Initialize the simulator."""
         if bias is None:
@@ -179,7 +179,7 @@ class AtdSimulator:
 
         # setup decoders
         if self.decoding_method == "atd":
-            Decoder = AnalogTannergraphDecoder  # noqa: N806
+            Decoder = AnalogTannergraphDecoder  # ruff:ignore[non-lowercase-variable-in-function]
 
         # single-sided error only, no bias
         self.full_error_channel = simulation_utils.error_channel_setup(
@@ -253,7 +253,7 @@ class AtdSimulator:
                     self.code_params,
                     self.eb_precision,
                 ):
-                    print("Result has converged.")  # noqa: T201
+                    print("Result has converged.")  # ruff:ignore[print]
                     break
 
         x_ler, x_ler_eb, x_wer, x_wer_eb = calculate_error_rates(x_success_cnt, runs, self.code_params)

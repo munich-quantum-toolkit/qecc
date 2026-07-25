@@ -14,7 +14,7 @@ import datetime
 import itertools
 import logging
 import pathlib
-import pickle  # noqa: S403
+import pickle  # ruff:ignore[suspicious-pickle-import]
 import random
 import sys
 import warnings
@@ -717,7 +717,7 @@ class TeleportationRouter(BasicRouter):
             # choose some node on the path randomly
             flag = False
             pathcopy = path.copy()
-            path = path[  # noqa: PLW2901
+            path = path[  # ruff:ignore[redefined-loop-name]
                 1:-1
             ]  # remove last and first node from the list because those are logical data patches
             random.shuffle(path)
@@ -731,7 +731,7 @@ class TeleportationRouter(BasicRouter):
                 if not flag:
                     continue  # skip this path if no reachable node found
                 # select a random reachable node
-                terminal_node: pos = random.choice(reachable_nodes)  # noqa: S311
+                terminal_node: pos = random.choice(reachable_nodes)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
                 # determine the path between the node which is ensured on the path and the terminal
                 path_steiner: list[pos] = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
                 paths_lst_temp: list[list[pos]] = []  # collect all paths from path1[1:-1] to new_terminal
@@ -739,13 +739,13 @@ class TeleportationRouter(BasicRouter):
                     try:
                         path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
                         paths_lst_temp.append(path_temp)
-                    except (nx.NetworkXNoPath, nx.NodeNotFound):  # noqa: PERF203
+                    except (nx.NetworkXNoPath, nx.NodeNotFound):  # ruff:ignore[try-except-in-loop]
                         pass
                 if paths_lst_temp:
                     path_steiner = min(paths_lst_temp, key=len)
             elif steiner_init_type == "on_path_random":
                 # just choose a random terminal ON the path
-                terminal_node = random.choice(path)  # noqa: S311
+                terminal_node = random.choice(path)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
                 # terminal on the path does not need an extended path, but list should not be empty, otherwise error.
                 path_steiner = [terminal_node]
             else:
@@ -837,14 +837,14 @@ class TeleportationRouter(BasicRouter):
                 break
             path_terminal: list[pos] = []
             while True:
-                new_terminal = random.choice(list(neighborhood))  # noqa: S311
+                new_terminal = random.choice(list(neighborhood))  # ruff:ignore[suspicious-non-cryptographic-random-usage]
                 if new_terminal == terminal:  # do not want same terminal again
                     continue
                 try:
                     # path2[0] is the connecting node on the path
                     path_terminal = nx.dijkstra_path(g_temp_temp, path2[0], new_terminal)
                 except nx.NetworkXNoPath:
-                    warnings.warn("If this is called you need to check why this is happening.")  # noqa: B028
+                    warnings.warn("If this is called you need to check why this is happening.")  # ruff:ignore[no-explicit-stacklevel]
                 if path_terminal:
                     break
 
@@ -855,7 +855,7 @@ class TeleportationRouter(BasicRouter):
                 try:
                     path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, new_terminal)
                     paths_lst_temp.append(path_temp)
-                except nx.NetworkXNoPath:  # noqa: PERF203
+                except nx.NetworkXNoPath:  # ruff:ignore[try-except-in-loop]
                     pass
             if paths_lst_temp:
                 path_terminal = min(paths_lst_temp, key=len)
@@ -899,7 +899,7 @@ class TeleportationRouter(BasicRouter):
                 g_temp_temp = g_temp.copy()
                 g_temp_temp.remove_nodes_from(other_paths)
                 for path_label, path in vdp_dict.items():
-                    if isinstance(path_label, str):  # noqa: SIM108
+                    if isinstance(path_label, str):  # ruff:ignore[if-else-block-instead-of-if-exp]
                         nodes_to_delete = path[1:]  # for idle move you need to delete more
                     else:
                         nodes_to_delete = path[1:-1]
@@ -911,7 +911,7 @@ class TeleportationRouter(BasicRouter):
                     try:
                         path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, terminal)
                         paths_lst_temp.append(path_temp)
-                    except nx.NetworkXNoPath:  # noqa: PERF203
+                    except nx.NetworkXNoPath:  # ruff:ignore[try-except-in-loop]
                         pass
                 if paths_lst_temp:
                     path_terminal = min(paths_lst_temp, key=len)
@@ -951,8 +951,8 @@ class TeleportationRouter(BasicRouter):
         next_layers: list[Sequence[pos | tuple[pos, pos]]],
         init_steiner_dct: SteinerType,
         max_iters: int,
-        T_start: float,  # noqa: N803
-        T_end: float,  # noqa: N803
+        T_start: float,  # ruff:ignore[invalid-argument-name]
+        T_end: float,  # ruff:ignore[invalid-argument-name]
         alpha: float,
         k_lookahead: int,
         radius: int,
@@ -1028,7 +1028,7 @@ class TeleportationRouter(BasicRouter):
         steiner_history = []
         graph_history = []
 
-        T = T_start  # noqa: N806
+        T = T_start  # ruff:ignore[non-lowercase-variable-in-function]
         for _ in range(max_iters):
             candidate, g_temp_temp = self.perturbation(steiner_dct, radius, vdp_dict)
             graph_history.append(g_temp_temp)
@@ -1052,7 +1052,7 @@ class TeleportationRouter(BasicRouter):
                 if len(key_candidate) == 3:
                     (a, b, terminal) = key_candidate
                     # randomly choose whether we shift control to ancilla or target to ancilla
-                    move_type = random.choice(["target", "control"])  # noqa: S311
+                    move_type = random.choice(["target", "control"])  # ruff:ignore[suspicious-non-cryptographic-random-usage]
                     move_type_lst_temp.update({(a, b, terminal): move_type})
                     if move_type == "target":
                         for j, next_layer in enumerate(next_layers_copy):  # update all future layers
@@ -1100,7 +1100,7 @@ class TeleportationRouter(BasicRouter):
             # except ValueError:
             #    continue #skip if some config locks the qubits such that you cannot even evaluate count crossings
             delta = candidate_cost - cost
-            if delta < 0 or random.random() < np.exp(-delta / T):  # noqa: S311
+            if delta < 0 or random.random() < np.exp(-delta / T):  # ruff:ignore[suspicious-non-cryptographic-random-usage]
                 steiner_dct, cost = candidate, candidate_cost
                 if cost < best_cost:  # update the best cost
                     best_steiner, best_cost = steiner_dct.copy(), cost
@@ -1111,7 +1111,7 @@ class TeleportationRouter(BasicRouter):
                 cost_history.append((cost, layers_for_metric))
             steiner_history.append(candidate)
             # cool
-            T = max(T_end, T * alpha)  # noqa: N806
+            T = max(T_end, T * alpha)  # ruff:ignore[non-lowercase-variable-in-function]
 
         # if there is no improvement possible at all, make sure you return a none best steiner
         if len(best_move_type_lst) == 0:
@@ -1194,7 +1194,7 @@ class TeleportationRouter(BasicRouter):
                         msg = f"other move type than expected: {move_type}"  # pragma: no cover
                         raise RuntimeError(msg)
                 # 2. compute the crossing metric for next_layer
-                try:  # noqa: PLW0717
+                try:  # ruff:ignore[too-many-statements-in-try-clause]
                     if self.metric == "crossing":
                         candidate_cost = self.count_crossings(
                             cast("Sequence[Sequence[tuple[pos, pos]]]", next_layers_copy[:k_lookahead]),
@@ -1241,7 +1241,7 @@ class TeleportationRouter(BasicRouter):
 
     def idle_move_back(
         self,
-        schedule: Any,  # noqa: ANN401
+        schedule: Any,  # ruff:ignore[any-type]
         danger_qubits: dict[pos, int],
         available_gaps: list[pos],
         danger_qubits_temp: dict[pos, int],
@@ -1259,7 +1259,6 @@ class TeleportationRouter(BasicRouter):
         list[Sequence[pos | tuple[pos, pos]]],  # layers
     ]:
         """Subroutine of `optimize_layers` to move back qubits in dangerous positions asap."""
-        # ruff: noqa: PLR1702
         # instead of adding another schedule_temp, take schedule[-1], adapt it and replace
         schedule_temp = schedule[-1].copy()
         flag_idle_move = False
@@ -1391,8 +1390,8 @@ class TeleportationRouter(BasicRouter):
         terminal_pairs: Sequence[pos | tuple[pos, pos]],
         layout: dict[int, pos],
         max_iters: int,
-        T_start: float,  # noqa: N803
-        T_end: float,  # noqa: N803
+        T_start: float,  # ruff:ignore[invalid-argument-name]
+        T_end: float,  # ruff:ignore[invalid-argument-name]
         alpha: float,
         radius: int,
         k_lookahead: int,

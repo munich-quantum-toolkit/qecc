@@ -494,7 +494,7 @@ class SnakeBuilderSC:
             logical operators.
         """
         hx, hz, _ = self.gen_checks()
-        return CSSCode._compute_logical(np.array(hx, np.int8), np.array(hz, np.int8))  # noqa: SLF001
+        return CSSCode._compute_logical(np.array(hx, np.int8), np.array(hz, np.int8))  # ruff:ignore[private-member-access]
 
 
 class SnakeBuilderSTDW:
@@ -874,7 +874,7 @@ class SnakeBuilderSTDW:
         for tup in itertools.combinations(self.outer_nodes_total[triangle_idx], 2):
             for plaquette in filtered_z_plaquettes:
                 if tup[0] in plaquette and tup[1] in plaquette:
-                    subset_stabs.append(plaquette)  # noqa: PERF401
+                    subset_stabs.append(plaquette)  # ruff:ignore[manual-list-comprehension]
 
         flag_filler = True
         while flag_filler:
@@ -1294,7 +1294,7 @@ class SnakeBuilderSteane:
         compatible_weight_four = self.compatible_z_stabs_weight_four()
         compatible_weight_two = self.compatible_z_stabs_weight_two()
         x_stabs_weight_eight = [stab for stab in self.x_stabilizers if len(stab) == 8]
-        for i in range(len(self.positions) - 1):  # noqa: PLR1702
+        for i in range(len(self.positions) - 1):  # ruff:ignore[too-many-nested-blocks]
             current_patch: dict[pos, int] = self.positions[i]
             next_patch: dict[pos, int] = self.positions[i + 1]
             # find weight-8 stabilizer which connects both patches
@@ -1308,7 +1308,7 @@ class SnakeBuilderSteane:
                     if val == weight_two["i+1"]:
                         pos_next = key
                 neighbors = self.neighboring_vertex(pos_current, pos_next)
-                if x_stab_connect is not None:  # noqa: SIM102
+                if x_stab_connect is not None:  # ruff:ignore[collapsible-if]
                     if all(value in x_stab_connect.values() for value in weight_two.values()) and neighbors:
                         # add weight_two to stabs
                         stab_temp: dict[pos, int] = {}

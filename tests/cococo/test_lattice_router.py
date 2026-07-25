@@ -151,8 +151,8 @@ def test_teleportationrouter():
     )
 
     max_iters = 100
-    T_start = 100.0  # noqa: N806
-    T_end = 0.1  # noqa: N806
+    T_start = 100.0  # ruff:ignore[non-lowercase-variable-in-function]
+    T_end = 0.1  # ruff:ignore[non-lowercase-variable-in-function]
     alpha = 0.95
     t = 4  # mock value for cnot circuit
     radius = 10

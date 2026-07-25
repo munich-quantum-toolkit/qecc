@@ -419,11 +419,11 @@ class MinimalCodeSwitchingCompiler:
               - S is the set of nodes reachable from the source,
               - T is the complementary set of nodes.
         """
-        _, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # noqa: N806
+        _, (S, T) = nx.minimum_cut(self.G, self.source, self.sink, capacity="capacity")  # ruff:ignore[non-lowercase-variable-in-function]
         num_switches, switch_positions = self._extract_switch_locations(S, T)
         return num_switches, switch_positions, S, T
 
-    def _extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # noqa: N803
+    def _extract_switch_locations(self, S: set[str], T: set[str]) -> tuple[int, list[tuple[int, int]]]:  # ruff:ignore[invalid-argument-name]
         """Return a list of (qubit, depth) pairs where switches should be inserted.
 
         Parameters:

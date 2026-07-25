@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 def set_seed(value: float) -> None:
     """The appropriate way to set seeds when numba is used."""
-    np.random.seed(value)  # noqa: NPY002
+    np.random.seed(value)  # ruff:ignore[numpy-legacy-random]
 
 
 def alist2numpy(fname: str) -> NDArray[np.int32]:  # current original implementation is buggy

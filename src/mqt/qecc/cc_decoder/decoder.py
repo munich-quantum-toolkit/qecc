@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import locale
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 from dataclasses import dataclass, field
 from pathlib import Path
 from timeit import default_timer as timer
@@ -147,7 +147,7 @@ class LightsOut:
                 "a+", encoding=locale.getpreferredencoding(False)
             ) as out:
                 start = timer()
-                subprocess.run([solver_path, wcnf], stdout=out, check=False)  # noqa: S603
+                subprocess.run([solver_path, wcnf], stdout=out, check=False)  # ruff:ignore[subprocess-without-shell-equals-true]
                 solve_time = timer() - start
 
         # pop the context from the optimizer

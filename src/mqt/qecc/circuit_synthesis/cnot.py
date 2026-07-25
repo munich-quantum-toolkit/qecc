@@ -153,7 +153,7 @@ class GreedyCNOTGenerator(CandidateGenerator):
 
         return filtered
 
-    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # noqa: ARG002
+    def update(self, op: TableauOperation, tableau: BinaryMatrix) -> None:  # ruff:ignore[unused-method-argument]
         """Update operation history and filters after applying an operation.
 
         Args:

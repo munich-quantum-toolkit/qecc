@@ -270,7 +270,7 @@ class TestSymbolicVectorOperations:
             (np.array([], dtype=bool), np.array([], dtype=bool), z3.sat),
         ],
     )
-    def test_symbolic_vector_eq(self, lhs, rhs, expected_result):  # noqa: PLR6301
+    def test_symbolic_vector_eq(self, lhs, rhs, expected_result):  # ruff:ignore[no-self-use]
         """Parameterized test for ~symbolic_vector_eq~."""
         # Test equal vectors
         solver = z3.Solver()
@@ -312,7 +312,7 @@ class TestSymbolicVectorOperations:
             (np.array([True, x, x]), np.array([False, True, True]), z3.unsat),
         ],
     )
-    def test_odd_overlap(self, v_sym, v_con, expected_result):  # noqa: PLR6301
+    def test_odd_overlap(self, v_sym, v_con, expected_result):  # ruff:ignore[no-self-use]
         """Parameterized test for ~odd_overlap~."""
         solver = z3.Solver()
         solver.add(odd_overlap(v_sym, v_con))
@@ -337,7 +337,7 @@ class TestSymbolicVectorOperations:
             (np.array([1, 0, 0, 1], dtype=np.int8), y, np.array([y, False, False, y])),
         ],
     )
-    def test_symbolic_scalar_mult(self, v, scalar, expected_result):  # noqa: PLR6301
+    def test_symbolic_scalar_mult(self, v, scalar, expected_result):  # ruff:ignore[no-self-use]
         """Parameterized test for ~symbolic_scalar_mult~."""
         result = symbolic_scalar_mult(v, scalar)
         assert np.array_equal(result, expected_result), f"Test failed for v={v}, scalar={scalar}"
@@ -373,7 +373,7 @@ class TestSymbolicVectorOperations:
             ),
         ],
     )
-    def test_symbolic_vector_add(self, v1, v2, expected_result):  # noqa: PLR6301
+    def test_symbolic_vector_add(self, v1, v2, expected_result):  # ruff:ignore[no-self-use]
         """Parameterized test for ~symbolic_vector_add~."""
         result = symbolic_vector_add(v1, v2)
         assert np.array_equal(result, expected_result), f"Test failed for v1={v1}, v2={v2}"
@@ -407,7 +407,7 @@ class TestSymbolicVectorOperations:
             ),
         ],
     )
-    def test_vars_to_stab_valid_inputs(self, measurement, generators, expected_result):  # noqa: PLR6301
+    def test_vars_to_stab_valid_inputs(self, measurement, generators, expected_result):  # ruff:ignore[no-self-use]
         """Test ~vars_to_stab~ with valid inputs."""
         result = vars_to_stab(measurement, generators)
         assert np.array_equal(result, expected_result), (
@@ -433,7 +433,7 @@ class TestSymbolicVectorOperations:
             ),
         ],
     )
-    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):  # noqa: PLR6301
+    def test_vars_to_stab_exceptions(self, measurement, generators, expected_exception, expected_message):  # ruff:ignore[no-self-use]
         """Test ~vars_to_stab~ with invalid inputs that raise exceptions."""
         with pytest.raises(expected_exception, match=expected_message):
             vars_to_stab(measurement, generators)

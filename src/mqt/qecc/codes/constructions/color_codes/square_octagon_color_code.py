@@ -149,7 +149,7 @@ class SquareOctagonColorCode(ColorCode):
                 self.H[idx, qb] = 1
 
         for idx, (x, y) in enumerate(self.octagon_ancilla_qubits):
-            idx += len(self.square_ancilla_qubits)  # noqa: PLW2901
+            idx += len(self.square_ancilla_qubits)  # ruff:ignore[redefined-loop-name]
             qbts = []
             for coord in [
                 (x - 2, y - 1),

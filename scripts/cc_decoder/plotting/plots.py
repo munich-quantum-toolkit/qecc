@@ -241,7 +241,7 @@ def generate_plots_tn(results_dir: Path, results_file: Path) -> None:
     for code, xys in sorted(code_to_xys.items()):
         ax[1][0].plot(*zip(*xys, strict=False), "x-", label=f"d={code}")
     ax[1][0].set_xlabel("Physical error rate")
-    ax[1][0].set_ylabel("Average time per run (µs)")  # noqa: RUF001
+    ax[1][0].set_ylabel("Average time per run (µs)")  # ruff:ignore[ambiguous-unicode-character-string]
     ax[1][0].legend()
     ax[1][0].set_ylim(0, 300000)
 
@@ -261,7 +261,7 @@ def generate_plots_tn(results_dir: Path, results_file: Path) -> None:
         ax[1][1].plot(ds, data["t"], label="p=" + str(p))  # type: ignore[call-overload]
 
     ax[1][1].set_xlabel("Distance")
-    ax[1][1].set_ylabel("Average time per run (µs)")  # noqa: RUF001
+    ax[1][1].set_ylabel("Average time per run (µs)")  # ruff:ignore[ambiguous-unicode-character-string]
     ax[1][1].legend()
     ax[1][1].set_yscale("log")
     ax[1][1].set_xticks(ds)

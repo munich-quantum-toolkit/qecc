@@ -399,7 +399,7 @@ def all_gate_optimal_verification_stabilizers(
         )
 
         def fun(num_cnots: int) -> list[npt.NDArray[np.int8]] | None:
-            return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # noqa: B023
+            return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # ruff:ignore[function-uses-loop-variable]
 
         res = iterative_search_with_timeout(
             fun,
@@ -426,7 +426,7 @@ def all_gate_optimal_verification_stabilizers(
         logger.info(f"Finding minimal number of CNOTs for {layer + 1} errors")
 
         def search_cnots(num_cnots: int) -> list[npt.NDArray[np.int8]] | None:
-            return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # noqa: B023
+            return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # ruff:ignore[function-uses-loop-variable]
 
         while num_cnots - 1 > 0:
             logger.info(f"Trying {num_cnots - 1} CNOTs")
@@ -449,7 +449,7 @@ def all_gate_optimal_verification_stabilizers(
             logger.info(f"Trying {num_anc - 1} ancillas")
 
             def search_anc(num_anc: int) -> list[npt.NDArray[np.int8]] | None:
-                return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # noqa: B023
+                return verification_stabilizers(faults, stabs, num_anc, num_cnots)  # ruff:ignore[function-uses-loop-variable]
 
             anc_opt = run_with_timeout(
                 search_anc,

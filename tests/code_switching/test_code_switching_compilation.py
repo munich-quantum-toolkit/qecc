@@ -42,7 +42,7 @@ def test_idle_bonus_logic(simple_graph):
     """Test that idle bonus is calculated correctly using the normalized formula."""
     simple_graph.config.switching_time = 2
     base_cap = 1.0
-    N = 100  # noqa: N806
+    N = 100  # ruff:ignore[non-lowercase-variable-in-function]
 
     bonus = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=2, total_edges=N)
     assert bonus == pytest.approx(0.0, abs=1e-8)
@@ -62,7 +62,7 @@ def test_idle_bonus_logic(simple_graph):
     assert bonus == pytest.approx(expected_bonus, rel=1e-9)
     assert bonus > 0.0
 
-    eff_cap = simple_graph._edge_capacity_with_idle_bonus(  # noqa: SLF001
+    eff_cap = simple_graph._edge_capacity_with_idle_bonus(  # ruff:ignore[private-member-access]
         depths=[0, 10], total_edges=N, base_capacity=base_cap
     )
 
@@ -72,7 +72,7 @@ def test_idle_bonus_logic(simple_graph):
     # --- Large Graph Scaling (Safety Check) ---
     # In a huge circuit, the bonus should become very small to avoid distorting the graph,
     # but it must remain non-zero to act as a tie-breaker.
-    huge_N = 1_000_000  # noqa: N806
+    huge_N = 1_000_000  # ruff:ignore[non-lowercase-variable-in-function]
 
     bonus_huge = simple_graph.compute_idle_bonus(previous_depth=0, current_depth=10, total_edges=huge_N)
 

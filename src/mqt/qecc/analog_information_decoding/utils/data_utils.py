@@ -188,7 +188,7 @@ def replace_inf(lst: list[str]) -> list[str]:
     return new_lst
 
 
-def product_dict(**kwargs: Any) -> Any:  # noqa: ANN401
+def product_dict(**kwargs: Any) -> Any:  # ruff:ignore[any-type]
     """Generate a iterator of dictionaries where each dictionary is a cartesian product.
 
     of the values associated with each key in the input dictionary.
@@ -199,7 +199,7 @@ def product_dict(**kwargs: Any) -> Any:  # noqa: ANN401
         yield dict(zip(keys, instance, strict=False))
 
 
-def zip_dict(**kwargs: dict[str, Any]) -> Any:  # noqa: ANN401
+def zip_dict(**kwargs: dict[str, Any]) -> Any:  # ruff:ignore[any-type]
     """Create a iterator of dictionaries where each dictionary contains the zip() of the values associated with each key in the input dictionary."""
     return (dict(zip(kwargs.keys(), values, strict=False)) for values in zip(*kwargs.values(), strict=False))
 

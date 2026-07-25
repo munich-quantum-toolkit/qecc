@@ -60,7 +60,7 @@ class QssSimulator:
         rounds: int = 0,
         experiment: str = "qss",
         outpath: str = "/",
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Initialize QSS Simulator.
 
@@ -294,6 +294,6 @@ class QssSimulator:
             if run % self.save_interval == 1:
                 self._save_results(success_cnt, run)
                 if _check_convergence(success_cnt, run, self.code_params, self.eb_precision):
-                    print("Converged")  # noqa: T201
+                    print("Converged")  # ruff:ignore[print]
                     break
         return self._save_results(success_cnt, run)

@@ -385,7 +385,7 @@ class AdditiveCachePolicy:
     def key(
         tableau: BinaryMatrix,
         rollout: int,
-        current_sequence: EliminationSequence,  # noqa: ARG004
+        current_sequence: EliminationSequence,  # ruff:ignore[unused-static-method-argument]
     ) -> Hashable:
         """Return a cache key independent of the current sequence.
 
@@ -583,7 +583,7 @@ def open_rollout_cache_session(max_weight: int) -> None:
     Nested calls are supported. The global rollout cache is shared across all
     nested rollout evaluations within one synthesis run.
     """
-    global _cache_session_depth  # noqa: PLW0603
+    global _cache_session_depth  # ruff:ignore[global-statement]
 
     with _cache_lock:
         if _cache_session_depth == 0:
@@ -597,7 +597,7 @@ def close_rollout_cache_session() -> None:
 
     When the outermost session is closed, the global rollout cache is cleared.
     """
-    global _cache_session_depth  # noqa: PLW0603
+    global _cache_session_depth  # ruff:ignore[global-statement]
 
     should_clear = False
     hits = 0

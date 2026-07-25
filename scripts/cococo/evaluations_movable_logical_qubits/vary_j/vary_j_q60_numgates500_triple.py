@@ -10,7 +10,7 @@
 import datetime
 import json
 import pathlib
-import pickle  # noqa: S403
+import pickle  # ruff:ignore[suspicious-pickle-import]
 import time
 
 import matplotlib.pyplot as plt
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     print(path)
     # reload
     with pathlib.Path(path).open("rb") as f:
-        saved = pickle.load(f)  # noqa: S301
+        saved = pickle.load(f)  # ruff:ignore[suspicious-pickle-usage]
     results_opt, results_st = saved
 
     # ---------extract data-----------
