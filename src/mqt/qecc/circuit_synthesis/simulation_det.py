@@ -10,9 +10,12 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
+import numpy.typing as npt
+
+from .simulation import LutDecoder
 
 try:
     import qsample as qs  # ty: ignore[unresolved-import]
@@ -24,10 +27,7 @@ except ImportError:
     raise ImportError(msg) from ImportError
 
 
-from .simulation import LutDecoder
-
 if TYPE_CHECKING:
-    import numpy.typing as npt
     from qiskit.circuit import QuantumCircuit
     from qsample.callbacks import Callback, CallbackList  # ty: ignore[unresolved-import]
 
@@ -375,7 +375,7 @@ class NoisyDFTStatePrepSimulator:
         for stabilizer, flagged in zip(
             verification_stabilizers, [bool(hook) for hook in hook_corrections], strict=False
         ):
-            stabilizer_sup = _support_int(stabilizer)
+            stabilizer_sup = _support_int(cast("npt.NDArray[np.int8]", stabilizer))
             if not z_stabs:
                 circuit.append({"H": {self._ancilla_index}})
             for qubit_idx, qubit in enumerate(stabilizer_sup):

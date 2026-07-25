@@ -1294,7 +1294,7 @@ class SnakeBuilderSteane:
         compatible_weight_four = self.compatible_z_stabs_weight_four()
         compatible_weight_two = self.compatible_z_stabs_weight_two()
         x_stabs_weight_eight = [stab for stab in self.x_stabilizers if len(stab) == 8]
-        for i in range(len(self.positions) - 1):  # ruff:ignore[too-many-nested-blocks]
+        for i in range(len(self.positions) - 1):
             current_patch: dict[pos, int] = self.positions[i]
             next_patch: dict[pos, int] = self.positions[i + 1]
             # find weight-8 stabilizer which connects both patches
