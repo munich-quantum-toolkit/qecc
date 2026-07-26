@@ -208,6 +208,7 @@ extend-select = [
 ignore = [
     "ISC001",  # Conflicts with formatter
     "PLR09",   # Too many <...>
+    "PLR1702", # Too many nested blocks
     "PLR2004", # Magic value used in comparison
     "S101",    # Use of assert detected
 ]

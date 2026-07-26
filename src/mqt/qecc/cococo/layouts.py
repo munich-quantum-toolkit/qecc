@@ -152,7 +152,7 @@ def gen_layout_scalable(
         for y in range(ymin, ymax + 1):
             corridor_nodes.extend(((xmin, y), (xmax, y)))
         for y in range(ymin, ymax + 1):
-            corridor_nodes.append((xmin - 1, y))  # one further col in order to be sure that corridor  # noqa: FURB113
+            corridor_nodes.append((xmin - 1, y))  # one further col in order to be sure that corridor  # ruff:ignore[repeated-append]
             corridor_nodes.append((xmax + 1, y))
 
         corridor_nodes = list(set(corridor_nodes))

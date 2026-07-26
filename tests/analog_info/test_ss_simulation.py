@@ -147,14 +147,14 @@ def test_analog_ss_simulator_setup(
 
 def test_single_stage_initialization(single_stage_analog_simulator: SingleShotSimulator) -> None:
     """Test single stage single shot simulation initialization."""
-    res = single_stage_analog_simulator._single_sample()  # noqa: SLF001
+    res = single_stage_analog_simulator._single_sample()  # ruff:ignore[private-member-access]
     assert res[0] is not None
     assert res[1] is not None
 
 
 def test_two_state_initialization(two_stage_simulator: SingleShotSimulator) -> None:
     """Test two stage single shot simultation initialization."""
-    res = two_stage_simulator._two_stage_decoding(  # noqa: SLF001
+    res = two_stage_simulator._two_stage_decoding(  # ruff:ignore[private-member-access]
         z_syndrome_w_err=np.array([0, 0, 0]), x_syndrome_w_err=np.array([0, 0, 0])
     )
     assert np.array_equal(res[0], np.array([0, 0, 0, 0, 0, 0, 0]))

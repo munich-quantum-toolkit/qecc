@@ -59,7 +59,7 @@ def gen_pcm_and_logical(distance: int) -> tuple[NDArray[np.bool_], set[int]]:
     return (parity_check_matrix, logical_operator)
 
 
-def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, error_probability: float) -> Any:  # noqa: ANN401
+def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, error_probability: float) -> Any:  # ruff:ignore[any-type]
     """Add one round of checks to the circuit."""
     for check in pcm:
         if error_probability == 0:
@@ -85,7 +85,7 @@ def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, e
 
 def gen_stim_circuit_memory_experiment(
     pcm: NDArray[np.int_], logical_operator: NDArray[np.int_], distance: int, error_probability: float
-) -> Any:  # noqa: ANN401
+) -> Any:  # ruff:ignore[any-type]
     """Generate a stim circuit for a memory experiment on the 2D color code."""
     data_qubits = range(len(pcm[0]))
     circuit = stim.Circuit()

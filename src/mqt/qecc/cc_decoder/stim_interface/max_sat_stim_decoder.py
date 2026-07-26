@@ -43,7 +43,7 @@ class MaxSatStim:
         )
 
     @staticmethod
-    def check_matrix_to_adj_lists(check_matrix: Any) -> tuple[dict[int, list[int]], dict[int, list[int]]]:  # noqa: ANN401
+    def check_matrix_to_adj_lists(check_matrix: Any) -> tuple[dict[int, list[int]], dict[int, list[int]]]:  # ruff:ignore[any-type]
         """Converts a check matrix to two adjacency lists."""
         qtf: dict[int, list[int]] = {}
         ftq: dict[int, list[int]] = {}

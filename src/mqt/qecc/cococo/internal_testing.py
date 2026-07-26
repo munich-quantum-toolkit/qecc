@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .types import VdpDict, pos
 
 
-def extract_gates_schedule(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # noqa: ANN401
+def extract_gates_schedule(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # ruff:ignore[any-type]
     """Extracts the gates from the schedule in the order of the schedule. ignore 'idle' moves in the vdp dict."""
     gates = []
     for i in range(len(schedule)):
@@ -30,7 +30,7 @@ def extract_gates_schedule(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  #
     return gates
 
 
-def extract_gates_schedule_respect_layout(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # noqa: ANN401
+def extract_gates_schedule_respect_layout(schedule: Any) -> Sequence[pos | tuple[pos, pos]]:  # ruff:ignore[any-type]
     """Extracts the gates with the qubit labels (not the positions of quibts) by respecting the changing `layout` dictionaries."""
     gates = []
     for i in range(len(schedule)):
@@ -50,7 +50,7 @@ def extract_gates_schedule_respect_layout(schedule: Any) -> Sequence[pos | tuple
     return gates
 
 
-def check_num_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # noqa: ANN401
+def check_num_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # ruff:ignore[any-type]
     """Check that the input `terminal_pairs` has the same number of gates as the resulting schedule."""
     gates_schedule = extract_gates_schedule(schedule)
     return len(gates_schedule) == len(terminal_pairs)
@@ -61,7 +61,7 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
     c = stim.Circuit()
     for q in range(n_qubits):
         # choose a random Pauli: I, X, Y, Z
-        p = random.choice(["I", "X", "Y", "Z"])  # noqa: S311
+        p = random.choice(["I", "X", "Y", "Z"])  # ruff:ignore[suspicious-non-cryptographic-random-usage]
         if p != "I":
             c.append(p, [q])
     return c
@@ -79,7 +79,7 @@ def check_order_dyn_gates_st(
     flattened_pairs = [
         p
         for elem in terminal_pairs
-        for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
+        for p in (elem if isinstance(elem[0], int) else elem)  # ruff:ignore[useless-if-else]
     ]
     data_qubit_locs: list[pos] = list(set(cast("list[pos]", flattened_pairs)))
     n_qubits = len(data_qubit_locs)
@@ -140,7 +140,7 @@ def check_order_dyn_gates_st(
     return tableau1 == tableau2
 
 
-def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # noqa: ANN401
+def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], schedule: Any) -> bool:  # ruff:ignore[any-type]
     """Checks order of the schedule.
 
     simulates the gate order in the schedule (changed from pushing) and from initial terminal pairs on a random initial state.
@@ -149,7 +149,7 @@ def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], sched
     flattened_pairs = [
         p
         for elem in terminal_pairs
-        for p in (elem if isinstance(elem[0], int) else elem)  # noqa: RUF034
+        for p in (elem if isinstance(elem[0], int) else elem)  # ruff:ignore[useless-if-else]
     ]
     data_qubit_locs = list(set(flattened_pairs))
     n_qubits = len(data_qubit_locs)
@@ -221,7 +221,7 @@ def check_duplicate_nodes_per_layer_st(vdp_layers: list[VdpDict]) -> bool:
     return True
 
 
-def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # noqa: ANN401
+def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # ruff:ignore[any-type]
     """Checks whether there are duplicate nodes in the paths of one layer.
 
     this would indicate that there are overlapping paths and is a big problem.
@@ -263,7 +263,7 @@ def check_path_on_logical_st(vdp_layers: list[VdpDict], logical_pos: list[pos]) 
     return True
 
 
-def check_path_on_logical(schedule: Any) -> bool:  # noqa: ANN401
+def check_path_on_logical(schedule: Any) -> bool:  # ruff:ignore[any-type]
     """Checks whether a path / tree occupies any logical pos somewhere else than at the end points."""
     for i, layer in enumerate(schedule):
         vdp_dict = layer["vdp_dict"]
@@ -284,7 +284,7 @@ def check_path_on_logical(schedule: Any) -> bool:  # noqa: ANN401
     return True
 
 
-def test_times_t_gates_opt(schedule: Any, t: int, factories: list[pos]) -> bool:  # noqa: ANN401
+def test_times_t_gates_opt(schedule: Any, t: int, factories: list[pos]) -> bool:  # ruff:ignore[any-type]
     """Checks whether the t timestamps make sense in a finished schedule (opt).
 
     Only the vdp_dict per layer is checked here, the trees are not considered.

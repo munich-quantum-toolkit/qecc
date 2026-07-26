@@ -478,7 +478,7 @@ class CandidateGenerator(ABC):
     def reset(self) -> None:
         """Reset internal state (useful for lookahead simulations)."""
 
-    def should_terminate_early(self) -> bool:  # noqa: PLR6301
+    def should_terminate_early(self) -> bool:  # ruff:ignore[no-self-use]
         """Check if elimination should terminate early and use the best solution found.
 
         Returns:
@@ -486,7 +486,7 @@ class CandidateGenerator(ABC):
         """
         return False
 
-    def get_best_solution(self) -> EliminationSequence | None:  # noqa: PLR6301
+    def get_best_solution(self) -> EliminationSequence | None:  # ruff:ignore[no-self-use]
         """Get the best complete solution found during lookahead exploration.
 
         Returns:
@@ -494,7 +494,7 @@ class CandidateGenerator(ABC):
         """
         return None
 
-    def escape_local_minimum(self, tableau: BinaryMatrix) -> Sequence[TableauOperation] | None:  # noqa: ARG002, PLR6301
+    def escape_local_minimum(self, tableau: BinaryMatrix) -> Sequence[TableauOperation] | None:  # ruff:ignore[unused-method-argument, no-self-use]
         """Generate operations to escape a local minimum when no candidates are available.
 
         Args:
@@ -524,7 +524,7 @@ class SelectionStrategy(ABC):
 class GreedySelection(SelectionStrategy):
     """Always select the first candidate."""
 
-    def select(self, candidates: Sequence[tuple[TableauOperation, int | tuple[int, ...]]]) -> TableauOperation:  # noqa: PLR6301
+    def select(self, candidates: Sequence[tuple[TableauOperation, int | tuple[int, ...]]]) -> TableauOperation:  # ruff:ignore[no-self-use]
         """Select the first (best-scored) candidate.
 
         Args:

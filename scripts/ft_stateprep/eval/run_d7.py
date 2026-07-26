@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import argparse
-import pickle  # noqa: S403
+import pickle  # ruff:ignore[suspicious-pickle-import]
 from pathlib import Path
 
 from qiskit import QuantumCircuit
@@ -37,7 +37,7 @@ def main() -> None:
 
     lut_path = (Path(__file__) / "../luts/decoder_488_7.pickle").resolve()
     with lut_path.open("rb") as f:
-        lut = pickle.load(f)  # noqa: S301
+        lut = pickle.load(f)  # ruff:ignore[suspicious-pickle-usage]
     sim = NoisyNDFTStatePrepSimulator(qc, code, decoder=lut, p=args.p_error, p_idle=args.p_idle_factor * args.p_error)
     res = sim.logical_error_rate(min_errors=args.n_errors)
     print(",".join([str(x) for x in [args.p_error, *res]]))

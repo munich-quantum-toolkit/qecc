@@ -72,7 +72,7 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
 
     def __init__(
         self,
-        **maxsat_kwargs: Any,  # noqa: ANN401
+        **maxsat_kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Init sinter decoder with kwargs."""
         self.maxsat_kwargs = maxsat_kwargs
@@ -85,15 +85,15 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
         )
         return SinterCompiledDecoderMaxSat(maxsat, **self.maxsat_kwargs)
 
-    def decode_via_files(  # noqa: PLR6301
+    def decode_via_files(  # ruff:ignore[no-self-use]
         self,
-        num_shots: int,  # noqa: ARG002
-        num_dets: int,  # noqa: ARG002
-        num_obs: int,  # noqa: ARG002
+        num_shots: int,  # ruff:ignore[unused-method-argument]
+        num_dets: int,  # ruff:ignore[unused-method-argument]
+        num_obs: int,  # ruff:ignore[unused-method-argument]
         dem_path: pathlib.Path,
         dets_b8_in_path: pathlib.Path,
         obs_predictions_b8_out_path: pathlib.Path,
-        tmp_dir: pathlib.Path,  # noqa: ARG002
+        tmp_dir: pathlib.Path,  # ruff:ignore[unused-method-argument]
     ) -> None:
         """Performs decoding by reading problems from, and writing solutions to, file paths.
 
@@ -144,6 +144,6 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
         )
 
 
-def sinter_decoders(**kwargs: Any) -> dict[str, Decoder]:  # noqa: ANN401
+def sinter_decoders(**kwargs: Any) -> dict[str, Decoder]:  # ruff:ignore[any-type]
     """Return a list of available sinter decoders."""
     return {"maxsat": SinterDecoderMaxSat(**kwargs)}

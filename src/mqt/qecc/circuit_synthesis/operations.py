@@ -461,7 +461,7 @@ class PauliOperation(TableauOperation):
         self.qubit = qubit
         self.pauli = pauli
 
-    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:  # noqa: PLR6301
+    def apply_check_matrix(self, check_matrix: CheckMatrix, inplace: bool = False) -> CheckMatrix:  # ruff:ignore[no-self-use]
         """Apply the Pauli operation to a CSS check matrix.
 
         Args:

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import multiprocessing
 import operator
-import pickle  # noqa: S403
+import pickle  # ruff:ignore[suspicious-pickle-import]
 import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .types import HistoryTemp, pos
 
 
-def save_to_file(path: str, data: Any) -> None:  # noqa: ANN401
+def save_to_file(path: str, data: Any) -> None:  # ruff:ignore[any-type]
     """Safely saves data to a file."""
     with Path(path).open("wb") as pickle_file:  # pragma: no cover
         pickle.dump(data, pickle_file)
@@ -74,7 +74,7 @@ class HillClimbing:
             optimize_factories: decides whether factories are optimized or not. Defaults to false.
             seed: seed for random stuff
         """
-        rng = random.Random(seed)  # noqa: S311
+        rng = random.Random(seed)  # ruff:ignore[suspicious-non-cryptographic-random-usage]
         self.rng = rng
         # if circuit includes also single ints (i.e. T gates on qubit i), then ensure, that possible_factory_positions and num_factories are not None
         if any(type(el) is int for el in circuit):  # pragma: no cover
