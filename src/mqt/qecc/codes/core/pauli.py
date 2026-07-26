@@ -24,36 +24,100 @@ if TYPE_CHECKING:
     import stim
 
 
+_PHASE_PREFIX_TO_EXPONENT: dict[str, int] = {"": 0, "+": 0, "+i": 1, "-": 2, "-i": 3}
+_EXPONENT_TO_PHASE_PREFIX: dict[int, str] = {0: "", 1: "+i", 2: "-", 3: "-i"}
+
+
+def _split_pauli_string_prefix(p: str) -> tuple[int, str]:
+    """Split a Pauli string into its phase-prefix exponent and its letter body."""
+    for prefix in ("+i", "-i"):
+        if p.startswith(prefix):
+            return _PHASE_PREFIX_TO_EXPONENT[prefix], p[len(prefix) :]
+    if p[:1] in {"+", "-"}:
+        return _PHASE_PREFIX_TO_EXPONENT[p[0]], p[1:]
+    return 0, p
+
+
 class Pauli:
-    """Class representing an n-qubit Pauli operator."""
+    """Class representing an n-qubit Pauli operator.
+
+    Internally, a Pauli operator is stored as a binary symplectic support (x|z) together with a phase exponent p, representing Q(x,z,p) = i^p X^x Z^z.
+    """
 
     def __init__(self, symplectic: SymplecticVector, phase: int = 0) -> None:
         """Create a new Pauli operator.
 
         Args:
             symplectic: A 2n x 1 binary matrix representing the symplectic form of the Pauli operator. The first n entries correspond to X operators, and the second n entries correspond to Z operators.
-            phase: An integer 0 or 1 representing the phase of the Pauli operator (0 for +, 1 for -).
+            phase: The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z. Normalized modulo four.
         """
         self.n = symplectic.n
         self.symplectic = symplectic
-        self.phase = phase
+        self.phase = int(phase) % 4
+
+    @property
+    def phase_exponent(self) -> int:
+        """The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z."""
+        return self.phase
 
     @classmethod
     def from_pauli_string(cls, p: str) -> Pauli:
-        """Create a new Pauli operator from a Pauli string."""
+        """Create a new Pauli operator from a Pauli string.
+
+        Accepts an optional phase prefix of '+' (default), '+i', '-', or '-i' followed by a sequence of I, X, Y, and Z letters.
+        """
         if not is_pauli_string(p):
             msg = f"Invalid Pauli string: {p}"
             raise InvalidPauliError(msg)
-        pauli_start_index = 1 if p[0] in "+-" else 0
-        x_part = np.array([c in "XY" for c in p[pauli_start_index:]]).astype(np.int8)
-        z_part = np.array([c in "ZY" for c in p[pauli_start_index:]]).astype(np.int8)
-        phase = int(p[0] == "-")
+        prefix_exponent, body = _split_pauli_string_prefix(p)
+        x_part = np.array([c in "XY" for c in body]).astype(np.int8)
+        z_part = np.array([c in "ZY" for c in body]).astype(np.int8)
+        base_exponent = int(np.dot(x_part, z_part))
+        phase = (base_exponent + prefix_exponent) % 4
         return cls(SymplecticVector(np.concatenate((x_part, z_part))), phase)
 
     @classmethod
     def from_stim(cls, p: stim.PauliString) -> Pauli:
         """Create a new Pauli operator from Stim representation."""
         return cls.from_pauli_string(str(p))
+
+    @classmethod
+    def from_symplectic_and_sign(cls, symplectic: SymplecticVector, sign: int) -> Pauli:
+        """Create a Hermitian Pauli operator from its support and a binary sign.
+
+        Args:
+            symplectic: The binary symplectic support (x|z) of the operator.
+            sign: 0 for a plus sign, 1 for a minus sign, in
+                ``(-1)^sign i^(x.z) X^x Z^z``.
+        """
+        x_part = np.asarray(symplectic[: symplectic.n], dtype=np.int8)
+        z_part = np.asarray(symplectic[symplectic.n :], dtype=np.int8)
+        xz = int(np.dot(x_part, z_part))
+        phase = (xz + 2 * int(sign)) % 4
+        return cls(symplectic, phase)
+
+    def _xz_mod4(self) -> int:
+        """Return x . z mod 4, the phase exponent of the "canonical" Hermitian choice for this support."""
+        return int(np.dot(self.x_part(), self.z_part())) % 4
+
+    def is_hermitian(self) -> bool:
+        """Check whether this Pauli operator is Hermitian, i.e. p == x.z (mod 2)."""
+        return self.phase % 2 == self._xz_mod4() % 2
+
+    def sign(self) -> int:
+        """Return the conventional binary sign r of a Hermitian Pauli, in (-1)^r i^(x.z) X^x Z^z.
+
+        Raises:
+            InvalidPauliError: If this Pauli operator is not Hermitian.
+        """
+        if not self.is_hermitian():
+            msg = f"Pauli operator {self!r} is not Hermitian and has no binary sign."
+            raise InvalidPauliError(msg)
+        return ((self.phase - self._xz_mod4()) // 2) % 2
+
+    def inverse(self) -> Pauli:
+        """Return the inverse of this Pauli operator."""
+        return Pauli(self.symplectic, (-self.phase + 2 * self._xz_mod4()) % 4)
 
     def commute(self, other: Pauli) -> bool:
         """Check if this Pauli operator commutes with another Pauli operator."""
@@ -68,7 +132,9 @@ class Pauli:
         if self.n != other.n:
             msg = "Pauli operators must have the same number of qubits."
             raise InvalidPauliError(msg)
-        return Pauli(self.symplectic + other.symplectic, (self.phase + other.phase) % 2)
+        z_dot_x_prime = int(np.dot(self.z_part(), other.x_part()))
+        phase = (self.phase + other.phase + 2 * z_dot_x_prime) % 4
+        return Pauli(self.symplectic + other.symplectic, phase)
 
     def __repr__(self) -> str:
         """Return a string representation of the Pauli operator."""
@@ -80,10 +146,15 @@ class Pauli:
             "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I"
             for x, z in zip(x_part, z_part, strict=False)
         ]
-        return f"{'' if self.phase == 0 else '-'}" + "".join(pauli)
+        prefix_exponent = (self.phase - self._xz_mod4()) % 4
+        return _EXPONENT_TO_PHASE_PREFIX[prefix_exponent] + "".join(pauli)
 
     def as_vector(self) -> npt.NDArray[np.int8]:
-        """Convert the Pauli operator to a binary vector."""
+        """Convert the Pauli operator to a vector.
+
+        The first 2n entries are the binary symplectic support; the last
+        entry is the phase exponent p.
+        """
         return np.concatenate((self.symplectic.data, np.array([self.phase])))
 
     def __len__(self) -> int:
@@ -119,7 +190,7 @@ class Pauli:
 
     def __neg__(self) -> Pauli:
         """Return the negation of this Pauli operator."""
-        return Pauli(self.symplectic, 1 - self.phase)
+        return Pauli(self.symplectic, (self.phase + 2) % 4)
 
     def __hash__(self) -> int:
         """Return a hash of the Pauli operator."""
