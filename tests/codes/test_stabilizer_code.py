@@ -372,14 +372,35 @@ def test_independent_of_generator_signs() -> None:
     plus = StabilizerCode(["XXXX", "ZZZZ"])
     minus = StabilizerCode(["-XXXX", "-ZZZZ"])
     assert plus.k == minus.k == 2
-    assert plus.equal_stabilizer_group(minus)
+    assert not plus.equal_stabilizer_group(minus)
+
+
+def test_rejects_non_hermitian_stabilizer() -> None:
+    """Test that an error is raised if a non-Hermitian stabilizer is provided."""
+    with pytest.raises(InvalidStabilizerCodeError):
+        StabilizerCode(["+iX"])
+
+
+def test_rejects_explicit_minus_identity() -> None:
+    """Test that an error is raised if the identity operator is given a negative sign."""
+    with pytest.raises(InvalidStabilizerCodeError):
+        StabilizerCode(["-I"])
+
+
+def test_rejects_generators_that_generate_minus_identity() -> None:
+    """Test that an error is raised if the generators together generate the negative identity."""
+    with pytest.raises(InvalidStabilizerCodeError):
+        StabilizerCode(["X", "-X"])
+
+
+def test_accepts_redundant_consistent_generators() -> None:
+    """Test that redundant generators that are consistent are accepted."""
+    code = StabilizerCode(["XI", "IX", "XX"])
+    assert code.generators.n_rows == 2
 
 
 def test_inequality_due_to_incompatible_codes() -> None:
-    """Test that the stabilizer group is independent of the signs of the generators.
-
-    Note: Depending on the demand of a sign-aware matrix multiplication, this test can be removed.
-    """
+    """Test that the stabilizer group equality depends on the number of qubits."""
     c1 = StabilizerCode(["XXXX", "ZZZZ"])
     c2 = StabilizerCode(["XX", "ZZ"])
     assert c1.n == 4

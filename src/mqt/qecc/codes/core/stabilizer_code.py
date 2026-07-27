@@ -16,7 +16,7 @@ import numpy as np
 
 from mqt.qecc.mod2 import is_in_row_space, nullspace, rank
 
-from .pauli import Pauli, PauliTableau
+from .pauli import InvalidPauliError, Pauli, PauliTableau
 from .symplectic import symplectic_product
 
 if TYPE_CHECKING:
@@ -44,8 +44,10 @@ class StabilizerCode:
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
         self.generators = self.get_generators(generators, n)
-        # check that the generators commute before computing log. operators for a more informative error message
+        # check properties of stabilizer group before computing log. operators for a more informative error message
         self._check_stabilizers_commute()
+        self._check_stabilizers_hermitian()
+        self._check_stabilizers_not_contain_neg_identity()
         self.generators = self.generators.independent_rows()
 
         if n is None:
@@ -236,6 +238,26 @@ class StabilizerCode:
         combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
 
         return PauliTableau(combined_matrix, combined_phases)
+
+    def _check_stabilizers_hermitian(self) -> None:
+        """Check that the stabilizer generators are Hermitian. Throws an exception if not."""
+        try:
+            self.generators.signs()
+        except InvalidPauliError as exc:
+            msg = "Stabilizer generators must be Hermitian."
+            raise InvalidStabilizerCodeError(msg) from exc
+
+    def _check_stabilizers_not_contain_neg_identity(self) -> None:
+        """Check that the stabilizer generators do not contain the negative identity. Throws an exception if it does."""
+        identities = nullspace(self.generators.symplectic.T)
+        for dep in identities:
+            product = Pauli.from_pauli_string("I" * self.generators.n)
+            for row in np.flatnonzero(dep):
+                product *= self.generators[int(row)]
+
+            if product == Pauli.from_pauli_string("-" + "I" * self.generators.n):
+                msg = "Stabilizer group must not contain -I."
+                raise InvalidStabilizerCodeError(msg)
 
     def _check_stabilizers_commute(self) -> None:
         """Check that the stabilizer generators pairwise commute. Throws an exception if not."""
