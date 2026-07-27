@@ -74,6 +74,8 @@ def test_pauli_phases() -> None:
 
     x = Pauli.from_pauli_string("X")
     z = Pauli.from_pauli_string("Z")
+    assert Pauli.from_pauli_string("Y").phase_exponent == 1
+    assert Pauli.from_pauli_string("-Y").phase_exponent == 3
     assert x * z == Pauli.from_pauli_string("-iY")
     assert z * x == Pauli.from_pauli_string("+iY")
 
@@ -203,6 +205,15 @@ def test_tableau_rejects_sign_of_non_hermitian_row() -> None:
     tableau = PauliTableau.from_pauli_strings(["+iY"])
     with pytest.raises(InvalidPauliError):
         tableau.signs()
+
+
+@pytest.mark.parametrize("pauli_string", ["+iX", "-iY"])
+def test_as_hermitian_matrix_rejects_non_hermitian_rows(pauli_string: str) -> None:
+    """A tableau containing a non-Hermitian row has no Hermitian matrix representation."""
+    tableau = PauliTableau.from_pauli_strings(["Z", pauli_string])
+
+    with pytest.raises(InvalidPauliError):
+        tableau.as_hermitian_matrix()
 
 
 def test_tableau_gate_phases() -> None:
@@ -376,6 +387,10 @@ def test_is_in_pauli_subgroup() -> None:
     assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("YY"))
     assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("-II"))
     assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("XI"))
+
+    negative_subgroup = PauliTableau.from_pauli_strings(["-X"])
+    assert negative_subgroup.is_in_subgroup(Pauli.from_pauli_string("-X"))
+    assert not negative_subgroup.is_in_subgroup(Pauli.from_pauli_string("X"))
 
 
 def test_is_in_general_pauli_subgroup() -> None:
