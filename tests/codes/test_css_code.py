@@ -85,6 +85,37 @@ def test_partial_logicals_rejected(steane_code_checks: tuple[npt.NDArray[np.int8
         CSSCode(distance=3, Hx=hx, Hz=hz, Lz=lx)
 
 
+@pytest.mark.parametrize("dtype", [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.bool_])
+def test_check_matrix_dtype_normalized(
+    dtype: npt.DTypeLike, steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]
+) -> None:
+    """Any binary check-matrix dtype yields a consistent int8 code (regression test for #775).
+
+    Non-int8 dtypes previously propagated into ``Hx``/``Hz`` and broke numba-dispatched synthesis
+    (uint8/int16) or the boolean-``@`` orthogonality check (bool).
+    """
+    hx, hz = steane_code_checks
+    code = CSSCode(distance=3, Hx=hx.astype(dtype), Hz=hz.astype(dtype))
+    assert code.Hx.dtype == np.int8
+    assert code.Hz.dtype == np.int8
+    # Downstream matmul must still compute the correct mod-2 syndrome regardless of input dtype.
+    error = np.zeros(code.n, dtype=np.int8)
+    error[0] = 1
+    np.testing.assert_array_equal(code.get_x_syndrome(error), hx[:, 0].astype(np.int8))
+
+
+def test_orthogonality_check_rejects_non_orthogonal_bool() -> None:
+    """Genuinely non-orthogonal boolean check matrices are still rejected (regression test for #775).
+
+    A boolean ``@`` computes a logical product, so the mod-2 orthogonality test must widen the dtype
+    to remain correct — without over-accepting non-orthogonal codes.
+    """
+    hx = np.array([[1, 1, 0]], dtype=np.bool_)
+    hz = np.array([[1, 0, 0]], dtype=np.bool_)
+    with pytest.raises(InvalidCSSCodeError, match="orthogonal"):
+        CSSCode(distance=1, Hx=hx, Hz=hz)
+
+
 @pytest.mark.parametrize("checks", ["steane_code_checks", "rep_code_checks", "rep_code_checks_reverse"])
 def test_logicals(checks: str, request: pytest.FixtureRequest) -> None:
     """Test the logical operators of the CSSCode class."""
