@@ -44,7 +44,8 @@ def test_pauli() -> None:
     p5 = Pauli.from_pauli_string("+Z")
     p6 = Pauli.from_pauli_string("Y")
     assert p4 * p5 != p6
-    assert p4 * p5 == -p6
+    assert p4 * p5 != -p6
+    assert p4 * p5 == Pauli.from_pauli_string("+iY")
 
     assert np.array_equal(p1.x_part(), np.array([1, 0, 0]))
     assert np.array_equal(p1.z_part(), np.array([0, 0, 1]))
@@ -62,6 +63,33 @@ def test_pauli() -> None:
     assert p1 != obj
     assert_array_equal(p1.as_vector(), np.array([1, 0, 0, 0, 0, 1, 0], dtype=np.int8))
     assert hash(p1) == hash((SymplecticVector(np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)), 0))
+
+
+def test_pauli_phases() -> None:
+    """Test parsing, printing, and multiplication with all four Pauli phases."""
+    for pauli_string in ("X", "+iX", "-X", "-iX"):
+        assert repr(Pauli.from_pauli_string(pauli_string)) == pauli_string
+
+    x = Pauli.from_pauli_string("X")
+    z = Pauli.from_pauli_string("Z")
+    assert x * z == Pauli.from_pauli_string("-iY")
+    assert z * x == Pauli.from_pauli_string("+iY")
+
+
+def test_default_pauli_phase() -> None:
+    """An omitted phase creates the positive Hermitian Pauli for the given support."""
+    y_support = Pauli.from_pauli_string("Y").symplectic
+    assert Pauli(y_support) == Pauli.from_pauli_string("Y")
+    assert Pauli.from_symplectic_and_sign(y_support, 0) == Pauli.from_pauli_string("Y")
+    assert Pauli.from_symplectic_and_sign(y_support, 1) == Pauli.from_pauli_string("-Y")
+
+
+def test_pauli_sign() -> None:
+    """Test conversion between phase exponents and binary signs."""
+    assert Pauli.from_pauli_string("Y").sign() == 0
+    assert Pauli.from_pauli_string("-Y").sign() == 1
+    with pytest.raises(InvalidPauliError):
+        Pauli.from_pauli_string("+iY").sign()
 
 
 def test_invalid_arithmetic() -> None:
@@ -153,6 +181,37 @@ def test_stabilizer_tableau() -> None:
     t5 = PauliTableau.from_matrix(np.array([[1, 0, 0, 0], [0, 1, 0, 1]], dtype=np.int8))
     with pytest.raises(ValueError, match="full"):
         t5.symplectic_submatrix(1)
+
+
+def test_tableau_signs_and_phase_from_signs() -> None:
+    """Test conversion between binary signs and tableau phase exponents."""
+    tableau = PauliTableau.from_pauli_strings(["Y", "-Y"])
+    assert_array_equal(tableau.signs(), np.array([0, 1], dtype=np.int8))
+    assert_array_equal(PauliTableau.phase_from_signs(tableau.tableau.data, tableau.signs()), tableau.phase)
+
+
+def test_default_tableau_phase() -> None:
+    """An omitted phase creates positive Hermitian rows."""
+    tableau = PauliTableau.from_matrix(np.array([[1, 1]], dtype=np.int8))
+    assert tableau[0] == Pauli.from_pauli_string("Y")
+
+
+def test_tableau_rejects_sign_of_non_hermitian_row() -> None:
+    """A non-Hermitian tableau row has no binary sign."""
+    tableau = PauliTableau.from_pauli_strings(["+iY"])
+    with pytest.raises(InvalidPauliError):
+        tableau.signs()
+
+
+def test_tableau_gate_phases() -> None:
+    """Test phase updates for representative Clifford conjugations."""
+    tableau = PauliTableau.from_pauli_strings(["X", "Y", "Z"])
+    tableau.apply_s(0)
+    assert list(tableau) == [
+        Pauli.from_pauli_string("Y"),
+        Pauli.from_pauli_string("-X"),
+        Pauli.from_pauli_string("Z"),
+    ]
 
 
 def test_independent_rows() -> None:
