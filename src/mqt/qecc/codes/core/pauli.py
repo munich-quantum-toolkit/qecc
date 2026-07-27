@@ -211,7 +211,8 @@ class PauliTableau:
 
         Args:
             tableau: Symplectic matrix representing the stabilizer tableau.
-            phase: An n x 1 binary vector representing the phase of the stabilizer tableau.
+            phase: A vector of per-row phase exponents in {0,1,2,3}, such that row i
+                equals i^phase[i] X^x_i Z^z_i. Not restricted to Hermitian (real-sign) rows.
         """
         if isinstance(tableau, np.ndarray):
             self.tableau = SymplecticMatrix(tableau)  # ty: ignore[invalid-argument-type]
@@ -224,7 +225,7 @@ class PauliTableau:
             raise InvalidPauliError(msg)
         self.n = self.tableau.n
         self.n_rows = int(self.tableau.shape[0])
-        self.phase = phase
+        self.phase = np.asarray(phase, dtype=np.int8) % 4
         self.shape = (self.n_rows, self.n)
 
     @classmethod
@@ -256,7 +257,8 @@ class PauliTableau:
             [z2x.astype(np.int8), z2z.astype(np.int8)],
         ]).astype(np.int8)
 
-        phase = np.concatenate((x_signs.astype(np.int8), z_signs.astype(np.int8)))
+        signs = np.concatenate((x_signs.astype(np.int8), z_signs.astype(np.int8)))
+        phase = cls.phase_from_signs(tableau_matrix, signs)
         return cls(SymplecticMatrix(tableau_matrix), phase)
 
     @classmethod
@@ -285,6 +287,24 @@ class PauliTableau:
             mat[i] = p.symplectic.data
             phase[i] = p.phase
         return cls(mat, phase)
+
+    @staticmethod
+    def phase_from_signs(symplectic_matrix: npt.NDArray[np.int8], signs: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
+        """Convert per-row binary signs of a symplectic tableau into {0,1,2,3} phase exponents.
+
+        Args:
+            symplectic_matrix: A r x 2n binary symplectic support matrix.
+            signs: A length-r vector of binary signs (0 for plus, 1 for minus), one per row.
+
+        Returns:
+            A length-r vector of phase exponents p in {0,1,2,3} such that row i equals
+            (-1)^signs[i] i^(x_i.z_i) X^x_i Z^z_i.
+        """
+        n = symplectic_matrix.shape[1] // 2
+        x_part = symplectic_matrix[:, :n].astype(np.int32)
+        z_part = symplectic_matrix[:, n:].astype(np.int32)
+        xz_mod4 = (x_part * z_part).sum(axis=1) % 4
+        return ((xz_mod4 + 2 * np.asarray(signs, dtype=np.int32)) % 4).astype(np.int8)
 
     @classmethod
     def empty(cls, n: int) -> PauliTableau:
@@ -359,6 +379,20 @@ class PauliTableau:
         """Get a Pauli operator from the stabilizer tableau."""
         return Pauli(SymplecticVector(self.tableau[key]), self.phase[key])
 
+    def signs(self) -> npt.NDArray[np.int8]:
+        """Return the derived binary sign for each row, in (-1)^r i^(x.z) X^x Z^z.
+
+        Raises:
+            InvalidPauliError: If any row is not Hermitian.
+        """
+        x_part = self.get_x_part().astype(np.int32)
+        z_part = self.get_z_part().astype(np.int32)
+        xz_mod4 = (x_part * z_part).sum(axis=1) % 4
+        if not np.all(self.phase % 2 == xz_mod4 % 2):
+            msg = "PauliTableau contains non-Hermitian rows; signs() is only defined for Hermitian rows."
+            raise InvalidPauliError(msg)
+        return (((self.phase.astype(np.int32) - xz_mod4) // 2) % 2).astype(np.int8)
+
     def __hash__(self) -> int:
         """Compute the hash of the stabilizer tableau."""
         return hash((self.tableau, self.phase.tobytes()))
@@ -378,21 +412,20 @@ class PauliTableau:
         Args:
             qubit: The index of the qubit to apply the Hadamard gate to.
         """
-        self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
+        self.phase = (self.phase + 2 * self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 4
         self.tableau[:, [qubit, qubit + self.n]] = self.tableau[:, [qubit + self.n, qubit]]
 
     def apply_cx(self, ctrl: int, tar: int) -> None:
         """Apply the CNOT gate to the stabilizer tableau.
 
+        CX is a tensor product of single-qubit generator conjugations that never
+        reorders an X past a Z on the same qubit, so it never contributes a phase:
+        the exponent p is unchanged, only the support is relabeled.
+
         Args:
             ctrl: The index of the control qubit.
             tar: The index of the target qubit.
         """
-        self.phase ^= (
-            self.tableau[:, ctrl]
-            * self.tableau[:, tar + self.n]
-            * (self.tableau[:, tar] ^ self.tableau[:, ctrl + self.n] ^ 1)
-        )
         self.tableau[:, tar] = (self.tableau[:, tar] + self.tableau[:, ctrl]) % 2
         self.tableau[:, ctrl + self.n] = (self.tableau[:, tar + self.n] + self.tableau[:, ctrl + self.n]) % 2
 
@@ -424,7 +457,7 @@ class PauliTableau:
         Args:
             qubit: The index of the qubit to apply the S gate to.
         """
-        self.phase ^= self.tableau[:, qubit] * self.tableau[:, qubit + self.n]
+        self.phase = (self.phase + self.tableau[:, qubit]) % 4
         self.tableau[:, qubit + self.n] ^= self.tableau[:, qubit]
 
     def apply_sdg(self, qubit: int) -> None:
@@ -434,11 +467,11 @@ class PauliTableau:
 
     def apply_x(self, qubit: int) -> None:
         """Apply the X gate to the stabilizer tableau."""
-        self.phase ^= self.tableau[:, qubit + self.n]
+        self.phase = (self.phase + 2 * self.tableau[:, qubit + self.n]) % 4
 
     def apply_z(self, qubit: int) -> None:
         """Apply the Z gate to the stabilizer tableau."""
-        self.phase ^= self.tableau[:, qubit]
+        self.phase = (self.phase + 2 * self.tableau[:, qubit]) % 4
 
     def apply_y(self, qubit: int) -> None:
         """Apply the Y gate to the stabilizer tableau."""
@@ -560,7 +593,7 @@ class PauliTableau:
         symplectic_vector = pauli.symplectic
         for i in range(self.n_rows):
             stab_vector = SymplecticVector(self.tableau[i])
-            if symplectic_vector == stab_vector and pauli.phase == self.phase[i]:
+            if symplectic_vector == stab_vector and pauli == Pauli(stab_vector, self.phase[i]):
                 return True
         return False
 
