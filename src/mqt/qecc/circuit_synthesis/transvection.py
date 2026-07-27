@@ -383,7 +383,7 @@ def fix_tableau_signs_in_place(tableau: PauliTableau) -> list[PauliOperation]:
     x_part = tableau.tableau.data[:, :n]
     z_part = tableau.tableau.data[:, n:]
 
-    phase = tableau.phase.copy()
+    phase = tableau.signs()
 
     if not np.any(phase):
         return []

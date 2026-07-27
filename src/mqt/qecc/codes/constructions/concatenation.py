@@ -82,7 +82,7 @@ class ConcatenatedCode(StabilizerCode):
             msg = "The Pauli operator must have the same number of qubits as the outer code."
             raise InvalidStabilizerCodeError(msg)
         concatenated = SymplecticVector.zeros(self.n)
-        phase = 0
+        phase = p.phase
         offset: int = 0
         for i in range(self.outer_code.n):
             c = self.inner_codes[i]
@@ -90,19 +90,17 @@ class ConcatenatedCode(StabilizerCode):
             assert c.x_logicals is not None
             assert c.z_logicals is not None
             if p[i] == "X":
-                concatenated[offset:new_offset] = c.x_logicals[0].x_part()
-                concatenated[offset + self.n : new_offset + self.n] = c.x_logicals[0].z_part()
-                phase += c.x_logicals[0].phase
+                block = c.x_logicals[0]
             elif p[i] == "Z":
-                concatenated[offset:new_offset] = c.z_logicals[0].x_part()
-                concatenated[offset + self.n : new_offset + self.n] = c.z_logicals[0].z_part()
-                phase += c.z_logicals[0].phase
+                block = c.z_logicals[0]
             elif p[i] == "Y":
-                concatenated[offset:new_offset] = c.x_logicals[0].x_part() ^ c.z_logicals[0].x_part()
-                concatenated[offset + self.n : new_offset + self.n] = (
-                    c.x_logicals[0].z_part() ^ c.z_logicals[0].z_part()
-                )
-                phase += c.x_logicals[0].phase + c.z_logicals[0].phase
+                block = c.x_logicals[0] * c.z_logicals[0]
+            else:
+                offset = new_offset
+                continue
+            concatenated[offset:new_offset] = block.x_part()
+            concatenated[offset + self.n : new_offset + self.n] = block.z_part()
+            phase = (phase + block.phase) % 4
             offset = new_offset
         return Pauli(concatenated, phase)
 

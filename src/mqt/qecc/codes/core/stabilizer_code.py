@@ -423,7 +423,9 @@ class StabilizerCode:
 
         z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
-        return PauliTableau(x_mat, np.zeros((k,), dtype=np.int8)), PauliTableau(z_mat, np.zeros((k,), dtype=np.int8))
+        x_phase = PauliTableau.phase_from_signs(x_mat, np.zeros(k, dtype=np.int8))
+        z_phase = PauliTableau.phase_from_signs(z_mat, np.zeros(k, dtype=np.int8))
+        return PauliTableau(x_mat, x_phase), PauliTableau(z_mat, z_phase)
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:

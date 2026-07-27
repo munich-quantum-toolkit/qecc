@@ -44,15 +44,19 @@ class Pauli:
     Internally, a Pauli operator is stored as a binary symplectic support (x|z) together with a phase exponent p, representing Q(x,z,p) = i^p X^x Z^z.
     """
 
-    def __init__(self, symplectic: SymplecticVector, phase: int = 0) -> None:
+    def __init__(self, symplectic: SymplecticVector, phase: int | None = None) -> None:
         """Create a new Pauli operator.
 
         Args:
             symplectic: A 2n x 1 binary matrix representing the symplectic form of the Pauli operator. The first n entries correspond to X operators, and the second n entries correspond to Z operators.
-            phase: The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z. Normalized modulo four.
+            phase: The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z, normalized modulo four. If None, use canonical positive Hermitian phase.
         """
         self.n = symplectic.n
         self.symplectic = symplectic
+        if phase is None:
+            x_part = np.asarray(symplectic[: self.n], dtype=np.int8)
+            z_part = np.asarray(symplectic[self.n :], dtype=np.int8)
+            phase = np.dot(x_part, z_part)
         self.phase = int(phase) % 4
 
     @property
@@ -212,14 +216,15 @@ class PauliTableau:
         Args:
             tableau: Symplectic matrix representing the stabilizer tableau.
             phase: A vector of per-row phase exponents in {0,1,2,3}, such that row i
-                equals i^phase[i] X^x_i Z^z_i. Not restricted to Hermitian (real-sign) rows.
+                equals i^phase[i] X^x_i Z^z_i. Not restricted to Hermitian (real-sign) rows. If None, use canonical positive Hermitian phase for each row.
         """
         if isinstance(tableau, np.ndarray):
             self.tableau = SymplecticMatrix(tableau)  # ty: ignore[invalid-argument-type]
         else:
             self.tableau = tableau
         if phase is None:
-            phase = np.zeros((self.tableau.shape[0]), dtype=np.int8)
+            signs = np.zeros(self.tableau.shape[0], dtype=np.int8)
+            phase = self.phase_from_signs(self.tableau.data, signs)
         if self.tableau.shape[0] != phase.shape[0]:
             msg = "The number of rows in the tableau must match the number of phases."
             raise InvalidPauliError(msg)
@@ -717,7 +722,7 @@ def complete_stabilizer_tableau_with_destabilizers(
 
     for destab in destabilizers:
         new_rows.append(destab)
-        new_phases.append(0)
+        new_phases.append(int(PauliTableau.phase_from_signs(destab.reshape(1, -1), np.zeros(1, dtype=np.int8))[0]))
 
     for _, row, phase in logical_z_rows:
         new_rows.append(row)

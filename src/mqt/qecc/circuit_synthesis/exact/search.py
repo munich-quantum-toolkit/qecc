@@ -671,7 +671,7 @@ def _logical_sign_corrections(
     k = num_target_rows - n
     target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
     target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
-    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
+    target_signs = target_tableau.signs()[:num_target_rows].astype(np.int8)
 
     x_correction = np.zeros(n, dtype=np.int8)
     z_correction = np.zeros(n, dtype=np.int8)
@@ -718,7 +718,7 @@ def _stabilizer_sign_corrections(
 
     target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
     target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
-    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
+    target_signs = target_tableau.signs()[:num_target_rows].astype(np.int8)
 
     circ_stab_symp = np.hstack([circ.z2x[pivot_qubits], circ.z2z[pivot_qubits]])  # (num_stab x 2n)
     circ_stab_sign = circ.z_sign[np.array(pivot_qubits)]
