@@ -23,6 +23,8 @@ from mqt.qecc.codes.core.pauli import (
     PauliTableau,
     StabilizerTableau,
     complete_stabilizer_tableau_with_destabilizers,
+    pauli_rank,
+    pauli_row_echelon,
 )
 from mqt.qecc.codes.core.symplectic import (
     SymplecticMatrix,
@@ -320,6 +322,71 @@ def test_pauli_tableau_alias() -> None:
     t = PauliTableau.from_pauli_strings(["XX", "ZZ"])
     assert t.symplectic.shape == (2, 4)
     assert_array_equal(t.symplectic, t.tableau.data)
+
+
+def test_pauli_row_echelon_preserves_phases() -> None:
+    """Row reduction propagates phases introduced by Pauli multiplication."""
+    tableau = PauliTableau.from_pauli_strings(["-YY", "ZZ"])
+
+    reduced, rank, _, transform, pivots = pauli_row_echelon(tableau)
+
+    assert reduced.to_pauli_list() == [
+        Pauli.from_pauli_string("XX"),
+        Pauli.from_pauli_string("ZZ"),
+    ]
+    assert rank == 2
+    assert pivots == [0, 2]
+    assert_array_equal((transform @ tableau.symplectic) % 2, reduced.symplectic)
+    assert tableau.to_pauli_list() == [
+        Pauli.from_pauli_string("-YY"),
+        Pauli.from_pauli_string("ZZ"),
+    ]
+
+
+def test_pauli_row_echelon_keeps_scalar_rows() -> None:
+    """Dependent rows reduce to their scalar Pauli product."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ", "-YY"])
+
+    reduced, rank, _, _, pivots = pauli_row_echelon(tableau)
+
+    assert reduced.to_pauli_list() == [
+        Pauli.from_pauli_string("XX"),
+        Pauli.from_pauli_string("ZZ"),
+        Pauli.from_pauli_string("II"),
+    ]
+    assert rank == 2
+    assert pivots == [0, 2]
+
+
+def test_pauli_rank() -> None:
+    """The Pauli rank includes independent support and central phases."""
+    assert pauli_rank(PauliTableau.from_pauli_strings(["XX", "ZZ", "-YY"])) == 2
+    assert pauli_rank(PauliTableau.from_pauli_strings(["XX", "ZZ", "YY"])) == 3
+    assert pauli_rank(PauliTableau.from_pauli_strings(["+iX"])) == 2
+    assert pauli_rank(PauliTableau.from_pauli_strings(["X", "Z"])) == 3
+    assert pauli_rank(PauliTableau.empty(2)) == 0
+
+
+def test_is_in_pauli_subgroup() -> None:
+    """Subgroup membership includes the phase of the Pauli operator."""
+    subgroup = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    assert subgroup.is_in_subgroup(Pauli.from_pauli_string("XX"))
+    assert subgroup.is_in_subgroup(Pauli.from_pauli_string("-YY"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("YY"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("-II"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("XI"))
+
+
+def test_is_in_general_pauli_subgroup() -> None:
+    """Subgroup membership supports non-Hermitian and anticommuting generators."""
+    phased_subgroup = PauliTableau.from_pauli_strings(["+iX"])
+    assert phased_subgroup.is_in_subgroup(Pauli.from_pauli_string("-I"))
+    assert not phased_subgroup.is_in_subgroup(Pauli.from_pauli_string("X"))
+
+    anticommuting_subgroup = PauliTableau.from_pauli_strings(["X", "Z"])
+    assert anticommuting_subgroup.is_in_subgroup(Pauli.from_pauli_string("-I"))
+    assert anticommuting_subgroup.is_in_subgroup(Pauli.from_pauli_string("-iY"))
 
 
 def test_complete_stabilizer_tableau_with_destabilizers():
