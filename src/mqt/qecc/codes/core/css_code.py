@@ -39,6 +39,10 @@ class CSSCode(StabilizerCode):
         Lz: npt.NDArray[np.int8] | None = None,  # ruff:ignore[invalid-argument-name]
     ) -> None:
         """Initialize the code."""
+        # Check/logical matrices are binary GF(2) arrays and are normalized to int8 below (via
+        # ``np.asarray``/``np.array``). This keeps the whole code object dtype-consistent with the
+        # int8 type annotations; without it, dtypes such as uint8/int16/bool propagate through
+        # ``symplectic``/``Hx``/``Hz`` and break numba-dispatched synthesis (see issue #775).
         if Hx is None and Hz is None:
             if n is None:
                 msg = "If no check matrices are provided, the code size must be specified."
@@ -49,13 +53,13 @@ class CSSCode(StabilizerCode):
             self._check_valid_check_matrices(Hx, Hz)
             if Hx is not None:
                 inferred_n = Hx.shape[1]
-                hx = Hx
-                hz = Hz if Hz is not None else np.zeros((0, inferred_n), dtype=np.int8)
+                hx = np.asarray(Hx, dtype=np.int8)
+                hz = np.asarray(Hz, dtype=np.int8) if Hz is not None else np.zeros((0, inferred_n), dtype=np.int8)
             else:
                 assert Hz is not None
                 inferred_n = Hz.shape[1]
                 hx = np.zeros((0, inferred_n), dtype=np.int8)
-                hz = Hz
+                hz = np.asarray(Hz, dtype=np.int8)
 
         num_qubits = hx.shape[1]
         if n is not None and n != num_qubits:
@@ -68,8 +72,8 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
 
         if Lx is not None and Lz is not None:
-            lx = Lx.copy()
-            lz = Lz.copy()
+            lx = np.array(Lx, dtype=np.int8)
+            lz = np.array(Lz, dtype=np.int8)
         else:
             lx = CSSCode._compute_logical(hz, hx)
             lz = CSSCode._compute_logical(hx, hz)
@@ -191,7 +195,10 @@ class CSSCode(StabilizerCode):
             if Hx.shape[1] != Hz.shape[1]:
                 msg = "Check matrices must have the same number of columns"
                 raise InvalidCSSCodeError(msg)
-            if np.any(Hx @ Hz.T % 2 != 0):
+            # Cast to an integer dtype before the matmul: for boolean inputs ``@`` is a logical
+            # product (any overlap -> True), so the mod-2 orthogonality test would otherwise be
+            # wrong (see issue #775).
+            if np.any(Hx.astype(np.int64) @ Hz.astype(np.int64).T % 2 != 0):
                 msg = "The check matrices must be orthogonal"
                 raise InvalidCSSCodeError(msg)
 

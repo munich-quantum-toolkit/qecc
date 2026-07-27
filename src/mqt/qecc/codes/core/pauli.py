@@ -696,7 +696,11 @@ class CheckMatrix:
             msg = f"Check matrix type must be either 'X' or 'Z', got {pauli_type!r}."
             raise ValueError(msg)
         assert matrix.ndim == 2, "Matrix must be 2D."
-        self.matrix = matrix.copy()
+        # Normalize to int8 so downstream (numba-dispatched) routines always receive a supported
+        # dtype. Check matrices are binary GF(2) arrays, so int8 is lossless; without this, integer
+        # dtypes such as uint8/int16 propagate through and raise a numba "No matching definition"
+        # dispatch error (see issue #775).
+        self.matrix = np.array(matrix, dtype=np.int8)
         self.type = pauli_type
 
     def is_x_type(self) -> bool:

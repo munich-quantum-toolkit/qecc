@@ -317,3 +317,16 @@ def test_check_matrix() -> None:
     assert hash(x_checks) == hash(x_checks.copy())
     assert x_checks.equ_span(z_checks)
     assert repr(x_checks) == "CheckMatrix(type=X, matrix=\n[[1 0]\n [0 1]])"
+
+
+@pytest.mark.parametrize("dtype", [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.bool_])
+def test_check_matrix_normalizes_dtype(dtype: npt.DTypeLike) -> None:
+    """CheckMatrix normalizes any binary integer dtype to int8 (regression test for #775).
+
+    Non-int8 dtypes (e.g. uint8/int16) previously propagated into numba-dispatched synthesis
+    routines and raised a "No matching definition" dispatch error.
+    """
+    matrix = np.eye(2, dtype=dtype)
+    checks = CheckMatrix(matrix, "X")
+    assert checks.matrix.dtype == np.int8
+    assert_array_equal(checks.matrix, np.eye(2, dtype=np.int8))
