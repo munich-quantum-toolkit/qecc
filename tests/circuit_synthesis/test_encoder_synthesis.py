@@ -498,6 +498,24 @@ def test_encoding_fixed_logical_qubits_css(
                 assert actual_code.is_stabilizer(css_4_2_2_code.x_logicals[q])
 
 
+@pytest.mark.parametrize(
+    ("x_logical", "z_logical", "fixed_state", "expected_stabilizer"),
+    [
+        ("-X", "Z", "+", "-X"),
+        ("X", "-Z", "0", "-Z"),
+    ],
+)
+def test_encoding_fixed_logical_qubit_preserves_phase(
+    x_logical: str, z_logical: str, fixed_state: Literal["0", "+"], expected_stabilizer: str
+) -> None:
+    """Check that fixing a logical qubit preserves the logical operator's phase."""
+    code = StabilizerCode([], n=1, x_logicals=[x_logical], z_logicals=[z_logical])
+
+    encoder = synthesize_encoding_circuit(code, fixed_logical_qubits={0: fixed_state}, use_cnots_if_css=False)
+
+    assert encoder.get_code().is_stabilizer(expected_stabilizer)
+
+
 @pytest.mark.parametrize("use_cnots_if_css", [True, False])
 @pytest.mark.parametrize("fixed_logical_qubits", [{3: "0"}, {0: "+", 5: "+"}, {1: "A", 0: "+"}])
 def test_encoding_invalid_fixed_logical_qubits(

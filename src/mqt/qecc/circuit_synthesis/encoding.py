@@ -371,8 +371,8 @@ def synthesize_encoding_circuit(
     ))
     gens_phase: npt.NDArray[np.int8] = np.hstack((
         code.generators.phase,
-        PauliTableau.phase_from_signs(additional_x_rows, np.zeros(len(additional_x_checks), dtype=np.int8)),
-        PauliTableau.phase_from_signs(additional_z_rows, np.zeros(len(additional_z_checks), dtype=np.int8)),
+        code.x_logicals.phase[additional_x_checks],
+        code.z_logicals.phase[additional_z_checks],
     ))
     log_mat: npt.NDArray[np.int8] = np.vstack((
         np.delete(code.x_logicals.tableau.data, additional_checks, axis=0),
