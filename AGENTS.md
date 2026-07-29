@@ -49,11 +49,19 @@
   `ty`, formatting, and metadata checks). All hooks must pass before submitting.
 - MUST add or update tests for every code change, even if not explicitly
   requested.
+- MUST place tests in the repository's corresponding test tree, organized by the
+  component that owns the behavior. NEVER place tests or test fixtures in
+  production source or tool directories. Reserve tool- or CLI-level subprocess
+  tests for contracts that cannot be exercised meaningfully through a lower-
+  level public API. Normal test targets and dependencies belong in the test
+  build; avoid promoting an otherwise optional production tool into the default
+  build solely for subprocess testing.
 - MUST follow existing code style by checking neighboring files for patterns.
-- MUST include a commit footer attribution in the form
-  `Assisted-by: [Model Name] via [Tool Name]` (example:
-  `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`) if AI tools are used to
-  prepare a commit.
+- AI assistance MUST be disclosed in the PR description.
+- Commit-level `Assisted-by: [Model Name] via [Tool Name]` trailers are
+  recommended, not required. For example:
+  `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`. Do not rewrite otherwise
+  valid history solely to add one.
 - NEVER modify files that start with "This file has been generated from an
   external template. Please do not modify it directly." These files are managed
   by
@@ -77,6 +85,9 @@
   the disclosure at the beginning of the edited field.
 - MUST keep external communication accurate, specific, and non-repetitive; do
   not post low-quality or unsolicited comments.
+- When reviewing a contribution, MUST focus findings on substantive correctness,
+  contracts, maintainability, tests, documentation, licensing, and validation.
+  NEVER report a missing optional AI-attribution trailer as a review finding.
 
 ### Python
 
