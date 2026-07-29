@@ -76,14 +76,16 @@ beginning of the edited field.
 Transparency helps the community understand the role of these tools and develop
 best practices.
 
-**You must disclose AI assistance.** This helps us understand how the tools are
-being used and identify potential issues. Disclose it in the following ways:
+**AI assistance must be disclosed in the PR description.** This helps reviewers
+understand how the tools were used and where human verification was applied.
 
-- **Commit Messages**: Add a trailer to your commit message in the form
-  `Assisted-by: [Model Name] via [Tool Name]` (example:
-  `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`)
-- **Public issue and pull request text**: Use the visible disclosure required in
-  the [communication policy](#3-communication).
+- **PR Description**: Briefly state how AI tools materially assisted the
+  contribution. If an agent authored or edited the description, use the visible
+  disclosure required in the [communication policy](#3-communication).
+- **Commit Messages**: We recommend adding an
+  `Assisted-by: [Model Name] via [Tool Name]` trailer to commits prepared with
+  AI assistance. For example:
+  `Assisted-by: Claude Sonnet 4.6 via GitHub Copilot`.
 
 ### 5. Licensing and Copyright
 
