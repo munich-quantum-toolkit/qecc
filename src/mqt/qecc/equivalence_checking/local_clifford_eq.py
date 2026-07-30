@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..codes.stabilizer_code import StabilizerCode
+    from ..codes.core.stabilizer_code import StabilizerCode
 
 
 def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) -> bool:
