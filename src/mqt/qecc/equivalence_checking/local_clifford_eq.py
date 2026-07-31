@@ -354,7 +354,7 @@ def _lse_stabilizer_code(
             return bool(np.all(dets == 1))
 
         lse = _build_lse()
-        solution_space = nullspace(lse)
+        solution_space = nullspace(lse).astype(np.uint8)
 
         dim = solution_space.shape[0]
 
