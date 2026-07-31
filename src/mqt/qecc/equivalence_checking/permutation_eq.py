@@ -79,7 +79,7 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     if reduced_hx1.shape[0] == 0 and reduced_hz1.shape[0] == 0:
         return list(range(code1.n))
 
-    if reduced_hx2.shape[0] != reduced_hz2.shape[0] or reduced_hx1.shape[0] != reduced_hz1.shape[0]:
+    if reduced_hx1.shape[0] != reduced_hx2.shape[0] or reduced_hz1.shape[0] != reduced_hz2.shape[0]:
         return None
 
     if code1.n <= BRUTEFORCE_THRESHOLD_CSS:
@@ -511,7 +511,7 @@ def _sat_stabilizer_code(
     """Map the permutation equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
     solver = z3.Solver()
 
-    r, n = c1.shape
+    r, n = c1.shape[0], c1.shape[1] // 2
 
     # permutations
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
