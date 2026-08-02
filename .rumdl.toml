@@ -18,3 +18,4 @@ reflow-mode = "normalize"
 
 [MD060]
 enabled = true
+style = "aligned"
