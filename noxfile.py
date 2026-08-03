@@ -68,7 +68,6 @@ def _run_tests(
 
     if "--cov" in session.posargs:
         env["NUMBA_DISABLE_JIT"] = "1"
-        env["COVERAGE_CORE"] = "sysmon"
 
     session.run(
         "uv",
