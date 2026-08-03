@@ -1108,12 +1108,6 @@ def test_reduce_to_coset_leaders_empty_generators() -> None:
 
     reduced = faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
 
-<<<<<<< HEAD
-	# Faults should remain unchanged
-	assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
-	assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
-=======
     # Faults should remain unchanged
     assert np.array_equal(reduced.faults["X"], np.array([[1, 0, 1]], dtype=np.int8))
     assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
->>>>>>> d0b4bc68 (🎨 pre-commit fixes)
