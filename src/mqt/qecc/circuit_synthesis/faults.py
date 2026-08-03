@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,6 +18,8 @@ import z3
 from mqt.qecc.mod2 import row_echelon
 
 from .synthesis_utils import symbolic_vector_add, symbolic_vector_eq, vars_to_stab
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Iterator
@@ -815,23 +818,31 @@ class XZFaultList:
         Raises:
             ValueError: If any generator array has incorrect dimensions (must be 2D with num_qubits columns).
             AssertionError: If generators tuple length is not 2.
+
+        Warning:
+            This calls :func:`coset_leader` once per fault row, so it might take a while.
         """
         # Setting the corresponding generator to None means no reduction is done
 
         assert len(generators) == 2, "Generators should be a tuple of x_generators and z_generators"
 
-        # use qecc_faults.coset_leader(single_fault, generators) for x and z
-        ret = self if inplace else self.copy()
+        logger.warning("This calls coset_leader once per fault row, so it might take a while.")
 
-        for error_type, g_ in zip(ret.faults, generators, strict=False):
-            # Ensure generators are numpy arrays (may be empty)
-            g = None if g_ is None else np.asarray(g_, dtype=np.int8)
+        # Normalize and validate both generator arrays before mutating any faults.
+        generator_map: dict[str, npt.NDArray[np.int8] | None] = {
+            "X": None if generators[0] is None else np.asarray(generators[0], dtype=np.int8),
+            "Z": None if generators[1] is None else np.asarray(generators[1], dtype=np.int8),
+        }
 
-            # Check sizes
+        for g in generator_map.values():
             if g is not None and (g.ndim != 2 or g.shape[1] != self.num_qubits):
                 msg = f"Generators must be a 2D array with {self.num_qubits} columns."
                 raise ValueError(msg)
 
+        ret = self if inplace else self.copy()
+
+        for error_type in ("X", "Z"):
+            g = generator_map[error_type]
             if ret.faults[error_type].shape[0] > 0 and g is not None and g.size > 0:
                 for i in range(ret.faults[error_type].shape[0]):
                     ret.faults[error_type][i] = np.asarray(coset_leader(ret.faults[error_type][i], g), dtype=np.int8)

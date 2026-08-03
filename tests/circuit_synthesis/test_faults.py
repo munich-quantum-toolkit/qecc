@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
 
@@ -1011,6 +1013,19 @@ def test_reduce_to_coset_leaders_no_generators() -> None:
     assert np.array_equal(reduced.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
 
 
+def test_reduce_to_coset_leaders_logs_runtime_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """Coset leader reduction warns that it iterates once per fault row."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+
+    with caplog.at_level(logging.WARNING):
+        faults.reduce_to_coset_leaders((x_generators, None), inplace=False)
+
+    assert "This calls coset_leader once per fault row, so it might take a while." in caplog.text
+
+
 def test_reduce_to_coset_leaders_x_generators() -> None:
     """Coset leader reduction applies X generators to reduce X faults to leaders."""
     faults = XZFaultList(num_qubits=3)
@@ -1080,6 +1095,23 @@ def test_reduce_to_coset_leaders_inplace() -> None:
     assert np.array_equal(faults.faults["X"], np.array([[0, 0, 0]], dtype=np.int8))
     # Z fault should remain unchanged
     assert np.array_equal(faults.faults["Z"], np.array([[0, 1, 0]], dtype=np.int8))
+
+
+def test_reduce_to_coset_leaders_inplace_invalid_generators_preserves_state() -> None:
+    """Validation failures must not partially mutate an inplace fault list."""
+    faults = XZFaultList(num_qubits=3)
+    faults.add_fault((np.array([1, 0, 1], dtype=np.int8), np.array([0, 1, 0], dtype=np.int8)))
+
+    x_generators = np.array([[1, 0, 1]], dtype=np.int8)
+    z_generators = np.array([[1, 0]], dtype=np.int8)
+    original_x = faults.faults["X"].copy()
+    original_z = faults.faults["Z"].copy()
+
+    with pytest.raises(ValueError, match=r"Generators must be a 2D array with 3 columns."):
+        faults.reduce_to_coset_leaders((x_generators, z_generators), inplace=True)
+
+    assert np.array_equal(faults.faults["X"], original_x)
+    assert np.array_equal(faults.faults["Z"], original_z)
 
 
 def test_reduce_to_coset_leaders_not_inplace() -> None:
