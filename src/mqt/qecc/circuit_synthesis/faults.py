@@ -614,7 +614,7 @@ class XZFaultList:
         Raises:
             ValueError: If control or target indices are out of range or equal.
         """
-        self.ensure_apply_valid_input(control, target)
+        self._ensure_apply_valid_input(control, target)
 
         if inplace:
             # Apply CNOT directly to self.faults
@@ -650,7 +650,7 @@ class XZFaultList:
         Raises:
             ValueError: If qubit index is out of range.
         """
-        self.ensure_apply_valid_input(qubit)
+        self._ensure_apply_valid_input(qubit)
 
         if inplace:
             # Atomic swap using tuple assignment; use copies on RHS to avoid overlap
@@ -688,7 +688,7 @@ class XZFaultList:
         Raises:
             ValueError: If qubit index is out of range.
         """
-        self.ensure_apply_valid_input(qubit)
+        self._ensure_apply_valid_input(qubit)
 
         if inplace:
             self.faults["X"][:, qubit] = 0
@@ -733,7 +733,7 @@ class XZFaultList:
         # We do a simple logic, that every pair of X faults leads, in the worst case, to a Z fault on the other control. So we can just add all pairs of X faults as Z faults.
         # Z_i ^= (X_j & X_k) for all distinct i, j, k in {control1, control2, control3}
 
-        self.ensure_apply_valid_input(control1, control2, control3)
+        self._ensure_apply_valid_input(control1, control2, control3)
 
         if inplace:
             x_faults, z_faults = self.faults["X"], self.faults["Z"]
@@ -767,7 +767,7 @@ class XZFaultList:
             ValueError: If any qubit index is out of range.
             ValueError: If qubits are not distinct.
         """
-        self.ensure_apply_valid_input(control1, control2, target)
+        self._ensure_apply_valid_input(control1, control2, target)
 
         fault_list = self.apply_hadamard(target, inplace=inplace)
         fault_list.apply_ccz(control1, control2, target)
@@ -775,11 +775,11 @@ class XZFaultList:
 
         return fault_list
 
-    def ensure_apply_valid_input(self, *qubits: int) -> bool:
+    def _ensure_apply_valid_input(self, *qubits: int) -> None:
         """Ensures that the input into apply_* functions are valid.
 
         Returns:
-            bool: True if everything is okay
+            None: None if everything is okay
 
         Raises:
             ValueError: If any qubit index is out of range.
@@ -792,8 +792,6 @@ class XZFaultList:
         if n_q > 1 and len(set(qubits)) != n_q:
             msg = "All qubits must be different."
             raise ValueError(msg)
-
-        return True
 
     def reduce_to_coset_leaders(
         self, generators: tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None], inplace: bool = True
