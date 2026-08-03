@@ -543,6 +543,7 @@ class XZFaultList:
             faults: A tuple of (x_faults, z_faults) where each is a 2D numpy array.
                 Each array should have num_qubits columns.
                 One of the faults may be set to None, which is treated as an all-zero fault.
+                x_faults and z_faults should also have the same number of rows as they are coupled
 
         Raises:
             ValueError: If fault arrays don't have the correct shape.
@@ -563,8 +564,14 @@ class XZFaultList:
             x_faults = np.asarray(x_faults, dtype=np.int8)
             z_faults = np.asarray(z_faults, dtype=np.int8)
 
+        if x_faults.ndim != 2 or z_faults.ndim != 2:
+            msg = "Fault arrays must be 2-dimensional."
+            raise ValueError(msg)
         if x_faults.shape[1] != self.num_qubits or z_faults.shape[1] != self.num_qubits:
             msg = f"Faults must have {self.num_qubits} columns."
+            raise ValueError(msg)
+        if x_faults.shape[0] != z_faults.shape[0]:
+            msg = "Fault arrays must have the same number of rows."
             raise ValueError(msg)
 
         self.faults["X"] = np.vstack([self.faults["X"], x_faults])

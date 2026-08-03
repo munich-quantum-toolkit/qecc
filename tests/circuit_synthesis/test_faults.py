@@ -721,6 +721,28 @@ def test_add_faults_rejects_wrong_column_count() -> None:
         ))
 
 
+def test_add_faults_rejects_mismatched_row_counts() -> None:
+    """Adding coupled fault arrays with different row counts raises a ValueError."""
+    faults = XZFaultList(num_qubits=3)
+
+    with pytest.raises(ValueError, match=r"Fault arrays must have the same number of rows."):
+        faults.add_faults((
+            np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8),
+            np.array([[0, 1, 0]], dtype=np.int8),
+        ))
+
+
+def test_add_faults_rejects_1d_inputs() -> None:
+    """Adding 1D fault arrays raises a ValueError before shape-based access."""
+    faults = XZFaultList(num_qubits=3)
+
+    with pytest.raises(ValueError, match=r"Fault arrays must be 2-dimensional."):
+        faults.add_faults((
+            np.array([1, 0, 0], dtype=np.int8),
+            np.array([[0, 1, 0]], dtype=np.int8),
+        ))
+
+
 def test_add_faults_replaces_none_with_zeros() -> None:
     """None arrays passed to add_faults are replaced by zero arrays of proper shape."""
     faults = XZFaultList(num_qubits=3)
