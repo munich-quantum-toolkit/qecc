@@ -638,6 +638,7 @@ def test_permute_qubits_inplace():
 
     assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"
 
+
 """XZFaultList Tests"""
 
 
