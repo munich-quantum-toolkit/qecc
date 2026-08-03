@@ -19,7 +19,7 @@ import z3
 from ..mod2 import nullspace, rank, row_basis
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     import numpy.typing as npt
 
@@ -62,7 +62,15 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
 
 def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is local clifford equivalent to a CSS code."""
-    raise NotImplementedError
+    if code.n < 1:
+        return True
+
+    reduced_symplectic = row_basis(code.symplectic)
+
+    if code.n < 4:
+        return _bruteforce_css_code(reduced_symplectic)
+
+    return _sat_css_code(reduced_symplectic)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -111,6 +119,43 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
                 return False
 
     return True
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Brute force algorithms
+# ----------------------------------------------------------------------------------------------------
+
+
+def _bruteforce_css_code(tableau: np.ndarray) -> bool:
+    """lc_css_bruteforce.py."""
+    r, n = tableau.shape[0], tableau.shape[1] // 2
+
+    def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> None:
+        if lc == "I":
+            pass
+        elif lc == "H":
+            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
+        elif lc == "S":
+            tableau[:, qubit + n] ^= tableau[:, qubit]
+        elif lc == "HS":
+            tableau[:, qubit + n] ^= tableau[:, qubit]
+            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
+        elif lc == "SH":
+            tableau[:, qubit] ^= tableau[:, qubit + n]
+            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
+        elif lc == "HSH":
+            tableau[:, qubit] ^= tableau[:, qubit + n]
+
+    for action in product(LOCAL_CLIFFORDS, repeat=n):
+        lc_tableau = tableau.copy()
+
+        for qubit, lc in enumerate(action):
+            apply_lc(lc_tableau, lc, qubit)
+
+        if rank(lc_tableau[:, :n]) + rank(lc_tableau[:, n:]) == r:
+            return True
+
+    return False
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -450,19 +495,6 @@ def _lse_stabilizer_code(
 
 def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | None:
     """Map the LC equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
-
-    def _elementwise_map(normal_bool: npt.NDArray[np.int8], variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
-        return z3.And([v if bit == 1 else z3.Not(v) for bit, v in zip(normal_bool, variables, strict=False)])
-
-    def _exactly_one(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
-        return z3.PbEq([(v, 1) for v in variables], 1)
-
-    def _xor_list(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
-        acc = z3.BoolVal(False)
-        for v in variables:
-            acc = z3.Xor(acc, v)
-        return acc
-
     solver = z3.Solver()
 
     n = c1.n
@@ -576,3 +608,129 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
         )
         for qubit_variables in local_clifford_variables
     ]
+
+
+def _sat_css_code(c: npt.NDArray[np.integer]) -> bool:
+    """lc_css_sat.py."""
+    solver = z3.Solver()
+
+    r, n = c.shape[0], c.shape[1] // 2
+    n - r
+
+    # cliffords
+    aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
+
+    local_clifford_variables = [
+        {operation: z3.Bool(f"lc_{qubit}_{operation}") for operation in LOCAL_CLIFFORDS} for qubit in range(n)
+    ]
+
+    for qubit_variables in local_clifford_variables:
+        solver.add(_exactly_one(qubit_variables.values()))
+
+    for i in range(n):
+        x_column_original = c[:, i]
+        z_column_original = c[:, i + n]
+        x_z_column_original = (x_column_original + z_column_original) % 2
+        zero_column_original = np.zeros_like(x_column_original)
+
+        x_column_aux = [aux_tableau[row * (2 * n) + i] for row in range(r)]
+        z_column_aux = [aux_tableau[row * (2 * n) + i + n] for row in range(r)]
+
+        # I^(-1) P_x I : (x, z) -> (x, 0)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["I"],
+                z3.And(
+                    _elementwise_map(x_column_original, x_column_aux),
+                    _elementwise_map(zero_column_original, z_column_aux),
+                ),
+            )
+        )
+
+        # H^(-1) P_x H : (x, z) -> (0, z)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["H"],
+                z3.And(
+                    _elementwise_map(zero_column_original, x_column_aux),
+                    _elementwise_map(z_column_original, z_column_aux),
+                ),
+            )
+        )
+
+        # S^(-1) P_x S : (x, z) -> (x, x)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["S"],
+                z3.And(
+                    _elementwise_map(x_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux)
+                ),
+            )
+        )
+
+        # (HS)^(-1) P_x (HS)  : (x, z) -> (z, z)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["HS"],
+                z3.And(
+                    _elementwise_map(z_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux)
+                ),
+            )
+        )
+
+        # (SH)^(-1) P_x (SH) : (x, z) -> (0, x + z)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["SH"],
+                z3.And(
+                    _elementwise_map(zero_column_original, x_column_aux),
+                    _elementwise_map(x_z_column_original, z_column_aux),
+                ),
+            )
+        )
+
+        # (HSH)^(-1) P_x (HSH) : (x, z) -> (x + z, 0)
+        solver.add(
+            z3.Implies(
+                local_clifford_variables[i]["HSH"],
+                z3.And(
+                    _elementwise_map(x_z_column_original, x_column_aux),
+                    _elementwise_map(zero_column_original, z_column_aux),
+                ),
+            )
+        )
+
+    # row operations
+    row_operation_coefficients = [z3.Bool(f"r_{i}_{j}") for i in range(r) for j in range(r)]
+
+    for row in range(r):
+        for q in range(2 * n):
+            row_contributions = [
+                row_operation_coefficients[row * r + contribution]
+                for contribution in range(r)
+                if c[contribution, q] == 1
+            ]
+
+            solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))
+
+    return solver.check() == z3.sat
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Helper functions
+# ----------------------------------------------------------------------------------------------------
+
+
+def _elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
+    return z3.And([v if bit == 1 else z3.Not(v) for bit, v in zip(normal_bool, variables, strict=False)])
+
+
+def _exactly_one(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
+    return z3.PbEq([(v, 1) for v in variables], 1)
+
+
+def _xor_list(variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
+    acc = z3.BoolVal(False)
+    for v in variables:
+        acc = z3.Xor(acc, v)
+    return acc

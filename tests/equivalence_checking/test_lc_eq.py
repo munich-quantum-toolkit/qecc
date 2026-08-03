@@ -9,16 +9,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+import numpy as np
 import pytest
 
-from mqt.qecc import StabilizerCode
+from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.equivalence_checking import are_local_clifford_equivalent
+from mqt.qecc.equivalence_checking.local_clifford_eq import is_local_clifford_equivalent_to_css
 from mqt.qecc.mod2 import is_in_row_space, rank
-
-if TYPE_CHECKING:
-    import numpy as np
 
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
@@ -177,3 +174,47 @@ def test_are_local_clifford_equivalent_one_qubit_codes_are_equivalent() -> None:
 # ----------------------------------------------------------------------------------------------------
 # is_local_clifford_equivalent_to_css
 # ----------------------------------------------------------------------------------------------------
+
+
+def test_is_local_clifford_equivalent_to_css_accepts_trivial_code() -> None:
+    """The trivial code is (trivially) LC-equivalent to a CSS code."""
+    assert is_local_clifford_equivalent_to_css(StabilizerCode.get_trivial_code(3)) is True
+
+
+def test_is_local_clifford_equivalent_to_css_accepts_css_code() -> None:
+    """A CSS code is LC-equivalent to a CSS code via the identity."""
+    code = CSSCode(
+        Hx=np.array([[1, 1, 0, 0]], dtype=np.int8),
+        Hz=np.array([[0, 0, 1, 1]], dtype=np.int8),
+    )
+
+    assert is_local_clifford_equivalent_to_css(code) is True
+
+
+def test_is_local_clifford_equivalent_to_css_hardcoded_positive() -> None:
+    """A two-qubit stabilizer state is LC-equivalent to a CSS code."""
+    assert is_local_clifford_equivalent_to_css(StabilizerCode(["YX"])) is True
+
+
+def test_is_local_clifford_equivalent_to_css_hardcoded_negative_sat_backend() -> None:
+    """A 6-qubit code that is not LC-equivalent to any CSS code exercises the SAT backend."""
+    code = StabilizerCode(["IZIIII", "IIZZIZ", "ZZIZZZ", "ZIIXIY"])
+
+    assert code.n >= 4
+    assert is_local_clifford_equivalent_to_css(code) is False
+
+
+def test_is_local_clifford_equivalent_to_css_hardcoded_positive_bruteforce_backend() -> None:
+    """A 3-qubit stabilizer state exercises the bruteforce backend."""
+    code = StabilizerCode(["XYZ"])
+
+    assert code.n < 4
+    assert is_local_clifford_equivalent_to_css(code) is True
+
+
+def test_is_local_clifford_equivalent_to_css_hardcoded_positive_sat_backend() -> None:
+    """A 4-qubit code obtained from a CSS code via a single-qubit S gate exercises the SAT backend."""
+    code = StabilizerCode(["YXII", "IIXX", "ZZZZ"])
+
+    assert code.n >= 4
+    assert is_local_clifford_equivalent_to_css(code) is True
