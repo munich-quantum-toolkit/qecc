@@ -1097,9 +1097,9 @@ def test_reduce_to_coset_leaders_both_generators() -> None:
     # Both matching faults should be reduced to zero
     assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
     assert np.array_equal(reduced.faults["Z"][0], np.array([0, 0, 0], dtype=np.int8))
-    # Non-matching faults should be reduced to their coset leaders
-    assert reduced.faults["X"].shape[0] == 2
-    assert reduced.faults["Z"].shape[0] == 2
+    # Non-matching faults are already their own coset leaders
+    assert np.array_equal(reduced.faults["X"][1], np.array([0, 1, 0], dtype=np.int8))
+    assert np.array_equal(reduced.faults["Z"][1], np.array([1, 0, 0], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_inplace() -> None:
@@ -1167,6 +1167,8 @@ def test_reduce_to_coset_leaders_multiple_faults() -> None:
     # First two faults are in the stabilizer group, third should be reduced to coset leader
     assert np.array_equal(reduced.faults["X"][0], np.array([0, 0, 0], dtype=np.int8))
     assert np.array_equal(reduced.faults["X"][1], np.array([0, 0, 0], dtype=np.int8))
+    # The third fault equals the product of both generators, so it also reduces to zero
+    assert np.array_equal(reduced.faults["X"][2], np.array([0, 0, 0], dtype=np.int8))
 
 
 def test_reduce_to_coset_leaders_invalid_generator_shape() -> None:
