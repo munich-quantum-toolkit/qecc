@@ -757,6 +757,10 @@ class XZFaultList:
     def apply_ccx(self, control1: int, control2: int, target: int, inplace: bool = True) -> XZFaultList:
         """Apply a CCX (Toffoli) gate to the faults in the list, by applying a H_target x CCZ x H_target.
 
+        NOTE: Check `test_faults.py` for interesting cases (e.g. should a Z on target spread to control1 and control2?)
+        NOTE: Perhaps a good idea to generate a propagation truth table.
+        NOTE: Currently just a first approximation.
+
         Args:
             control1: The first control qubit.
             control2: The second control qubit.

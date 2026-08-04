@@ -928,21 +928,21 @@ def test_apply_ccx_rejects_invalid_qubits() -> None:
 def test_apply_ccz_unit_tests() -> None:
     """Unit tests: verify CCZ truth table mapping from input X to output X and Z."""
     # its always 0,1,2 for the controls
-    # input x, output x, output z
+    # input x, input z, output x, output z
     unit_tests = [
-        [(0, 0, 0), (0, 0, 0), (0, 0, 0)],
-        [(0, 0, 1), (0, 0, 1), (0, 0, 0)],
-        [(0, 1, 0), (0, 1, 0), (0, 0, 0)],
-        [(0, 1, 1), (0, 1, 1), (1, 0, 0)],
-        [(1, 0, 0), (1, 0, 0), (0, 0, 0)],
-        [(1, 0, 1), (1, 0, 1), (0, 1, 0)],
-        [(1, 1, 0), (1, 1, 0), (0, 0, 1)],
-        [(1, 1, 1), (1, 1, 1), (1, 1, 1)],
+        [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],
+        [(0, 0, 1), (0, 0, 0), (0, 0, 1), (0, 0, 0)],
+        [(0, 1, 0), (0, 0, 0), (0, 1, 0), (0, 0, 0)],
+        [(0, 1, 1), (1, 0, 0), (0, 1, 1), (0, 0, 0)], # NOTE: XOR with the existing 1,0,0 to give 0,0,0 (question is whether they should cancel)
+        [(1, 0, 0), (0, 0, 0), (1, 0, 0), (0, 0, 0)],
+        [(1, 0, 1), (0, 0, 0), (1, 0, 1), (0, 1, 0)],
+        [(1, 1, 1), (1, 0, 0), (1, 1, 1), (0, 1, 1)],
+        [(1, 1, 0), (0, 0, 0), (1, 1, 0), (0, 0, 1)],
     ]
 
-    for input_x, expected_x, expected_z in unit_tests:
+    for input_x, input_z, expected_x, expected_z in unit_tests:
         faults = XZFaultList(num_qubits=3)
-        faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+        faults.add_fault((np.array(input_x, dtype=np.int8), np.array(input_z, dtype=np.int8)))
 
         updated = faults.apply_ccz(control1=0, control2=1, control3=2, inplace=False)
 
@@ -967,12 +967,34 @@ def test_apply_ccx_unit_tests() -> None:
 
     for input_x, expected_x in unit_tests:
         faults = XZFaultList(num_qubits=3)
-        faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))
+        faults.add_fault((np.array(input_x, dtype=np.int8), np.array([0, 0, 0], dtype=np.int8)))  # isolate the X errors
 
         updated = faults.apply_ccx(control1=0, control2=1, target=2, inplace=False)
 
         assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
         assert np.array_equal(updated.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
+
+def test_apply_ccx_unit_tests_inplace() -> None:
+    inplace_faults = XZFaultList(num_qubits=3)
+    inplace_faults.add_fault((np.array([1, 1, 0], dtype=np.int8), np.array([0, 0, 1], dtype=np.int8)))
+
+    result = inplace_faults.apply_ccx(control1=0, control2=1, target=2, inplace=True)
+
+    assert result is inplace_faults
+    assert np.array_equal(inplace_faults.faults["X"], np.array([[1, 1, 1]], dtype=np.int8))
+    assert np.array_equal(inplace_faults.faults["Z"], np.array([[1, 1, 1]], dtype=np.int8))
+
+    ## Explanation for the propagation:
+    # Input X-faults (1,1,0) → X1 and X2 are present:
+
+    # X1 → X1 + (X-spread to qubit 3)
+    # X2 → X2 + (X-spread to qubit 3)
+    # Union: qubits 1, 2, 3 all get X → output X-faults: (1,1,1)
+
+    # Input Z-faults (0,0,1) → Z3 is present:
+
+    # Z3 → Z3 + (Z-spread to qubits 1, 2)
+    # Union: qubits 1, 2, 3 all get Z → output Z-faults: (1,1,1)
 
 
 def test_apply_reset_clears_selected_qubit_errors(fault_list: XZFaultList) -> None:
