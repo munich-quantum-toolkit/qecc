@@ -933,7 +933,12 @@ def test_apply_ccz_unit_tests() -> None:
         [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],
         [(0, 0, 1), (0, 0, 0), (0, 0, 1), (0, 0, 0)],
         [(0, 1, 0), (0, 0, 0), (0, 1, 0), (0, 0, 0)],
-        [(0, 1, 1), (1, 0, 0), (0, 1, 1), (0, 0, 0)], # NOTE: XOR with the existing 1,0,0 to give 0,0,0 (question is whether they should cancel)
+        [
+            (0, 1, 1),
+            (1, 0, 0),
+            (0, 1, 1),
+            (0, 0, 0),
+        ],  # NOTE: XOR with the existing 1,0,0 to give 0,0,0 (question is whether they should cancel)
         [(1, 0, 0), (0, 0, 0), (1, 0, 0), (0, 0, 0)],
         [(1, 0, 1), (0, 0, 0), (1, 0, 1), (0, 1, 0)],
         [(1, 1, 1), (1, 0, 0), (1, 1, 1), (0, 1, 1)],
@@ -974,7 +979,9 @@ def test_apply_ccx_unit_tests() -> None:
         assert np.array_equal(updated.faults["X"], np.array([expected_x], dtype=np.int8))
         assert np.array_equal(updated.faults["Z"], np.array([[0, 0, 0]], dtype=np.int8))
 
+
 def test_apply_ccx_unit_tests_inplace() -> None:
+    """Unit tests: verify CCX (Toffoli) inplace = True does indeed change the faults in-place."""
     inplace_faults = XZFaultList(num_qubits=3)
     inplace_faults.add_fault((np.array([1, 1, 0], dtype=np.int8), np.array([0, 0, 1], dtype=np.int8)))
 
