@@ -85,8 +85,6 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     if code1.n <= BRUTEFORCE_THRESHOLD_CSS:
         return _bruteforce_css(reduced_hx1, reduced_hz1, reduced_hx2, reduced_hz2)
 
-    partition1 = {0: list(range(code1.n))}
-    partition2 = {0: list(range(code2.n))}
     if code1.n >= 20:
         symplectic1 = np.hstack([
             np.vstack([reduced_hx1, np.zeros_like(reduced_hz1)]),
@@ -99,16 +97,14 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
         if not _preserved_linear_dependencies(symplectic1, symplectic2):
             return None
 
-        result, refined_partition1, refined_partition2 = _preserved_punctured_hull_weight_enumerator_css_code(
-            reduced_hx1,
-            reduced_hz1,
-            reduced_hx2,
-            reduced_hz2,
-        )
-        if not result:
-            return None
-        partition1 = refined_partition1
-        partition2 = refined_partition2
+    result, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_css_code(
+        reduced_hx1,
+        reduced_hz1,
+        reduced_hx2,
+        reduced_hz2,
+    )
+    if not result:
+        return None
 
     assert partition1 is not None
     assert partition2 is not None
@@ -275,14 +271,14 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
             if gram.size == 0:
                 hull_basis = np.zeros((0, g_p), dtype=np.uint8)
             elif not gram.any():
-                hull_basis = row_basis(gp)
+                hull_basis = row_basis(gp).astype(np.uint8)
             else:
                 coeff_basis = nullspace(gram)
 
                 if coeff_basis.shape[0] == 0:
                     hull_basis = np.zeros((0, g_p), dtype=np.uint8)
                 else:
-                    hull_basis = row_basis((coeff_basis @ gp) & 1)
+                    hull_basis = row_basis((coeff_basis @ gp) & 1).astype(np.uint8)
 
             h = hull_basis.shape[0]
             enumerator = [1] + [0] * g_p
