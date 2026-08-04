@@ -138,12 +138,18 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
     if not _preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
         return None
 
-    res, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_stabilizer_code(
-        reduced_symplectic_1, reduced_symplectic_2
-    )
+    partition1 = {(): list(range(code1.n))}
+    partition2 = {(): list(range(code2.n))}
+    if code1.n <= 20:
+        result, refined_partition1, refined_partition2 = _preserved_punctured_hull_weight_enumerator_stabilizer_code(
+            reduced_symplectic_1, reduced_symplectic_2
+        )
 
-    if not res:
-        return None
+        if not result:
+            return None
+
+        partition1 = refined_partition1
+        partition2 = refined_partition2
 
     assert partition1 is not None
     assert partition2 is not None
