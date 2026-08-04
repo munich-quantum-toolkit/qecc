@@ -15,9 +15,9 @@ from collections import Counter, defaultdict
 from itertools import permutations
 from typing import TYPE_CHECKING
 
+import networkx as nx
 import numpy as np
 import z3
-from pynauty import Graph, canon_label, certificate
 
 from ..codes.core.css_code import CSSCode
 from ..mod2 import nullspace, rank, row_basis
@@ -706,21 +706,12 @@ def _matroid_css_code(
 
     def _graph_from_circuits_and_invariants(
         n: int, circuits_hx: list[int], circuits_hz: list[int], partition: dict[int, list[int]]
-    ) -> Graph:
-        adj = defaultdict(list)
-
+    ) -> nx.Graph:
         def _iter_mask_bits(mask: int) -> Iterator[int]:
             while mask:
                 bit = mask & -mask
                 yield bit.bit_length() - 1
                 mask ^= bit
-
-        def _add_edges_from_circuits(circuits: list[int], offset: int) -> None:
-            for i, circuit in enumerate(circuits):
-                circuit_vertex = offset + i
-                for q in _iter_mask_bits(circuit):
-                    adj[q].append(circuit_vertex)
-                    adj[circuit_vertex].append(q)
 
         n_hx = len(circuits_hx)
         n_hz = len(circuits_hz)
@@ -728,32 +719,28 @@ def _matroid_css_code(
         hx_offset = n
         hz_offset = n + n_hx
 
-        _add_edges_from_circuits(circuits_hx, hx_offset)
-        _add_edges_from_circuits(circuits_hz, hz_offset)
+        graph = nx.Graph()
+        graph.add_nodes_from(range(n + n_hx + n_hz))
 
-        qubit_colors = [set(columns) for _, columns in sorted(partition.items())]
+        qubit_color: dict[int, int] = {}
+        for color, (_, columns) in enumerate(sorted(partition.items())):
+            for column in columns:
+                qubit_color[column] = color
 
-        return Graph(
-            number_of_vertices=n + n_hx + n_hz,
-            directed=False,
-            adjacency_dict=adj,
-            vertex_coloring=[
-                *qubit_colors,
-                set(range(hx_offset, hx_offset + n_hx)),
-                set(range(hz_offset, hz_offset + n_hz)),
-            ],
-        )
+        for q in range(n):
+            graph.nodes[q]["color"] = ("qubit", qubit_color[q])
 
-    def _graph_isomorphism(canon_to_g1: Sequence[int], canon_to_g2: Sequence[int]) -> list[int]:
-        def _inverse(permutation: Sequence[int]) -> list[int]:
-            inverse = [0] * len(permutation)
-            for index, value in enumerate(permutation):
-                inverse[value] = index
-            return inverse
+        def _add_edges_from_circuits(circuits: list[int], offset: int, kind: str) -> None:
+            for i, circuit in enumerate(circuits):
+                circuit_vertex = offset + i
+                graph.nodes[circuit_vertex]["color"] = (kind,)
+                for q in _iter_mask_bits(circuit):
+                    graph.add_edge(q, circuit_vertex)
 
-        g1_to_canon = _inverse(canon_to_g1)
+        _add_edges_from_circuits(circuits_hx, hx_offset, "hx")
+        _add_edges_from_circuits(circuits_hz, hz_offset, "hz")
 
-        return [canon_to_g2[index] for index in g1_to_canon]
+        return graph
 
     n = hx1.shape[1]
 
@@ -768,11 +755,6 @@ def _matroid_css_code(
     del circuits_c1_hx
     del circuits_c1_hz
 
-    cert_c1 = certificate(graph_c1)
-    canonical_to_g1 = canon_label(graph_c1)
-
-    del graph_c1
-
     circuits_c2_hx = _circuits_binary_matroid(hx2)
     if len_circuits_c1_hx != len(circuits_c2_hx):
         return None
@@ -786,16 +768,15 @@ def _matroid_css_code(
     del circuits_c2_hx
     del circuits_c2_hz
 
-    cert_c2 = certificate(graph_c2)
-    canonical_to_g2 = canon_label(graph_c2)
+    matcher = nx.algorithms.isomorphism.GraphMatcher(
+        graph_c1, graph_c2, node_match=lambda a, b: a["color"] == b["color"]
+    )
 
-    del graph_c2
-
-    if cert_c1 != cert_c2:
+    if not matcher.is_isomorphic():
         return None
 
-    graph_iso = _graph_isomorphism(canonical_to_g1, canonical_to_g2)
-    return graph_iso[:n]
+    mapping = matcher.mapping
+    return [mapping[q] for q in range(n)]
 
 
 # ----------------------------------------------------------------------------------------------------
