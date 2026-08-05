@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Estimate logical error rates for CSS state preparation circuits."""
+"""Estimate logical error rates for CSS state preparation circuits (flag-at-origin comparison)."""
 
 from __future__ import annotations
 
@@ -68,6 +68,21 @@ def parse_args() -> argparse.Namespace:
         help="Minimum number of errors for Monte Carlo estimator.",
     )
     parser.add_argument(
+        "--shots",
+        type=int,
+        default=100000,
+        help="Total shots. With the min-errors estimator this is the HARD CAP (stop at whichever "
+        "comes first: n_errors or shots). Pass a large value for low p.",
+    )
+    parser.add_argument("--shots_per_batch", type=int, default=100000, help="Shots per sampling batch.")
+    parser.add_argument(
+        "--fixed-shots",
+        dest="fixed_shots",
+        default=False,
+        action="store_true",
+        help="Run exactly --shots shots and report whatever results (disables the min-errors early stop).",
+    )
+    parser.add_argument(
         "--check-matrix-path",
         type=Path,
         default=Path(__file__).resolve().parent / "check_matrix" / "flag_at_origin",
@@ -82,13 +97,16 @@ def parse_args() -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# Core simulation with remapping (your new requirement)
+# Core simulation with remapping + reset fix
 # ---------------------------------------------------------------------------
 def run_simulation(
     code_name: str,
     p: float,
     p_idle_factor: float,
     min_errors: int,
+    shots: int,
+    shots_per_batch: int,
+    fixed_shots: bool,
     zero_state: bool,
     x_errors: bool,
     check_matrix_path: Path,
@@ -110,29 +128,41 @@ def run_simulation(
 
     circuit = stim.Circuit.from_file(str(circ_file))
 
-    # Build noise model
+    # Build noise model (identical parameterization to the main pipeline: p_meas=(2/3)p, p_init=p)
     noise = CircuitLevelNoiseIdlingParallel(
         p,
         p,
-        p * 2 / 3,  # same as before
+        p * 2 / 3,
         p,
         p * p_idle_factor,
     )
 
     # ----------------------------------------------------------------------
-    # NEW: Apply noise & remap qubits (your colleague's fix)
+    # Apply noise & remap qubits (colleague's fix): measurement qubits go to the
+    # end; data qubits go to the front so the simulator sees data at [0, code.n).
     # ----------------------------------------------------------------------
     noisy = noise.apply(circuit)
 
     n_measured = noisy.num_measurements
     n_code = code.n
 
-    # mapping: measurement qubits go to the end; data qubits go to front
     mapping = {i: i + n_code for i in range(n_measured)} | {
         i: i - n_measured for i in range(n_measured, n_measured + n_code)
     }
 
     circuit_relabelled = relabel_qubits(circuit, mapping)
+
+    # ----------------------------------------------------------------------
+    # RESET FIX (fair comparison): the .stim circuits contain NO reset operations
+    # at all -- every qubit (data AND flag/ancilla) relies on implicit |0>, so the
+    # noise model injects no initialization/state-prep error anywhere. Prepend a
+    # reset on ALL qubits so each carries DEPOLARIZE1(p_init), matching the main
+    # pipeline where every physical qubit is effectively reset. (Data-only would
+    # leave the flag/ancilla qubits noise-free and bias this method's LER downward.)
+    # ----------------------------------------------------------------------
+    reset_prefix = stim.Circuit()
+    reset_prefix.append("R", list(range(circuit_relabelled.num_qubits)))
+    circuit_relabelled = reset_prefix + circuit_relabelled
 
     # Create simulator
     sim = VerificationNDFTStatePrepSimulator(
@@ -141,12 +171,26 @@ def run_simulation(
         zero_state=zero_state,
     )
 
-    # Run Monte-Carlo
+    # Run Monte-Carlo. at_least_min_errors=True -> stop at min_errors OR the shots cap,
+    # whichever first (requires the `while i <= total_batches:` library edit).
+    at_least_min_errors = not fixed_shots
     if x_errors:
-        # returns: (p_L, acceptance_rate, num_errors, shots)
-        result = sim.logical_error_rate(noise=noise, min_errors=min_errors)
+        result = sim.logical_error_rate(
+            noise=noise,
+            shots=shots,
+            shots_per_batch=shots_per_batch,
+            at_least_min_errors=at_least_min_errors,
+            min_errors=min_errors,
+        )
     else:
-        result = sim.secondary_logical_error_rate(noise=noise, p=p, min_errors=min_errors)
+        result = sim.secondary_logical_error_rate(
+            noise=noise,
+            p=p,
+            shots=shots,
+            shots_per_batch=shots_per_batch,
+            at_least_min_errors=at_least_min_errors,
+            min_errors=min_errors,
+        )
 
     return (
         float(result[0]),
@@ -168,6 +212,9 @@ def main() -> None:
         p=args.p_error,
         p_idle_factor=args.p_idle_factor,
         min_errors=args.n_errors,
+        shots=args.shots,
+        shots_per_batch=args.shots_per_batch,
+        fixed_shots=args.fixed_shots,
         zero_state=args.zero_state,
         x_errors=args.x_errors,
         check_matrix_path=args.check_matrix_path,
