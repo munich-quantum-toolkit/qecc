@@ -45,9 +45,6 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     if not all(invariant(code1, code2) for invariant in cheap_invariants):
         return None
 
-    if code1.n < 1:
-        return ["I"] * code1.n
-
     reduced_symplectic_1 = row_basis(code1.symplectic)
     reduced_symplectic_2 = row_basis(code2.symplectic)
 
@@ -62,9 +59,6 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
 
 def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is local clifford equivalent to a CSS code."""
-    if code.n < 1:
-        return True
-
     reduced_symplectic = row_basis(code.symplectic)
 
     if code.n < 4:

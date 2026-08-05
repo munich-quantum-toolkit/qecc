@@ -55,9 +55,6 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
     if not all(invariant(code1, code2) for invariant in cheap_invariants):
         return None
 
-    if code1.n < 1:
-        return list(range(code1.n))
-
     if isinstance(code1, CSSCode) and isinstance(code2, CSSCode):
         return _permutation_eq_css_codes(code1, code2)
     return _permutation_eq_stabilizer_codes(code1, code2)

@@ -103,13 +103,7 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_positive_with_x_z_swap_
 
 
 def test_are_permutation_equivalent_stabilizer_hardcoded_positive_sat_backend() -> None:
-    """A 6-qubit stabilizer pair exercises the SAT backend.
-
-    General (non-CSS) stabilizer codes have no matroid-isomorphism fallback: any code
-    above the bruteforce threshold (5 qubits) is routed straight to `_sat_stabilizer_code`.
-    The generators form a symmetric ring, so every qubit is interchangeable, which forces
-    a fully dense permutation search space rather than being resolved by cheap invariants.
-    """
+    """A positive stabilizer instance exercising the SAT backend."""
     n = 6
     generators = ["ZZIIII", "IZZIII", "IIZZII", "IIIZZI", "IIIIZZ", "ZIIIIZ"]
     code1 = StabilizerCode(generators)
@@ -153,12 +147,12 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_negative(
 
 
 def test_are_permutation_equivalent_css_preserves_n() -> None:
-    """CSS codes on a different number of qubits can never be permutation-equivalent."""
+    """Test precondition that codes have to have the same number of physical qubits to be P-equivalent."""
     assert are_permutation_equivalent(CSSCode.get_trivial_code(3), CSSCode.get_trivial_code(4)) is None
 
 
 def test_are_permutation_equivalent_css_preserves_k() -> None:
-    """CSS codes with a different number of logical qubits can never be permutation-equivalent."""
+    """Test precondition that codes have to have the same number of logical qubits to be P-equivalent."""
     code1 = CSSCode.get_trivial_code(4)
     code2 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))
 
@@ -166,7 +160,7 @@ def test_are_permutation_equivalent_css_preserves_k() -> None:
 
 
 def test_are_permutation_equivalent_css_preserves_x_and_z_ranks() -> None:
-    """A permutation must not map an X-check to a Z-check across the two CSS codes."""
+    """Test precondition that codes have to have the same X and Z ranks to be P-equivalent."""
     code1 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))
     code2 = CSSCode(Hz=np.array([[1, 0, 0, 0]], dtype=np.int8))
 
@@ -176,7 +170,7 @@ def test_are_permutation_equivalent_css_preserves_x_and_z_ranks() -> None:
 
 
 def test_are_permutation_equivalent_css_hardcoded_positive() -> None:
-    """A hardcoded pair of CSS codes related by a permutation of the X-check columns is recognized."""
+    """A positive CSS instance exercising the bruteforce backend."""
     code1 = CSSCode(
         Hx=np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8),
         Hz=np.array([[1, 1, 1, 1]], dtype=np.int8),
@@ -193,7 +187,7 @@ def test_are_permutation_equivalent_css_hardcoded_positive() -> None:
 
 
 def test_are_permutation_equivalent_css_hardcoded_positive_matroid_backend() -> None:
-    """A 10-qubit CSS pair that exercises the matroid-isomorphism backend."""
+    """A positive CSS instance exercising the matroid-isomorphism backend."""
     n = 10
     hx = np.zeros((5, n), dtype=np.int8)
     for i in range(5):
@@ -211,7 +205,7 @@ def test_are_permutation_equivalent_css_hardcoded_positive_matroid_backend() -> 
 
 
 def test_are_permutation_equivalent_css_hardcoded_positive_sat_backend() -> None:
-    """An 18-qubit, rank-10 CSS pair exercises the SAT backend.s."""
+    """A positive CSS instance exercising the SAT backend."""
     n = 18
     hx = np.zeros((10, n), dtype=np.int8)
     for i in range(9):
