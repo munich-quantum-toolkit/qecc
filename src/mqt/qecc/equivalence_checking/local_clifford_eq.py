@@ -58,7 +58,14 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
 
 
 def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
-    """Check if a stabilizer code is local clifford equivalent to a CSS code."""
+    """Check if a stabilizer code is local clifford equivalent to a CSS code.
+
+    Args:
+        code: The stabilizer code to check.
+
+    Returns:
+        True if the code is local clifford equivalent to a CSS code, False otherwise.
+    """
     reduced_symplectic = row_basis(code.symplectic)
 
     if code.n < 4:
@@ -161,10 +168,10 @@ LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 def _lse_stabilizer_code(
     c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray
 ) -> list[str] | None:
-    """Use a linear system of equations to check if two stabilizer codes are equivalent under local clifford operations."""
+    """Use a linear system of equations to check if two stabilizer codes are equivalent under local clifford operations. (Efficient Algorithm from Van den Nest, and Dehaene, and De Moor)."""
 
     def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
-        """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism."""
+        """Convert a stabilizer code into a stabilizer state."""
         if code.k == 0:
             return reduced_symplectic.copy()
 

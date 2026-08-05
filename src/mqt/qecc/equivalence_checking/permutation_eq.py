@@ -66,7 +66,11 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
 
 
 def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | None:
-    """Check if two CSS codes are permutation equivalent."""
+    """Check if two CSS codes are permutation equivalent.
+
+    Employs a combination of brute-force, matroid, and SAT-based algorithms depending on the size of the codes.
+    Uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
+    """
     reduced_hx1 = row_basis(code1.Hx)
     reduced_hz1 = row_basis(code1.Hz)
 
@@ -119,7 +123,11 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
 
 
 def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCode) -> list[int] | None:
-    """Check if two stabilizer codes are permutation equivalent."""
+    """Check if two stabilizer codes are permutation equivalent.
+
+    Employs a combination of brute-force and SAT-based algorithms depending on the size of the codes.
+    For medium-sized codes, uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
+    """
     reduced_symplectic_1 = row_basis(code1.symplectic)
     reduced_symplectic_2 = row_basis(code2.symplectic)
 
@@ -159,7 +167,7 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
 
 
 def _bruteforce_css(hx1: np.ndarray, hz1: np.ndarray, hx2: np.ndarray, hz2: np.ndarray) -> list[int] | None:
-    """Brute force check for permutation equivalence of two CSS codes."""
+    """Brute-force check for permutation equivalence of two CSS codes."""
     n = hx1.shape[1]
 
     hx_rank = hx1.shape[0]
@@ -176,7 +184,7 @@ def _bruteforce_css(hx1: np.ndarray, hz1: np.ndarray, hx2: np.ndarray, hz2: np.n
 
 
 def _bruteforce_stb(c1: np.ndarray, c2: np.ndarray) -> list[int] | None:
-    """Brute force check for permutation equivalence of two stabilizer codes."""
+    """Brute-force check for permutation equivalence of two stabilizer codes."""
     c1_rank = c1.shape[0]
     n = c1.shape[1] // 2
 
@@ -658,7 +666,7 @@ def _matroid_css_code(
     hz2: np.ndarray,
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
-    """Map the permutation equivalence problem of two CSS codes to a matroid and graph isomorphism problem and solve it using the nauty algorithm."""
+    """Map the permutation equivalence problem of two CSS codes to a matroid and graph isomorphism problem and solve it using an isomorphism solver."""
 
     def _circuits_binary_matroid(a: npt.NDArray[np.int8]) -> list[int]:
         def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
