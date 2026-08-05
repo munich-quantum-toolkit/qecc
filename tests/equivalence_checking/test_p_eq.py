@@ -80,6 +80,25 @@ def test_are_permutation_equivalent_stabilizer_does_not_swap_x_and_z() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
+def test_are_permutation_equivalent_stabilizer_trivial() -> None:
+    """The trivial code is permutation-equivalent to itself via the identity permutation."""
+    assert are_permutation_equivalent(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(3)) == [
+        0,
+        1,
+        2,
+    ]
+
+
+def test_are_permutation_equivalent_one_qubit_codes_are_equivalent() -> None:
+    """A single-qubit code is permutation-equivalent to itself via the identity permutation."""
+    assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["Z"])) == [0]
+
+
+def test_are_permutation_equivalent_one_qubit_codes_reject_pauli_mismatch() -> None:
+    """A single-qubit permutation cannot turn a Z stabilizer into an X stabilizer."""
+    assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["X"])) is None
+
+
 def test_are_permutation_equivalent_stabilizer_hardcoded_positive() -> None:
     """A hardcoded pair of codes related by an interleaving permutation is recognized as equivalent."""
     code1 = StabilizerCode(["XXII", "IIZZ"])
@@ -141,6 +160,18 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_negative(
     assert are_permutation_equivalent(code1, code2) is None
 
 
+def test_are_permutation_equivalent_stabilizer_punctured_hull_weight_enumerator() -> None:
+    """Test precondition that codes have to have the same signature distribution to be P-equivalent."""
+    code1 = StabilizerCode(["XYZXZZXIXX", "XIZYYXIXZI", "ZZZZXYZIII"])
+    code2 = StabilizerCode(["YZXZIZXYIY", "ZIXYXYXXII", "ZYIYIIZZZX"])
+
+    assert code1.n == code2.n == 10
+    assert code1.k == code2.k
+    assert code1.distance == code2.distance
+
+    assert are_permutation_equivalent(code1, code2) is None
+
+
 # ----------------------------------------------------------------------------------------------------
 # are_permutation_equivalent - CSS codes
 # ----------------------------------------------------------------------------------------------------
@@ -169,7 +200,58 @@ def test_are_permutation_equivalent_css_preserves_x_and_z_ranks() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_hardcoded_positive() -> None:
+def test_are_permutation_equivalent_css_preserves_linear_dependency() -> None:
+    """Test precondition that codes have to have the same linear column dependencies to be P-equivalent."""
+    hx1 = np.array(
+        [
+            [1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+        ],
+        dtype=np.int8,
+    )
+    hz1 = np.array(
+        [
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0],
+            [0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1],
+        ],
+        dtype=np.int8,
+    )
+    hx2 = np.array(
+        [
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1],
+            [0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1],
+        ],
+        dtype=np.int8,
+    )
+    hz2 = np.array(
+        [
+            [1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0],
+            [1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0],
+        ],
+        dtype=np.int8,
+    )
+
+    code1 = CSSCode(Hx=hx1, Hz=hz1)
+    code2 = CSSCode(Hx=hx2, Hz=hz2)
+
+    assert code1.n == code2.n == 20
+    assert code1.k == code2.k
+    assert code1.x_distance == code2.x_distance
+    assert code1.z_distance == code2.z_distance
+
+    assert are_permutation_equivalent(code1, code2) is None
+
+
+def test_are_permutation_equivalent_css_trivial() -> None:
+    """Test trivial CSS code with trivial permutation."""
+    code = CSSCode.get_trivial_code(4)
+
+    assert rank(code.Hx) == 0
+    assert rank(code.Hz) == 0
+    assert are_permutation_equivalent(code, code) == [0, 1, 2, 3]
+
+
+def test_are_permutation_equivalent_css_bruteforce_positive() -> None:
     """A positive CSS instance exercising the bruteforce backend."""
     code1 = CSSCode(
         Hx=np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8),
@@ -186,7 +268,25 @@ def test_are_permutation_equivalent_css_hardcoded_positive() -> None:
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_css_hardcoded_positive_matroid_backend() -> None:
+def test_are_permutation_equivalent_css_bruteforce_negative() -> None:
+    """A negative CSS instance exercising the bruteforce backend."""
+    hx1 = np.array([[1, 0, 0, 0, 1]], dtype=np.int8)
+    hz1 = np.array([[0, 1, 1, 1, 0]], dtype=np.int8)
+    hx2 = np.array([[1, 1, 1, 0, 0]], dtype=np.int8)
+    hz2 = np.array([[0, 1, 1, 0, 0]], dtype=np.int8)
+
+    code1 = CSSCode(Hx=hx1, Hz=hz1)
+    code2 = CSSCode(Hx=hx2, Hz=hz2)
+
+    assert code1.n == code2.n == 5
+    assert code1.k == code2.k
+    assert code1.x_distance == code2.x_distance
+    assert code1.z_distance == code2.z_distance
+
+    assert are_permutation_equivalent(code1, code2) is None
+
+
+def test_are_permutation_equivalent_css_matroid_positive() -> None:
     """A positive CSS instance exercising the matroid-isomorphism backend."""
     n = 10
     hx = np.zeros((5, n), dtype=np.int8)
@@ -204,7 +304,43 @@ def test_are_permutation_equivalent_css_hardcoded_positive_matroid_backend() -> 
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_css_hardcoded_positive_sat_backend() -> None:
+def test_are_permutation_equivalent_css_matroid_negative() -> None:
+    """A negative CSS instance exercising the matroid-isomorphism backend."""
+    hx1 = np.array([[0, 0, 0, 1, 1, 0, 0, 0]], dtype=np.int8)
+    hz1 = np.array([[0, 1, 0, 1, 1, 1, 0, 1]], dtype=np.int8)
+    hx2 = np.array([[1, 0, 1, 0, 1, 1, 0, 1]], dtype=np.int8)
+    hz2 = np.array([[0, 1, 0, 1, 0, 0, 0, 0]], dtype=np.int8)
+
+    code1 = CSSCode(Hx=hx1, Hz=hz1)
+    code2 = CSSCode(Hx=hx2, Hz=hz2)
+
+    assert code1.n == code2.n == 8
+    assert code1.k == code2.k
+    assert code1.x_distance == code2.x_distance
+    assert code1.z_distance == code2.z_distance
+
+    assert are_permutation_equivalent(code1, code2) is None
+
+
+def test_are_permutation_equivalent_css_matroid_negative_circuits() -> None:
+    """A negative CSS instance exercising the matroid-isomorphism backend (different circuits)."""
+    hx1 = np.array([[1, 0, 1, 1, 0, 0, 0, 0, 0, 0]], dtype=np.int8)
+    hz1 = np.array([[0, 0, 0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 1, 0, 0, 0]], dtype=np.int8)
+    hx2 = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int8)
+    hz2 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 1, 0, 1, 0, 1]], dtype=np.int8)
+
+    code1 = CSSCode(Hx=hx1, Hz=hz1)
+    code2 = CSSCode(Hx=hx2, Hz=hz2)
+
+    assert code1.n == code2.n == 10
+    assert code1.k == code2.k
+    assert code1.x_distance == code2.x_distance
+    assert code1.z_distance == code2.z_distance
+
+    assert are_permutation_equivalent(code1, code2) is None
+
+
+def test_are_permutation_equivalent_css_sat_positive() -> None:
     """A positive CSS instance exercising the SAT backend."""
     n = 18
     hx = np.zeros((10, n), dtype=np.int8)
@@ -223,25 +359,56 @@ def test_are_permutation_equivalent_css_hardcoded_positive_sat_backend() -> None
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-# ----------------------------------------------------------------------------------------------------
-# are_permutation_equivalent - edge cases
-# ----------------------------------------------------------------------------------------------------
+def test_are_permutation_equivalent_css_sat_negative() -> None:
+    """A negative CSS instance exercising the SAT backend."""
+    hx1 = np.array(
+        [
+            [0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        dtype=np.int8,
+    )
+    hz1 = np.array(
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1],
+        ],
+        dtype=np.int8,
+    )
+    hx2 = np.array(
+        [
+            [0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        dtype=np.int8,
+    )
+    hz2 = np.array(
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0],
+        ],
+        dtype=np.int8,
+    )
 
+    code1 = CSSCode(Hx=hx1, Hz=hz1)
+    code2 = CSSCode(Hx=hx2, Hz=hz2)
 
-def test_are_permutation_equivalent_trivial_codes_are_equivalent() -> None:
-    """The trivial code is permutation-equivalent to itself via the identity permutation."""
-    assert are_permutation_equivalent(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(3)) == [
-        0,
-        1,
-        2,
-    ]
+    assert code1.n == code2.n == 18
+    assert code1.k == code2.k
+    assert code1.x_distance == code2.x_distance
+    assert code1.z_distance == code2.z_distance
+    assert rank(hx1) + rank(hz1) >= 10
 
-
-def test_are_permutation_equivalent_one_qubit_codes_are_equivalent() -> None:
-    """A single-qubit code is permutation-equivalent to itself via the identity permutation."""
-    assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["Z"])) == [0]
-
-
-def test_are_permutation_equivalent_one_qubit_codes_reject_pauli_mismatch() -> None:
-    """A single-qubit permutation cannot turn a Z stabilizer into an X stabilizer."""
-    assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["X"])) is None
+    assert are_permutation_equivalent(code1, code2) is None
