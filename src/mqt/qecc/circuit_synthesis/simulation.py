@@ -131,7 +131,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         i = 1
         total_batches = int(np.ceil(shots / batch))
-        while i <= total_batches or at_least_min_errors:
+        while i <= total_batches:  # or at_least_min_errors:
             num_logical_errors_batch, discarded_batch = processing_fun(sampler, batch)
 
             logger.info(
