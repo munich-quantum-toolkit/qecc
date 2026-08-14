@@ -320,7 +320,7 @@ det_verify_x.hook_corrections
 Due to [`qsample`](https://github.com/dpwinter/qsample) not being actively
 maintained, this feature is optional. To use this feature, please locally
 install qsample or
-[install QECC with the qsample extra](Installation.md#optional-features).
+[install QECC with the qsample extra](installation.md#optional-features).
 ```
 
 The resulting `DeterministicVerification` object can be used to directly
