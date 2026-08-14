@@ -41,6 +41,7 @@ tools/compilation
 :maxdepth: 1
 
 installation
+Architecture
 references
 ```
 
