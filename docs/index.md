@@ -24,20 +24,23 @@ self
 ```
 
 ```{toctree}
+:caption: Tools
+:hidden:
+:maxdepth: 2
+
+tools/synthesis
+tools/state_prep
+tools/decoder
+tools/compilation
+```
+
+```{toctree}
 :caption: User Guide
 :glob:
 :hidden:
 :maxdepth: 1
 
 installation
-LightsOutDecoder
-StatePrep
-CatStates
-CodeSwitching
-Encoders
-ExactSynthesis
-AnalogInfo
-cococo
 references
 ```
 
