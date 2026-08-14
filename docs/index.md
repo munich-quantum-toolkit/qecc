@@ -4,7 +4,7 @@ MQT QECC is a tool for quantum error correcting codes. It is part of the
 _{doc}`Munich Quantum Toolkit (MQT) <mqt:index>`_.
 
 We recommend you to start with the
-{doc}`installation instructions <Installation>`. Then proceed to read the
+{doc}`installation instructions <installation>`. Then proceed to read the
 {doc}`reference documentation <api/mqt/qecc/index>`. If you are interested in
 the theory behind QECC, have a look at the publications in the
 {doc}`publication list <references>`.
