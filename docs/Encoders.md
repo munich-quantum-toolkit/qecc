@@ -4,7 +4,6 @@ kernelspec:
   name: python3
 mystnb:
   number_source_lines: true
-  execution_timeout: 300
 ---
 
 ```{code-cell} ipython3
