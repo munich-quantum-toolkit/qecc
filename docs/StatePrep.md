@@ -318,9 +318,9 @@ det_verify_x.hook_corrections
 
 ```{warning}
 Due to [`qsample`](https://github.com/dpwinter/qsample) not being actively
-maintained, this feature is optional. To use this feature, please locally
-install qsample or
-[install QECC with the qsample extra](Installation.md#optional-features).
+maintained, this feature is optional. To use this feature, install QECC with the
+`qsample` extra (`uv pip install "mqt.qecc[qsample]"`) or install qsample
+locally. See the {doc}`installation instructions <installation>` for details.
 ```
 
 The resulting `DeterministicVerification` object can be used to directly

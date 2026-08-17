@@ -4,10 +4,15 @@ MQT QECC is a tool for quantum error correcting codes. It is part of the
 _{doc}`Munich Quantum Toolkit (MQT) <mqt:index>`_.
 
 We recommend you to start with the
-{doc}`installation instructions <Installation>`. Then proceed to read the
-{doc}`reference documentation <api/mqt/qecc/index>`. If you are interested in
-the theory behind QECC, have a look at the publications in the
-{doc}`publication list <references>`.
+{doc}`installation instructions <installation>`. The _Tools_ section walks
+through the individual submodules for
+{doc}`circuit synthesis <tools/synthesis>`, {doc}`decoding <tools/decoders>`,
+and {doc}`logical compilation <tools/compilation>`. To understand how these
+build on a shared code representation, see the
+{doc}`architecture overview <architecture>`. For details on individual classes
+and functions, read the {doc}`reference documentation <api/mqt/qecc/index>`. If
+you are interested in the theory behind QECC, have a look at the publications in
+the {doc}`publication list <references>`.
 
 We appreciate any feedback and contributions to the project. If you want to
 contribute, you can find more information in the
@@ -24,21 +29,23 @@ self
 ```
 
 ```{toctree}
+:caption: Tools
+:hidden:
+:maxdepth: 2
+
+tools/synthesis
+tools/decoders
+tools/compilation
+```
+
+```{toctree}
 :caption: User Guide
-:glob:
 :hidden:
 :maxdepth: 1
 
 installation
+architecture
 PauliConventions
-LightsOutDecoder
-StatePrep
-CatStates
-CodeSwitching
-Encoders
-ExactSynthesis
-AnalogInfo
-cococo
 references
 ```
 
