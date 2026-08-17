@@ -29,6 +29,17 @@ _PHASE_PREFIX_TO_EXPONENT: dict[str, int] = {"": 0, "+": 0, "+i": 1, "-": 2, "-i
 _EXPONENT_TO_PHASE_PREFIX: dict[int, str] = {0: "", 1: "+i", 2: "-", 3: "-i"}
 
 
+def _binary_dot(a: npt.NDArray[np.integer], b: npt.NDArray[np.integer]) -> int:
+    """Dot two binary vectors, accumulating in a width that cannot wrap.
+
+    The symplectic arrays are int8, so a dot product over more than 127 set positions
+    would wrap. Results here only ever feed a modulo 2 or 4, and 256 is divisible by
+    four, so the wrapped value happens to stay correct -- but relying on that is
+    fragile, so widen explicitly.
+    """
+    return int(np.dot(np.asarray(a, dtype=np.int64), np.asarray(b, dtype=np.int64)))
+
+
 def _split_pauli_string_prefix(p: str) -> tuple[int, str]:
     """Split a Pauli string into its phase-prefix exponent and its letter body."""
     for prefix in ("+i", "-i"):
@@ -206,7 +217,7 @@ class Pauli:
         if phase_exponent is None:
             x_part = np.asarray(symplectic[: self.n], dtype=np.int8)
             z_part = np.asarray(symplectic[self.n :], dtype=np.int8)
-            phase_exponent = np.dot(x_part, z_part)
+            phase_exponent = _binary_dot(x_part, z_part)
         self.phase_exponent = int(phase_exponent) % 4
 
     @classmethod
@@ -221,7 +232,7 @@ class Pauli:
         prefix_exponent, body = _split_pauli_string_prefix(p)
         x_part = np.array([c in "XY" for c in body]).astype(np.int8)
         z_part = np.array([c in "ZY" for c in body]).astype(np.int8)
-        base_exponent = int(np.dot(x_part, z_part))
+        base_exponent = _binary_dot(x_part, z_part)
         phase = (base_exponent + prefix_exponent) % 4
         return cls(SymplecticVector(np.concatenate((x_part, z_part))), phase)
 
@@ -241,13 +252,13 @@ class Pauli:
         """
         x_part = np.asarray(symplectic[: symplectic.n], dtype=np.int8)
         z_part = np.asarray(symplectic[symplectic.n :], dtype=np.int8)
-        xz = int(np.dot(x_part, z_part))
+        xz = _binary_dot(x_part, z_part)
         phase = (xz + 2 * int(sign)) % 4
         return cls(symplectic, phase)
 
     def _xz_mod4(self) -> int:
         """Return x . z mod 4, the phase exponent of the "canonical" Hermitian choice for this support."""
-        return int(np.dot(self.x_part(), self.z_part())) % 4
+        return _binary_dot(self.x_part(), self.z_part()) % 4
 
     def is_hermitian(self) -> bool:
         """Check whether this Pauli operator is Hermitian, i.e. p == x.z (mod 2)."""
@@ -281,7 +292,7 @@ class Pauli:
         if self.n != other.n:
             msg = "Pauli operators must have the same number of qubits."
             raise InvalidPauliError(msg)
-        z_dot_x_prime = int(np.dot(self.z_part(), other.x_part()))
+        z_dot_x_prime = _binary_dot(self.z_part(), other.x_part())
         phase_exponent = (self.phase_exponent + other.phase_exponent + 2 * z_dot_x_prime) % 4
         return Pauli(self.symplectic + other.symplectic, phase_exponent)
 

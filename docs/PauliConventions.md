@@ -109,7 +109,7 @@ exceed the number of pivot columns:
 | generators    | generated subgroup                                | order | `rank` |
 | ------------- | ------------------------------------------------- | ----- | ------ |
 | `["XX","ZZ"]` | $\{I, XX, ZZ, -YY\}$ — no scalars beyond $I$      | 4     | 2      |
-| `["+iX"]`     | $\{I, iX, -I, -iX\}$ — one pivot, four scalars    | 4     | 2      |
+| `["+iX"]`     | $\{I, iX, -I, -iX\}$ — one pivot, scalars $\pm I$ | 4     | 2      |
 | `["X","Z"]`   | $\{\pm I, \pm X, \pm Z, \pm iY\}$ — anticommuting | 8     | 3      |
 
 The middle row has a single pivot column yet rank 2: the generator squares to

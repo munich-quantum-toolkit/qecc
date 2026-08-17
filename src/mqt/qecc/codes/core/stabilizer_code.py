@@ -324,7 +324,10 @@ class StabilizerCode:
             if isinstance(generators[0], Pauli):
                 return PauliTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
         assert isinstance(generators, PauliTableau)
-        return generators
+        # Copy rather than alias the caller's tableau: PauliTableau is mutable, and the
+        # code caches an echelon form of its generators that a later mutation would
+        # silently invalidate.
+        return generators.copy()
 
     @classmethod
     def get_trivial_code(cls, n: int) -> StabilizerCode:

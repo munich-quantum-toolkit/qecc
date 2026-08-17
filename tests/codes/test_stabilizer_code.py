@@ -19,6 +19,7 @@ from mqt.qecc.codes import InvalidStabilizerCodeError
 from mqt.qecc.codes.core.pauli import (
     InvalidPauliError,
     Pauli,
+    PauliTableau,
 )
 
 if TYPE_CHECKING:
@@ -437,12 +438,23 @@ def test_compute_logical_multiple_pairs():
     assert code.x_logicals.n_rows == 2
 
 
-def test_independent_of_generator_signs() -> None:
+def test_stabilizer_group_depends_on_generator_signs() -> None:
     """Test that the stabilizer group is dependent on the signs of the generators."""
     plus = StabilizerCode(["XXXX", "ZZZZ"])
     minus = StabilizerCode(["-XXXX", "ZZZZ"])
     assert plus.k == minus.k == 2
     assert not plus.equal_stabilizer_group(minus)
+
+
+def test_generators_are_not_aliased() -> None:
+    """A code copies the tableau it is given, so later mutations cannot desync its cache."""
+    generators = PauliTableau.from_pauli_strings(["ZZ"])
+    code = StabilizerCode(generators)
+
+    generators.multiply_rows(0, 0)  # ZZ * ZZ == II, i.e. no longer the same group
+
+    assert code.generators[0] == Pauli.from_pauli_string("ZZ")
+    assert code.is_stabilizer("ZZ")
 
 
 def test_rejects_non_hermitian_stabilizer() -> None:
