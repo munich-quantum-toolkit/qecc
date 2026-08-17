@@ -129,6 +129,9 @@ myst_heading_anchors = 3
 
 nb_execution_mode = "cache"
 nb_execution_raise_on_error = True
+# The default of 30s is too tight for the Monte-Carlo simulations in the
+# tool pages on slower (e.g. Read the Docs) builders.
+nb_execution_timeout = 300
 
 
 class CDAStyle(UnsrtStyle):
