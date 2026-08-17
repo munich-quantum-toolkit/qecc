@@ -18,8 +18,7 @@ import stim
 from mqt.qecc import mod2
 
 from ..codes import CSSCode
-from ..codes.core.pauli import CheckMatrix, Pauli, PauliTableau, complete_stabilizer_tableau_with_destabilizers
-from ..codes.core.symplectic import SymplecticVector
+from ..codes.core.pauli import CheckMatrix, PauliTableau, complete_stabilizer_tableau_with_destabilizers
 from .circuits import CliffordIsometry, CNOTCircuit
 from .exact import (
     Objective,
@@ -370,17 +369,17 @@ def synthesize_encoding_circuit(
         additional_z_rows,
     ))
     gens_phase: npt.NDArray[np.int8] = np.hstack((
-        code.generators.phase,
-        code.x_logicals.phase[additional_x_checks],
-        code.z_logicals.phase[additional_z_checks],
+        code.generators.phase_exponents,
+        code.x_logicals.phase_exponents[additional_x_checks],
+        code.z_logicals.phase_exponents[additional_z_checks],
     ))
     log_mat: npt.NDArray[np.int8] = np.vstack((
         np.delete(code.x_logicals.tableau.data, additional_checks, axis=0),
         np.delete(code.z_logicals.tableau.data, additional_checks, axis=0),
     ))
     log_phase: npt.NDArray[np.int8] = np.hstack((
-        np.delete(code.x_logicals.phase, additional_checks, axis=0),
-        np.delete(code.z_logicals.phase, additional_checks, axis=0),
+        np.delete(code.x_logicals.phase_exponents, additional_checks, axis=0),
+        np.delete(code.z_logicals.phase_exponents, additional_checks, axis=0),
     ))
 
     return encoder_from_stabilizers_and_logicals(
@@ -465,61 +464,33 @@ def optimize_tableau(tableau: PauliTableau, stab_rows: list[int]) -> PauliTablea
                 if i == j:
                     continue
                 tab = tableau.copy()
-                mat = tab.tableau.data
-                destabs = mat[:half][stab_rows]
-                stabs = mat[half:][stab_rows]
 
                 stab_i_abs, stab_j_abs = half + stab_rows[i], half + stab_rows[j]
                 destab_i_abs, destab_j_abs = stab_rows[i], stab_rows[j]
 
-                new_stab_i = Pauli(SymplecticVector(stabs[i].copy()), tab.phase[stab_i_abs]) * Pauli(
-                    SymplecticVector(stabs[j].copy()), tab.phase[stab_j_abs]
-                )
-                new_destab_j = Pauli(SymplecticVector(destabs[j].copy()), tab.phase[destab_j_abs]) * Pauli(
-                    SymplecticVector(destabs[i].copy()), tab.phase[destab_i_abs]
-                )
+                # Multiplying a stabilizer onto another must be mirrored on the
+                # destabilizers in the opposite direction to preserve the symplectic form.
+                tab.multiply_rows(stab_i_abs, stab_j_abs)
+                tab.multiply_rows(destab_j_abs, destab_i_abs)
 
-                stabs[i] ^= stabs[j]
-                destabs[j] ^= destabs[i]
-                mat[:half][stab_rows] = destabs
-                mat[half:][stab_rows] = stabs
-                tab.phase[stab_i_abs] = new_stab_i.phase
-                tab.phase[destab_j_abs] = new_destab_j.phase
-
-                new_score, _ = score_symplectic(PauliTableau(mat, tab.phase.copy()))
+                new_score, _ = score_symplectic(tab)
                 if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
             for j in range(len(logical_rows)):
                 tab = tableau.copy()
-                mat = tab.tableau.data
-                destabs = mat[:half][stab_rows]
-                stabs = mat[half:][stab_rows]
 
-                other_log = mat[logical_rows[(j + k) % (2 * k)]]
                 other_log_abs = logical_rows[(j + k) % (2 * k)]
                 destab_i_abs = stab_rows[i]
                 log_j_abs = logical_rows[j]
                 stab_i_abs = half + stab_rows[i]
 
-                new_destab_i = Pauli(SymplecticVector(destabs[i].copy()), tab.phase[destab_i_abs]) * Pauli(
-                    SymplecticVector(other_log.copy()), tab.phase[other_log_abs]
-                )
+                # The stabilizer row is read by the second multiplication, so it must
+                # not be one of the rows written by the first.
+                tab.multiply_rows(destab_i_abs, other_log_abs)
+                tab.multiply_rows(log_j_abs, stab_i_abs)
 
-                destabs[i] ^= other_log
-                logj = mat[logical_rows[j]]
-
-                new_logj = Pauli(SymplecticVector(logj.copy()), tab.phase[log_j_abs]) * Pauli(
-                    SymplecticVector(stabs[i].copy()), tab.phase[stab_i_abs]
-                )
-
-                logj ^= stabs[i]
-                mat[:half][stab_rows] = destabs
-                mat[logical_rows[j]] = logj
-                tab.phase[destab_i_abs] = new_destab_i.phase
-                tab.phase[log_j_abs] = new_logj.phase
-
-                new_score, _ = score_symplectic(PauliTableau(mat, tab.phase.copy()))
+                new_score, _ = score_symplectic(tab)
                 if lexicographical_compare_np(new_score, best[1]):
                     best = (tab, new_score)
                     improved = True
@@ -547,11 +518,11 @@ def combine_stabilizer_and_logical_tableau(stabilizers: PauliTableau, logicals: 
     # Combine stabilizers and logicals into a single tableau
     x_logicals = logicals.tableau.data[: logicals.num_rows() // 2]
     z_logicals = logicals.tableau.data[logicals.num_rows() // 2 :]
-    x_logicals_phase = logicals.phase[: logicals.num_rows() // 2]
-    z_logicals_phase = logicals.phase[logicals.num_rows() // 2 :]
+    x_logicals_phase = logicals.phase_exponents[: logicals.num_rows() // 2]
+    z_logicals_phase = logicals.phase_exponents[logicals.num_rows() // 2 :]
     combined_matrix = np.vstack([x_logicals, z_logicals, stabilizers.tableau.data])
 
-    combined_phase = np.hstack([x_logicals_phase, z_logicals_phase, stabilizers.phase])
+    combined_phase = np.hstack([x_logicals_phase, z_logicals_phase, stabilizers.phase_exponents])
     combined_tableau = PauliTableau(combined_matrix, combined_phase)
 
     # Complete with destabilizers for the stabilizers only

@@ -161,7 +161,7 @@ def test_stabilizer_tableau() -> None:
     t2 = PauliTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
     assert t1 == t2
     assert str(t1) == "XIZ\nZIX\nIZX"
-    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase})"
+    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase_exponents})"
     assert not t1.is_row(Pauli.from_pauli_string("III"))
 
     t3 = PauliTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
@@ -191,7 +191,7 @@ def test_tableau_signs_and_phase_from_signs() -> None:
     """Test conversion between binary signs and tableau phase exponents."""
     tableau = PauliTableau.from_pauli_strings(["Y", "-Y"])
     assert_array_equal(tableau.signs(), np.array([0, 1], dtype=np.int8))
-    assert_array_equal(PauliTableau.phase_from_signs(tableau.tableau.data, tableau.signs()), tableau.phase)
+    assert_array_equal(PauliTableau.phase_from_signs(tableau.tableau.data, tableau.signs()), tableau.phase_exponents)
 
 
 def test_default_tableau_phase() -> None:
@@ -225,6 +225,39 @@ def test_tableau_gate_phases() -> None:
         Pauli.from_pauli_string("-X"),
         Pauli.from_pauli_string("Z"),
     ]
+
+
+def test_tableau_getitem_does_not_alias() -> None:
+    """A Pauli taken from a tableau owns its support and does not write back."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    p = tableau[0]
+    p.symplectic[0] = 0
+
+    assert tableau[0] == Pauli.from_pauli_string("XX")
+    assert tableau.to_pauli_list()[0] == Pauli.from_pauli_string("XX")
+
+
+def test_multiply_rows() -> None:
+    """Multiplying one row onto another tracks the phase and leaves other rows alone."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    tableau.multiply_rows(0, 1)
+
+    assert tableau[0] == Pauli.from_pauli_string("-YY")  # XX * ZZ == -YY
+    assert tableau[1] == Pauli.from_pauli_string("ZZ")
+
+
+def test_multiply_rows_is_not_commutative() -> None:
+    """Row multiplication is left-multiplication, so the operand order matters."""
+    forward = PauliTableau.from_pauli_strings(["X", "Z"])
+    backward = PauliTableau.from_pauli_strings(["X", "Z"])
+
+    forward.multiply_rows(0, 1)
+    backward.multiply_rows(1, 0)
+
+    assert forward[0] == Pauli.from_pauli_string("-iY")  # X * Z
+    assert backward[1] == Pauli.from_pauli_string("+iY")  # Z * X
 
 
 def test_independent_rows() -> None:
@@ -367,6 +400,22 @@ def test_pauli_row_echelon_keeps_scalar_rows() -> None:
     ]
     assert rank == 2
     assert pivots == [0, 2]
+
+
+def test_pauli_row_echelon_on_many_qubits() -> None:
+    """Row reduction stays correct when x.z sums exceed the range of a single byte."""
+    n = 200  # a 200-qubit all-Y row has x.z == 200, which overflows int8
+    tableau = PauliTableau.from_pauli_strings(["Y" * n, "Z" * n, "X" * n])
+
+    reduced, rank, n_global_phases, transform, pivots = pauli_row_echelon(tableau)
+
+    # Y^200 == i^200 X^200 Z^200 and 200 % 4 == 0, so the row is +YY..Y with exponent 0.
+    assert tableau[0].phase_exponent == 0
+    assert rank == 2
+    assert n_global_phases == 1
+    assert pivots == [0, n]
+    assert_array_equal((transform @ tableau.symplectic) % 2, reduced.symplectic)
+    assert reduced[2] == Pauli.from_pauli_string("I" * n)
 
 
 def test_pauli_rank() -> None:

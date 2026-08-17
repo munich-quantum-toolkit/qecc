@@ -506,9 +506,9 @@ def _combine_stabilizers_and_logicals(
     ])
 
     combined_phase = np.concatenate([
-        x_logicals.phase,
-        z_logicals.phase,
-        stabilizers.phase,
+        x_logicals.phase_exponents,
+        z_logicals.phase_exponents,
+        stabilizers.phase_exponents,
     ])
 
     return StabilizerTableau(combined_matrix, combined_phase)

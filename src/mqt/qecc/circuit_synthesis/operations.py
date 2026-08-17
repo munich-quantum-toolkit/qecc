@@ -125,7 +125,7 @@ class Transvection(TableauOperation):
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], signs, *self.v
         )
-        tableau.phase = PauliTableau.phase_from_signs(mat, signs)
+        tableau.phase_exponents = PauliTableau.phase_from_signs(mat, signs)
 
     def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the transvection operation to a stabilizer tableau."""
@@ -138,7 +138,7 @@ class Transvection(TableauOperation):
         _apply_transvection_numba(
             mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], signs, *self.v
         )
-        out.phase = PauliTableau.phase_from_signs(mat, signs)
+        out.phase_exponents = PauliTableau.phase_from_signs(mat, signs)
 
         return out
 

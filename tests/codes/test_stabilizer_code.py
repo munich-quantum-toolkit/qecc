@@ -212,6 +212,29 @@ def test_stabilizer_group_equality_tracks_phases() -> None:
     assert not code.equal_stabilizer_group(different_group)
 
 
+def test_stabilizer_group_equality_without_generators() -> None:
+    """Codes without stabilizer generators generate the trivial group and compare equal."""
+    trivial = StabilizerCode([], n=2)
+    other_trivial = StabilizerCode([], n=2)
+
+    assert trivial.equal_stabilizer_group(other_trivial)
+    assert trivial.is_equivalent(other_trivial)
+    assert trivial.get_logical_mapping(other_trivial) is not None
+    assert not trivial.equal_stabilizer_group(StabilizerCode(["ZZ"]))
+    assert not StabilizerCode(["ZZ"]).equal_stabilizer_group(trivial)
+
+
+def test_stabilizer_group_equality_ignores_redundant_generators() -> None:
+    """A redundant generating set describes the same group as an independent one."""
+    independent = StabilizerCode(["XX", "ZZ"])
+    redundant = StabilizerCode(["XX", "ZZ", "-YY"])  # -YY == XX * ZZ
+
+    assert redundant.generators.n_rows == 3
+    assert independent.equal_stabilizer_group(redundant)
+    assert redundant.equal_stabilizer_group(independent)
+    assert not redundant.equal_stabilizer_group(StabilizerCode(["XX", "-ZZ"]))
+
+
 def test_stabilizer_equivalence_tracks_phases() -> None:
     """Test that logical equivalence uses signed stabilizer membership."""
     code = StabilizerCode(["ZZ"])
@@ -441,9 +464,11 @@ def test_rejects_generators_that_generate_minus_identity() -> None:
 
 
 def test_accepts_redundant_consistent_generators() -> None:
-    """Test that redundant generators that are consistent are accepted."""
+    """Test that redundant generators are accepted and kept as given."""
     code = StabilizerCode(["XI", "IX", "XX"])
-    assert code.generators.n_rows == 2
+    assert code.generators.n_rows == 3
+    assert code.k == 0
+    assert code.equal_stabilizer_group(StabilizerCode(["XI", "IX"]))
 
 
 def test_inequality_due_to_incompatible_codes() -> None:

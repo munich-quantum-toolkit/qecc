@@ -82,7 +82,7 @@ class ConcatenatedCode(StabilizerCode):
             msg = "The Pauli operator must have the same number of qubits as the outer code."
             raise InvalidStabilizerCodeError(msg)
         concatenated = SymplecticVector.zeros(self.n)
-        phase = p.phase
+        phase = p.phase_exponent
         offset: int = 0
         for i in range(self.outer_code.n):
             c = self.inner_codes[i]
@@ -100,7 +100,7 @@ class ConcatenatedCode(StabilizerCode):
                 continue
             concatenated[offset:new_offset] = block.x_part()
             concatenated[offset + self.n : new_offset + self.n] = block.z_part()
-            phase = (phase + block.phase) % 4
+            phase = (phase + block.phase_exponent) % 4
             offset = new_offset
         return Pauli(concatenated, phase)
 

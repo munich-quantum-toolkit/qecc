@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
@@ -39,68 +39,101 @@ def _split_pauli_string_prefix(p: str) -> tuple[int, str]:
     return 0, p
 
 
-def pauli_row_echelon(
-    p: PauliTableau,
-) -> tuple[PauliTableau, int, int, npt.NDArray[np.int8], list[int]]:
+class PauliRowEchelon(NamedTuple):
+    """The result of a phase-sensitive row reduction of a :class:`PauliTableau`.
+
+    Attributes:
+        reduced: The reduced tableau, with dependent rows retained as scalar Paulis.
+        rank: The Pauli subgroup rank, i.e. ``log2`` of the order of the generated
+            subgroup, including the contribution of the global phases.
+        n_global_phases: How many global phases the subgroup contains: 1 for ``{I}``,
+            2 for ``{I, -I}``, 4 for ``{I, iI, -I, -iI}``. This is a count, not a rank.
+        transform: The binary matrix ``T`` with ``T @ input.symplectic % 2 == reduced.symplectic``.
+        pivot_cols: The pivot column indices. Their number is the *symplectic* rank,
+            which can be smaller than ``rank``.
+    """
+
+    reduced: PauliTableau
+    rank: int
+    n_global_phases: int
+    transform: npt.NDArray[np.int8]
+    pivot_cols: list[int]
+
+
+def pauli_row_echelon(p: PauliTableau) -> PauliRowEchelon:
     """Compute a phase-sensitive reduced row echelon form of a PauliTableau.
+
+    Unlike a plain mod-2 row reduction, this tracks the phase picked up when Pauli
+    rows are combined, so it is the correct reduction to use on a signed tableau.
 
     Args:
         p: The PauliTableau. It is not modified.
 
     Returns:
-        A tuple containing:
-
-        - the reduced tableau, with dependent rows retained as scalar Paulis,
-        - the Pauli subgroup rank, including global phases,
-        - the number of global phases,
-        - the binary transformation matrix ``T`` such that
-          ``T @ input.symplectic % 2`` is the reduced symplectic matrix,
-        - the pivot column indices.
-
-        The transformation matrix and pivot columns describe the support
-        transformation. Consequently, the number of pivots is the symplectic
-        rank and can be smaller than the returned Pauli subgroup rank.
+        A :class:`PauliRowEchelon` describing the reduction.
     """
-    rows = p.to_pauli_list()
     n = p.n
+    n_rows = p.n_rows
 
-    transform_matrix = np.eye(len(rows), dtype=np.int8)
+    # Work on the raw arrays rather than a list of Paulis: the elimination is
+    # O(rows * n) multiplications, which is far too slow row-by-row in Python.
+    # int64 throughout, because x.z sums over n qubits overflow int8.
+    symplectic = p.tableau.data.astype(np.int8).copy()
+    phases = p.phase_exponents.astype(np.int64).copy()
+
+    transform_matrix = np.eye(n_rows, dtype=np.int8)
     pivot_row = 0
     pivot_cols: list[int] = []
 
     for col in range(2 * n):
-        pivot = next((row for row in range(pivot_row, len(rows)) if rows[row].symplectic[col]), None)
-        if pivot is None:
+        below = np.flatnonzero(symplectic[pivot_row:, col])
+        if below.size == 0:
             continue
+        pivot = pivot_row + int(below[0])
 
-        rows[pivot_row], rows[pivot] = rows[pivot], rows[pivot_row]
-        transform_matrix[[pivot_row, pivot]] = transform_matrix[[pivot, pivot_row]]
-        for row in range(len(rows)):
-            if row != pivot_row and rows[row].symplectic[col]:
-                rows[row] *= rows[pivot_row].inverse()  # transform phases
-                transform_matrix[row] ^= transform_matrix[pivot_row]
+        if pivot != pivot_row:
+            symplectic[[pivot_row, pivot]] = symplectic[[pivot, pivot_row]]
+            phases[[pivot_row, pivot]] = phases[[pivot, pivot_row]]
+            transform_matrix[[pivot_row, pivot]] = transform_matrix[[pivot, pivot_row]]
+
+        pivot_x = symplectic[pivot_row, :n].astype(np.int64)
+        pivot_z = symplectic[pivot_row, n:].astype(np.int64)
+        # Multiplying by the inverse of the pivot row: same support, negated phase.
+        inverse_phase = (-phases[pivot_row] + 2 * int(pivot_x @ pivot_z)) % 4
+
+        targets = symplectic[:, col].astype(bool)
+        targets[pivot_row] = False
+        if targets.any():
+            # ``row * pivot^-1`` picks up 2 * (z_row . x_pivot) from commuting Z past X.
+            z_dot_x = (symplectic[targets][:, n:].astype(np.int64) @ pivot_x) % 2
+            phases[targets] = (phases[targets] + inverse_phase + 2 * z_dot_x) % 4
+            symplectic[targets] ^= symplectic[pivot_row]
+            transform_matrix[targets] ^= transform_matrix[pivot_row]
 
         pivot_cols.append(col)
         pivot_row += 1
-        if pivot_row == len(rows):
+        if pivot_row == n_rows:
             break
 
-    reduced = PauliTableau.from_paulis(rows) if rows else PauliTableau.empty(n)
+    reduced = PauliTableau(SymplecticMatrix(symplectic), phases.astype(np.int8)) if n_rows else PauliTableau.empty(n)
 
     # global phases of unrestricted pauli subgroups induced by...
     # ...general pauli multiplication: {I}, {I, -I}, or {I, iI, -I, -iI}
-    global_phases = [reduced[row].phase for row in range(pivot_row, reduced.n_rows)]
-    # ...pauli squares: {I}, or {I, -I}
-    global_phases.extend((reduced[row] * reduced[row]).phase for row in range(pivot_row))
+    global_phases = [int(v) for v in phases[pivot_row:]]
+    # ...pauli squares: {I}, or {I, -I}, since P^2 = i^(2p + 2 x.z)
+    pivot_x_part = symplectic[:pivot_row, :n].astype(np.int64)
+    pivot_z_part = symplectic[:pivot_row, n:].astype(np.int64)
+    squares = (2 * phases[:pivot_row] + 2 * (pivot_x_part * pivot_z_part).sum(axis=1)) % 4
+    global_phases.extend(int(v) for v in squares)
     # ...anticommuting pairs: {I}, or {I, -I}
-    if any(reduced[i].anticommute(reduced[j]) for i in range(pivot_row) for j in range(i + 1, pivot_row)):
+    if pivot_row > 1 and np.any(symplectic_product(symplectic[:pivot_row], symplectic[:pivot_row])):
         global_phases.append(2)
 
     global_phase_step = math.gcd(4, *global_phases)
     global_phase_rank = {4: 0, 2: 1, 1: 2}[global_phase_step]
     # potentially restrict to Hermitian rows, thus global phases {I, -I}, as use case for general subgroups not really present
 
-    return reduced, pivot_row + global_phase_rank, 4 // global_phase_step, transform_matrix, pivot_cols
+    return PauliRowEchelon(reduced, pivot_row + global_phase_rank, 4 // global_phase_step, transform_matrix, pivot_cols)
 
 
 def pauli_rank(p: PauliTableau) -> int:
@@ -112,7 +145,47 @@ def pauli_rank(p: PauliTableau) -> int:
     Returns:
         ``log2`` of the number of elements in the generated Pauli subgroup.
     """
-    return pauli_row_echelon(p)[1]
+    return pauli_row_echelon(p).rank
+
+
+def pauli_in_reduced_subgroup(
+    reduced: PauliTableau,
+    n_global_phases: int,
+    pivot_cols: list[int],
+    p: Pauli,
+) -> bool:
+    """Decide subgroup membership against a precomputed :func:`pauli_row_echelon` result.
+
+    Reducing the candidate against the echelon rows costs ``O(rows * n)``, so callers
+    that test many Paulis against the same subgroup should compute the echelon form
+    once and reuse it rather than calling :meth:`PauliTableau.is_in_subgroup` per query.
+
+    Args:
+        reduced: The reduced tableau returned by :func:`pauli_row_echelon`.
+        n_global_phases: The number of global phases returned by :func:`pauli_row_echelon`.
+        pivot_cols: The pivot columns returned by :func:`pauli_row_echelon`.
+        p: The Pauli operator to test.
+
+    Returns:
+        True if ``p`` lies in the subgroup the echelon form describes.
+    """
+    if p.n != reduced.n:
+        return False
+
+    # Clear the pivot columns; the echelon form is reduced, so each step touches
+    # exactly one pivot column and never reintroduces an earlier one.
+    residual = p
+    for row, col in enumerate(pivot_cols):
+        if residual.symplectic[col]:
+            residual *= reduced[row].inverse()
+
+    if np.any(residual.symplectic.data):
+        return False  # the support is not in the span of the generators
+
+    # The residual is the scalar i^phase; it is in the subgroup exactly when it lies
+    # in the subgroup {i^k : k % step == 0} of global phases, where step = 4 / count.
+    phase_step = 4 // n_global_phases
+    return residual.phase_exponent % phase_step == 0
 
 
 class Pauli:
@@ -121,25 +194,20 @@ class Pauli:
     Internally, a Pauli operator is stored as a binary symplectic support (x|z) together with a phase exponent p, representing Q(x,z,p) = i^p X^x Z^z.
     """
 
-    def __init__(self, symplectic: SymplecticVector, phase: int | None = None) -> None:
+    def __init__(self, symplectic: SymplecticVector, phase_exponent: int | None = None) -> None:
         """Create a new Pauli operator.
 
         Args:
             symplectic: A 2n x 1 binary matrix representing the symplectic form of the Pauli operator. The first n entries correspond to X operators, and the second n entries correspond to Z operators.
-            phase: The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z, normalized modulo four. If None, use canonical positive Hermitian phase.
+            phase_exponent: The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z, normalized modulo four. If None, use canonical positive Hermitian phase.
         """
         self.n = symplectic.n
         self.symplectic = symplectic
-        if phase is None:
+        if phase_exponent is None:
             x_part = np.asarray(symplectic[: self.n], dtype=np.int8)
             z_part = np.asarray(symplectic[self.n :], dtype=np.int8)
-            phase = np.dot(x_part, z_part)
-        self.phase = int(phase) % 4
-
-    @property
-    def phase_exponent(self) -> int:
-        """The phase exponent p in {0,1,2,3} such that this Pauli equals i^p X^x Z^z."""
-        return self.phase
+            phase_exponent = np.dot(x_part, z_part)
+        self.phase_exponent = int(phase_exponent) % 4
 
     @classmethod
     def from_pauli_string(cls, p: str) -> Pauli:
@@ -183,7 +251,7 @@ class Pauli:
 
     def is_hermitian(self) -> bool:
         """Check whether this Pauli operator is Hermitian, i.e. p == x.z (mod 2)."""
-        return self.phase % 2 == self._xz_mod4() % 2
+        return self.phase_exponent % 2 == self._xz_mod4() % 2
 
     def sign(self) -> int:
         """Return the conventional binary sign r of a Hermitian Pauli, in (-1)^r i^(x.z) X^x Z^z.
@@ -194,11 +262,11 @@ class Pauli:
         if not self.is_hermitian():
             msg = f"Pauli operator {self!r} is not Hermitian and has no binary sign."
             raise InvalidPauliError(msg)
-        return ((self.phase - self._xz_mod4()) // 2) % 2
+        return ((self.phase_exponent - self._xz_mod4()) // 2) % 2
 
     def inverse(self) -> Pauli:
         """Return the inverse of this Pauli operator."""
-        return Pauli(self.symplectic, (-self.phase + 2 * self._xz_mod4()) % 4)
+        return Pauli(self.symplectic, (-self.phase_exponent + 2 * self._xz_mod4()) % 4)
 
     def commute(self, other: Pauli) -> bool:
         """Check if this Pauli operator commutes with another Pauli operator."""
@@ -214,8 +282,8 @@ class Pauli:
             msg = "Pauli operators must have the same number of qubits."
             raise InvalidPauliError(msg)
         z_dot_x_prime = int(np.dot(self.z_part(), other.x_part()))
-        phase = (self.phase + other.phase + 2 * z_dot_x_prime) % 4
-        return Pauli(self.symplectic + other.symplectic, phase)
+        phase_exponent = (self.phase_exponent + other.phase_exponent + 2 * z_dot_x_prime) % 4
+        return Pauli(self.symplectic + other.symplectic, phase_exponent)
 
     def __repr__(self) -> str:
         """Return a string representation of the Pauli operator."""
@@ -227,7 +295,7 @@ class Pauli:
             "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I"
             for x, z in zip(x_part, z_part, strict=False)
         ]
-        prefix_exponent = (self.phase - self._xz_mod4()) % 4
+        prefix_exponent = (self.phase_exponent - self._xz_mod4()) % 4
         return _EXPONENT_TO_PHASE_PREFIX[prefix_exponent] + "".join(pauli)
 
     def as_vector(self) -> npt.NDArray[np.int8]:
@@ -236,7 +304,7 @@ class Pauli:
         The first 2n entries are the binary symplectic support; the last
         entry is the phase exponent p.
         """
-        return np.concatenate((self.symplectic.data, np.array([self.phase])))
+        return np.concatenate((self.symplectic.data, np.array([self.phase_exponent])))
 
     def __len__(self) -> int:
         """Return the number of qubits in the Pauli operator."""
@@ -263,7 +331,7 @@ class Pauli:
         """Check if this Pauli operator is equal to another Pauli operator."""
         if not isinstance(other, Pauli):
             return False
-        return self.symplectic == other.symplectic and self.phase == other.phase
+        return self.symplectic == other.symplectic and self.phase_exponent == other.phase_exponent
 
     def __ne__(self, other: object) -> bool:
         """Check if this Pauli operator is not equal to another Pauli operator."""
@@ -271,11 +339,11 @@ class Pauli:
 
     def __neg__(self) -> Pauli:
         """Return the negation of this Pauli operator."""
-        return Pauli(self.symplectic, (self.phase + 2) % 4)
+        return Pauli(self.symplectic, (self.phase_exponent + 2) % 4)
 
     def __hash__(self) -> int:
         """Return a hash of the Pauli operator."""
-        return hash((self.symplectic, self.phase))
+        return hash((self.symplectic, self.phase_exponent))
 
 
 class PauliTableau:
@@ -286,28 +354,30 @@ class PauliTableau:
     """
 
     def __init__(
-        self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase: npt.NDArray[np.int8] | None = None
+        self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase_exponents: npt.NDArray[np.int8] | None = None
     ) -> None:
         """Create a new stabilizer tableau.
 
         Args:
             tableau: Symplectic matrix representing the stabilizer tableau.
-            phase: A vector of per-row phase exponents in {0,1,2,3}, such that row i
-                equals i^phase[i] X^x_i Z^z_i. Not restricted to Hermitian (real-sign) rows. If None, use canonical positive Hermitian phase for each row.
+            phase_exponents: A vector of per-row phase exponents in {0,1,2,3}, such that row i
+                equals i^phase_exponents[i] X^x_i Z^z_i. These are exponents, not binary signs;
+                use :meth:`phase_from_signs` to convert. Not restricted to Hermitian (real-sign)
+                rows. If None, use canonical positive Hermitian phase for each row.
         """
         if isinstance(tableau, np.ndarray):
             self.tableau = SymplecticMatrix(tableau)
         else:
             self.tableau = tableau
-        if phase is None:
+        if phase_exponents is None:
             signs = np.zeros(self.tableau.shape[0], dtype=np.int8)
-            phase = self.phase_from_signs(self.tableau.data, signs)
-        if self.tableau.shape[0] != phase.shape[0]:
+            phase_exponents = self.phase_from_signs(self.tableau.data, signs)
+        if self.tableau.shape[0] != phase_exponents.shape[0]:
             msg = "The number of rows in the tableau must match the number of phases."
             raise InvalidPauliError(msg)
         self.n = self.tableau.n
         self.n_rows = int(self.tableau.shape[0])
-        self.phase = np.asarray(phase, dtype=np.int8) % 4
+        self.phase_exponents = np.asarray(phase_exponents, dtype=np.int8) % 4
         self.shape = (self.n_rows, self.n)
 
     @classmethod
@@ -367,7 +437,7 @@ class PauliTableau:
         phase = np.zeros((len(paulis)), dtype=np.int8)
         for i, p in enumerate(paulis):
             mat[i] = p.symplectic.data
-            phase[i] = p.phase
+            phase[i] = p.phase_exponent
         return cls(mat, phase)
 
     @staticmethod
@@ -438,7 +508,7 @@ class PauliTableau:
         """Check if two stabilizer tableaus are equal."""
         if not isinstance(other, PauliTableau):
             return False
-        return bool(self.tableau == other.tableau and np.all(self.phase == other.phase))
+        return bool(self.tableau == other.tableau and np.all(self.phase_exponents == other.phase_exponents))
 
     def __ne__(self, other: object) -> bool:
         """Check if two stabilizer tableaus are not equal."""
@@ -458,8 +528,27 @@ class PauliTableau:
         return bool(np.all(symplectic_product(self.symplectic, other.symplectic) == 0))
 
     def __getitem__(self, key: int) -> Pauli:
-        """Get a Pauli operator from the stabilizer tableau."""
-        return Pauli(SymplecticVector(self.tableau[key]), self.phase[key])
+        """Get a Pauli operator from the stabilizer tableau.
+
+        The returned Pauli owns its symplectic support, so mutating it does not
+        write through to the tableau.
+        """
+        return Pauli(SymplecticVector(np.array(self.tableau[key], dtype=np.int8)), self.phase_exponents[key])
+
+    def multiply_rows(self, target: int, source: int) -> None:
+        """Left-multiply row ``target`` by row ``source`` in place, tracking the phase.
+
+        Row ``target`` becomes ``P_target * P_source``; all other rows are unchanged.
+        This is the phase-sensitive analogue of XOR-ing one symplectic row onto
+        another, and is the only correct way to combine rows of a signed tableau.
+
+        Args:
+            target: Index of the row that is overwritten.
+            source: Index of the row that is multiplied onto ``target``.
+        """
+        product = self[target] * self[source]
+        self.tableau[target] = product.symplectic.data
+        self.phase_exponents[target] = product.phase_exponent
 
     def signs(self) -> npt.NDArray[np.int8]:
         """Return the derived binary sign for each row, in (-1)^r i^(x.z) X^x Z^z.
@@ -470,21 +559,21 @@ class PauliTableau:
         x_part = self.get_x_part().astype(np.int32)
         z_part = self.get_z_part().astype(np.int32)
         xz_mod4 = (x_part * z_part).sum(axis=1) % 4
-        if not np.all(self.phase % 2 == xz_mod4 % 2):
+        if not np.all(self.phase_exponents % 2 == xz_mod4 % 2):
             msg = "PauliTableau contains non-Hermitian rows; signs() is only defined for Hermitian rows."
             raise InvalidPauliError(msg)
-        return (((self.phase.astype(np.int32) - xz_mod4) // 2) % 2).astype(np.int8)
+        return (((self.phase_exponents.astype(np.int32) - xz_mod4) // 2) % 2).astype(np.int8)
 
     def is_hermitian(self) -> bool:
         """Check if all rows of the stabilizer tableau are Hermitian."""
         x_part = self.get_x_part().astype(np.int32)
         z_part = self.get_z_part().astype(np.int32)
         xz_mod4 = (x_part * z_part).sum(axis=1) % 4
-        return bool(np.all(self.phase % 2 == xz_mod4 % 2))
+        return bool(np.all(self.phase_exponents % 2 == xz_mod4 % 2))
 
     def __hash__(self) -> int:
         """Compute the hash of the stabilizer tableau."""
-        return hash((self.tableau, self.phase.tobytes()))
+        return hash((self.tableau, self.phase_exponents.tobytes()))
 
     def __iter__(self) -> Iterator[Pauli]:
         """Iterate over the Pauli operators in the stabilizer tableau."""
@@ -493,7 +582,7 @@ class PauliTableau:
 
     def as_matrix(self) -> npt.NDArray[np.int8]:
         """Convert the stabilizer tableau to a matrix."""
-        return np.hstack((self.tableau.data, self.phase[..., np.newaxis]))
+        return np.hstack((self.tableau.data, self.phase_exponents[..., np.newaxis]))
 
     def as_hermitian_matrix(self) -> npt.NDArray[np.int8]:
         """Convert the stabilizer tableau to a binary matrix."""
@@ -503,12 +592,17 @@ class PauliTableau:
         return np.hstack((self.tableau.data, self.signs()[..., np.newaxis]))
 
     def is_in_subgroup(self, p: Pauli) -> bool:
-        """Check if a Pauli operator is in the subgroup generated the rows of the PauliTableau."""
+        """Check if a Pauli operator is in the subgroup generated by the rows of the PauliTableau.
+
+        To test many Paulis against the same subgroup, compute :func:`pauli_row_echelon`
+        once and call :func:`pauli_in_reduced_subgroup` instead; this method redoes the
+        elimination on every call.
+        """
         if p.n != self.n:
             return False
 
-        extended = PauliTableau.from_paulis([*self, p])
-        return pauli_rank(extended) == pauli_rank(self)
+        echelon = pauli_row_echelon(self)
+        return pauli_in_reduced_subgroup(echelon.reduced, echelon.n_global_phases, echelon.pivot_cols, p)
 
     def apply_h(self, qubit: int) -> None:
         """Apply the Hadamard gate to the stabilizer tableau.
@@ -516,7 +610,7 @@ class PauliTableau:
         Args:
             qubit: The index of the qubit to apply the Hadamard gate to.
         """
-        self.phase = (self.phase + 2 * self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 4
+        self.phase_exponents = (self.phase_exponents + 2 * self.tableau[:, qubit] * self.tableau[:, qubit + self.n]) % 4
         self.tableau[:, [qubit, qubit + self.n]] = self.tableau[:, [qubit + self.n, qubit]]
 
     def apply_cx(self, ctrl: int, tar: int) -> None:
@@ -561,7 +655,7 @@ class PauliTableau:
         Args:
             qubit: The index of the qubit to apply the S gate to.
         """
-        self.phase = (self.phase + self.tableau[:, qubit]) % 4
+        self.phase_exponents = (self.phase_exponents + self.tableau[:, qubit]) % 4
         self.tableau[:, qubit + self.n] ^= self.tableau[:, qubit]
 
     def apply_sdg(self, qubit: int) -> None:
@@ -571,11 +665,11 @@ class PauliTableau:
 
     def apply_x(self, qubit: int) -> None:
         """Apply the X gate to the stabilizer tableau."""
-        self.phase = (self.phase + 2 * self.tableau[:, qubit + self.n]) % 4
+        self.phase_exponents = (self.phase_exponents + 2 * self.tableau[:, qubit + self.n]) % 4
 
     def apply_z(self, qubit: int) -> None:
         """Apply the Z gate to the stabilizer tableau."""
-        self.phase = (self.phase + 2 * self.tableau[:, qubit]) % 4
+        self.phase_exponents = (self.phase_exponents + 2 * self.tableau[:, qubit]) % 4
 
     def apply_y(self, qubit: int) -> None:
         """Apply the Y gate to the stabilizer tableau."""
@@ -584,11 +678,11 @@ class PauliTableau:
 
     def copy(self) -> PauliTableau:
         """Return a copy of the stabilizer tableau."""
-        return PauliTableau(self.tableau.copy(), self.phase.copy())
+        return PauliTableau(self.tableau.copy(), self.phase_exponents.copy())
 
     def to_pauli_list(self) -> list[Pauli]:
-        """Return the tableau as a list of Paulis."""
-        return [Pauli(SymplecticVector(self.tableau[i]), self.phase[i]) for i in range(self.n_rows)]
+        """Return the tableau as a list of Paulis that do not alias the tableau."""
+        return [self[i] for i in range(self.n_rows)]
 
     def to_numpy(self) -> npt.NDArray[np.int8]:
         """Convert the stabilizer tableau to a NumPy array.
@@ -597,7 +691,7 @@ class PauliTableau:
             A NumPy array where the first 2n columns represent the symplectic matrix
             and the last column represents the phase vector.
         """
-        return np.hstack((self.tableau.data, self.phase[:, np.newaxis]))
+        return np.hstack((self.tableau.data, self.phase_exponents[:, np.newaxis]))
 
     def is_css(self) -> bool:
         """Check if the stabilizer tableau is in CSS form."""
@@ -661,7 +755,7 @@ class PauliTableau:
                 self.tableau.data,
                 SymplecticMatrix.identity(self.n).data,
             )
-            and np.all(self.phase == 0)
+            and np.all(self.phase_exponents == 0)
         )
 
     def independent_rows(self) -> PauliTableau:
@@ -669,7 +763,7 @@ class PauliTableau:
         independent_indices = mod2.row_echelon(self.tableau.data.T)[3]
         return PauliTableau(
             SymplecticMatrix(self.tableau.data[independent_indices].copy()),
-            self.phase[independent_indices].copy(),
+            self.phase_exponents[independent_indices].copy(),
         )
 
     def __str__(self) -> str:
@@ -679,7 +773,7 @@ class PauliTableau:
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the stabilizer tableau."""
-        return f"PauliTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.data},\nphase={self.phase})"
+        return f"PauliTableau(n={self.n}, n_rows={self.n_rows}, tableau=\n{self.tableau.data},\nphase={self.phase_exponents})"
 
     def num_rows(self) -> int:
         """Return the number of rows in the stabilizer tableau."""
@@ -697,7 +791,7 @@ class PauliTableau:
         symplectic_vector = pauli.symplectic
         for i in range(self.n_rows):
             stab_vector = SymplecticVector(self.tableau[i])
-            if symplectic_vector == stab_vector and pauli == Pauli(stab_vector, self.phase[i]):
+            if symplectic_vector == stab_vector and pauli == Pauli(stab_vector, self.phase_exponents[i]):
                 return True
         return False
 
@@ -754,7 +848,9 @@ def complete_stabilizer_tableau_with_destabilizers(
     stab_row_set = set(stab_rows)
 
     other_rows = [
-        (i, stabilizers.tableau[i].copy(), stabilizers.phase[i]) for i in range(m_total) if i not in stab_row_set
+        (i, stabilizers.tableau[i].copy(), stabilizers.phase_exponents[i])
+        for i in range(m_total)
+        if i not in stab_row_set
     ]
 
     if len(other_rows) % 2 != 0:
@@ -829,7 +925,7 @@ def complete_stabilizer_tableau_with_destabilizers(
 
     for stab_row_idx in stab_rows:
         new_rows.append(stabilizers.tableau[stab_row_idx].copy())
-        new_phases.append(stabilizers.phase[stab_row_idx])
+        new_phases.append(stabilizers.phase_exponents[stab_row_idx])
 
     combined_matrix = np.vstack(new_rows)
     combined_phase = np.array(new_phases, dtype=np.int8)

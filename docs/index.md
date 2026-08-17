@@ -30,6 +30,7 @@ self
 :maxdepth: 1
 
 installation
+PauliConventions
 LightsOutDecoder
 StatePrep
 CatStates

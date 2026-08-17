@@ -138,7 +138,7 @@ def _score_transvections(
     scored: list[tuple[TableauOperation, int | tuple[int, ...]]] = []
 
     original_state = tableau.tableau.data.copy()
-    original_phase = tableau.phase.copy()
+    original_phase = tableau.phase_exponents.copy()
     for op in operations:
         op.apply_stabilizer_tableau_inplace(tableau)
         h_vec, _ = score_symplectic(tableau)
@@ -148,7 +148,7 @@ def _score_transvections(
             scored.append((op, score_value))
 
         tableau.tableau.data[:] = original_state
-        tableau.phase[:] = original_phase
+        tableau.phase_exponents[:] = original_phase
     scored.sort(key=operator.itemgetter(1))
     return scored
 
