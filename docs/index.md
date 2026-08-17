@@ -9,11 +9,10 @@ through the individual submodules for
 {doc}`circuit synthesis <tools/synthesis>`, {doc}`decoding <tools/decoders>`,
 and {doc}`logical compilation <tools/compilation>`. To understand how these
 build on a shared code representation, see the
-{doc}`architecture overview <architecture>`.
-For details on individual classes and functions, read the
-{doc}`reference documentation <api/mqt/qecc/index>`. If you are interested in
-the theory behind QECC, have a look at the publications in the
-{doc}`publication list <references>`.
+{doc}`architecture overview <architecture>`. For details on individual classes
+and functions, read the {doc}`reference documentation <api/mqt/qecc/index>`. If
+you are interested in the theory behind QECC, have a look at the publications in
+the {doc}`publication list <references>`.
 
 We appreciate any feedback and contributions to the project. If you want to
 contribute, you can find more information in the

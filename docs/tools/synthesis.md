@@ -1,7 +1,7 @@
 # Circuit Synthesis
 
-Tools for synthesizing quantum circuits, including circuits that prepare
-logical states fault-tolerantly.
+Tools for synthesizing quantum circuits, including circuits that prepare logical
+states fault-tolerantly.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -10,8 +10,8 @@ logical states fault-tolerantly.
 :link: ../ExactSynthesis
 :link-type: doc
 
-An SMT/SAT-based engine for provably optimal Clifford circuits. Supports CSS
-and non-CSS stabilizer codes and optimizes for either gate count or depth.
+An SMT/SAT-based engine for provably optimal Clifford circuits. Supports CSS and
+non-CSS stabilizer codes and optimizes for either gate count or depth.
 :::
 
 :::{grid-item-card} Encoding Circuit Synthesis
