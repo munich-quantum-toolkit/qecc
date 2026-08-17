@@ -143,7 +143,7 @@ class PauliTableau:
             phase: An n x 1 binary vector representing the phase of the stabilizer tableau.
         """
         if isinstance(tableau, np.ndarray):
-            self.tableau = SymplecticMatrix(tableau)  # ty: ignore[invalid-argument-type]
+            self.tableau = SymplecticMatrix(tableau)
         else:
             self.tableau = tableau
         if phase is None:

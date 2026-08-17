@@ -37,7 +37,7 @@ class ConcatenatedCode(StabilizerCode):
         """
         self.outer_code = outer_code
         if isinstance(inner_code, Sequence):
-            self.inner_codes = inner_code  # ty: ignore[invalid-assignment]
+            self.inner_codes = inner_code
         else:
             self.inner_codes = [inner_code] * outer_code.n
         if not all(code.k == 1 for code in self.inner_codes):
