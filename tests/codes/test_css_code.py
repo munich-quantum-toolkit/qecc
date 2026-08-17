@@ -110,8 +110,8 @@ def test_orthogonality_check_rejects_non_orthogonal_bool() -> None:
     A boolean ``@`` computes a logical product, so the mod-2 orthogonality test must widen the dtype
     to remain correct — without over-accepting non-orthogonal codes.
     """
-    hx = np.array([[1, 1, 0]], dtype=np.bool_)
-    hz = np.array([[1, 0, 0]], dtype=np.bool_)
+    hx = np.array([[1, 1, 0]], dtype=np.int8)
+    hz = np.array([[1, 0, 0]], dtype=np.int8)
     with pytest.raises(InvalidCSSCodeError, match="orthogonal"):
         CSSCode(distance=1, Hx=hx, Hz=hz)
 

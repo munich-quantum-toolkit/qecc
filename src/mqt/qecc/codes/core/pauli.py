@@ -296,7 +296,7 @@ class PauliTableau:
                 equals i^phase[i] X^x_i Z^z_i. Not restricted to Hermitian (real-sign) rows. If None, use canonical positive Hermitian phase for each row.
         """
         if isinstance(tableau, np.ndarray):
-            self.tableau = SymplecticMatrix(tableau)  # ty: ignore[invalid-argument-type]
+            self.tableau = SymplecticMatrix(tableau)
         else:
             self.tableau = tableau
         if phase is None:
