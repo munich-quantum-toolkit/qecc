@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
+from mqt.qecc.circuit_synthesis.encoding import depth_optimal_encoding_circuit_non_css
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
@@ -21,6 +22,7 @@ from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_stabilizer_state,
 )
 from mqt.qecc.codes.core.pauli import CheckMatrix, StabilizerTableau
+from mqt.qecc.codes.core.stabilizer_code import StabilizerCode
 
 
 @pytest.mark.parametrize(
@@ -377,6 +379,23 @@ def test_state_with_minus_sign() -> None:
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.verified is True
+
+
+@pytest.mark.parametrize("stabilizers", [["YY", "ZZ"], ["-YY", "ZZ"], ["YYY", "ZZI", "IZZ"]])
+def test_non_css_state_signs(stabilizers: list[str]) -> None:
+    """Test that stabilizer signs survive synthesis for non-CSS states.
+
+    The circuit's generators may span the target group in a different GF(2) basis, so
+    the sign correction has to row-reduce both. Combining Pauli rows is not an XOR of
+    their signs (``YY * ZZ == -XX``), which only shows up once a row reduction mixes
+    X- and Z-support; on a CSS tableau the reduction never does.
+    """
+    code = StabilizerCode(stabilizers)
+
+    circuit = depth_optimal_encoding_circuit_non_css(code, max_depth=4)
+
+    assert not isinstance(circuit, str), f"synthesis failed: {circuit}"
+    assert circuit.get_code().equal_stabilizer_group(code)
 
 
 def test_css_single_check() -> None:
