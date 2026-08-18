@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mqt.qecc.mod2 import is_in_row_space, nullspace, rank
+from mqt.qecc.mod2 import nullspace, rank
 
-from .pauli import Pauli, PauliTableau
+from .pauli import Pauli, PauliTableau, pauli_in_reduced_subgroup, pauli_row_echelon
 from .symplectic import symplectic_product
 
 if TYPE_CHECKING:
@@ -44,8 +44,10 @@ class StabilizerCode:
             n: The number of qubits in the code. If not given, it is inferred from the stabilizer generators.
         """
         self.generators = self.get_generators(generators, n)
-        # check that the generators commute before computing log. operators for a more informative error message
+        # check properties of stabilizer group before computing log. operators for a more informative error message
         self._check_stabilizers_commute()
+        self._check_stabilizers_hermitian()
+        self._check_stabilizers_not_contain_neg_identity()
 
         if n is None:
             self.n = self.generators.n
@@ -104,19 +106,20 @@ class StabilizerCode:
         )
 
     def equal_stabilizer_group(self, other: StabilizerCode) -> bool:
-        """Check if two stabilizer codes have the same stabilizer group.
+        """Check if two stabilizer codes have the same signed stabilizer group.
 
-        The comparison is over the symplectic supports of the generators;
-        generator signs are ignored. To include signs, there has to be a sign-aware matrix multiplication for PauliTableaus.
+        The generators need not be independent; the comparison is over the generated
+        groups, so redundant generators on either side do not affect the result.
         """
         if self.n != other.n:
             return False
 
-        self_matrix = self.generators.symplectic
-        other_matrix = other.generators.symplectic
-        stabs_rnk = rank(self_matrix)
+        # Equal group order plus one-sided containment gives equality: the other group
+        # is then a subgroup of this one with the same number of elements.
+        if self._stabilizer_group_rank != other._stabilizer_group_rank:
+            return False
 
-        return bool(stabs_rnk == rank(other_matrix) and stabs_rnk == rank(np.vstack((self_matrix, other_matrix))))
+        return all(self._is_in_stabilizer_group(g) for g in other.generators)
 
     def equal_logical_basis(self, other: StabilizerCode) -> bool:
         """Check if two stabilizer codes have the same logical basis."""
@@ -162,7 +165,7 @@ class StabilizerCode:
         if self.k != other.k:
             return None
 
-        if not self.equal_logical_basis(other):
+        if not self.equal_stabilizer_group(other) or not self.equal_logical_basis(other):
             return None
 
         available_indices = set(range(len(other.z_logicals)))
@@ -202,16 +205,19 @@ class StabilizerCode:
         return [str(p) for p in self.generators]
 
     def stabilizer_equivalent(self, p1: Pauli | str, p2: Pauli | str) -> bool:
-        """Check if two Pauli strings are equivalent up to stabilizers of the code.
-
-        The comparison is over binary symplectic supports; phases are ignored.
-        """
+        """Check if two Pauli operators differ by an element of the signed stabilizer group."""
         if isinstance(p1, str):
             p1 = Pauli.from_pauli_string(p1)
         if isinstance(p2, str):
             p2 = Pauli.from_pauli_string(p2)
-        difference = (p1.symplectic.data + p2.symplectic.data) % 2
-        return is_in_row_space(difference, self.generators.symplectic)
+        if p1.n != self.n or p2.n != self.n:
+            return False
+        return self._is_in_stabilizer_group(p1 * p2.inverse())
+
+    def _is_in_stabilizer_group(self, p: Pauli) -> bool:
+        """Test membership in the stabilizer group using the cached echelon form."""
+        echelon = self._generators_echelon
+        return pauli_in_reduced_subgroup(echelon.reduced, echelon.n_global_phases, echelon.pivot_cols, p)
 
     def to_tableau(self) -> PauliTableau:
         """Convert the stabilizer code to a tableau with logicals and stabilizers.
@@ -228,18 +234,37 @@ class StabilizerCode:
 
         combined_matrix = np.vstack([x_log_matrix, z_log_matrix, stab_matrix])
 
-        x_log_phases = self.x_logicals.phase
-        z_log_phases = self.z_logicals.phase
-        stab_phases = self.generators.phase
+        x_log_phases = self.x_logicals.phase_exponents
+        z_log_phases = self.z_logicals.phase_exponents
+        stab_phases = self.generators.phase_exponents
 
         combined_phases = np.concatenate([x_log_phases, z_log_phases, stab_phases])
 
         return PauliTableau(combined_matrix, combined_phases)
 
+    def _check_stabilizers_hermitian(self) -> None:
+        """Check that the stabilizer generators are Hermitian. Throws an exception if not."""
+        if not self.generators.is_hermitian():
+            msg = "Stabilizer generators must be Hermitian."
+            raise InvalidStabilizerCodeError(msg)
+
+    def _check_stabilizers_not_contain_neg_identity(self) -> None:
+        """Check that the stabilizer generators do not contain the negative identity. Throws an exception if it does.
+
+        Caches the echelon form as a side effect; membership queries reuse it instead of
+        redoing the elimination. This assumes the generators are not mutated in place
+        after construction, which the validity checks here already presuppose.
+        """
+        echelon = pauli_row_echelon(self.generators)
+        if echelon.n_global_phases > 1:
+            msg = "Stabilizer generators must not contain the negative identity."
+            raise InvalidStabilizerCodeError(msg)
+        self._generators_echelon = echelon
+        self._stabilizer_group_rank = echelon.rank
+
     def _check_stabilizers_commute(self) -> None:
         """Check that the stabilizer generators pairwise commute. Throws an exception if not."""
-        stabilizer_commutations = symplectic_product(self.generators.symplectic, self.generators.symplectic)
-        if not np.all(stabilizer_commutations == 0):
+        if not self.generators.all_commute(self.generators):
             msg = "Stabilizer generators must commute with each other."
             raise InvalidStabilizerCodeError(msg)
 
@@ -299,7 +324,10 @@ class StabilizerCode:
             if isinstance(generators[0], Pauli):
                 return PauliTableau.from_paulis(generators)  # ty: ignore[invalid-argument-type]
         assert isinstance(generators, PauliTableau)
-        return generators
+        # Copy rather than alias the caller's tableau: PauliTableau is mutable, and the
+        # code caches an echelon form of its generators that a later mutation would
+        # silently invalidate.
+        return generators.copy()
 
     @classmethod
     def get_trivial_code(cls, n: int) -> StabilizerCode:
@@ -422,7 +450,9 @@ class StabilizerCode:
 
         z_mat = np.vstack(zs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
         x_mat = np.vstack(xs).astype(np.int8) if k > 0 else np.zeros((0, 2 * n), dtype=np.int8)
-        return PauliTableau(x_mat, np.zeros((k,), dtype=np.int8)), PauliTableau(z_mat, np.zeros((k,), dtype=np.int8))
+        x_phase = PauliTableau.phase_from_signs(x_mat, np.zeros(k, dtype=np.int8))
+        z_phase = PauliTableau.phase_from_signs(z_mat, np.zeros(k, dtype=np.int8))
+        return PauliTableau(x_mat, x_phase), PauliTableau(z_mat, z_phase)
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> StabilizerCode:
@@ -467,7 +497,9 @@ class StabilizerCode:
         """Check if a given Pauli string is a stabilizer of the code."""
         if isinstance(p, str):
             p = Pauli.from_pauli_string(p)
-        return self.stabilizer_equivalent(p, Pauli.from_pauli_string("I" * self.n))
+        if p.n != self.n:
+            return False
+        return self._is_in_stabilizer_group(p)
 
     def __repr__(self) -> str:
         """Return a string representation of the code."""

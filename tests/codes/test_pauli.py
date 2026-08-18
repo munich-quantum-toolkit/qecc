@@ -23,6 +23,8 @@ from mqt.qecc.codes.core.pauli import (
     PauliTableau,
     StabilizerTableau,
     complete_stabilizer_tableau_with_destabilizers,
+    pauli_rank,
+    pauli_row_echelon,
 )
 from mqt.qecc.codes.core.symplectic import (
     SymplecticMatrix,
@@ -44,7 +46,8 @@ def test_pauli() -> None:
     p5 = Pauli.from_pauli_string("+Z")
     p6 = Pauli.from_pauli_string("Y")
     assert p4 * p5 != p6
-    assert p4 * p5 == -p6
+    assert p4 * p5 != -p6
+    assert p4 * p5 == Pauli.from_pauli_string("+iY")
 
     assert np.array_equal(p1.x_part(), np.array([1, 0, 0]))
     assert np.array_equal(p1.z_part(), np.array([0, 0, 1]))
@@ -62,6 +65,35 @@ def test_pauli() -> None:
     assert p1 != obj
     assert_array_equal(p1.as_vector(), np.array([1, 0, 0, 0, 0, 1, 0], dtype=np.int8))
     assert hash(p1) == hash((SymplecticVector(np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)), 0))
+
+
+def test_pauli_phases() -> None:
+    """Test parsing, printing, and multiplication with all four Pauli phases."""
+    for pauli_string in ("X", "+iX", "-X", "-iX"):
+        assert repr(Pauli.from_pauli_string(pauli_string)) == pauli_string
+
+    x = Pauli.from_pauli_string("X")
+    z = Pauli.from_pauli_string("Z")
+    assert Pauli.from_pauli_string("Y").phase_exponent == 1
+    assert Pauli.from_pauli_string("-Y").phase_exponent == 3
+    assert x * z == Pauli.from_pauli_string("-iY")
+    assert z * x == Pauli.from_pauli_string("+iY")
+
+
+def test_default_pauli_phase() -> None:
+    """An omitted phase creates the positive Hermitian Pauli for the given support."""
+    y_support = Pauli.from_pauli_string("Y").symplectic
+    assert Pauli(y_support) == Pauli.from_pauli_string("Y")
+    assert Pauli.from_symplectic_and_sign(y_support, 0) == Pauli.from_pauli_string("Y")
+    assert Pauli.from_symplectic_and_sign(y_support, 1) == Pauli.from_pauli_string("-Y")
+
+
+def test_pauli_sign() -> None:
+    """Test conversion between phase exponents and binary signs."""
+    assert Pauli.from_pauli_string("Y").sign() == 0
+    assert Pauli.from_pauli_string("-Y").sign() == 1
+    with pytest.raises(InvalidPauliError):
+        Pauli.from_pauli_string("+iY").sign()
 
 
 def test_invalid_arithmetic() -> None:
@@ -129,7 +161,7 @@ def test_stabilizer_tableau() -> None:
     t2 = PauliTableau(np.array([[1, 0, 0, 0, 0, 1], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0]]), np.array([0, 0, 0]))
     assert t1 == t2
     assert str(t1) == "XIZ\nZIX\nIZX"
-    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase})"
+    assert repr(t1) == f"PauliTableau(n=3, n_rows=3, tableau=\n{t1.tableau.data},\nphase={t1.phase_exponents})"
     assert not t1.is_row(Pauli.from_pauli_string("III"))
 
     t3 = PauliTableau.from_pauli_strings(["ZII", "IZI", "IIZ"])
@@ -153,6 +185,90 @@ def test_stabilizer_tableau() -> None:
     t5 = PauliTableau.from_matrix(np.array([[1, 0, 0, 0], [0, 1, 0, 1]], dtype=np.int8))
     with pytest.raises(ValueError, match="full"):
         t5.symplectic_submatrix(1)
+
+
+def test_tableau_signs_and_phase_from_signs() -> None:
+    """Test conversion between binary signs and tableau phase exponents."""
+    tableau = PauliTableau.from_pauli_strings(["Y", "-Y"])
+    assert_array_equal(tableau.signs(), np.array([0, 1], dtype=np.int8))
+    assert_array_equal(PauliTableau.phase_from_signs(tableau.tableau.data, tableau.signs()), tableau.phase_exponents)
+
+
+def test_default_tableau_phase() -> None:
+    """An omitted phase creates positive Hermitian rows."""
+    tableau = PauliTableau.from_matrix(np.array([[1, 1]], dtype=np.int8))
+    assert tableau[0] == Pauli.from_pauli_string("Y")
+
+
+def test_tableau_rejects_sign_of_non_hermitian_row() -> None:
+    """A non-Hermitian tableau row has no binary sign."""
+    tableau = PauliTableau.from_pauli_strings(["+iY"])
+    with pytest.raises(InvalidPauliError):
+        tableau.signs()
+
+
+@pytest.mark.parametrize("pauli_string", ["+iX", "-iY"])
+def test_as_hermitian_matrix_rejects_non_hermitian_rows(pauli_string: str) -> None:
+    """A tableau containing a non-Hermitian row has no Hermitian matrix representation."""
+    tableau = PauliTableau.from_pauli_strings(["Z", pauli_string])
+
+    with pytest.raises(InvalidPauliError):
+        tableau.as_hermitian_matrix()
+
+
+def test_tableau_gate_phases() -> None:
+    """Test phase updates for representative Clifford conjugations."""
+    tableau = PauliTableau.from_pauli_strings(["X", "Y", "Z"])
+    tableau.apply_s(0)
+    assert list(tableau) == [
+        Pauli.from_pauli_string("Y"),
+        Pauli.from_pauli_string("-X"),
+        Pauli.from_pauli_string("Z"),
+    ]
+
+
+def test_tableau_getitem_does_not_alias() -> None:
+    """A Pauli taken from a tableau owns its support and does not write back."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    p = tableau[0]
+    p.symplectic[0] = 0
+
+    assert tableau[0] == Pauli.from_pauli_string("XX")
+    assert tableau.to_pauli_list()[0] == Pauli.from_pauli_string("XX")
+
+
+def test_multiply_rows() -> None:
+    """Multiplying one row onto another tracks the phase and leaves other rows alone."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    tableau.multiply_rows(0, 1)
+
+    assert tableau[0] == Pauli.from_pauli_string("-YY")  # XX * ZZ == -YY
+    assert tableau[1] == Pauli.from_pauli_string("ZZ")
+
+
+def test_multiply_rows_is_not_commutative() -> None:
+    """Row multiplication is left-multiplication, so the operand order matters."""
+    forward = PauliTableau.from_pauli_strings(["X", "Z"])
+    backward = PauliTableau.from_pauli_strings(["X", "Z"])
+
+    forward.multiply_rows(0, 1)
+    backward.multiply_rows(1, 0)
+
+    assert forward[0] == Pauli.from_pauli_string("-iY")  # X * Z
+    assert backward[1] == Pauli.from_pauli_string("+iY")  # Z * X
+
+
+def test_independent_rows() -> None:
+    """Test that independent_rows returns a reduced copy with phases preserved."""
+    tableau = PauliTableau.from_pauli_strings(["ZII", "-IZI", "ZZI"])
+
+    reduced = tableau.independent_rows()
+
+    assert reduced == PauliTableau.from_pauli_strings(["ZII", "-IZI"])
+    assert tableau == PauliTableau.from_pauli_strings(["ZII", "-IZI", "ZZI"])
+    assert reduced is not tableau
 
 
 def test_stabilizer_tableau_to_css() -> None:
@@ -250,6 +366,91 @@ def test_pauli_tableau_alias() -> None:
     t = PauliTableau.from_pauli_strings(["XX", "ZZ"])
     assert t.symplectic.shape == (2, 4)
     assert_array_equal(t.symplectic, t.tableau.data)
+
+
+def test_pauli_row_echelon_preserves_phases() -> None:
+    """Row reduction propagates phases introduced by Pauli multiplication."""
+    tableau = PauliTableau.from_pauli_strings(["-YY", "ZZ"])
+
+    reduced, rank, _, transform, pivots = pauli_row_echelon(tableau)
+
+    assert reduced.to_pauli_list() == [
+        Pauli.from_pauli_string("XX"),
+        Pauli.from_pauli_string("ZZ"),
+    ]
+    assert rank == 2
+    assert pivots == [0, 2]
+    assert_array_equal((transform @ tableau.symplectic) % 2, reduced.symplectic)
+    assert tableau.to_pauli_list() == [
+        Pauli.from_pauli_string("-YY"),
+        Pauli.from_pauli_string("ZZ"),
+    ]
+
+
+def test_pauli_row_echelon_keeps_scalar_rows() -> None:
+    """Dependent rows reduce to their scalar Pauli product."""
+    tableau = PauliTableau.from_pauli_strings(["XX", "ZZ", "-YY"])
+
+    reduced, rank, _, _, pivots = pauli_row_echelon(tableau)
+
+    assert reduced.to_pauli_list() == [
+        Pauli.from_pauli_string("XX"),
+        Pauli.from_pauli_string("ZZ"),
+        Pauli.from_pauli_string("II"),
+    ]
+    assert rank == 2
+    assert pivots == [0, 2]
+
+
+def test_pauli_row_echelon_on_many_qubits() -> None:
+    """Row reduction stays correct when x.z sums exceed the range of a single byte."""
+    n = 200  # a 200-qubit all-Y row has x.z == 200, which overflows int8
+    tableau = PauliTableau.from_pauli_strings(["Y" * n, "Z" * n, "X" * n])
+
+    reduced, rank, n_global_phases, transform, pivots = pauli_row_echelon(tableau)
+
+    # Y^200 == i^200 X^200 Z^200 and 200 % 4 == 0, so the row is +YY..Y with exponent 0.
+    assert tableau[0].phase_exponent == 0
+    assert rank == 2
+    assert n_global_phases == 1
+    assert pivots == [0, n]
+    assert_array_equal((transform @ tableau.symplectic) % 2, reduced.symplectic)
+    assert reduced[2] == Pauli.from_pauli_string("I" * n)
+
+
+def test_pauli_rank() -> None:
+    """The Pauli rank includes independent support and central phases."""
+    assert pauli_rank(PauliTableau.from_pauli_strings(["XX", "ZZ", "-YY"])) == 2
+    assert pauli_rank(PauliTableau.from_pauli_strings(["XX", "ZZ", "YY"])) == 3
+    assert pauli_rank(PauliTableau.from_pauli_strings(["+iX"])) == 2
+    assert pauli_rank(PauliTableau.from_pauli_strings(["X", "Z"])) == 3
+    assert pauli_rank(PauliTableau.empty(2)) == 0
+
+
+def test_is_in_pauli_subgroup() -> None:
+    """Subgroup membership includes the phase of the Pauli operator."""
+    subgroup = PauliTableau.from_pauli_strings(["XX", "ZZ"])
+
+    assert subgroup.is_in_subgroup(Pauli.from_pauli_string("XX"))
+    assert subgroup.is_in_subgroup(Pauli.from_pauli_string("-YY"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("YY"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("-II"))
+    assert not subgroup.is_in_subgroup(Pauli.from_pauli_string("XI"))
+
+    negative_subgroup = PauliTableau.from_pauli_strings(["-X"])
+    assert negative_subgroup.is_in_subgroup(Pauli.from_pauli_string("-X"))
+    assert not negative_subgroup.is_in_subgroup(Pauli.from_pauli_string("X"))
+
+
+def test_is_in_general_pauli_subgroup() -> None:
+    """Subgroup membership supports non-Hermitian and anticommuting generators."""
+    phased_subgroup = PauliTableau.from_pauli_strings(["+iX"])
+    assert phased_subgroup.is_in_subgroup(Pauli.from_pauli_string("-I"))
+    assert not phased_subgroup.is_in_subgroup(Pauli.from_pauli_string("X"))
+
+    anticommuting_subgroup = PauliTableau.from_pauli_strings(["X", "Z"])
+    assert anticommuting_subgroup.is_in_subgroup(Pauli.from_pauli_string("-I"))
+    assert anticommuting_subgroup.is_in_subgroup(Pauli.from_pauli_string("-iY"))
 
 
 def test_complete_stabilizer_tableau_with_destabilizers():

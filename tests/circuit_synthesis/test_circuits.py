@@ -670,7 +670,7 @@ def five_qubit_code() -> StabilizerCode:
         "XIXZZ",
         "ZXIXZ",
     ]
-    x_logicals = ["XXXXX"]
+    x_logicals = ["-XXXXX"]
     z_logicals = ["ZZZZZ"]
     return StabilizerCode(stabilizers, x_logicals=x_logicals, z_logicals=z_logicals, distance=3)
 
@@ -696,7 +696,7 @@ def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_c
     assert code.is_equivalent(five_qubit_code)
     x, z = iso.get_logical(0)
 
-    expected_x = Pauli.from_pauli_string("XXXXX")
+    expected_x = Pauli.from_pauli_string("-XXXXX")
     expected_z = Pauli.from_pauli_string("ZZZZZ")
     assert five_qubit_code.stabilizer_equivalent(x, expected_x), "Logical X operator does not match expected."
     assert five_qubit_code.stabilizer_equivalent(z, expected_z), "Logical Z operator does not match expected."

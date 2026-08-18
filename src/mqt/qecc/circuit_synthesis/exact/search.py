@@ -17,7 +17,7 @@ import z3
 
 from mqt.qecc import mod2
 
-from ...codes.core.pauli import CheckMatrix, StabilizerTableau
+from ...codes.core.pauli import CheckMatrix, StabilizerTableau, pauli_row_echelon
 from ..circuits import CliffordIsometry, CNOTCircuit
 from .encoding_interface import (
     CliffordDepthEncoding,
@@ -506,9 +506,9 @@ def _combine_stabilizers_and_logicals(
     ])
 
     combined_phase = np.concatenate([
-        x_logicals.phase,
-        z_logicals.phase,
-        stabilizers.phase,
+        x_logicals.phase_exponents,
+        z_logicals.phase_exponents,
+        stabilizers.phase_exponents,
     ])
 
     return StabilizerTableau(combined_matrix, combined_phase)
@@ -671,7 +671,7 @@ def _logical_sign_corrections(
     k = num_target_rows - n
     target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
     target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
-    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
+    target_signs = target_tableau.signs()[:num_target_rows].astype(np.int8)
 
     x_correction = np.zeros(n, dtype=np.int8)
     z_correction = np.zeros(n, dtype=np.int8)
@@ -718,17 +718,24 @@ def _stabilizer_sign_corrections(
 
     target_x = target_tableau.tableau.data[:num_target_rows, :n].astype(np.int8)
     target_z = target_tableau.tableau.data[:num_target_rows, n:].astype(np.int8)
-    target_signs = target_tableau.phase[:num_target_rows].astype(np.int8)
+    target_signs = target_tableau.signs()[:num_target_rows].astype(np.int8)
 
     circ_stab_symp = np.hstack([circ.z2x[pivot_qubits], circ.z2z[pivot_qubits]])  # (num_stab x 2n)
     circ_stab_sign = circ.z_sign[np.array(pivot_qubits)]
     targ_stab_symp = np.hstack([target_x[2 * k :], target_z[2 * k :]])  # (num_stab x 2n)
 
-    _, r_circ = _gf2_rref_track(circ_stab_symp)
-    _, r_targ = _gf2_rref_track(targ_stab_symp)
+    # Phase-sensitive reduction: the sign of a product of Paulis is not the XOR of
+    # their signs, so the canonical signs must come from the Pauli row echelon.
+    circ_echelon = pauli_row_echelon(
+        StabilizerTableau(circ_stab_symp, StabilizerTableau.phase_from_signs(circ_stab_symp, circ_stab_sign))
+    )
+    targ_echelon = pauli_row_echelon(
+        StabilizerTableau(targ_stab_symp, StabilizerTableau.phase_from_signs(targ_stab_symp, target_signs[2 * k :]))
+    )
 
-    s_circ_can = r_circ @ circ_stab_sign % 2
-    s_targ_can = r_targ @ target_signs[2 * k :] % 2
+    r_circ = circ_echelon.transform
+    s_circ_can = circ_echelon.reduced.signs()
+    s_targ_can = targ_echelon.reduced.signs()
 
     phase_diff = (s_circ_can ^ s_targ_can).astype(np.int8)
     if not np.any(phase_diff):

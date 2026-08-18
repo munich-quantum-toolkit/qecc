@@ -42,3 +42,8 @@ Binary algebra
 
 The layers describe a *builds on* relationship, not exclusively class
 inheritance.
+
+Layer 3 carries the phase of a Pauli operator as an exponent rather than a sign
+bit, and layer 4 is where Hermiticity and the absence of $-I$ are enforced. The
+{doc}`Pauli conventions <PauliConventions>` page spells out both, along with why
+combining rows of a signed tableau is not a mod-2 row operation.

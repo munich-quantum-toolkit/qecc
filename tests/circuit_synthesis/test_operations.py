@@ -70,6 +70,25 @@ def test_transvection_qubits() -> None:
     assert op2.qubits() == {3, 7}
 
 
+def test_transvection_updates_phases_in_place() -> None:
+    """The in-place variants must write into the existing phase array, not rebind it.
+
+    The symplectic data is mutated in place, so rebinding would update the two halves
+    of the tableau state inconsistently and leave a caller holding a stale array.
+    """
+    for apply_op in (
+        lambda op, t: op.apply_stabilizer_tableau_inplace(t),
+        lambda op, t: op.apply_stabilizer_tableau(t, inplace=True),
+    ):
+        tableau = StabilizerTableau.from_pauli_strings(["XY", "-ZX"])
+        phases = tableau.phase_exponents  # held reference, as a caller might
+
+        apply_op(Transvection((1, 1, 0, 0), 0, 1), tableau)
+
+        assert phases is tableau.phase_exponents
+        np.testing.assert_array_equal(phases, tableau.phase_exponents)
+
+
 def test_transvection_hash_equality() -> None:
     """Test that identical transvections have equal hashes."""
     op1 = Transvection((1, 1, 0, 0), 0, 1)

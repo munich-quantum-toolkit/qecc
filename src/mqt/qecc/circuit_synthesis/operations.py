@@ -121,9 +121,13 @@ class Transvection(TableauOperation):
         n = tableau.n
         mat = tableau.tableau.data
 
+        signs = tableau.signs()
         _apply_transvection_numba(
-            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], tableau.phase, *self.v
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], signs, *self.v
         )
+        # Write into the existing array: the symplectic data above is mutated in place,
+        # so rebinding here would leave a caller holding the old phase array.
+        tableau.phase_exponents[:] = PauliTableau.phase_from_signs(mat, signs)
 
     def apply_stabilizer_tableau(self, tableau: PauliTableau, inplace: bool = False) -> PauliTableau:
         """Apply the transvection operation to a stabilizer tableau."""
@@ -132,9 +136,11 @@ class Transvection(TableauOperation):
         n = out.n
         mat = out.tableau.data
 
+        signs = out.signs()
         _apply_transvection_numba(
-            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], out.phase, *self.v
+            mat[:, self.i], mat[:, self.i + n], mat[:, self.j], mat[:, self.j + n], signs, *self.v
         )
+        out.phase_exponents[:] = PauliTableau.phase_from_signs(mat, signs)
 
         return out
 
