@@ -71,39 +71,19 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     Employs a combination of brute-force, matroid, and SAT-based algorithms depending on the size of the codes.
     Uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
     """
-    reduced_hx1 = row_basis(code1.Hx)
-    reduced_hz1 = row_basis(code1.Hz)
-
-    reduced_hx2 = row_basis(code2.Hx)
-    reduced_hz2 = row_basis(code2.Hz)
-
-    if reduced_hx1.shape[0] == 0 and reduced_hz1.shape[0] == 0:
-        return list(range(code1.n))
-
-    if reduced_hx1.shape[0] != reduced_hx2.shape[0] or reduced_hz1.shape[0] != reduced_hz2.shape[0]:
+    if code1.Hx.shape[0] != code2.Hx.shape[0] or code1.Hz.shape[0] != code2.Hz.shape[0]:
         return None
 
+    if code1.Hx.shape[0] + code1.Hz.shape[0] == 0 or code1.n == 0:
+        return list(range(code1.n))
+
     if code1.n <= BRUTEFORCE_THRESHOLD_CSS:
-        return _bruteforce_css(reduced_hx1, reduced_hz1, reduced_hx2, reduced_hz2)
+        return _bruteforce_css(code1, code2)
 
-    if code1.n >= 20:
-        symplectic1 = np.hstack([
-            np.vstack([reduced_hx1, np.zeros_like(reduced_hz1)]),
-            np.vstack([np.zeros_like(reduced_hx1), reduced_hz1]),
-        ])
-        symplectic2 = np.hstack([
-            np.vstack([reduced_hx2, np.zeros_like(reduced_hz2)]),
-            np.vstack([np.zeros_like(reduced_hx2), reduced_hz2]),
-        ])
-        if not _preserved_linear_dependencies(symplectic1, symplectic2):
-            return None
+    if code1.n >= 20 and not _preserved_linear_dependencies(code1, code2):
+        return None
 
-    result, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_css_code(
-        reduced_hx1,
-        reduced_hz1,
-        reduced_hx2,
-        reduced_hz2,
-    )
+    result, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_css_code(code1, code2)
     if not result:
         return None
 
@@ -111,15 +91,15 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     assert partition2 is not None
 
     if code1.n <= 17:
-        return _matroid_css_code(reduced_hx1, reduced_hz1, partition1, reduced_hx2, reduced_hz2, partition2)
+        return _matroid_css_code(code1, partition1, code2, partition2)
     if code1.n < 30:
-        r = reduced_hx1.shape[0] + reduced_hz1.shape[0]
+        r = code1.Hx.shape[0] + code1.Hz.shape[0]
         return (
-            _matroid_css_code(reduced_hx1, reduced_hz1, partition1, reduced_hx2, reduced_hz2, partition2)
+            _matroid_css_code(code1, partition1, code2, partition2)
             if r < 10
-            else _sat_css_code(reduced_hx1, reduced_hz1, partition1, reduced_hx2, reduced_hz2, partition2)
+            else _sat_css_code(code1, partition1, code2, partition2)
         )
-    return _sat_css_code(reduced_hx1, reduced_hz1, partition1, reduced_hx2, reduced_hz2, partition2)
+    return _sat_css_code(code1, partition1, code2, partition2)
 
 
 def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCode) -> list[int] | None:
@@ -128,26 +108,23 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
     Employs a combination of brute-force and SAT-based algorithms depending on the size of the codes.
     For medium-sized codes, uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
     """
-    reduced_symplectic_1 = row_basis(code1.symplectic)
-    reduced_symplectic_2 = row_basis(code2.symplectic)
-
-    if reduced_symplectic_1.shape[0] == 0 and reduced_symplectic_2.shape[0] == 0:
-        return list(range(code1.n))
-
-    if reduced_symplectic_1.shape[0] != reduced_symplectic_2.shape[0]:
+    if code1.symplectic.shape[0] != code2.symplectic.shape[0]:
         return None
 
-    if code1.n <= BRUTEFORCE_THRESHOLD_STB:
-        return _bruteforce_stb(reduced_symplectic_1, reduced_symplectic_2)
+    if code1.symplectic.shape[0] == 0 or code1.n == 0:
+        return list(range(code1.n))
 
-    if not _preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
+    if code1.n <= BRUTEFORCE_THRESHOLD_STB:
+        return _bruteforce_stb(code1, code2)
+
+    if not _preserved_linear_dependencies(code1, code2):
         return None
 
     partition1 = {(): list(range(code1.n))}
     partition2 = {(): list(range(code2.n))}
     if code1.n <= 20:
         result, refined_partition1, refined_partition2 = _preserved_punctured_hull_weight_enumerator_stabilizer_code(
-            reduced_symplectic_1, reduced_symplectic_2
+            code1, code2
         )
 
         if not result:
@@ -158,7 +135,7 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
 
     assert partition1 is not None
     assert partition2 is not None
-    return _sat_stabilizer_code(reduced_symplectic_1, partition1, reduced_symplectic_2, partition2)
+    return _sat_stabilizer_code(code1, partition1, code2, partition2)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -166,32 +143,29 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
 # ----------------------------------------------------------------------------------------------------
 
 
-def _bruteforce_css(hx1: np.ndarray, hz1: np.ndarray, hx2: np.ndarray, hz2: np.ndarray) -> list[int] | None:
+def _bruteforce_css(c1: CSSCode, c2: CSSCode) -> list[int] | None:
     """Brute-force check for permutation equivalence of two CSS codes."""
-    n = hx1.shape[1]
+    hx_rank = c1.Hx.shape[0]
+    hz_rank = c1.Hz.shape[0]
 
-    hx_rank = hx1.shape[0]
-    hz_rank = hz1.shape[0]
-
-    for perm in permutations(range(n)):
-        if hx_rank and hx_rank != rank(np.vstack([hx1, hx2[:, perm]])):
+    for perm in permutations(range(c1.n)):
+        if hx_rank and hx_rank != rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
             continue
-        if hz_rank and hz_rank != rank(np.vstack([hz1, hz2[:, perm]])):
+        if hz_rank and hz_rank != rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
             continue
         return list(perm)
 
     return None
 
 
-def _bruteforce_stb(c1: np.ndarray, c2: np.ndarray) -> list[int] | None:
+def _bruteforce_stb(c1: StabilizerCode, c2: StabilizerCode) -> list[int] | None:
     """Brute-force check for permutation equivalence of two stabilizer codes."""
-    c1_rank = c1.shape[0]
-    n = c1.shape[1] // 2
+    c1_rank = c1.symplectic.shape[0]
 
-    for perm in permutations(range(n)):
-        perm_symplectic = perm + tuple(q + n for q in perm)
+    for perm in permutations(range(c1.n)):
+        perm_symplectic = perm + tuple(q + c1.n for q in perm)
 
-        if c1_rank == rank(np.vstack([c1, c2[:, perm_symplectic]])):
+        if c1_rank == rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
             return list(perm)
 
     return None
@@ -237,11 +211,12 @@ def _preserved_number_duplicate_columns(c1: StabilizerCode | CSSCode, c2: Stabil
     return _duplicate_column(c1.symplectic) == _duplicate_column(c2.symplectic)
 
 
-def _preserved_linear_dependencies(c1: np.ndarray, c2: np.ndarray) -> bool:
+def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
     """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence."""
 
-    def _linear_dependencies(m: np.ndarray) -> tuple[list[int], list[int], list[int]]:
-        n = m.shape[1] // 2
+    def _linear_dependencies(c: StabilizerCode | CSSCode) -> tuple[list[int], list[int], list[int]]:
+        n = c.n
+        m = c.symplectic
 
         one_columns = [rank(np.column_stack([m[:, q], m[:, q + n]])) for q in range(n)]
 
@@ -263,7 +238,7 @@ def _preserved_linear_dependencies(c1: np.ndarray, c2: np.ndarray) -> bool:
 
 
 def _preserved_punctured_hull_weight_enumerator_css_code(
-    hx1: np.ndarray, hz1: np.ndarray, hx2: np.ndarray, hz2: np.ndarray
+    c1: CSSCode, c2: CSSCode
 ) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
     """Compute the partition of the qubits of a CSS code based on the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code."""
 
@@ -329,12 +304,12 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
             partition[inv].append(idx)
         return dict(sorted(partition.items()))
 
-    n = hx1.shape[1]
+    n = c1.n
 
-    gx1 = _generator_matrix_from_parity_check(hx1, n)
-    gz1 = _generator_matrix_from_parity_check(hz1, n)
-    gx2 = _generator_matrix_from_parity_check(hx2, n)
-    gz2 = _generator_matrix_from_parity_check(hz2, n)
+    gx1 = _generator_matrix_from_parity_check(c1.Hx, n)
+    gz1 = _generator_matrix_from_parity_check(c1.Hz, n)
+    gx2 = _generator_matrix_from_parity_check(c2.Hx, n)
+    gz2 = _generator_matrix_from_parity_check(c2.Hz, n)
 
     signatures_c1 = _compute_signatures(gx1, gz1)
     signatures_c2 = _compute_signatures(gx2, gz2)
@@ -351,7 +326,7 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
 
 
 def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
-    c1: np.ndarray, c2: np.ndarray
+    c1: StabilizerCode, c2: StabilizerCode
 ) -> tuple[bool, dict[tuple[int, ...], list[int]] | None, dict[tuple[int, ...], list[int]] | None]:
     """Compute the partition of the qubits of a stabilizer code based on Sendrier's invariant of the weight enumerator of the hull of the punctured code."""
 
@@ -481,8 +456,8 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
             partition[inv].append(idx)
         return {k: sorted(v) for k, v in sorted(partition.items(), key=operator.itemgetter(0))}
 
-    gf4_tableau_c1 = _symplectic_to_gf4(c1)
-    gf4_tableau_c2 = _symplectic_to_gf4(c2)
+    gf4_tableau_c1 = _symplectic_to_gf4(c1.symplectic)
+    gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
 
     signatures_c1 = _compute_signatures(gf4_tableau_c1)
     signatures_c2 = _compute_signatures(gf4_tableau_c2)
@@ -510,15 +485,15 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
 
 
 def _sat_stabilizer_code(
-    c1: np.ndarray,
+    c1: StabilizerCode,
     partition1: dict[tuple[int, ...], list[int]],
-    c2: np.ndarray,
+    c2: StabilizerCode,
     partition2: dict[tuple[int, ...], list[int]],
 ) -> list[int] | None:
     """Map the permutation equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
     solver = z3.Solver()
 
-    r, n = c1.shape[0], c1.shape[1] // 2
+    r, n = c1.symplectic.shape[0], c1.n
 
     # permutations
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
@@ -533,8 +508,8 @@ def _sat_stabilizer_code(
         solver.add(_exactly_one([var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
     for (i, j), permutation_variable in permutation_variables.items():
-        x_column_original = c1[:, i]
-        z_column_original = c1[:, i + n]
+        x_column_original = c1.symplectic[:, i]
+        z_column_original = c1.symplectic[:, i + n]
 
         x_column_permuted = [aux_tableau[row * (2 * n) + j] for row in range(r)]
         z_column_permuted = [aux_tableau[row * (2 * n) + j + n] for row in range(r)]
@@ -557,7 +532,7 @@ def _sat_stabilizer_code(
             row_contributions = [
                 row_operation_coefficients[row * r + contribution]
                 for contribution in range(r)
-                if c2[contribution, q] == 1
+                if c2.symplectic[contribution, q] == 1
             ]
 
             solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))
@@ -577,19 +552,17 @@ def _sat_stabilizer_code(
 
 
 def _sat_css_code(
-    hx1: np.ndarray,
-    hz1: np.ndarray,
+    c1: CSSCode,
     partition1: dict[int, list[int]],
-    hx2: np.ndarray,
-    hz2: np.ndarray,
+    c2: CSSCode,
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
     """Map the permutation equivalence problem of two CSS codes to a SAT problem and solve it using Z3."""
     solver = z3.Solver()
 
-    n = hx1.shape[1]
-    rx = hx1.shape[0]
-    rz = hz1.shape[0]
+    n = c1.n
+    rx = c1.Hx.shape[0]
+    rz = c1.Hz.shape[0]
 
     # permutations
     aux_tableau_x = [z3.Bool(f"aux_x_{row}_{col}") for row in range(rx) for col in range(n)]
@@ -605,8 +578,8 @@ def _sat_css_code(
         solver.add(_exactly_one([var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
     for (i, j), permutation_variable in permutation_variables.items():
-        x_column_original = hx1[:, i]
-        z_column_original = hz1[:, i]
+        x_column_original = c1.Hx[:, i]
+        z_column_original = c1.Hz[:, i]
 
         x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
         z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
@@ -630,7 +603,7 @@ def _sat_css_code(
             row_contributions = [
                 row_operation_coefficients_x[row * rx + contribution]
                 for contribution in range(rx)
-                if hx2[contribution, q] == 1
+                if c2.Hx[contribution, q] == 1
             ]
 
             solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
@@ -639,7 +612,7 @@ def _sat_css_code(
         for q in range(n):
             row_contributions = []
             for contribution in range(rz):
-                if hz2[contribution, q] == 1:
+                if c2.Hz[contribution, q] == 1:
                     row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
 
             solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
@@ -659,11 +632,9 @@ def _sat_css_code(
 
 
 def _matroid_css_code(
-    hx1: np.ndarray,
-    hz1: np.ndarray,
+    c1: CSSCode,
     partition1: dict[int, list[int]],
-    hx2: np.ndarray,
-    hz2: np.ndarray,
+    c2: CSSCode,
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
     """Map the permutation equivalence problem of two CSS codes to a matroid and graph isomorphism problem and solve it using an isomorphism solver."""
@@ -749,10 +720,10 @@ def _matroid_css_code(
 
         return graph
 
-    n = hx1.shape[1]
+    n = c1.n
 
-    circuits_c1_hx = _circuits_binary_matroid(hx1)
-    circuits_c1_hz = _circuits_binary_matroid(hz1)
+    circuits_c1_hx = _circuits_binary_matroid(c1.Hx)
+    circuits_c1_hz = _circuits_binary_matroid(c1.Hz)
 
     graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz, partition1)
 
@@ -762,11 +733,11 @@ def _matroid_css_code(
     del circuits_c1_hx
     del circuits_c1_hz
 
-    circuits_c2_hx = _circuits_binary_matroid(hx2)
+    circuits_c2_hx = _circuits_binary_matroid(c2.Hx)
     if len_circuits_c1_hx != len(circuits_c2_hx):
         return None
 
-    circuits_c2_hz = _circuits_binary_matroid(hz2)
+    circuits_c2_hz = _circuits_binary_matroid(c2.Hz)
     if len_circuits_c1_hz != len(circuits_c2_hz):
         return None
 
@@ -791,7 +762,7 @@ def _matroid_css_code(
 # ----------------------------------------------------------------------------------------------------
 
 
-def _elementwise_map(normal_bool: npt.NDArray[np.uint8], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
+def _elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
     return z3.And([v if bit == 1 else z3.Not(v) for bit, v in zip(normal_bool, variables, strict=False)])
 
 

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from ..mod2 import nullspace, rank, row_basis
+from ..mod2 import nullspace, rank
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -45,13 +45,10 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     if not all(invariant(code1, code2) for invariant in cheap_invariants):
         return None
 
-    reduced_symplectic_1 = row_basis(code1.symplectic)
-    reduced_symplectic_2 = row_basis(code2.symplectic)
-
     if code1.k < 2:
-        return _lse_stabilizer_code(code1, code2, reduced_symplectic_1, reduced_symplectic_2)
+        return _lse_stabilizer_code(code1, code2)
 
-    if code1.n <= 30 and not preserved_low_degree_local_invariant(reduced_symplectic_1, reduced_symplectic_2):
+    if code1.n <= 30 and not preserved_low_degree_local_invariant(code1, code2):
         return None
 
     return _sat_stabilizer_code(code1, code2)
@@ -66,12 +63,10 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     Returns:
         True if the code is local clifford equivalent to a CSS code, False otherwise.
     """
-    reduced_symplectic = row_basis(code.symplectic)
-
     if code.n < 4:
-        return _bruteforce_css_code(reduced_symplectic)
+        return _bruteforce_css_code(code)
 
-    return _sat_css_code(reduced_symplectic)
+    return _sat_css_code(code)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -94,10 +89,10 @@ def _preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     return c1.distance == c2.distance
 
 
-def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool:
+def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the degree-2 local invariant is preserved, which is a necessary condition for LC-equivalence."""
-    n = c1.shape[1] // 2
-    rk = n - c1.shape[0]
+    n = c1.n
+    rk = c1.k
 
     def _supp_subcode_dim(code: np.ndarray, subset: tuple[int, ...]) -> int:
         g = np.asarray(code, dtype=np.uint8) & 1
@@ -116,7 +111,7 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
     max_subset_size = 2
     for subset_size in range(max_subset_size + 1):
         for subset in combinations(range(n), subset_size):
-            if _supp_subcode_dim(c1, subset) != _supp_subcode_dim(c2, subset):
+            if _supp_subcode_dim(c1.symplectic, subset) != _supp_subcode_dim(c2.symplectic, subset):
                 return False
 
     return True
@@ -127,9 +122,9 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
 # ----------------------------------------------------------------------------------------------------
 
 
-def _bruteforce_css_code(tableau: np.ndarray) -> bool:
+def _bruteforce_css_code(c: StabilizerCode) -> bool:
     """lc_css_bruteforce.py."""
-    r, n = tableau.shape[0], tableau.shape[1] // 2
+    r, n = c.symplectic.shape[0], c.n
 
     def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> None:
         if lc == "I":
@@ -148,7 +143,7 @@ def _bruteforce_css_code(tableau: np.ndarray) -> bool:
             tableau[:, qubit] ^= tableau[:, qubit + n]
 
     for action in product(LOCAL_CLIFFORDS, repeat=n):
-        lc_tableau = tableau.copy()
+        lc_tableau = c.symplectic.copy()
 
         for qubit, lc in enumerate(action):
             apply_lc(lc_tableau, lc, qubit)
@@ -165,22 +160,20 @@ def _bruteforce_css_code(tableau: np.ndarray) -> bool:
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 
-def _lse_stabilizer_code(
-    c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray
-) -> list[str] | None:
+def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | None:
     """Use a linear system of equations to check if two stabilizer codes are equivalent under local clifford operations. (Efficient Algorithm from Van den Nest, and Dehaene, and De Moor)."""
 
-    def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
+    def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
         """Convert a stabilizer code into a stabilizer state."""
         if code.k == 0:
-            return reduced_symplectic.copy()
+            return code.symplectic.copy()
 
         n = code.n
-        r = reduced_symplectic.shape[0]
+        r = code.symplectic.shape[0]
         k = code.k
 
-        stab_x = reduced_symplectic[:, :n]
-        stab_z = reduced_symplectic[:, n:]
+        stab_x = code.symplectic[:, :n]
+        stab_z = code.symplectic[:, n:]
 
         log_x_x = code.x_logicals.tableau.data[:, :n]
         log_x_z = code.x_logicals.tableau.data[:, n:]
@@ -479,8 +472,8 @@ def _lse_stabilizer_code(
 
         return [canonicalize(operation) for operation in lc]
 
-    stab_state1 = _stab_code_to_stab_state(c1, reduced_symplectic_1)
-    stab_state2 = _stab_code_to_stab_state(c2, reduced_symplectic_2)
+    stab_state1 = _stab_code_to_stab_state(c1)
+    stab_state2 = _stab_code_to_stab_state(c2)
 
     graph_state1, lc1 = _stab_state_to_graph_state(stab_state1)
     graph_state2, lc2 = _stab_state_to_graph_state(stab_state2)
@@ -498,9 +491,7 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
     """Map the LC equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
     solver = z3.Solver()
 
-    n = c1.n
-    k = c1.k
-    r = n - k
+    r, n = c1.symplectic.shape[0], c1.n
 
     # local cliffords
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
@@ -611,12 +602,11 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
     ]
 
 
-def _sat_css_code(c: npt.NDArray[np.integer]) -> bool:
+def _sat_css_code(c: StabilizerCode) -> bool:
     """lc_css_sat.py."""
     solver = z3.Solver()
 
-    r, n = c.shape[0], c.shape[1] // 2
-    n - r
+    r, n = c.symplectic.shape[0], c.n
 
     # cliffords
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
@@ -629,8 +619,8 @@ def _sat_css_code(c: npt.NDArray[np.integer]) -> bool:
         solver.add(_exactly_one(qubit_variables.values()))
 
     for i in range(n):
-        x_column_original = c[:, i]
-        z_column_original = c[:, i + n]
+        x_column_original = c.symplectic[:, i]
+        z_column_original = c.symplectic[:, i + n]
         x_z_column_original = (x_column_original + z_column_original) % 2
         zero_column_original = np.zeros_like(x_column_original)
 
@@ -709,7 +699,7 @@ def _sat_css_code(c: npt.NDArray[np.integer]) -> bool:
             row_contributions = [
                 row_operation_coefficients[row * r + contribution]
                 for contribution in range(r)
-                if c[contribution, q] == 1
+                if c.symplectic[contribution, q] == 1
             ]
 
             solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))

@@ -18,7 +18,7 @@ from mqt.qecc.equivalence_checking.local_clifford_eq import (
     is_local_clifford_equivalent_to_css,
     preserved_low_degree_local_invariant,
 )
-from mqt.qecc.mod2 import is_in_row_space, rank, row_basis
+from mqt.qecc.mod2 import is_in_row_space, rank
 
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
@@ -173,9 +173,7 @@ def test_are_local_clifford_equivalent_low_degree_invariant_rules_out_pair() -> 
     assert code1.k == code2.k == 2
     assert code1.distance == code2.distance
 
-    reduced_symplectic_1 = row_basis(code1.symplectic)
-    reduced_symplectic_2 = row_basis(code2.symplectic)
-    assert not preserved_low_degree_local_invariant(reduced_symplectic_1, reduced_symplectic_2)
+    assert not preserved_low_degree_local_invariant(code1, code2)
 
     assert are_local_clifford_equivalent(code1, code2) is None
 
