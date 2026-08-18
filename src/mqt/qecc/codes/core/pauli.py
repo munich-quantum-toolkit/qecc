@@ -36,6 +36,13 @@ def _binary_dot(a: npt.NDArray[np.integer], b: npt.NDArray[np.integer]) -> int:
     would wrap. Results here only ever feed a modulo 2 or 4, and 256 is divisible by
     four, so the wrapped value happens to stay correct -- but relying on that is
     fragile, so widen explicitly.
+
+    Args:
+        a: A binary vector.
+        b: A binary vector of the same length as ``a``.
+
+    Returns:
+        The dot product of ``a`` and ``b`` as a Python integer.
     """
     return int(np.dot(np.asarray(a, dtype=np.int64), np.asarray(b, dtype=np.int64)))
 
