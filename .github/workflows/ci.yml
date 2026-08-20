@@ -11,10 +11,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   change-detection:
     name: 🔍 Change
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    permissions:
+      contents: read
 
   python-tests:
     name: 🐍 Test
@@ -27,6 +31,8 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
     with:
       runs-on: ${{ matrix.runs-on }}
+    permissions:
+      contents: read
 
   python-coverage:
     name: 🐍 Coverage
@@ -45,18 +51,24 @@ jobs:
     with:
       enable-ty: true
       enable-mypy: false
+    permissions:
+      contents: read
 
   build-sdist:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    permissions:
+      contents: read
 
   build-wheel:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    permissions:
+      contents: read
 
   # this job does nothing and is only used for branch protection
   required-checks-pass:

@@ -8,19 +8,22 @@ on:
       - ".github/workflows/templating.yml"
   workflow_dispatch: # Allow manual triggering
 
+permissions: {}
+
 jobs:
   render-template:
     name: Render template
     runs-on: ubuntu-slim
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - id: create-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write # Needed to push the templating branch
+          permission-pull-requests: write # Needed to open the templating pull request
       - uses: munich-quantum-toolkit/templates@d0c5adb86d19a5095f871cb6184cfdab298e943c # v1.4.2
         with:
           token: ${{ steps.create-token.outputs.token }}

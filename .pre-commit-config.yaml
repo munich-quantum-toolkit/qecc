@@ -30,14 +30,23 @@ repos:
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.38.0
     hooks:
+      - id: check-codecov
+        priority: 0
       - id: check-github-workflows
         priority: 0
       - id: check-readthedocs
         priority: 0
 
+  ## Check for security issues in GitHub Actions workflows
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.29.0
+    hooks:
+      - id: zizmor
+        priority: 0
+
   ## Check best practices for scientific Python code
   - repo: https://github.com/scientific-python/cookie
-    rev: 2026.06.18
+    rev: 2026.08.14
     hooks:
       - id: sp-repo-review
         additional_dependencies: ["repo-review[cli]"]

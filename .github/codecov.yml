@@ -8,8 +8,10 @@ coverage:
   range: 60..90
   precision: 1
   status:
-    project: off
-    patch: off
+    project:
+      default: false
+    patch:
+      default: false
 
 flag_management:
   default_rules:
