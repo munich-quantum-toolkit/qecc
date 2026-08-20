@@ -45,6 +45,7 @@ tools/compilation
 
 installation
 architecture
+Noise
 PauliConventions
 references
 ```
