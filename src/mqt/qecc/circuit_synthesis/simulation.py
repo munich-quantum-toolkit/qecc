@@ -567,11 +567,11 @@ class LutDecoder:
             self.generate_x_lut()
             self.generate_z_lut()
 
-    def batch_decode_x(self, syndromes: npt.NDArray[np.int_]) -> npt.NDArray[np.int8]:
+    def batch_decode_x(self, syndromes: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Decode the X errors given a batch of syndromes."""
         return np.apply_along_axis(self.decode_x, 1, syndromes)
 
-    def batch_decode_z(self, syndromes: npt.NDArray[np.int_]) -> npt.NDArray[np.int8]:
+    def batch_decode_z(self, syndromes: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Decode the Z errors given a batch of syndromes."""
         return np.apply_along_axis(self.decode_z, 1, syndromes)
 
