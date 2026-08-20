@@ -174,7 +174,7 @@ def generate_syndr_err(channel_probs: NDArray[np.float64]) -> NDArray[np.int32]:
     for i, p in np.ndenumerate(channel_probs):
         rand = np.random.default_rng().random()
 
-        if rand < p:
+        if rand < float(p):
             error[i] = 1
 
     return error

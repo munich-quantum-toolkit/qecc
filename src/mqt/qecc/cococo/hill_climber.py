@@ -16,7 +16,6 @@ import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-import numpy as np
 from tqdm import tqdm
 
 from .layouts import translate_layout_circuit
@@ -167,11 +166,11 @@ class HillClimbing:
         cost: int
         if self.metric == "crossing":
             if self.optimize_factories and any(type(el) is int for el in self.circuit):
-                cost = np.sum(router.count_crossings_per_layer(layers, t_crossings=True))
+                cost = sum(router.count_crossings_per_layer(layers, t_crossings=True))
             elif self.optimize_factories is False and any(type(el) is int for el in self.circuit):
-                cost = np.sum(router.count_crossings_per_layer(layers, t_crossings=False))
+                cost = sum(router.count_crossings_per_layer(layers, t_crossings=False))
             else:
-                cost = np.sum(router.count_crossings_per_layer(layers))
+                cost = sum(router.count_crossings_per_layer(layers))
         elif self.metric == "exact":
             vdp_layers, _ = router.find_total_vdp_layers_dyn(
                 layers,

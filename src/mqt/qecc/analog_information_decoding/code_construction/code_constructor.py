@@ -120,8 +120,8 @@ def create_code(
         raise ValueError(msg)
 
     # Extend to 3D HGP
-    a1 = code.hx
-    a2 = code.hz.T
+    a1 = np.asarray(code.hx, dtype=np.int32)
+    a2 = np.asarray(code.hz, dtype=np.int32).T
     res = generate_3d_product_code(a1, a2, seed_codes[2])
 
     # Build 4D HGP code

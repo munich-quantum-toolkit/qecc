@@ -995,7 +995,7 @@ def search_ft_cnot_local_search(
             i_pos = rng.integers(w2)
             new_q = rng.choice(non)
             new_controls = controls[:]
-            new_controls[i_pos] = new_q
+            new_controls[int(i_pos)] = int(new_q)
             new_controls.sort()
 
             bad_errors, err_list = construct_bad_error_sets(gens1, w1, gens2, w2, t, new_controls)

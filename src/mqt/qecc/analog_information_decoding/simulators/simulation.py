@@ -517,7 +517,7 @@ class SingleShotSimulator:
         #                                                      [0, M]]
         self.ss_z_pcm: NDArray[np.int32] | None = None
         if self.z_meta and self.Mz is not None:
-            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz.astype(np.int_))
+            self.ss_z_pcm = build_single_stage_pcm(self.Hz, self.Mz.astype(np.int32))
         self.ss_x_pcm: NDArray[np.int32] | None = None
         if self.x_meta and self.Mx is not None:
             self.ss_x_pcm = build_single_stage_pcm(self.Hx, self.Mx)
