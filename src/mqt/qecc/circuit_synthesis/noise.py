@@ -9,15 +9,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+import math
+from typing import TYPE_CHECKING
 
-from stim import Circuit, CircuitInstruction
-
-from .circuit_utils import collect_circuit_layers, get_stim_qubit_values
-from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    IdentityChannel,
+    ParallelSchedule,
+    SequentialSchedule,
+    StimCircuitNoiseAdapter,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterable
+
+    from stim import Circuit
 
 
 class NoiseModel:
@@ -108,46 +116,18 @@ class CircuitLevelNoise(NoiseModel):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
-        noisy_circ = Circuit()
+        return StimCircuitNoiseAdapter(self._as_location_model()).apply(circ)
 
-        for op in circ:
-            name = op.name
-            if name in STIM_SQGS:
-                assert isinstance(op, CircuitInstruction)
-                for targets in op.target_groups():
-                    noisy_circ.append_operation(name, targets)
-                    qubits = [target.qubit_value for target in targets]
-                    assert all(qubit is not None for qubit in qubits)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", cast("list[int]", qubits), self.p_sqg)
-
-            elif name in STIM_RESETS:
-                assert isinstance(op, CircuitInstruction)
-                for targets in op.target_groups():
-                    noisy_circ.append_operation(name, targets)
-                    qubits = [target.qubit_value for target in targets]
-                    assert all(qubit is not None for qubit in qubits)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE1", cast("list[int]", qubits), self.p_init)
-
-            elif name in STIM_TQGS:
-                assert isinstance(op, CircuitInstruction)
-                for targets in (
-                    op.target_groups()
-                ):  # errors might propagate so we have to apply noise to every target group individually
-                    noisy_circ.append_operation(name, targets)
-                    qubits = [target.qubit_value for target in targets]
-                    assert all(qubit is not None for qubit in qubits)
-                    self._apply_noise(noisy_circ, "DEPOLARIZE2", cast("list[int]", qubits), self.p_tqg)
-
-            elif name in STIM_MEASUREMENTS:
-                assert isinstance(op, CircuitInstruction)
-                for targets in op.target_groups():
-                    if not any(t in self.ideal_qubits for t in [trgt.qubit_value for trgt in targets]):
-                        noisy_circ.append_operation(name, targets, self.p_meas)
-                    else:
-                        noisy_circ.append_operation(name, targets)
-            else:
-                noisy_circ.append_operation(op)
-        return noisy_circ
+    def _as_location_model(self, p_idle: float = 0.0) -> CircuitNoiseModel:
+        """Translate legacy probabilities to the location-based model."""
+        return CircuitNoiseModel(
+            single_qubit_gate=DepolarizingChannel(self.p_sqg),
+            two_qubit_gate=DepolarizingChannel(self.p_tqg),
+            reset=DepolarizingChannel(self.p_init),
+            measurement=BitFlipChannel(self.p_meas),
+            idle=IdentityChannel() if math.isclose(p_idle, 0.0) else DepolarizingChannel(p_idle),
+            ideal_qubits=frozenset(self.ideal_qubits),
+        )
 
 
 class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
@@ -190,11 +170,8 @@ class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
-        layers = collect_circuit_layers(circ)
-
-        if self.resets_alap:
-            return _add_idling_noise_to_layers_alap(layers, self, self.p_idle, circ.num_qubits)
-        return _add_idling_noise_to_layers_asap(layers, self, self.p_idle, circ.num_qubits)
+        timing = "alap" if self.resets_alap else "asap"
+        return StimCircuitNoiseAdapter(self._as_location_model(self.p_idle), ParallelSchedule(timing)).apply(circ)
 
 
 class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
@@ -238,85 +215,5 @@ class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
-        layers = []
-
-        for op in circ:
-            assert isinstance(op, CircuitInstruction)
-            for grp in op.target_groups():
-                layer_circ = Circuit()
-                layer_circ.append(op.name, grp)
-                layers.append(layer_circ)
-
-        if self.resets_alap:
-            return _add_idling_noise_to_layers_alap(layers, self, self.p_idle, circ.num_qubits)
-        return _add_idling_noise_to_layers_asap(layers, self, self.p_idle, circ.num_qubits)
-
-
-def _add_idling_noise_to_layers_alap(
-    layers: list[Circuit], noise: CircuitLevelNoise, p_idle: float, n_qubits: int
-) -> Circuit:
-    noisy_circ = Circuit()
-
-    initialized_qubits: set[int] = set()
-    uninitialized_qubits = set(range(n_qubits))
-
-    for layer in layers:
-        idling = _get_idle_qubits_layer(layer, n_qubits) - uninitialized_qubits
-        non_idling = _get_non_idle_qubits_layer(layer)
-        resets = _get_reset_qubits_layer(layer)
-
-        non_idling_non_resets = non_idling - resets
-        noisy_layer = CircuitLevelNoise.apply(noise, layer)  # apply regular noise
-
-        uninitialized_qubits -= non_idling_non_resets
-        initialized_qubits = initialized_qubits.union(non_idling_non_resets)
-
-        for q in idling:
-            noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
-
-        noisy_circ += noisy_layer
-    return noisy_circ
-
-
-def _add_idling_noise_to_layers_asap(
-    layers: list[Circuit], noise: CircuitLevelNoise, p_idle: float, n_qubits: int
-) -> Circuit:
-    noisy_circ = Circuit()
-
-    uninitialized_qubits = set(range(n_qubits))
-
-    for layer in layers:
-        idling = _get_idle_qubits_layer(layer, n_qubits) - uninitialized_qubits
-        non_idling = _get_non_idle_qubits_layer(layer)
-
-        noisy_layer = CircuitLevelNoise.apply(noise, layer)  # apply regular noise
-
-        uninitialized_qubits -= non_idling
-
-        for q in idling:
-            noisy_layer.append_operation("DEPOLARIZE1", q, p_idle)
-
-        noisy_circ += noisy_layer
-    return noisy_circ
-
-
-def _get_reset_qubits_layer(circ: Circuit) -> set[int]:
-    """Get the list of reset qubits in the current layer of the circuit."""
-    resets = set()
-    for instr in circ:
-        if instr.name in STIM_RESETS:
-            resets.update(get_stim_qubit_values(instr))
-    return resets
-
-
-def _get_non_idle_qubits_layer(circ: Circuit) -> set[int]:
-    qubits = set()
-    for instr in circ:
-        qubits.update(get_stim_qubit_values(instr))
-    return qubits
-
-
-def _get_idle_qubits_layer(circ: Circuit, n_qubits: int) -> set[int]:
-    """Get the list of idle qubits in the current layer of the circuit."""
-    non_idle = _get_non_idle_qubits_layer(circ)
-    return set(range(n_qubits)) - non_idle
+        timing = "alap" if self.resets_alap else "asap"
+        return StimCircuitNoiseAdapter(self._as_location_model(self.p_idle), SequentialSchedule(timing)).apply(circ)
