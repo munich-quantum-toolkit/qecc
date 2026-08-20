@@ -30,6 +30,7 @@ license-files = ["LICENSE"]
 
 classifiers = [
     "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
     "Operating System :: MacOS",
@@ -44,6 +45,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Topic :: Scientific/Engineering :: Quantum Computing",
     "Typing :: Typed",
 ]
 requires-python = ">=3.10"
@@ -251,8 +253,6 @@ iz = "iz"
 
 [tool.repo-review.ignore]
 GH200 = "We use Renovate instead of Dependabot"
-MY100 = "We use ty instead of mypy"
-PC111 = "We use ruff instead of blacken-docs"
 PC160 = "We use a mirror of crate-ci/typos"
 PC170 = "We do not use rST files anymore"
 
@@ -296,9 +296,8 @@ docs = [
   "sphinx-autoapi>=3.6.0",
   "sphinx-copybutton>=0.5.2",
   "sphinx-design>=0.6.1",
-  "sphinx-llm",
+  "sphinx-llm>=0.4.1",
   "sphinxcontrib-bibtex>=2.6.5",
-  "sphinxcontrib-svg2pdfconverter>=1.3.0",
   "sphinxext-opengraph>=0.13.0",
   "qiskit[qasm3-import,visualization]>=1.0.0",
 ]

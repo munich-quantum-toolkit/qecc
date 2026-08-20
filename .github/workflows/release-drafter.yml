@@ -10,8 +10,8 @@ permissions: {}
 jobs:
   update_release_draft:
     name: Run
+    runs-on: ubuntu-slim
     permissions:
       contents: write
-    runs-on: ubuntu-slim
     steps:
       - uses: release-drafter/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9 # v7.7.0

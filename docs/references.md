@@ -1,10 +1,10 @@
 # References
 
-_MQT QECC_ has a strong foundation in peer‑reviewed research. Many of its
-built‑in algorithms are based on methods published in scientific journals and
+MQT QECC has a strong foundation in peer‑reviewed research. Many of its built‑in
+algorithms are based on methods published in scientific journals and
 conferences.
 
-_MQT QECC_ is part of the Munich Quantum Toolkit, which is described in
+MQT QECC is part of the Munich Quantum Toolkit, which is described in
 {cite:p}`mqt`. If you want to cite the Munich Quantum Toolkit, please use the
 following BibTeX entry:
 
@@ -22,7 +22,7 @@ following BibTeX entry:
 }
 ```
 
-If you use _MQT QECC_ in your work, we would appreciate if you cited
+If you use MQT QECC in your work, we would appreciate if you cited
 {cite:p}`berent2022software`, {cite:p}`berent2023decoding`,
 {cite:p}`grurl2023eccframework`, {cite:p}`peham2024automated`, or
 {cite:p}`schmid2024deterministic`.
