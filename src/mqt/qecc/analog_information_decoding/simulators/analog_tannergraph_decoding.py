@@ -169,6 +169,7 @@ class AtdSimulator:
         self.save_interval = kwargs.get("save_interval", 1_000)
         self.eb_precision = kwargs.get("eb_precision", 1e-1)
         self.input_values = self.__dict__.copy()
+        self.rng = np.random.default_rng(seed)
 
         self.n = hx.shape[1]
         self.code_params = code_params
@@ -215,16 +216,21 @@ class AtdSimulator:
             nr_qubits=self.n,
             channel_probs=self.full_error_channel,
             residual_err=residual_err,
+            rng=self.rng,
         )
 
         x_perf_syndr = (self.Hz @ x_err) % 2
-        x_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(sigma=self.x_sigma, perfect_syndr=x_perf_syndr)
+        x_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(
+            sigma=self.x_sigma, perfect_syndr=x_perf_syndr, rng=self.rng
+        )
         x_decoding = self.x_decoder.decode(x_noisy_syndr)[: self.n]
         self.x_bp_iterations += self.x_decoder.bposd_decoder.iter
         x_residual = (x_err + x_decoding) % 2
 
         z_perf_syndr = (self.Hx @ z_err) % 2
-        z_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(sigma=self.z_sigma, perfect_syndr=z_perf_syndr)
+        z_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(
+            sigma=self.z_sigma, perfect_syndr=z_perf_syndr, rng=self.rng
+        )
         z_decoding = self.z_decoder.decode(z_noisy_syndr)[: self.n]
         self.z_bp_iterations += self.z_decoder.bposd_decoder.iter
         z_residual = (z_err + z_decoding) % 2

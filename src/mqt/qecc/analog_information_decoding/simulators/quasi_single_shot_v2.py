@@ -110,6 +110,7 @@ class QssSimulator:
         set_seed(seed)
         self.code_params = code_params
         self.input_values = self.__dict__.copy()
+        self.rng = np.random.default_rng(seed)
 
         self.outfile = outpath
 
@@ -222,20 +223,21 @@ class QssSimulator:
                     self.z_bit_chnl,
                 ),
                 residual_err=residual_err,
+                rng=self.rng,
             )[self.err_idx]  # only first or last vector needed, depending on side (X or Z)
             noiseless_syndrome = (self.H @ err) % 2
 
             # add syndrome error
             if rnd != (self.rounds - 1):
                 if self.analog_tg:
-                    analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, self.sigma)
+                    analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, self.sigma, rng=self.rng)
                     syndrome = get_binary_from_analog(analog_syndrome)
                 else:
-                    syndrome_error = generate_syndr_err(self.syndr_err_channel)
+                    syndrome_error = generate_syndr_err(self.syndr_err_channel, rng=self.rng)
                     syndrome = (noiseless_syndrome + syndrome_error) % 2
             else:  # last round is perfect
                 syndrome = np.copy(noiseless_syndrome)
-                analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, 0.0)  # no noise
+                analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, 0.0, rng=self.rng)  # no noise
 
             # fill the corresponding column of the syndrome/analog syndrome matrix
             syndrome_mat[:, cnt] += syndrome

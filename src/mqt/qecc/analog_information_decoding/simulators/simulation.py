@@ -99,6 +99,7 @@ class SingleShotSimulator:
         self.code_params = code_params
 
         self.input_values = self.__dict__.copy()
+        self.rng = np.random.default_rng(seed)
         self.outfile = get_outpath(**self.input_values)
 
         # Set parity check matrices
@@ -177,6 +178,7 @@ class SingleShotSimulator:
                 nr_qubits=self.n,
                 channel_probs=self.data_error_channel,
                 residual_err=residual_err,
+                rng=self.rng,
             )
             # by our convention, we call the syndrome after the error that is occurred
             # however, the check_error_rate depends on which check errors,
@@ -205,6 +207,7 @@ class SingleShotSimulator:
             nr_qubits=self.n,
             channel_probs=self.data_error_channel,
             residual_err=residual_err,
+            rng=self.rng,
         )
 
         # X-syndrome: sx = Hz * ex
@@ -246,12 +249,12 @@ class SingleShotSimulator:
 
         if not math.isclose(self.syndr_err_rate, 0.0):
             if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
-                x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x)
-                z_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=z_syndrome, sigma=self.sigma_z)
+                x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x, rng=self.rng)
+                z_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=z_syndrome, sigma=self.sigma_z, rng=self.rng)
             else:  # usual pauli error channel syndrome error
-                x_syndrome_err = generate_syndr_err(channel_probs=self.x_syndr_error_channel)
+                x_syndrome_err = generate_syndr_err(channel_probs=self.x_syndr_error_channel, rng=self.rng)
                 x_syndrome_w_err = (x_syndrome + x_syndrome_err) % 2
-                z_syndrome_err = generate_syndr_err(channel_probs=self.z_syndr_error_channel)
+                z_syndrome_err = generate_syndr_err(channel_probs=self.z_syndr_error_channel, rng=self.rng)
                 z_syndrome_w_err = (z_syndrome + z_syndrome_err) % 2
         else:
             x_syndrome_w_err = np.copy(x_syndrome)

@@ -29,6 +29,7 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
+    set_seed,
 )
 
 if TYPE_CHECKING:
@@ -327,6 +328,18 @@ def test_generate_err() -> None:
     res = generate_err(n, channel, residual)
     assert np.array_equal(res[0], expected[0])
     assert np.array_equal(res[1], expected[1])
+
+
+def test_seed_controls_noise_helpers() -> None:
+    """Reproduce complete helper sequences after resetting the simulation seed."""
+    n = 100
+    channel = (np.full(n, 0.2), np.full(n, 0.1), np.full(n, 0.3))
+    residual = [np.zeros(n, dtype=np.int32), np.zeros(n, dtype=np.int32)]
+    set_seed(42)
+    first = generate_err(n, channel, residual)
+    set_seed(42)
+    second = generate_err(n, channel, residual)
+    assert np.array_equal(first, second)
 
 
 def test_get_sigma_from_syndr_er() -> None:
