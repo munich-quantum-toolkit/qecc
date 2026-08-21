@@ -40,9 +40,16 @@ precisely the case when they have the same stabilizer group.
 This notion is checked with the function `equal_stabilizer_group`:
 
 ```{code-cell} ipython3
-other_code = StabilizerCode(generators=["YYXX","ZZZZ","YYYY"])
+other_code = StabilizerCode(generators=["ZZZZ", "YYYY", "ZZII"])
 
 print(base_code.equal_stabilizer_group(other_code))
+```
+
+```{note}
+Unlike exact equivalence, the following permutation and local Clifford
+equivalence use the unsigned stabilizer group: generator phases are ignored.
+Thus, stabilizers only need to be mapped onto each other up to signs. Any
+remaining signs can be corrected by a Pauli operation on the physical qubits.
 ```
 
 ### Permutation Equivalence
