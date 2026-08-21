@@ -12,12 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc import CSSCode, StabilizerCode
-from mqt.qecc.equivalence_checking import are_local_clifford_equivalent
-from mqt.qecc.equivalence_checking.local_clifford_eq import (
+from mqt.qecc import CSSCode, StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     CLIFFORD_ACTIONS,
     LOCAL_CLIFFORDS,
-    is_local_clifford_equivalent_to_css,
     preserved_low_degree_local_invariant,
 )
 from mqt.qecc.mod2 import is_in_row_space, rank

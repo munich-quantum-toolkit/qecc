@@ -19,7 +19,12 @@ briefly explain the considered equivalence notions, and their restrictions in
 our implementation.
 
 ```{code-cell} ipython3
-from mqt.qecc import StabilizerCode
+from mqt.qecc import (
+    StabilizerCode,
+    are_local_clifford_equivalent,
+    are_permutation_equivalent,
+    is_local_clifford_equivalent_to_css,
+)
 
 base_code = StabilizerCode(generators=["XXXX","ZZII","IIZZ"])
 ```
@@ -51,8 +56,6 @@ This notion is checked, and a potential witness permutation extracted, using the
 function `are_permutation_equivalent`:
 
 ```{code-cell} ipython3
-from mqt.qecc.equivalence_checking import are_permutation_equivalent
-
 other_code = StabilizerCode(generators=["XXXX","ZIZI","IZIZ"])
 
 print(are_permutation_equivalent(base_code, other_code))
@@ -70,8 +73,6 @@ This notion is checked, and a potential witness operation extracted, using the
 function `are_local_clifford_equivalent`:
 
 ```{code-cell} ipython3
-from mqt.qecc.equivalence_checking import are_local_clifford_equivalent
-
 other_code = StabilizerCode(generators=["ZXXX","XZII","IIZZ"])
 
 print(are_local_clifford_equivalent(base_code, other_code))
@@ -89,8 +90,6 @@ For now, the current implementation does not support the extraction of a witness
 operation.
 
 ```{code-cell} ipython3
-from mqt.qecc.equivalence_checking import is_local_clifford_equivalent_to_css
-
 stabilizer_code = StabilizerCode(generators=["YX"])
 
 print(is_local_clifford_equivalent_to_css(stabilizer_code))

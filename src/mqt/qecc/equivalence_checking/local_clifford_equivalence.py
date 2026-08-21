@@ -9,10 +9,10 @@
 
 from __future__ import annotations
 
-from collections import deque
 from itertools import combinations, product
 from typing import TYPE_CHECKING
 
+import networkx as nx
 import numpy as np
 import z3
 
@@ -24,6 +24,13 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
     from ..codes.core.stabilizer_code import StabilizerCode
+
+
+# These algorithms are parameter-dependent dispatchers,
+# combining the empirically best-performing algorithms
+# for different code sizes and types, based on these thresholds.
+BRUTEFORCE_CSS_MAX_QUBITS = 3
+LOW_DEGREE_INVARIANT_MAX_QUBITS = 30
 
 
 def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) -> list[str] | None:
@@ -54,7 +61,7 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     if code1.k < 2:
         return _lse_stabilizer_code(code1, code2)
 
-    if code1.n <= 30 and not preserved_low_degree_local_invariant(code1, code2):
+    if code1.n <= LOW_DEGREE_INVARIANT_MAX_QUBITS and not preserved_low_degree_local_invariant(code1, code2):
         return None
 
     return _sat_stabilizer_code(code1, code2)
@@ -71,7 +78,7 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     """
     code = reduce_stabilizer_generators(code)
 
-    if code.n < 4:
+    if code.n <= BRUTEFORCE_CSS_MAX_QUBITS:
         return _bruteforce_css_code(code)
 
     return _sat_css_code(code)
@@ -282,33 +289,6 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
 
         return gamma, lc
 
-    def _extract_connected_components(g: np.ndarray) -> list[list[int]]:
-        n = g.shape[0]
-        connected_components: list[list[int]] = []
-        seen: set[int] = set()
-
-        while len(seen) < n:
-            start = next(i for i in range(n) if i not in seen)
-            comp = []
-
-            queue = deque([start])
-            seen.add(start)
-
-            while queue:
-                cur: int = queue.popleft()
-                comp.append(cur)
-
-                for neighbor in g[cur, :].nonzero()[0]:
-                    nb = int(neighbor)
-
-                    if nb not in seen:
-                        seen.add(nb)
-                        queue.append(nb)
-
-            connected_components.append(sorted(comp))
-
-        return connected_components
-
     def _extract_lc_operation(x: np.ndarray) -> list[str] | None:
         n = len(x) // 4
         lc = [""] * n
@@ -404,8 +384,12 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
 
     def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> list[str] | None:
         lc = [""] * graph_1.shape[0]
-        connected_components_g1 = sorted(tuple(comp) for comp in _extract_connected_components(graph_1))
-        connected_components_g2 = sorted(tuple(comp) for comp in _extract_connected_components(graph_2))
+        connected_components_g1 = sorted(
+            tuple(sorted(comp)) for comp in nx.connected_components(nx.from_numpy_array(graph_1))
+        )
+        connected_components_g2 = sorted(
+            tuple(sorted(comp)) for comp in nx.connected_components(nx.from_numpy_array(graph_2))
+        )
 
         if connected_components_g1 != connected_components_g2:
             return None

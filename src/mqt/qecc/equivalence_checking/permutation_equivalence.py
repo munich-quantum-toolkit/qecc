@@ -21,6 +21,8 @@ import z3
 
 from ..codes.core.css_code import CSSCode
 from ..mod2 import nullspace, rank, row_basis
+from ..mod4 import matmul_gf2_gf4
+from ..mod4 import row_basis as gf4_row_basis
 from .utils import elementwise_map, encode_row_operations, exactly_one, reduce_stabilizer_generators
 
 if TYPE_CHECKING:
@@ -31,8 +33,17 @@ if TYPE_CHECKING:
     from ..codes.core.stabilizer_code import StabilizerCode
 
 
+# These algorithms are parameter-dependent dispatchers,
+# combining the empirically best-performing algorithms
+# for different code sizes and types, based on these thresholds.
 BRUTEFORCE_THRESHOLD_STB = 5
 BRUTEFORCE_THRESHOLD_CSS = 5
+LINEAR_DEPENDENCY_MIN_QUBITS_CSS = 20
+MATROID_MAX_QUBITS_CSS = 17
+SAT_MIN_QUBITS_CSS = 30
+MATROID_MAX_GENERATORS_CSS = 9
+PUNCTURED_HULL_MAX_QUBITS_STB = 20
+
 InvariantT = TypeVar("InvariantT", bound="Hashable")
 
 
@@ -83,7 +94,7 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     if code1.n <= BRUTEFORCE_THRESHOLD_CSS:
         return _bruteforce_css(code1, code2)
 
-    if code1.n >= 20 and not _preserved_linear_dependencies(code1, code2):
+    if code1.n >= LINEAR_DEPENDENCY_MIN_QUBITS_CSS and not _preserved_linear_dependencies(code1, code2):
         return None
 
     result, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_css_code(code1, code2)
@@ -93,13 +104,13 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     assert partition1 is not None
     assert partition2 is not None
 
-    if code1.n <= 17:
+    if code1.n <= MATROID_MAX_QUBITS_CSS:
         return _matroid_css_code(code1, partition1, code2, partition2)
-    if code1.n < 30:
+    if code1.n < SAT_MIN_QUBITS_CSS:
         r = code1.Hx.shape[0] + code1.Hz.shape[0]
         return (
             _matroid_css_code(code1, partition1, code2, partition2)
-            if r < 10
+            if r <= MATROID_MAX_GENERATORS_CSS
             else _sat_css_code(code1, partition1, code2, partition2)
         )
     return _sat_css_code(code1, partition1, code2, partition2)
@@ -125,7 +136,7 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
 
     partition1 = {(): list(range(code1.n))}
     partition2 = {(): list(range(code2.n))}
-    if code1.n <= 20:
+    if code1.n <= PUNCTURED_HULL_MAX_QUBITS_STB:
         result, refined_partition1, refined_partition2 = _preserved_punctured_hull_weight_enumerator_stabilizer_code(
             code1, code2
         )
@@ -215,66 +226,21 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
     This invariant is based on Sendrier's support splitting algorithm:
     https://doi.org/10.1109/18.850662.
     """
-
-    def _generator_matrix_from_parity_check(h: np.ndarray, n: int) -> np.ndarray:
-        if h.size == 0 or h.shape[0] == 0:
-            return np.eye(n, dtype=np.uint8)
-        return nullspace(h)
-
-    def _compute_signatures(g1: np.ndarray, g2: np.ndarray) -> list[int]:
-        def _weight_enumerator_of_hull_punctured(g: np.ndarray, col_idx: int) -> list[int]:
-            gp = np.delete(g, col_idx, axis=1)
-            g_p = gp.shape[1]
-
-            gram = (gp @ gp.T) & 1
-
-            if gram.size == 0:
-                hull_basis = np.zeros((0, g_p), dtype=np.uint8)
-            elif not gram.any():
-                hull_basis = row_basis(gp).astype(np.uint8)
-            else:
-                coeff_basis = nullspace(gram)
-
-                if coeff_basis.shape[0] == 0:
-                    hull_basis = np.zeros((0, g_p), dtype=np.uint8)
-                else:
-                    hull_basis = row_basis((coeff_basis @ gp) & 1).astype(np.uint8)
-
-            return _gray_code_weight_enumerator(hull_basis, lambda word: int(word.sum()))
-
-        def _combine_invariants(inv_hx: list[int], inv_hz: list[int]) -> int:
-            payload = (",".join(map(str, inv_hx)) + "|" + ",".join(map(str, inv_hz))).encode("ascii")
-            return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
-
-        invariants = []
-
-        for col_idx in range(g1.shape[1]):
-            inv1 = _weight_enumerator_of_hull_punctured(g1, col_idx)
-            inv2 = _weight_enumerator_of_hull_punctured(g2, col_idx)
-
-            invariants.append(_combine_invariants(inv1, inv2))
-
-        return invariants
-
     n = c1.n
 
-    gx1 = _generator_matrix_from_parity_check(c1.Hx, n)
-    gz1 = _generator_matrix_from_parity_check(c1.Hz, n)
-    gx2 = _generator_matrix_from_parity_check(c2.Hx, n)
-    gz2 = _generator_matrix_from_parity_check(c2.Hz, n)
+    def _generator_matrix_from_parity_check(parity_check: np.ndarray) -> np.ndarray:
+        if parity_check.size == 0 or parity_check.shape[0] == 0:
+            return np.eye(n, dtype=np.uint8)
+        return nullspace(parity_check)
 
-    signatures_c1 = _compute_signatures(gx1, gz1)
-    signatures_c2 = _compute_signatures(gx2, gz2)
+    gx1 = _generator_matrix_from_parity_check(c1.Hx)
+    gz1 = _generator_matrix_from_parity_check(c1.Hz)
+    gx2 = _generator_matrix_from_parity_check(c2.Hx)
+    gz2 = _generator_matrix_from_parity_check(c2.Hz)
 
-    partition_c1 = _partition_columns_by_invariants(signatures_c1)
-    partition_c2 = _partition_columns_by_invariants(signatures_c2)
-
-    if partition_c1.keys() != partition_c2.keys():
-        return False, None, None
-    if any(len(partition_c1[k]) != len(partition_c2[k]) for k in partition_c1):
-        return False, None, None
-
-    return True, partition_c1, partition_c2
+    signatures_c1 = _css_punctured_hull_signatures(gx1, gz1)
+    signatures_c2 = _css_punctured_hull_signatures(gx2, gz2)
+    return _matching_invariant_partitions(signatures_c1, signatures_c2)
 
 
 def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
@@ -285,129 +251,16 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
     This invariant is based on Sendrier's support splitting algorithm:
     https://doi.org/10.1109/18.850662.
     """
+    gf4_tableau_c1 = c1.symplectic[:, : c1.n] + 2 * c1.symplectic[:, c1.n :]
+    gf4_tableau_c2 = c2.symplectic[:, : c2.n] + 2 * c2.symplectic[:, c2.n :]
 
-    def _symplectic_to_gf4(symplectic: np.ndarray) -> np.ndarray:
-        n = symplectic.shape[1] // 2
-        return symplectic[:, :n] + 2 * symplectic[:, n:]
-
-    def _compute_signatures(matrix: np.ndarray) -> list[tuple[int, ...]]:
-        """Compute Sendrier signatures for all punctured columns."""
-
-        def _gf4_column_gram_contributions(m: np.ndarray) -> np.ndarray:
-            k, n = m.shape
-            contributions = np.zeros((n, k, k), dtype=np.uint8)
-
-            for col in range(n):
-                x = m[:, col] & 1
-                z = m[:, col] >> 1
-                contributions[col, :, :] = (x[:, None] & z[None, :]) ^ (z[:, None] & x[None, :])
-
-            return contributions
-
-        def _gf4_rref(matrix: np.ndarray) -> tuple[int, np.ndarray]:
-            matrix = matrix.copy()
-            m, n = matrix.shape
-            rank = 0
-            row = 0
-
-            for bit_col in range(2 * n):
-                col = bit_col % n
-                bit = bit_col // n
-
-                pivot = None
-                for r in range(row, m):
-                    if (matrix[r, col] >> bit) & 1:
-                        pivot = r
-                        break
-
-                if pivot is None:
-                    continue
-
-                if pivot != row:
-                    matrix[[row, pivot]] = matrix[[pivot, row]]
-
-                for r in range(m):
-                    if r != row and ((matrix[r, col] >> bit) & 1):
-                        matrix[r, :] ^= matrix[row, :]
-
-                rank += 1
-                row += 1
-                if row == m:
-                    break
-
-            return rank, matrix
-
-        def _gf4_row_basis(m: np.ndarray) -> np.ndarray:
-            rank, rref = _gf4_rref(m)
-            return rref[:rank, :]
-
-        def _gf2_gf4_matmul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-            m, ra = a.shape
-            rb, n = b.shape
-            if ra != rb:
-                msg = "Incompatible shapes for matrix multiplication."
-                raise ValueError(msg)
-
-            c = np.zeros((m, n), dtype=np.uint8)
-            for i in range(m):
-                rows = np.flatnonzero(a[i])
-                if rows.size:
-                    c[i, :] = np.bitwise_xor.reduce(b[rows, :], axis=0)
-
-            return c
-
-        def _weight_enumerator_of_hull_punctured(col_idx: int) -> list[int]:
-            mp = np.delete(matrix, col_idx, axis=1)
-            m_p = mp.shape[1]
-
-            if mp.shape[0] == 0:
-                return [1] + [0] * m_p
-
-            # gram is in GF(2) due to the trace inner product that simulates the symplectic product (aka commutation/anti-commutation)
-            gram = full_gram ^ column_gram_contributions[col_idx]
-
-            # c @ gram = gram.T @ c.T = 0 -> x = c @ mp with <x, mp[i]> = 0 for all rows j -> x orthogonal to all rows of mp -> x in mp perp
-            coeff_basis = nullspace(gram.T)
-            if coeff_basis.shape[0] == 0:
-                hull_basis = np.zeros((0, m_p), dtype=np.uint8)
-            else:
-                # c @ mp = x -> words in mp that are orthogonal to all rows of mp -> hull
-                hull_basis = _gf4_row_basis(_gf2_gf4_matmul(coeff_basis, mp))
-
-            return _gray_code_weight_enumerator(hull_basis, lambda word: int(np.count_nonzero(word)))
-
-        column_gram_contributions = _gf4_column_gram_contributions(matrix)
-        full_gram = np.bitwise_xor.reduce(column_gram_contributions, axis=0, initial=0)
-
-        invariants = []
-
-        for col_idx in range(matrix.shape[1]):
-            inv = tuple(_weight_enumerator_of_hull_punctured(col_idx))
-            invariants.append(inv)
-
-        return invariants
-
-    gf4_tableau_c1 = _symplectic_to_gf4(c1.symplectic)
-    gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
-
-    signatures_c1 = _compute_signatures(gf4_tableau_c1)
-    signatures_c2 = _compute_signatures(gf4_tableau_c2)
-
-    partition_c1 = _partition_columns_by_invariants(signatures_c1)
-    partition_c2 = _partition_columns_by_invariants(signatures_c2)
-
-    if partition_c1.keys() != partition_c2.keys():
-        return False, None, None
-    if any(len(partition_c1[k]) != len(partition_c2[k]) for k in partition_c1):
-        return False, None, None
-
-    for key1, key2 in zip(partition_c1.keys(), partition_c2.keys(), strict=False):
-        if key1 != key2:
-            return False, None, None
-        if len(partition_c1[key1]) != len(partition_c2[key2]):
-            return False, None, None
-
-    return True, partition_c1, partition_c2
+    signatures_c1 = _punctured_hull_weight_enumerators(
+        _quaternary_punctured_hull_bases(gf4_tableau_c1), lambda word: int(np.count_nonzero(word))
+    )
+    signatures_c2 = _punctured_hull_weight_enumerators(
+        _quaternary_punctured_hull_bases(gf4_tableau_c2), lambda word: int(np.count_nonzero(word))
+    )
+    return _matching_invariant_partitions(signatures_c1, signatures_c2)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -634,6 +487,79 @@ def _matroid_css_code(
 # ----------------------------------------------------------------------------------------------------
 #   Helper functions
 # ----------------------------------------------------------------------------------------------------
+
+
+def _binary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]:
+    """Yield a binary hull basis for every punctured column of a matrix."""
+    for column in range(matrix.shape[1]):
+        punctured = np.delete(matrix, column, axis=1)
+        gram = (punctured @ punctured.T) & 1
+
+        if gram.size == 0:
+            yield np.zeros((0, punctured.shape[1]), dtype=np.uint8)
+        elif not gram.any():
+            yield row_basis(punctured).astype(np.uint8)
+        else:
+            coefficients = nullspace(gram)
+            if coefficients.shape[0] == 0:
+                yield np.zeros((0, punctured.shape[1]), dtype=np.uint8)
+            else:
+                yield row_basis((coefficients @ punctured) & 1).astype(np.uint8)
+
+
+def _quaternary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]:
+    """Yield an additive GF(4) hull basis for every punctured column of a matrix."""
+    num_rows, num_columns = matrix.shape
+    contributions = np.zeros((num_columns, num_rows, num_rows), dtype=np.uint8)
+
+    for column in range(num_columns):
+        x_column = matrix[:, column] & 1
+        z_column = matrix[:, column] >> 1
+        contributions[column] = (x_column[:, None] & z_column[None, :]) ^ (z_column[:, None] & x_column[None, :])
+
+    full_gram = np.bitwise_xor.reduce(contributions, axis=0, initial=0)
+    for column in range(num_columns):
+        punctured = np.delete(matrix, column, axis=1)
+        gram = full_gram ^ contributions[column]
+        coefficients = nullspace(gram.T)
+
+        if coefficients.shape[0] == 0:
+            yield np.zeros((0, punctured.shape[1]), dtype=np.uint8)
+        else:
+            yield gf4_row_basis(matmul_gf2_gf4(coefficients, punctured))
+
+
+def _punctured_hull_weight_enumerators(
+    hull_bases: Iterator[np.ndarray], weight: Callable[[npt.NDArray[np.integer]], int]
+) -> list[tuple[int, ...]]:
+    """Compute a weight enumerator for each punctured hull basis."""
+    return [tuple(_gray_code_weight_enumerator(basis, weight)) for basis in hull_bases]
+
+
+def _css_punctured_hull_signatures(gx: np.ndarray, gz: np.ndarray) -> list[int]:
+    """Combine binary X- and Z-code punctured-hull enumerators into signatures."""
+    x_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gx), lambda word: int(word.sum()))
+    z_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gz), lambda word: int(word.sum()))
+
+    signatures = []
+    for x_enumerator, z_enumerator in zip(x_enumerators, z_enumerators, strict=True):
+        payload = (",".join(map(str, x_enumerator)) + "|" + ",".join(map(str, z_enumerator))).encode("ascii")
+        signatures.append(int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big"))
+    return signatures
+
+
+def _matching_invariant_partitions(
+    invariants1: Sequence[InvariantT], invariants2: Sequence[InvariantT]
+) -> tuple[bool, dict[InvariantT, list[int]] | None, dict[InvariantT, list[int]] | None]:
+    """Build and compare column partitions induced by two invariant sequences."""
+    partition1 = _partition_columns_by_invariants(invariants1)
+    partition2 = _partition_columns_by_invariants(invariants2)
+
+    if partition1.keys() != partition2.keys():
+        return False, None, None
+    if any(len(partition1[invariant]) != len(partition2[invariant]) for invariant in partition1):
+        return False, None, None
+    return True, partition1, partition2
 
 
 def _partition_columns_by_invariants(invariants: Sequence[InvariantT]) -> dict[InvariantT, list[int]]:

@@ -12,8 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc import CSSCode, StabilizerCode
-from mqt.qecc.equivalence_checking import are_permutation_equivalent
+from mqt.qecc import CSSCode, StabilizerCode, are_permutation_equivalent
 from mqt.qecc.mod2 import is_in_row_space, rank
 
 

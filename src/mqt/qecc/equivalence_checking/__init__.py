@@ -9,8 +9,8 @@
 
 from __future__ import annotations
 
-from .local_clifford_eq import are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
-from .permutation_eq import are_permutation_equivalent
+from .local_clifford_equivalence import are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from .permutation_equivalence import are_permutation_equivalent
 
 __all__ = [
     "are_local_clifford_equivalent",
