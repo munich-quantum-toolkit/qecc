@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc import CSSCode, StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc.equivalence_checking._cliffords import _canonicalize_clifford  # ruff: ignore[import-private-name]
 
 # Import the private mathematical helpers intentionally for focused unit tests.
 from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
@@ -129,6 +130,26 @@ def test_locally_equivalent_connected_graphs_star_and_complete() -> None:
     complete = np.ones((4, 4), dtype=np.uint8) ^ np.eye(4, dtype=np.uint8)
 
     assert _locally_equivalent_connected_graphs(star, complete) is not None
+
+
+def test_locally_equivalent_connected_graphs_rejects_path_and_star() -> None:
+    """Distinguish two connected four-vertex graphs from different LC orbits."""
+    path = np.array(
+        [[0, 1, 0, 0], [1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0]],
+        dtype=np.uint8,
+    )
+    star = np.array(
+        [[0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]],
+        dtype=np.uint8,
+    )
+
+    assert _locally_equivalent_connected_graphs(path, star) is None
+
+
+def test_canonicalize_clifford_rejects_unknown_gate() -> None:
+    """Reject words containing gates outside the supported local Clifford generators."""
+    with pytest.raises(ValueError, match="Unknown Clifford gate 'X'"):
+        _canonicalize_clifford("HX")
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -253,6 +274,14 @@ def test_are_local_clifford_equivalent_low_degree_invariant_rules_out_pair() -> 
     assert are_local_clifford_equivalent(code1, code2) is None
 
 
+def test_low_degree_local_invariant_is_preserved_by_local_basis_changes() -> None:
+    """The complete low-degree profile ignores single-qubit Pauli basis changes."""
+    code1 = StabilizerCode(["ZI", "IZ"])
+    code2 = StabilizerCode(["YI", "I" + "Y"])
+
+    assert _preserved_low_degree_local_invariant(code1, code2)
+
+
 def test_are_local_clifford_equivalent_witness_uses_s_and_hsh() -> None:
     """A stabilizer instance exercising the graph-state LSE backend with different local operations."""
     code1 = StabilizerCode(["XY"])
@@ -273,6 +302,14 @@ def test_are_local_clifford_equivalent_complete_graph_state_exercises_large_null
 
     assert witness is not None
     _assert_maps_rowspace(code, code, witness)
+
+
+def test_are_local_clifford_equivalent_rejects_connected_graph_states_from_different_orbits() -> None:
+    """Propagate failure from the connected-graph LSE solver through the public algorithm."""
+    path = StabilizerCode(["XZII", "ZXZI", "IZXZ", "IIZX"])
+    star = StabilizerCode(["XZZZ", "ZXII", "ZIXI", "ZIIX"])
+
+    assert are_local_clifford_equivalent(path, star) is None
 
 
 # ----------------------------------------------------------------------------------------------------

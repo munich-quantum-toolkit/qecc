@@ -13,6 +13,12 @@ import numpy as np
 import pytest
 
 from mqt.qecc import CSSCode, StabilizerCode, are_permutation_equivalent
+from mqt.qecc.equivalence_checking.permutation_equivalence import (
+    _binary_punctured_hull_bases,  # ruff: ignore[import-private-name]
+    _matching_invariant_partitions,  # ruff: ignore[import-private-name]
+    _quaternary_punctured_hull_bases,  # ruff: ignore[import-private-name]
+    _sat_stabilizer_code,  # ruff: ignore[import-private-name]
+)
 from mqt.qecc.mod2 import is_in_row_space, rank
 
 
@@ -49,6 +55,29 @@ def _assert_maps_rowspace_css(code1: CSSCode, code2: CSSCode, permutation: list[
     assert rank(code2.Hz) == hz_rank
     assert all(is_in_row_space(row, permuted_hx) for row in code1.Hx)
     assert all(is_in_row_space(row, permuted_hz) for row in code1.Hz)
+
+
+def test_binary_punctured_hull_bases_handles_empty_and_self_orthogonal_grams() -> None:
+    """Return canonical hull bases for degenerate punctured binary matrices."""
+    empty_hulls = list(_binary_punctured_hull_bases(np.zeros((0, 2), dtype=np.uint8)))
+    self_orthogonal_hulls = list(_binary_punctured_hull_bases(np.array([[1, 1, 1]], dtype=np.uint8)))
+
+    assert all(hull.shape == (0, 1) for hull in empty_hulls)
+    assert all(np.array_equal(hull, np.array([[1, 1]], dtype=np.uint8)) for hull in self_orthogonal_hulls)
+
+
+def test_quaternary_punctured_hull_bases_handles_trivial_hull() -> None:
+    """Return an empty basis when a punctured additive GF(4) hull is trivial."""
+    matrix = np.array([[1, 0], [2, 0]], dtype=np.uint8)
+
+    hulls = list(_quaternary_punctured_hull_bases(matrix))
+
+    assert any(hull.shape[0] == 0 for hull in hulls)
+
+
+def test_matching_invariant_partitions_rejects_different_multiplicities() -> None:
+    """Reject invariant partitions with equal keys but different class sizes."""
+    assert _matching_invariant_partitions([0, 0, 1], [0, 1, 1]) is None
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -145,6 +174,15 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_positive_sat_backend() 
 
     assert permutation is not None
     _assert_maps_rowspace_stabilizer(code1, code2, permutation)
+
+
+def test_sat_stabilizer_backend_rejects_different_support_weights() -> None:
+    """Exercise the unsatisfiable result of the stabilizer permutation encoding directly."""
+    code1 = StabilizerCode(["ZI"])
+    code2 = StabilizerCode(["ZZ"])
+    partition: dict[tuple[int, ...], list[int]] = {(): [0, 1]}
+
+    assert _sat_stabilizer_code(code1, partition, code2, partition) is None
 
 
 @pytest.mark.parametrize(
