@@ -21,6 +21,8 @@ from mqt.qecc.equivalence_checking.permutation_equivalence import (
 )
 from mqt.qecc.mod2 import is_in_row_space, rank
 
+from .conftest import assert_same_row_space
+
 
 def _apply_permutation(symplectic: np.ndarray, permutation: list[int]) -> np.ndarray:
     # p[source] = target
@@ -40,9 +42,7 @@ def _assert_maps_rowspace_stabilizer(
     permutation: list[int],
 ) -> None:
     transformed = _apply_permutation(code1.symplectic, permutation)
-
-    assert rank(code2.symplectic) == rank(code1.symplectic)
-    assert all(is_in_row_space(row, code2.symplectic) for row in transformed)
+    assert_same_row_space(transformed, code2.symplectic)
 
 
 def _assert_maps_rowspace_css(code1: CSSCode, code2: CSSCode, permutation: list[int]) -> None:
@@ -57,8 +57,8 @@ def _assert_maps_rowspace_css(code1: CSSCode, code2: CSSCode, permutation: list[
     assert all(is_in_row_space(row, permuted_hz) for row in code1.Hz)
 
 
-def test_binary_punctured_hull_bases_handles_empty_and_self_orthogonal_grams() -> None:
-    """Return canonical hull bases for degenerate punctured binary matrices."""
+def test_binary_hull_edge_cases() -> None:
+    """Test binary punctured hulls with empty and self-orthogonal Gram matrices."""
     empty_hulls = list(_binary_punctured_hull_bases(np.zeros((0, 2), dtype=np.uint8)))
     self_orthogonal_hulls = list(_binary_punctured_hull_bases(np.array([[1, 1, 1]], dtype=np.uint8)))
 
@@ -66,8 +66,8 @@ def test_binary_punctured_hull_bases_handles_empty_and_self_orthogonal_grams() -
     assert all(np.array_equal(hull, np.array([[1, 1]], dtype=np.uint8)) for hull in self_orthogonal_hulls)
 
 
-def test_quaternary_punctured_hull_bases_handles_trivial_hull() -> None:
-    """Return an empty basis when a punctured additive GF(4) hull is trivial."""
+def test_quaternary_trivial_hull() -> None:
+    """Test that a trivial punctured GF(4) hull has an empty basis."""
     matrix = np.array([[1, 0], [2, 0]], dtype=np.uint8)
 
     hulls = list(_quaternary_punctured_hull_bases(matrix))
@@ -75,8 +75,8 @@ def test_quaternary_punctured_hull_bases_handles_trivial_hull() -> None:
     assert any(hull.shape[0] == 0 for hull in hulls)
 
 
-def test_matching_invariant_partitions_rejects_different_multiplicities() -> None:
-    """Reject invariant partitions with equal keys but different class sizes."""
+def test_partition_multiplicities() -> None:
+    """Test that invariant partitions with different class sizes do not match."""
     assert _matching_invariant_partitions([0, 0, 1], [0, 1, 1]) is None
 
 
@@ -85,21 +85,21 @@ def test_matching_invariant_partitions_rejects_different_multiplicities() -> Non
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_are_permutation_equivalent_stabilizer_preserves_n() -> None:
-    """Codes on a different number of qubits can never be permutation-equivalent."""
+def test_stabilizer_preserves_n() -> None:
+    """Test that permutation equivalence preserves the number of physical qubits."""
     assert are_permutation_equivalent(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4)) is None
 
 
-def test_are_permutation_equivalent_stabilizer_preserves_k() -> None:
-    """Codes with a different number of logical qubits can never be permutation-equivalent."""
+def test_stabilizer_preserves_k() -> None:
+    """Test that permutation equivalence preserves the number of logical qubits."""
     code1 = StabilizerCode.get_trivial_code(3)
     code2 = StabilizerCode(["ZII"])
 
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_stabilizer_does_not_swap_x_and_z() -> None:
-    """A permutation may reorder qubits but must not conflate X-type and Z-type stabilizers."""
+def test_stabilizer_preserves_paulis() -> None:
+    """Test that qubit permutations do not exchange X and Z operators."""
     code1 = StabilizerCode(["XII"])
     code2 = StabilizerCode(["ZII"])
 
@@ -108,8 +108,8 @@ def test_are_permutation_equivalent_stabilizer_does_not_swap_x_and_z() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_stabilizer_trivial() -> None:
-    """The trivial code is permutation-equivalent to itself via the identity permutation."""
+def test_stabilizer_trivial() -> None:
+    """Test that a trivial stabilizer code returns the identity permutation."""
     assert are_permutation_equivalent(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(3)) == [
         0,
         1,
@@ -117,18 +117,18 @@ def test_are_permutation_equivalent_stabilizer_trivial() -> None:
     ]
 
 
-def test_are_permutation_equivalent_one_qubit_codes_are_equivalent() -> None:
-    """A single-qubit code is permutation-equivalent to itself via the identity permutation."""
+def test_stabilizer_one_qubit() -> None:
+    """Test that a one-qubit code is permutation-equivalent to itself."""
     assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["Z"])) == [0]
 
 
-def test_are_permutation_equivalent_one_qubit_codes_reject_pauli_mismatch() -> None:
-    """A single-qubit permutation cannot turn a Z stabilizer into an X stabilizer."""
+def test_stabilizer_one_qubit_mismatch() -> None:
+    """Test that a one-qubit Pauli mismatch is rejected."""
     assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["X"])) is None
 
 
-def test_are_permutation_equivalent_ignores_redundant_generators() -> None:
-    """Equivalent codes may use different numbers of stabilizer generators."""
+def test_stabilizer_redundant_generators() -> None:
+    """Test that redundant stabilizer generators do not affect permutation equivalence."""
     code = StabilizerCode(["ZZ"])
     code_with_redundancy = StabilizerCode(["ZZ", "ZZ"])
 
@@ -138,8 +138,8 @@ def test_are_permutation_equivalent_ignores_redundant_generators() -> None:
     _assert_maps_rowspace_stabilizer(code, code_with_redundancy, permutation)
 
 
-def test_are_permutation_equivalent_stabilizer_hardcoded_positive() -> None:
-    """A hardcoded pair of codes related by an interleaving permutation is recognized as equivalent."""
+def test_stabilizer_positive() -> None:
+    """Test that an interleaving qubit permutation is recognized."""
     code1 = StabilizerCode(["XXII", "IIZZ"])
     code2 = StabilizerCode(["XIXI", "IZIZ"])
 
@@ -149,8 +149,8 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_positive() -> None:
     _assert_maps_rowspace_stabilizer(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_stabilizer_hardcoded_positive_with_x_z_swap_within_qubit() -> None:
-    """A witness permutation can also reorder mixed X/Z stabilizer generators consistently."""
+def test_stabilizer_mixed_paulis() -> None:
+    """Test that a permutation consistently maps mixed X and Z generators."""
     code1 = StabilizerCode(["XZ", "IZ"])
     code2 = StabilizerCode(["ZX", "ZI"])
 
@@ -160,8 +160,8 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_positive_with_x_z_swap_
     _assert_maps_rowspace_stabilizer(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_stabilizer_hardcoded_positive_sat_backend() -> None:
-    """A positive stabilizer instance exercising the SAT backend."""
+def test_stabilizer_sat_positive() -> None:
+    """Test that the stabilizer SAT backend finds a permutation."""
     n = 6
     generators = ["ZZIIII", "IZZIII", "IIZZII", "IIIZZI", "IIIIZZ", "ZIIIIZ"]
     code1 = StabilizerCode(generators)
@@ -176,8 +176,8 @@ def test_are_permutation_equivalent_stabilizer_hardcoded_positive_sat_backend() 
     _assert_maps_rowspace_stabilizer(code1, code2, permutation)
 
 
-def test_sat_stabilizer_backend_rejects_different_support_weights() -> None:
-    """Exercise the unsatisfiable result of the stabilizer permutation encoding directly."""
+def test_stabilizer_sat_negative() -> None:
+    """Test that the stabilizer SAT backend rejects different support weights."""
     code1 = StabilizerCode(["ZI"])
     code2 = StabilizerCode(["ZZ"])
     partition: dict[tuple[int, ...], list[int]] = {(): [0, 1]}
@@ -200,16 +200,16 @@ def test_sat_stabilizer_backend_rejects_different_support_weights() -> None:
         ),
     ],
 )
-def test_are_permutation_equivalent_stabilizer_hardcoded_negative(
+def test_stabilizer_negative(
     code1: StabilizerCode,
     code2: StabilizerCode,
 ) -> None:
-    """Check rejection for a set of hardcoded stabilizer-code pairs that are not permutation-equivalent."""
+    """Test that known inequivalent stabilizer-code pairs are rejected."""
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_stabilizer_punctured_hull_weight_enumerator() -> None:
-    """Test precondition that codes have to have the same signature distribution to be P-equivalent."""
+def test_stabilizer_hull_rejection() -> None:
+    """Test that different punctured-hull signatures rule out equivalence."""
     code1 = StabilizerCode(["XYZXZZXIXX", "XIZYYXIXZI", "ZZZZXYZIII"])
     code2 = StabilizerCode(["YZXZIZXYIY", "ZIXYXYXXII", "ZYIYIIZZZX"])
 
@@ -225,21 +225,21 @@ def test_are_permutation_equivalent_stabilizer_punctured_hull_weight_enumerator(
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_are_permutation_equivalent_css_preserves_n() -> None:
-    """Test precondition that codes have to have the same number of physical qubits to be P-equivalent."""
+def test_css_preserves_n() -> None:
+    """Test that CSS permutation equivalence preserves the number of physical qubits."""
     assert are_permutation_equivalent(CSSCode.get_trivial_code(3), CSSCode.get_trivial_code(4)) is None
 
 
-def test_are_permutation_equivalent_css_preserves_k() -> None:
-    """Test precondition that codes have to have the same number of logical qubits to be P-equivalent."""
+def test_css_preserves_k() -> None:
+    """Test that CSS permutation equivalence preserves the number of logical qubits."""
     code1 = CSSCode.get_trivial_code(4)
     code2 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))
 
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_preserves_x_and_z_ranks() -> None:
-    """Test precondition that codes have to have the same X and Z ranks to be P-equivalent."""
+def test_css_preserves_ranks() -> None:
+    """Test that CSS permutation equivalence preserves the X and Z ranks."""
     code1 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))
     code2 = CSSCode(Hz=np.array([[1, 0, 0, 0]], dtype=np.int8))
 
@@ -248,8 +248,8 @@ def test_are_permutation_equivalent_css_preserves_x_and_z_ranks() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_preserves_linear_dependency() -> None:
-    """Test precondition that codes have to have the same linear column dependencies to be P-equivalent."""
+def test_css_linear_dependencies() -> None:
+    """Test that different linear column dependencies rule out equivalence."""
     hx1 = np.array(
         [
             [1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1],
@@ -290,8 +290,8 @@ def test_are_permutation_equivalent_css_preserves_linear_dependency() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_trivial() -> None:
-    """Test trivial CSS code with trivial permutation."""
+def test_css_trivial() -> None:
+    """Test that a trivial CSS code returns the identity permutation."""
     code = CSSCode.get_trivial_code(4)
 
     assert rank(code.Hx) == 0
@@ -299,8 +299,8 @@ def test_are_permutation_equivalent_css_trivial() -> None:
     assert are_permutation_equivalent(code, code) == [0, 1, 2, 3]
 
 
-def test_are_permutation_equivalent_css_bruteforce_positive() -> None:
-    """A positive CSS instance exercising the bruteforce backend."""
+def test_css_bruteforce_positive() -> None:
+    """Test that the CSS brute-force backend finds a permutation."""
     code1 = CSSCode(
         Hx=np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8),
         Hz=np.array([[1, 1, 1, 1]], dtype=np.int8),
@@ -316,8 +316,8 @@ def test_are_permutation_equivalent_css_bruteforce_positive() -> None:
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_css_bruteforce_negative() -> None:
-    """A negative CSS instance exercising the bruteforce backend."""
+def test_css_bruteforce_negative() -> None:
+    """Test that the CSS brute-force backend rejects an inequivalent pair."""
     hx1 = np.array([[1, 0, 0, 0, 1]], dtype=np.int8)
     hz1 = np.array([[0, 1, 1, 1, 0]], dtype=np.int8)
     hx2 = np.array([[1, 1, 1, 0, 0]], dtype=np.int8)
@@ -334,17 +334,17 @@ def test_are_permutation_equivalent_css_bruteforce_negative() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_matroid_positive() -> None:
-    """A positive CSS instance exercising the matroid-isomorphism backend."""
-    n = 10
-    hx = np.zeros((5, n), dtype=np.int8)
-    for i in range(5):
-        hx[i, 2 * i] = 1
-        hx[i, 2 * i + 1] = 1
-    code1 = CSSCode(Hx=hx, Hz=None)
-
-    permutation_used = list(reversed(range(n)))
-    code2 = CSSCode(Hx=hx[:, permutation_used], Hz=None)
+def test_css_matroid_positive() -> None:
+    """Test that the CSS matroid backend finds a permutation."""
+    code1 = CSSCode.from_code_name("Steane")
+    permutation_used = list(reversed(range(code1.n)))
+    code2 = CSSCode(
+        Hx=code1.Hx[:, permutation_used],
+        Hz=code1.Hz[:, permutation_used],
+        distance=code1.distance,
+        x_distance=code1.x_distance,
+        z_distance=code1.z_distance,
+    )
 
     permutation = are_permutation_equivalent(code1, code2)
 
@@ -352,8 +352,8 @@ def test_are_permutation_equivalent_css_matroid_positive() -> None:
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_css_matroid_negative() -> None:
-    """A negative CSS instance exercising the matroid-isomorphism backend."""
+def test_css_matroid_negative() -> None:
+    """Test that the CSS matroid backend rejects an inequivalent pair."""
     hx1 = np.array([[0, 0, 0, 1, 1, 0, 0, 0]], dtype=np.int8)
     hz1 = np.array([[0, 1, 0, 1, 1, 1, 0, 1]], dtype=np.int8)
     hx2 = np.array([[1, 0, 1, 0, 1, 1, 0, 1]], dtype=np.int8)
@@ -370,8 +370,8 @@ def test_are_permutation_equivalent_css_matroid_negative() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_matroid_negative_circuits() -> None:
-    """A negative CSS instance exercising the matroid-isomorphism backend (different circuits)."""
+def test_css_matroid_circuits() -> None:
+    """Test that different matroid circuits rule out equivalence."""
     hx1 = np.array([[1, 0, 1, 1, 0, 0, 0, 0, 0, 0]], dtype=np.int8)
     hz1 = np.array([[0, 0, 0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 1, 0, 0, 0]], dtype=np.int8)
     hx2 = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int8)
@@ -388,8 +388,8 @@ def test_are_permutation_equivalent_css_matroid_negative_circuits() -> None:
     assert are_permutation_equivalent(code1, code2) is None
 
 
-def test_are_permutation_equivalent_css_sat_positive() -> None:
-    """A positive CSS instance exercising the SAT backend."""
+def test_css_sat_positive() -> None:
+    """Test that the CSS SAT backend finds a permutation."""
     n = 18
     hx = np.zeros((10, n), dtype=np.int8)
     for i in range(9):
@@ -407,8 +407,8 @@ def test_are_permutation_equivalent_css_sat_positive() -> None:
     _assert_maps_rowspace_css(code1, code2, permutation)
 
 
-def test_are_permutation_equivalent_css_sat_negative() -> None:
-    """A negative CSS instance exercising the SAT backend."""
+def test_css_sat_negative() -> None:
+    """Test that the CSS SAT backend rejects an inequivalent pair."""
     hx1 = np.array(
         [
             [0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],

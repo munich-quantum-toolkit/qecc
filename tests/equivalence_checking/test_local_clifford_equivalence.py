@@ -12,7 +12,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc import CSSCode, StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc import StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc.codes import RotatedSurfaceCode
 from mqt.qecc.equivalence_checking._cliffords import _canonicalize_clifford  # ruff: ignore[import-private-name]
 
 # Import the private mathematical helpers intentionally for focused unit tests.
@@ -24,7 +25,8 @@ from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     _stabilizer_code_to_state,  # ruff: ignore[import-private-name]
     _stabilizer_state_to_graph_state,  # ruff: ignore[import-private-name]
 )
-from mqt.qecc.mod2 import is_in_row_space, rank
+
+from .conftest import assert_same_row_space
 
 # ----------------------------------------------------------------------------------------------------
 # Helpers
@@ -54,9 +56,7 @@ def _assert_maps_rowspace(
     witness: list[str],
 ) -> None:
     transformed = _apply_lc_witness(code1.symplectic, witness)
-
-    assert rank(code2.symplectic) == rank(code1.symplectic)
-    assert all(is_in_row_space(row, code2.symplectic) for row in transformed)
+    assert_same_row_space(transformed, code2.symplectic)
 
 
 @pytest.mark.parametrize(
@@ -89,8 +89,8 @@ def _assert_maps_rowspace(
         ),
     ],
 )
-def test_stabilizer_code_to_state_small_codes(code: StabilizerCode, expected: np.ndarray) -> None:
-    """Convert benchmark stabilizer codes to their expected purified states."""
+def test_code_to_state(code: StabilizerCode, expected: np.ndarray) -> None:
+    """Test that stabilizer codes are converted to the expected purified states."""
     assert np.array_equal(_stabilizer_code_to_state(code), expected)
 
 
@@ -115,8 +115,8 @@ def test_stabilizer_code_to_state_small_codes(code: StabilizerCode, expected: np
         ),
     ],
 )
-def test_stabilizer_state_to_graph_state_small_tableau(tableau: np.ndarray, expected: np.ndarray) -> None:
-    """Convert benchmark stabilizer-state tableaux to the expected graphs."""
+def test_state_to_graph(tableau: np.ndarray, expected: np.ndarray) -> None:
+    """Test that stabilizer states are converted to the expected graph states."""
     original = tableau.copy()
     adjacency, _ = _stabilizer_state_to_graph_state(tableau)
 
@@ -124,16 +124,16 @@ def test_stabilizer_state_to_graph_state_small_tableau(tableau: np.ndarray, expe
     assert np.array_equal(tableau, original)
 
 
-def test_locally_equivalent_connected_graphs_star_and_complete() -> None:
-    """Recognize the benchmark star and complete graphs as locally equivalent."""
+def test_graph_lc_positive() -> None:
+    """Test that the star and complete graphs are locally equivalent."""
     star = np.array([[0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]], dtype=np.uint8)
     complete = np.ones((4, 4), dtype=np.uint8) ^ np.eye(4, dtype=np.uint8)
 
     assert _locally_equivalent_connected_graphs(star, complete) is not None
 
 
-def test_locally_equivalent_connected_graphs_rejects_path_and_star() -> None:
-    """Distinguish two connected four-vertex graphs from different LC orbits."""
+def test_graph_lc_negative() -> None:
+    """Test that the path and star graphs are not locally equivalent."""
     path = np.array(
         [[0, 1, 0, 0], [1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0]],
         dtype=np.uint8,
@@ -146,8 +146,8 @@ def test_locally_equivalent_connected_graphs_rejects_path_and_star() -> None:
     assert _locally_equivalent_connected_graphs(path, star) is None
 
 
-def test_canonicalize_clifford_rejects_unknown_gate() -> None:
-    """Reject words containing gates outside the supported local Clifford generators."""
+def test_invalid_clifford() -> None:
+    """Test that Clifford words with unsupported gates are rejected."""
     with pytest.raises(ValueError, match="Unknown Clifford gate 'X'"):
         _canonicalize_clifford("HX")
 
@@ -157,13 +157,13 @@ def test_canonicalize_clifford_rejects_unknown_gate() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_are_local_clifford_equivalent_preserves_n() -> None:
-    """Test precondition that codes have to have the same number of physical qubits to be LC-equivalent."""
+def test_preserves_n() -> None:
+    """Test that LC equivalence preserves the number of physical qubits."""
     assert are_local_clifford_equivalent(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4)) is None
 
 
-def test_are_local_clifford_equivalent_preserves_k() -> None:
-    """Test precondition that codes have to have the same number of logical qubits to be LC-equivalent."""
+def test_preserves_k() -> None:
+    """Test that LC equivalence preserves the number of logical qubits."""
     code1 = StabilizerCode.get_trivial_code(3)
     code2 = StabilizerCode(["ZII"])
 
@@ -207,12 +207,12 @@ def test_are_local_clifford_equivalent_preserves_k() -> None:
         ),
     ],
 )
-def test_are_local_clifford_equivalent_hardcoded_cases(
+def test_hardcoded_cases(
     code1: StabilizerCode,
     code2: StabilizerCode,
     expected: bool,
 ) -> None:
-    """Test LC-equivalence for a set of hardcoded stabilizer-code pairs with known outcomes."""
+    """Test LC equivalence for small stabilizer-code pairs with known outcomes."""
     witness = are_local_clifford_equivalent(code1, code2)
 
     assert (witness is not None) is expected
@@ -220,22 +220,22 @@ def test_are_local_clifford_equivalent_hardcoded_cases(
         _assert_maps_rowspace(code1, code2, witness)
 
 
-def test_are_local_clifford_equivalent_one_qubit_z_vs_x_witness_is_hadamard() -> None:
-    """Test correct witness extraction for LC-equivalent stabilizer codes."""
+def test_hadamard_witness() -> None:
+    """Test that a one-qubit basis change returns a Hadamard witness."""
     witness = are_local_clifford_equivalent(StabilizerCode(["Z"]), StabilizerCode(["X"]))
 
     assert witness == ["H"]
 
 
-def test_are_local_clifford_equivalent_two_product_bases_witness_is_two_hadamards() -> None:
-    """Test correct witness extraction for LC-equivalent stabilizer codes."""
+def test_two_hadamard_witness() -> None:
+    """Test that two product-basis changes return two Hadamards."""
     witness = are_local_clifford_equivalent(StabilizerCode(["ZI", "IZ"]), StabilizerCode(["XI", "IX"]))
 
     assert witness == ["H", "H"]
 
 
-def test_are_local_clifford_equivalent_hardcoded_positive_sat_backend() -> None:
-    """A positive stabilizer instance exercising the SAT backend."""
+def test_sat_positive() -> None:
+    """Test that the stabilizer SAT backend finds an LC witness."""
     code1 = StabilizerCode(["ZZII", "IIZZ"])
     code2 = StabilizerCode(["XXII", "IIXX"])
 
@@ -247,8 +247,8 @@ def test_are_local_clifford_equivalent_hardcoded_positive_sat_backend() -> None:
     _assert_maps_rowspace(code1, code2, witness)
 
 
-def test_are_local_clifford_equivalent_hardcoded_negative_sat_backend() -> None:
-    """A negative stabilizer instance exercising the SAT backend."""
+def test_sat_negative() -> None:
+    """Test that the stabilizer SAT backend rejects an inequivalent pair."""
     code1 = StabilizerCode(["YYZYZ", "IXIIX", "ZXZXX"])
     code2 = StabilizerCode(["XIZIY", "XXZII", "IYXIZ"])
 
@@ -260,8 +260,8 @@ def test_are_local_clifford_equivalent_hardcoded_negative_sat_backend() -> None:
     assert are_local_clifford_equivalent(code1, code2) is None
 
 
-def test_are_local_clifford_equivalent_low_degree_invariant_rules_out_pair() -> None:
-    """A negative stabilizer instance exercising the local invariant."""
+def test_low_degree_rejection() -> None:
+    """Test that the low-degree local invariant rejects an inequivalent pair."""
     code1 = StabilizerCode(["ZZII", "IIZZ"])
     code2 = StabilizerCode(["ZZZZ", "XXII"])
 
@@ -274,16 +274,16 @@ def test_are_local_clifford_equivalent_low_degree_invariant_rules_out_pair() -> 
     assert are_local_clifford_equivalent(code1, code2) is None
 
 
-def test_low_degree_local_invariant_is_preserved_by_local_basis_changes() -> None:
-    """The complete low-degree profile ignores single-qubit Pauli basis changes."""
+def test_low_degree_basis_change() -> None:
+    """Test that the low-degree local invariant ignores local basis changes."""
     code1 = StabilizerCode(["ZI", "IZ"])
     code2 = StabilizerCode(["YI", "I" + "Y"])
 
     assert _preserved_low_degree_local_invariant(code1, code2)
 
 
-def test_are_local_clifford_equivalent_witness_uses_s_and_hsh() -> None:
-    """A stabilizer instance exercising the graph-state LSE backend with different local operations."""
+def test_s_and_hsh_witness() -> None:
+    """Test that the LSE backend extracts S and HSH operations."""
     code1 = StabilizerCode(["XY"])
     code2 = StabilizerCode(["YZ"])
 
@@ -294,8 +294,8 @@ def test_are_local_clifford_equivalent_witness_uses_s_and_hsh() -> None:
     _assert_maps_rowspace(code1, code2, witness)
 
 
-def test_are_local_clifford_equivalent_complete_graph_state_exercises_large_nullspace() -> None:
-    """A stabilizer instance exercising the graph-state LSE backend with simplifying branch."""
+def test_large_lse_nullspace() -> None:
+    """Test the LSE branch for solution spaces of dimension greater than four."""
     code = StabilizerCode(["XZZZ", "ZXZZ", "ZZXZ", "ZZZX"])
 
     witness = are_local_clifford_equivalent(code, code)
@@ -304,8 +304,8 @@ def test_are_local_clifford_equivalent_complete_graph_state_exercises_large_null
     _assert_maps_rowspace(code, code, witness)
 
 
-def test_are_local_clifford_equivalent_rejects_connected_graph_states_from_different_orbits() -> None:
-    """Propagate failure from the connected-graph LSE solver through the public algorithm."""
+def test_lse_negative() -> None:
+    """Test that the LSE backend rejects graph states from different LC orbits."""
     path = StabilizerCode(["XZII", "ZXZI", "IZXZ", "IIZX"])
     star = StabilizerCode(["XZZZ", "ZXII", "ZIXI", "ZIIX"])
 
@@ -317,8 +317,8 @@ def test_are_local_clifford_equivalent_rejects_connected_graph_states_from_diffe
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_are_local_clifford_equivalent_trivial_codes_are_equivalent() -> None:
-    """The trivial code is LC-equivalent to itself under some (not necessarily identity) witness."""
+def test_trivial_code() -> None:
+    """Test that a trivial stabilizer code is LC-equivalent to itself."""
     code = StabilizerCode.get_trivial_code(3)
     witness = are_local_clifford_equivalent(code, code)
 
@@ -327,15 +327,15 @@ def test_are_local_clifford_equivalent_trivial_codes_are_equivalent() -> None:
     _assert_maps_rowspace(code, code, witness)
 
 
-def test_are_local_clifford_equivalent_one_qubit_codes_are_equivalent() -> None:
-    """Test correct witness extraction for LC-equivalent stabilizer codes."""
+def test_one_qubit_code() -> None:
+    """Test that a one-qubit code returns the identity witness."""
     witness = are_local_clifford_equivalent(StabilizerCode(["Z"]), StabilizerCode(["Z"]))
 
     assert witness == ["I"]
 
 
-def test_are_local_clifford_equivalent_ignores_redundant_generators() -> None:
-    """Equivalent codes may use different numbers of stabilizer generators."""
+def test_redundant_generators() -> None:
+    """Test that redundant stabilizer generators do not affect LC equivalence."""
     code = StabilizerCode(["ZZ"])
     code_with_redundancy = StabilizerCode(["ZZ", "ZZ"])
 
@@ -350,44 +350,41 @@ def test_are_local_clifford_equivalent_ignores_redundant_generators() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_is_local_clifford_equivalent_to_css_accepts_trivial_code() -> None:
-    """The trivial code is (trivially) LC-equivalent to a CSS code."""
+def test_css_trivial_code() -> None:
+    """Test that a trivial stabilizer code is LC-equivalent to a CSS code."""
     assert is_local_clifford_equivalent_to_css(StabilizerCode.get_trivial_code(3)) is True
 
 
-def test_is_local_clifford_equivalent_to_css_accepts_css_code() -> None:
-    """A CSS code is LC-equivalent to a CSS code via the identity."""
-    code = CSSCode(
-        Hx=np.array([[1, 1, 0, 0]], dtype=np.int8),
-        Hz=np.array([[0, 0, 1, 1]], dtype=np.int8),
-    )
+def test_css_code() -> None:
+    """Test that a constructed CSS code is LC-equivalent to a CSS code."""
+    code = RotatedSurfaceCode(3)
 
     assert is_local_clifford_equivalent_to_css(code) is True
 
 
-def test_is_local_clifford_equivalent_to_css_hardcoded_positive() -> None:
-    """A two-qubit stabilizer state is LC-equivalent to a CSS code."""
+def test_css_small_positive() -> None:
+    """Test that a small stabilizer state is LC-equivalent to a CSS code."""
     assert is_local_clifford_equivalent_to_css(StabilizerCode(["YX"])) is True
 
 
-def test_is_local_clifford_equivalent_to_css_hardcoded_negative_sat_backend() -> None:
-    """A negative stabilizer instance exercising the SAT backend."""
+def test_css_sat_negative() -> None:
+    """Test that the CSS SAT backend rejects a negative instance."""
     code = StabilizerCode(["IZIIII", "IIZZIZ", "ZZIZZZ", "ZIIXIY"])
 
     assert code.n >= 4
     assert is_local_clifford_equivalent_to_css(code) is False
 
 
-def test_is_local_clifford_equivalent_to_css_hardcoded_positive_bruteforce_backend() -> None:
-    """A positive stabilizer instance exercising the bruteforce backend."""
+def test_css_bruteforce_positive() -> None:
+    """Test that the CSS brute-force backend accepts a positive instance."""
     code = StabilizerCode(["XYZ"])
 
     assert code.n < 4
     assert is_local_clifford_equivalent_to_css(code) is True
 
 
-def test_is_local_clifford_equivalent_to_css_hardcoded_positive_sat_backend() -> None:
-    """A positive stabilizer instance exercising the SAT backend."""
+def test_css_sat_positive() -> None:
+    """Test that the CSS SAT backend accepts a positive instance."""
     code = StabilizerCode(["YXII", "IIXX", "ZZZZ"])
 
     assert code.n >= 4
