@@ -13,48 +13,27 @@ import hashlib
 import operator
 from collections import Counter, defaultdict
 from itertools import permutations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import networkx as nx
 import numpy as np
 import z3
 
 from ..codes.core.css_code import CSSCode
-from ..codes.core.pauli import PauliTableau
-from ..codes.core.stabilizer_code import StabilizerCode
 from ..mod2 import nullspace, rank, row_basis
+from .utils import elementwise_map, encode_row_operations, exactly_one, reduce_stabilizer_generators
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
 
     import numpy.typing as npt
+
+    from ..codes.core.stabilizer_code import StabilizerCode
 
 
 BRUTEFORCE_THRESHOLD_STB = 5
 BRUTEFORCE_THRESHOLD_CSS = 5
-
-
-def _reduce_stabilizer_generators(code: StabilizerCode | CSSCode) -> StabilizerCode | CSSCode:
-    """Return an equivalent code with a minimal independent generator set."""
-    if isinstance(code, CSSCode):
-        reduced_hx = row_basis(code.Hx).astype(np.int8)
-        reduced_hz = row_basis(code.Hz).astype(np.int8)
-        return CSSCode(
-            Hx=reduced_hx,
-            Hz=reduced_hz,
-            distance=code.distance,
-            x_distance=code.x_distance,
-            z_distance=code.z_distance,
-            Lx=code.Lx,
-            Lz=code.Lz,
-        )
-    reduced_symplectic = row_basis(code.symplectic).astype(np.int8)
-    return StabilizerCode(
-        generators=PauliTableau.from_matrix(reduced_symplectic),
-        distance=code.distance,
-        z_logicals=code.z_logicals,
-        x_logicals=code.x_logicals,
-    )
+InvariantT = TypeVar("InvariantT", bound="Hashable")
 
 
 def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: StabilizerCode | CSSCode) -> list[int] | None:
@@ -70,8 +49,8 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
         The qubit permutation mapping ``code1`` to ``code2``, or ``None`` if no
         such permutation exists. Entry ``i`` gives the target of qubit ``i``.
     """
-    code1 = _reduce_stabilizer_generators(code1)
-    code2 = _reduce_stabilizer_generators(code2)
+    code1 = reduce_stabilizer_generators(code1)
+    code2 = reduce_stabilizer_generators(code2)
 
     cheap_invariants = (
         _preserved_n,
@@ -87,11 +66,6 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
     if isinstance(code1, CSSCode) and isinstance(code2, CSSCode):
         return _permutation_eq_css_codes(code1, code2)
     return _permutation_eq_stabilizer_codes(code1, code2)
-
-
-# ----------------------------------------------------------------------------------------------------
-#   Algorithms
-# ----------------------------------------------------------------------------------------------------
 
 
 def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | None:
@@ -165,39 +139,6 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
     assert partition1 is not None
     assert partition2 is not None
     return _sat_stabilizer_code(code1, partition1, code2, partition2)
-
-
-# ----------------------------------------------------------------------------------------------------
-#   Brute force algorithms
-# ----------------------------------------------------------------------------------------------------
-
-
-def _bruteforce_css(c1: CSSCode, c2: CSSCode) -> list[int] | None:
-    """Brute-force check for permutation equivalence of two CSS codes."""
-    hx_rank = c1.Hx.shape[0]
-    hz_rank = c1.Hz.shape[0]
-
-    for perm in permutations(range(c1.n)):
-        if hx_rank and hx_rank != rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
-            continue
-        if hz_rank and hz_rank != rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
-            continue
-        return list(perm)
-
-    return None
-
-
-def _bruteforce_stb(c1: StabilizerCode, c2: StabilizerCode) -> list[int] | None:
-    """Brute-force check for permutation equivalence of two stabilizer codes."""
-    c1_rank = c1.symplectic.shape[0]
-
-    for perm in permutations(range(c1.n)):
-        perm_symplectic = perm + tuple(q + c1.n for q in perm)
-
-        if c1_rank == rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
-            return list(perm)
-
-    return None
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -299,23 +240,7 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
                 else:
                     hull_basis = row_basis((coeff_basis @ gp) & 1).astype(np.uint8)
 
-            h = hull_basis.shape[0]
-            enumerator = [1] + [0] * g_p
-
-            word = np.zeros(g_p, dtype=np.uint8)
-            previous_gray = 0
-
-            for t in range(1, 1 << h):
-                gray = t ^ (t >> 1)
-                changed = gray ^ previous_gray
-                row_idx = changed.bit_length() - 1
-
-                word ^= hull_basis[row_idx]
-                enumerator[int(word.sum())] += 1
-
-                previous_gray = gray
-
-            return enumerator
+            return _gray_code_weight_enumerator(hull_basis, lambda word: int(word.sum()))
 
         def _combine_invariants(inv_hx: list[int], inv_hz: list[int]) -> int:
             payload = (",".join(map(str, inv_hx)) + "|" + ",".join(map(str, inv_hz))).encode("ascii")
@@ -330,12 +255,6 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
             invariants.append(_combine_invariants(inv1, inv2))
 
         return invariants
-
-    def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[int]]:
-        partition = defaultdict(list)
-        for idx, inv in enumerate(invariants):
-            partition[inv].append(idx)
-        return dict(sorted(partition.items()))
 
     n = c1.n
 
@@ -455,26 +374,7 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
                 # c @ mp = x -> words in mp that are orthogonal to all rows of mp -> hull
                 hull_basis = _gf4_row_basis(_gf2_gf4_matmul(coeff_basis, mp))
 
-            hull_h, hull_n = hull_basis.shape
-            enumerator = [1] + [0] * m_p
-
-            word = np.zeros(hull_n, dtype=np.uint8)
-            previous_gray = 0
-
-            for t in range(1, 1 << hull_h):
-                gray = t ^ (t >> 1)
-                changed = gray ^ previous_gray
-                row_idx = changed.bit_length() - 1
-
-                # GF(2)-additive
-                word ^= hull_basis[row_idx]
-
-                wt = int(np.count_nonzero(word))
-                enumerator[wt] += 1
-
-                previous_gray = gray
-
-            return enumerator
+            return _gray_code_weight_enumerator(hull_basis, lambda word: int(np.count_nonzero(word)))
 
         column_gram_contributions = _gf4_column_gram_contributions(matrix)
         full_gram = np.bitwise_xor.reduce(column_gram_contributions, axis=0, initial=0)
@@ -486,12 +386,6 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
             invariants.append(inv)
 
         return invariants
-
-    def _partition_columns_by_invariants(invariants: list[tuple[int, ...]]) -> dict[tuple[int, ...], list[int]]:
-        partition = defaultdict(list)
-        for idx, inv in enumerate(invariants):
-            partition[inv].append(idx)
-        return {k: sorted(v) for k, v in sorted(partition.items(), key=operator.itemgetter(0))}
 
     gf4_tableau_c1 = _symplectic_to_gf4(c1.symplectic)
     gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
@@ -521,6 +415,34 @@ def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
 # ----------------------------------------------------------------------------------------------------
 
 
+def _bruteforce_css(c1: CSSCode, c2: CSSCode) -> list[int] | None:
+    """Brute-force check for permutation equivalence of two CSS codes."""
+    hx_rank = c1.Hx.shape[0]
+    hz_rank = c1.Hz.shape[0]
+
+    for perm in permutations(range(c1.n)):
+        if hx_rank and hx_rank != rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
+            continue
+        if hz_rank and hz_rank != rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
+            continue
+        return list(perm)
+
+    return None
+
+
+def _bruteforce_stb(c1: StabilizerCode, c2: StabilizerCode) -> list[int] | None:
+    """Brute-force check for permutation equivalence of two stabilizer codes."""
+    c1_rank = c1.symplectic.shape[0]
+
+    for perm in permutations(range(c1.n)):
+        perm_symplectic = perm + tuple(q + c1.n for q in perm)
+
+        if c1_rank == rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
+            return list(perm)
+
+    return None
+
+
 def _sat_stabilizer_code(
     c1: StabilizerCode,
     partition1: dict[tuple[int, ...], list[int]],
@@ -532,60 +454,29 @@ def _sat_stabilizer_code(
 
     r, n = c1.symplectic.shape[0], c1.n
 
-    # permutations
-    aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
+    auxiliary_x = [z3.Bool(f"aux_x_{row}_{column}") for row in range(r) for column in range(n)]
+    auxiliary_z = [z3.Bool(f"aux_z_{row}_{column}") for row in range(r) for column in range(n)]
+    permutation_variables = _encode_permutation(solver, n, partition1, partition2)
+    _encode_permutation_implications(
+        solver,
+        permutation_variables,
+        c1.symplectic[:, :n],
+        c1.symplectic[:, n:],
+        auxiliary_x,
+        auxiliary_z,
+    )
 
-    permutation_variables = {
-        (i, j): z3.Bool(f"p_{i}_{j}") for sig, col1 in partition1.items() for i in col1 for j in partition2[sig]
-    }
-
-    for i in range(n):
-        solver.add(_exactly_one([var for (src, _), var in permutation_variables.items() if src == i]))
-    for j in range(n):
-        solver.add(_exactly_one([var for (_, tgt), var in permutation_variables.items() if tgt == j]))
-
-    for (i, j), permutation_variable in permutation_variables.items():
-        x_column_original = c1.symplectic[:, i]
-        z_column_original = c1.symplectic[:, i + n]
-
-        x_column_permuted = [aux_tableau[row * (2 * n) + j] for row in range(r)]
-        z_column_permuted = [aux_tableau[row * (2 * n) + j + n] for row in range(r)]
-
-        solver.add(
-            z3.Implies(
-                permutation_variable,
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_permuted),
-                    _elementwise_map(z_column_original, z_column_permuted),
-                ),
-            )
-        )
-
-    # row operations
-    row_operation_coefficients = [z3.Bool(f"r_{i}_{j}") for i in range(r) for j in range(r)]
-
-    for row in range(r):
-        for q in range(2 * n):
-            row_contributions = [
-                row_operation_coefficients[row * r + contribution]
-                for contribution in range(r)
-                if c2.symplectic[contribution, q] == 1
-            ]
-
-            solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))
+    auxiliary_tableau = [
+        auxiliary_x[row * n + column] if column < n else auxiliary_z[row * n + column - n]
+        for row in range(r)
+        for column in range(2 * n)
+    ]
+    encode_row_operations(solver, auxiliary_tableau, c2.symplectic, variable_prefix="r")
 
     if solver.check() != z3.sat:
         return None
 
-    perm = [-1] * n
-    model = solver.model()
-    for i in range(n):
-        perm[i] = next(
-            j
-            for (src, j), var in permutation_variables.items()
-            if src == i and z3.is_true(model.eval(var, model_completion=True))
-        )
-    return perm
+    return _extract_permutation(solver.model(), n, permutation_variables)
 
 
 def _sat_css_code(
@@ -601,71 +492,17 @@ def _sat_css_code(
     rx = c1.Hx.shape[0]
     rz = c1.Hz.shape[0]
 
-    # permutations
-    aux_tableau_x = [z3.Bool(f"aux_x_{row}_{col}") for row in range(rx) for col in range(n)]
-    aux_tableau_z = [z3.Bool(f"aux_z_{row}_{col}") for row in range(rz) for col in range(n)]
-
-    permutation_variables = {
-        (i, j): z3.Bool(f"p_{i}_{j}") for sig, col1 in partition1.items() for i in col1 for j in partition2[sig]
-    }
-
-    for i in range(n):
-        solver.add(_exactly_one([var for (src, _), var in permutation_variables.items() if src == i]))
-    for j in range(n):
-        solver.add(_exactly_one([var for (_, tgt), var in permutation_variables.items() if tgt == j]))
-
-    for (i, j), permutation_variable in permutation_variables.items():
-        x_column_original = c1.Hx[:, i]
-        z_column_original = c1.Hz[:, i]
-
-        x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
-        z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
-
-        solver.add(
-            z3.Implies(
-                permutation_variable,
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_permuted),
-                    _elementwise_map(z_column_original, z_column_permuted),
-                ),
-            )
-        )
-
-    # row operations
-    row_operation_coefficients_x = [z3.Bool(f"r_x_{i}_{j}") for i in range(rx) for j in range(rx)]
-    row_operation_coefficients_z = [z3.Bool(f"r_z_{i}_{j}") for i in range(rz) for j in range(rz)]
-
-    for row in range(rx):
-        for q in range(n):
-            row_contributions = [
-                row_operation_coefficients_x[row * rx + contribution]
-                for contribution in range(rx)
-                if c2.Hx[contribution, q] == 1
-            ]
-
-            solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
-
-    for row in range(rz):
-        for q in range(n):
-            row_contributions = []
-            for contribution in range(rz):
-                if c2.Hz[contribution, q] == 1:
-                    row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
-
-            solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
+    auxiliary_x = [z3.Bool(f"aux_x_{row}_{column}") for row in range(rx) for column in range(n)]
+    auxiliary_z = [z3.Bool(f"aux_z_{row}_{column}") for row in range(rz) for column in range(n)]
+    permutation_variables = _encode_permutation(solver, n, partition1, partition2)
+    _encode_permutation_implications(solver, permutation_variables, c1.Hx, c1.Hz, auxiliary_x, auxiliary_z)
+    encode_row_operations(solver, auxiliary_x, c2.Hx, variable_prefix="r_x")
+    encode_row_operations(solver, auxiliary_z, c2.Hz, variable_prefix="r_z")
 
     if solver.check() != z3.sat:
         return None
 
-    perm = [-1] * n
-    model = solver.model()
-    for i in range(n):
-        perm[i] = next(
-            j
-            for (src, j), var in permutation_variables.items()
-            if src == i and z3.is_true(model.eval(var, model_completion=True))
-        )
-    return perm
+    return _extract_permutation(solver.model(), n, permutation_variables)
 
 
 def _matroid_css_code(
@@ -799,16 +636,87 @@ def _matroid_css_code(
 # ----------------------------------------------------------------------------------------------------
 
 
-def _elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
-    return z3.And([v if bit == 1 else z3.Not(v) for bit, v in zip(normal_bool, variables, strict=False)])
+def _partition_columns_by_invariants(invariants: Sequence[InvariantT]) -> dict[InvariantT, list[int]]:
+    """Partition column indices by invariant value."""
+    partition: defaultdict[InvariantT, list[int]] = defaultdict(list)
+    for index, invariant in enumerate(invariants):
+        partition[invariant].append(index)
+    return dict(sorted(partition.items(), key=operator.itemgetter(0)))
 
 
-def _exactly_one(variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
-    return z3.PbEq([(v, 1) for v in variables], 1)
+def _gray_code_weight_enumerator(
+    basis: npt.NDArray[np.integer], weight: Callable[[npt.NDArray[np.integer]], int]
+) -> list[int]:
+    """Enumerate the weights of a binary row span in Gray-code order."""
+    rows, columns = basis.shape
+    enumerator = [1] + [0] * columns
+    word = np.zeros(columns, dtype=basis.dtype)
+    previous_gray = 0
+
+    for value in range(1, 1 << rows):
+        gray = value ^ (value >> 1)
+        changed = gray ^ previous_gray
+        word ^= basis[changed.bit_length() - 1]
+        enumerator[weight(word)] += 1
+        previous_gray = gray
+
+    return enumerator
 
 
-def _xor_list(variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
-    acc = z3.BoolVal(False)
-    for v in variables:
-        acc = z3.Xor(acc, v)
-    return acc
+def _encode_permutation(
+    solver: z3.Solver,
+    n: int,
+    partition1: Mapping[InvariantT, Sequence[int]],
+    partition2: Mapping[InvariantT, Sequence[int]],
+) -> dict[tuple[int, int], z3.BoolRef]:
+    """Create a partition-preserving permutation matrix encoding."""
+    variables = {
+        (source, target): z3.Bool(f"p_{source}_{target}")
+        for invariant, source_columns in partition1.items()
+        for source in source_columns
+        for target in partition2[invariant]
+    }
+
+    for source in range(n):
+        solver.add(exactly_one(variable for (src, _), variable in variables.items() if src == source))
+    for target in range(n):
+        solver.add(exactly_one(variable for (_, tgt), variable in variables.items() if tgt == target))
+
+    return variables
+
+
+def _encode_permutation_implications(
+    solver: z3.Solver,
+    permutation_variables: Mapping[tuple[int, int], z3.BoolRef],
+    source_x: npt.NDArray[np.integer],
+    source_z: npt.NDArray[np.integer],
+    target_x: Sequence[z3.BoolRef],
+    target_z: Sequence[z3.BoolRef],
+) -> None:
+    """Constrain each selected permutation to map corresponding X and Z columns."""
+    for (source, target), permutation_variable in permutation_variables.items():
+        rows_x, columns_x = source_x.shape
+        rows_z, columns_z = source_z.shape
+        target_x_column = [target_x[row * columns_x + target] for row in range(rows_x)]
+        target_z_column = [target_z[row * columns_z + target] for row in range(rows_z)]
+        solver.add(
+            z3.Implies(
+                permutation_variable,
+                z3.And(
+                    elementwise_map(source_x[:, source], target_x_column),
+                    elementwise_map(source_z[:, source], target_z_column),
+                ),
+            )
+        )
+
+
+def _extract_permutation(model: z3.ModelRef, n: int, variables: Mapping[tuple[int, int], z3.BoolRef]) -> list[int]:
+    """Extract a source-to-target permutation from a satisfying model."""
+    return [
+        next(
+            target
+            for (src, target), variable in variables.items()
+            if src == source and z3.is_true(model.eval(variable, model_completion=True))
+        )
+        for source in range(n)
+    ]

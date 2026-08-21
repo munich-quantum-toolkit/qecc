@@ -15,12 +15,12 @@ import pytest
 from mqt.qecc import CSSCode, StabilizerCode
 from mqt.qecc.equivalence_checking import are_local_clifford_equivalent
 from mqt.qecc.equivalence_checking.local_clifford_eq import (
+    CLIFFORD_ACTIONS,
+    LOCAL_CLIFFORDS,
     is_local_clifford_equivalent_to_css,
     preserved_low_degree_local_invariant,
 )
 from mqt.qecc.mod2 import is_in_row_space, rank
-
-LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 # ----------------------------------------------------------------------------------------------------
 # Helpers
@@ -29,18 +29,17 @@ LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 def _apply_lc_witness(symplectic: np.ndarray, witness: list[str]) -> np.ndarray:
     transformed = symplectic.copy()
-    n = transformed.shape[1] // 2
 
-    assert len(witness) == n
+    assert len(witness) == transformed.shape[1] // 2
     assert all(operation in LOCAL_CLIFFORDS for operation in witness)
 
     for qubit, operation in enumerate(witness):
-        # strings denote matrix products
-        for gate in reversed(operation):
-            if gate == "H":
-                transformed[:, [qubit, qubit + n]] = transformed[:, [qubit + n, qubit]]
-            elif gate == "S":
-                transformed[:, qubit + n] ^= transformed[:, qubit]
+        n = transformed.shape[1] // 2
+        matrix = np.asarray(CLIFFORD_ACTIONS[operation].matrix, dtype=np.int8)
+        x_column = transformed[:, qubit].copy()
+        z_column = transformed[:, qubit + n].copy()
+        transformed[:, qubit] = (matrix[0, 0] * x_column + matrix[0, 1] * z_column) % 2
+        transformed[:, qubit + n] = (matrix[1, 0] * x_column + matrix[1, 1] * z_column) % 2
 
     return transformed
 

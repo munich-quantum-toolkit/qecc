@@ -16,25 +16,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from ..codes.core.pauli import PauliTableau
-from ..codes.core.stabilizer_code import StabilizerCode
-from ..mod2 import nullspace, rank, row_basis
+from ..mod2 import nullspace, rank
+from ._cliffords import CLIFFORD_ACTIONS, LOCAL_CLIFFORDS, CliffordMatrix, ColumnSource
+from .utils import elementwise_map, encode_row_operations, exactly_one, reduce_stabilizer_generators
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
-
     import numpy.typing as npt
 
-
-def _reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode:
-    """Return an equivalent code with a minimal independent generator set."""
-    reduced_symplectic = row_basis(code.symplectic).astype(np.int8)
-    return StabilizerCode(
-        generators=PauliTableau.from_matrix(reduced_symplectic),
-        distance=code.distance,
-        z_logicals=code.z_logicals,
-        x_logicals=code.x_logicals,
-    )
+    from ..codes.core.stabilizer_code import StabilizerCode
 
 
 def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) -> list[str] | None:
@@ -50,8 +39,8 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
         The single-qubit Clifford operations mapping ``code1`` to ``code2``,
         or ``None`` if no such operations exist.
     """
-    code1 = _reduce_stabilizer_generators(code1)
-    code2 = _reduce_stabilizer_generators(code2)
+    code1 = reduce_stabilizer_generators(code1)
+    code2 = reduce_stabilizer_generators(code2)
 
     cheap_invariants = (
         _preserved_n,
@@ -80,7 +69,7 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     Returns:
         Whether the code is locally Clifford equivalent to a CSS code.
     """
-    code = _reduce_stabilizer_generators(code)
+    code = reduce_stabilizer_generators(code)
 
     if code.n < 4:
         return _bruteforce_css_code(code)
@@ -141,7 +130,7 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
 
 
 # ----------------------------------------------------------------------------------------------------
-#   Brute force algorithms
+#   Decision procedures
 # ----------------------------------------------------------------------------------------------------
 
 
@@ -149,38 +138,16 @@ def _bruteforce_css_code(c: StabilizerCode) -> bool:
     """Check LC equivalence to a CSS code by enumerating local Cliffords."""
     r, n = c.symplectic.shape[0], c.n
 
-    def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> None:
-        if lc == "I":
-            pass
-        elif lc == "H":
-            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
-        elif lc == "S":
-            tableau[:, qubit + n] ^= tableau[:, qubit]
-        elif lc == "HS":
-            tableau[:, qubit + n] ^= tableau[:, qubit]
-            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
-        elif lc == "SH":
-            tableau[:, qubit] ^= tableau[:, qubit + n]
-            tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
-        elif lc == "HSH":
-            tableau[:, qubit] ^= tableau[:, qubit + n]
-
     for action in product(LOCAL_CLIFFORDS, repeat=n):
         lc_tableau = c.symplectic.copy()
 
         for qubit, lc in enumerate(action):
-            apply_lc(lc_tableau, lc, qubit)
+            _apply_local_clifford(lc_tableau, lc, qubit)
 
         if rank(lc_tableau[:, :n]) + rank(lc_tableau[:, n:]) == r:
             return True
 
     return False
-
-
-# ----------------------------------------------------------------------------------------------------
-#   Decision procedures
-# ----------------------------------------------------------------------------------------------------
-LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 
 def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | None:
@@ -351,20 +318,10 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
             c_i = x[2 * n + i]
             d_i = x[3 * n + i]
 
-            if (a_i, b_i, c_i, d_i) == (1, 0, 0, 1):
-                lc[i] = "I"
-            elif (a_i, b_i, c_i, d_i) == (0, 1, 1, 0):
-                lc[i] = "H"
-            elif (a_i, b_i, c_i, d_i) == (1, 1, 0, 1):
-                lc[i] = "S"
-            elif (a_i, b_i, c_i, d_i) == (0, 1, 1, 1):
-                lc[i] = "HS"
-            elif (a_i, b_i, c_i, d_i) == (1, 1, 1, 0):
-                lc[i] = "SH"
-            elif (a_i, b_i, c_i, d_i) == (1, 0, 1, 1):
-                lc[i] = "HSH"
-            else:
+            operation = _clifford_from_lse_coefficients(int(a_i), int(b_i), int(c_i), int(d_i))
+            if operation is None:
                 return None
+            lc[i] = operation
         return lc
 
     def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n: int) -> list[str] | None:
@@ -469,35 +426,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
 
     def _simplify_lc_operations(lc: list[str]) -> list[str]:
         """Replace local Clifford words with canonical representatives."""
-        identity = np.eye(2, dtype=np.uint8)
-        h = np.array([[0, 1], [1, 0]], dtype=np.uint8)
-        s = np.array([[1, 0], [1, 1]], dtype=np.uint8)
-
-        representatives = {
-            "I": identity,
-            "H": h,
-            "S": s,
-            "HS": (h @ s) % 2,
-            "SH": (s @ h) % 2,
-            "HSH": (h @ s @ h) % 2,
-        }
-        name_by_matrix = {tuple(matrix.flat): name for name, matrix in representatives.items()}
-
-        def canonicalize(word: str) -> str:
-            matrix = identity.copy()
-
-            for gate in word:
-                if gate == "H":
-                    matrix = (matrix @ h) % 2
-                elif gate == "S":
-                    matrix = (matrix @ s) % 2
-                elif gate != "I":
-                    msg = f"Unknown Clifford gate {gate!r}."
-                    raise ValueError(msg)
-
-            return name_by_matrix[tuple(matrix.flat)]
-
-        return [canonicalize(operation) for operation in lc]
+        return [_canonicalize_clifford(operation) for operation in lc]
 
     stab_state1 = _stab_code_to_stab_state(c1)
     stab_state2 = _stab_code_to_stab_state(c2)
@@ -519,101 +448,9 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
     solver = z3.Solver()
 
     r, n = c1.symplectic.shape[0], c1.n
-
-    # local cliffords
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
-
-    local_clifford_variables = [
-        {operation: z3.Bool(f"lc_{qubit}_{operation}") for operation in LOCAL_CLIFFORDS} for qubit in range(n)
-    ]
-
-    for qubit_variables in local_clifford_variables:
-        solver.add(_exactly_one(qubit_variables.values()))
-
-    for i in range(n):
-        x_column_original = c1.symplectic[:, i]
-        z_column_original = c1.symplectic[:, i + n]
-        x_z_column_original = (x_column_original + z_column_original) % 2
-
-        x_column_aux = [aux_tableau[row * (2 * n) + i] for row in range(r)]
-        z_column_aux = [aux_tableau[row * (2 * n) + i + n] for row in range(r)]
-
-        # I : (x, z) -> (x, z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["I"],
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux)
-                ),
-            )
-        )
-
-        # H : (x, z) -> (z, x)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["H"],
-                z3.And(
-                    _elementwise_map(z_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux)
-                ),
-            )
-        )
-
-        # S : (x, z) -> (x, x + z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["S"],
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_aux),
-                    _elementwise_map(x_z_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # HS : (x, z) -> (x + z, x)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["HS"],
-                z3.And(
-                    _elementwise_map(x_z_column_original, x_column_aux),
-                    _elementwise_map(x_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # SH : (x, z) -> (z, x + z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["SH"],
-                z3.And(
-                    _elementwise_map(z_column_original, x_column_aux),
-                    _elementwise_map(x_z_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # HSH : (x, z) -> (x + z, z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["HSH"],
-                z3.And(
-                    _elementwise_map(x_z_column_original, x_column_aux),
-                    _elementwise_map(z_column_original, z_column_aux),
-                ),
-            )
-        )
-
-    # row operations
-    row_operation_coefficients = [z3.Bool(f"r_{i}_{j}") for i in range(r) for j in range(r)]
-
-    for row in range(r):
-        for q in range(2 * n):
-            row_contributions = [
-                row_operation_coefficients[row * r + contribution]
-                for contribution in range(r)
-                if c2.symplectic[contribution, q] == 1
-            ]
-
-            solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))
+    local_clifford_variables = _encode_local_cliffords(solver, c1.symplectic, aux_tableau)
+    encode_row_operations(solver, aux_tableau, c2.symplectic, variable_prefix="r")
 
     if solver.check() != z3.sat:
         return None
@@ -638,102 +475,9 @@ def _sat_css_code(c: StabilizerCode) -> bool:
     solver = z3.Solver()
 
     r, n = c.symplectic.shape[0], c.n
-
-    # cliffords
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
-
-    local_clifford_variables = [
-        {operation: z3.Bool(f"lc_{qubit}_{operation}") for operation in LOCAL_CLIFFORDS} for qubit in range(n)
-    ]
-
-    for qubit_variables in local_clifford_variables:
-        solver.add(_exactly_one(qubit_variables.values()))
-
-    for i in range(n):
-        x_column_original = c.symplectic[:, i]
-        z_column_original = c.symplectic[:, i + n]
-        x_z_column_original = (x_column_original + z_column_original) % 2
-        zero_column_original = np.zeros_like(x_column_original)
-
-        x_column_aux = [aux_tableau[row * (2 * n) + i] for row in range(r)]
-        z_column_aux = [aux_tableau[row * (2 * n) + i + n] for row in range(r)]
-
-        # I^(-1) P_x I : (x, z) -> (x, 0)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["I"],
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_aux),
-                    _elementwise_map(zero_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # H^(-1) P_x H : (x, z) -> (0, z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["H"],
-                z3.And(
-                    _elementwise_map(zero_column_original, x_column_aux),
-                    _elementwise_map(z_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # S^(-1) P_x S : (x, z) -> (x, x)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["S"],
-                z3.And(
-                    _elementwise_map(x_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux)
-                ),
-            )
-        )
-
-        # (HS)^(-1) P_x (HS)  : (x, z) -> (z, z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["HS"],
-                z3.And(
-                    _elementwise_map(z_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux)
-                ),
-            )
-        )
-
-        # (SH)^(-1) P_x (SH) : (x, z) -> (0, x + z)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["SH"],
-                z3.And(
-                    _elementwise_map(zero_column_original, x_column_aux),
-                    _elementwise_map(x_z_column_original, z_column_aux),
-                ),
-            )
-        )
-
-        # (HSH)^(-1) P_x (HSH) : (x, z) -> (x + z, 0)
-        solver.add(
-            z3.Implies(
-                local_clifford_variables[i]["HSH"],
-                z3.And(
-                    _elementwise_map(x_z_column_original, x_column_aux),
-                    _elementwise_map(zero_column_original, z_column_aux),
-                ),
-            )
-        )
-
-    # row operations
-    row_operation_coefficients = [z3.Bool(f"r_{i}_{j}") for i in range(r) for j in range(r)]
-
-    for row in range(r):
-        for q in range(2 * n):
-            row_contributions = [
-                row_operation_coefficients[row * r + contribution]
-                for contribution in range(r)
-                if c.symplectic[contribution, q] == 1
-            ]
-
-            solver.add(aux_tableau[row * (2 * n) + q] == _xor_list(row_contributions))
+    _encode_local_cliffords(solver, c.symplectic, aux_tableau, project_to_css=True)
+    encode_row_operations(solver, aux_tableau, c.symplectic, variable_prefix="r")
 
     return solver.check() == z3.sat
 
@@ -743,16 +487,84 @@ def _sat_css_code(c: StabilizerCode) -> bool:
 # ----------------------------------------------------------------------------------------------------
 
 
-def _elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
-    return z3.And([v if bit == 1 else z3.Not(v) for bit, v in zip(normal_bool, variables, strict=False)])
+def _encode_local_cliffords(
+    solver: z3.Solver,
+    source_tableau: npt.NDArray[np.integer],
+    auxiliary_tableau: list[z3.BoolRef],
+    *,
+    project_to_css: bool = False,
+) -> list[dict[str, z3.BoolRef]]:
+    """Encode a local Clifford action on a symplectic tableau."""
+    rows, twice_n = source_tableau.shape
+    n = twice_n // 2
+    variables = [{operation: z3.Bool(f"lc_{qubit}_{operation}") for operation in LOCAL_CLIFFORDS} for qubit in range(n)]
+
+    for qubit, qubit_variables in enumerate(variables):
+        solver.add(exactly_one(qubit_variables.values()))
+        x_column = source_tableau[:, qubit]
+        z_column = source_tableau[:, qubit + n]
+        auxiliary_x = [auxiliary_tableau[row * twice_n + qubit] for row in range(rows)]
+        auxiliary_z = [auxiliary_tableau[row * twice_n + qubit + n] for row in range(rows)]
+
+        for operation, action in CLIFFORD_ACTIONS.items():
+            x_source, z_source = action.css_projected_columns if project_to_css else action.transformed_columns
+            solver.add(
+                z3.Implies(
+                    qubit_variables[operation],
+                    z3.And(
+                        elementwise_map(_select_column(x_source, x_column, z_column), auxiliary_x),
+                        elementwise_map(_select_column(z_source, x_column, z_column), auxiliary_z),
+                    ),
+                )
+            )
+
+    return variables
 
 
-def _exactly_one(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
-    return z3.PbEq([(v, 1) for v in variables], 1)
+def _select_column(
+    source: ColumnSource, x_column: npt.NDArray[np.integer], z_column: npt.NDArray[np.integer]
+) -> npt.NDArray[np.integer]:
+    """Select a binary column expression from two symplectic columns."""
+    if source == "zero":
+        return np.zeros_like(x_column)
+    if source == "x":
+        return x_column
+    if source == "z":
+        return z_column
+    return (x_column + z_column) % 2
 
 
-def _xor_list(variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
-    acc = z3.BoolVal(False)
-    for v in variables:
-        acc = z3.Xor(acc, v)
-    return acc
+def _apply_local_clifford(tableau: npt.NDArray[np.int8], operation: str, qubit: int) -> None:
+    """Apply a local Clifford representative to one tableau qubit in place."""
+    n = tableau.shape[1] // 2
+    x_column = tableau[:, qubit].copy()
+    z_column = tableau[:, qubit + n].copy()
+    x_source, z_source = CLIFFORD_ACTIONS[operation].transformed_columns
+    tableau[:, qubit] = _select_column(x_source, x_column, z_column)
+    tableau[:, qubit + n] = _select_column(z_source, x_column, z_column)
+
+
+def _canonicalize_clifford(word: str) -> str:
+    """Return the canonical representative of a Clifford word."""
+    matrix = np.eye(2, dtype=np.uint8)
+    for gate in word:
+        if gate not in {"H", "S", "I"}:
+            msg = f"Unknown Clifford gate {gate!r}."
+            raise ValueError(msg)
+        matrix = (matrix @ np.asarray(CLIFFORD_ACTIONS[gate].matrix, dtype=np.uint8)) % 2
+
+    matrices = {action.matrix: name for name, action in CLIFFORD_ACTIONS.items()}
+    key: CliffordMatrix = (
+        (int(matrix[0, 0]), int(matrix[0, 1])),
+        (int(matrix[1, 0]), int(matrix[1, 1])),
+    )
+    return matrices[key]
+
+
+def _clifford_from_lse_coefficients(a: int, b: int, c: int, d: int) -> str | None:
+    """Decode an LSE solution using the transpose matrix convention."""
+    lse_matrix = ((a, b), (c, d))
+    return next(
+        (name for name, action in CLIFFORD_ACTIONS.items() if tuple(zip(*action.matrix, strict=True)) == lse_matrix),
+        None,
+    )
