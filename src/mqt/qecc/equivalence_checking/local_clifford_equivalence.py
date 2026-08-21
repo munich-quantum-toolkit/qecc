@@ -24,7 +24,7 @@ from ._cliffords import (
     _canonicalize_clifford,
     _select_column,
 )
-from .utils import elementwise_map, encode_row_operations, exactly_one, reduce_stabilizer_generators
+from .utils import _elementwise_map, _encode_row_operations, _exactly_one, _reduce_stabilizer_generators
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -52,8 +52,8 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
         The single-qubit Clifford operations mapping ``code1`` to ``code2``,
         or ``None`` if no such operations exist.
     """
-    code1 = reduce_stabilizer_generators(code1)
-    code2 = reduce_stabilizer_generators(code2)
+    code1 = _reduce_stabilizer_generators(code1)
+    code2 = _reduce_stabilizer_generators(code2)
 
     cheap_invariants = (
         _preserved_n,
@@ -82,7 +82,7 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     Returns:
         Whether the code is locally Clifford equivalent to a CSS code.
     """
-    code = reduce_stabilizer_generators(code)
+    code = _reduce_stabilizer_generators(code)
 
     if code.n <= BRUTEFORCE_CSS_MAX_QUBITS:
         return _bruteforce_css_code(code)
@@ -205,7 +205,7 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
     r, n = c1.symplectic.shape[0], c1.n
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
     local_clifford_variables = _encode_local_cliffords(solver, c1.symplectic, aux_tableau)
-    encode_row_operations(solver, aux_tableau, c2.symplectic, variable_prefix="r")
+    _encode_row_operations(solver, aux_tableau, c2.symplectic, variable_prefix="r")
 
     if solver.check() != z3.sat:
         return None
@@ -232,7 +232,7 @@ def _sat_css_code(c: StabilizerCode) -> bool:
     r, n = c.symplectic.shape[0], c.n
     aux_tableau = [z3.Bool(f"aux_{row}_{col}") for row in range(r) for col in range(2 * n)]
     _encode_local_cliffords(solver, c.symplectic, aux_tableau, project_to_css=True)
-    encode_row_operations(solver, aux_tableau, c.symplectic, variable_prefix="r")
+    _encode_row_operations(solver, aux_tableau, c.symplectic, variable_prefix="r")
 
     return solver.check() == z3.sat
 
@@ -435,7 +435,7 @@ def _encode_local_cliffords(
     variables = [{operation: z3.Bool(f"lc_{qubit}_{operation}") for operation in LOCAL_CLIFFORDS} for qubit in range(n)]
 
     for qubit, qubit_variables in enumerate(variables):
-        solver.add(exactly_one(qubit_variables.values()))
+        solver.add(_exactly_one(qubit_variables.values()))
         x_column = source_tableau[:, qubit]
         z_column = source_tableau[:, qubit + n]
         auxiliary_x = [auxiliary_tableau[row * twice_n + qubit] for row in range(rows)]
@@ -447,8 +447,8 @@ def _encode_local_cliffords(
                 z3.Implies(
                     qubit_variables[operation],
                     z3.And(
-                        elementwise_map(_select_column(x_source, x_column, z_column), auxiliary_x),
-                        elementwise_map(_select_column(z_source, x_column, z_column), auxiliary_z),
+                        _elementwise_map(_select_column(x_source, x_column, z_column), auxiliary_x),
+                        _elementwise_map(_select_column(z_source, x_column, z_column), auxiliary_z),
                     ),
                 )
             )

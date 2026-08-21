@@ -15,6 +15,8 @@ import pytest
 from mqt.qecc import CSSCode, StabilizerCode, are_permutation_equivalent
 from mqt.qecc.equivalence_checking.permutation_equivalence import (
     _binary_punctured_hull_bases,  # ruff: ignore[import-private-name]
+    _circuits_binary_matroid,  # ruff: ignore[import-private-name]
+    _graph_from_circuits_and_invariants,  # ruff: ignore[import-private-name]
     _matching_invariant_partitions,  # ruff: ignore[import-private-name]
     _quaternary_punctured_hull_bases,  # ruff: ignore[import-private-name]
     _sat_stabilizer_code,  # ruff: ignore[import-private-name]
@@ -78,6 +80,28 @@ def test_quaternary_trivial_hull() -> None:
 def test_partition_multiplicities() -> None:
     """Test that invariant partitions with different class sizes do not match."""
     assert _matching_invariant_partitions([0, 0, 1], [0, 1, 1]) is None
+
+
+def test_binary_matroid_circuits() -> None:
+    """Test circuit extraction for a simple binary dependency."""
+    matrix = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.uint8)
+
+    assert _circuits_binary_matroid(matrix) == [0b111]
+
+
+def test_matroid_incidence_graph() -> None:
+    """Test the colored incidence graph for two matroid circuits."""
+    graph = _graph_from_circuits_and_invariants(
+        3,
+        circuits_hx=[0b101],
+        circuits_hz=[0b110],
+        partition={0: [0, 1], 1: [2]},
+    )
+
+    assert set(graph.edges) == {(0, 3), (1, 4), (2, 3), (2, 4)}
+    assert [graph.nodes[qubit]["color"] for qubit in range(3)] == [("qubit", 0), ("qubit", 0), ("qubit", 1)]
+    assert graph.nodes[3]["color"] == ("hx",)
+    assert graph.nodes[4]["color"] == ("hz",)
 
 
 # ----------------------------------------------------------------------------------------------------

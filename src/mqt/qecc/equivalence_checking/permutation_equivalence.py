@@ -23,7 +23,7 @@ from ..codes.core.css_code import CSSCode
 from ..mod2 import nullspace, rank, row_basis
 from ..mod4 import matmul_gf2_gf4
 from ..mod4 import row_basis as gf4_row_basis
-from .utils import elementwise_map, encode_row_operations, exactly_one, reduce_stabilizer_generators
+from .utils import _elementwise_map, _encode_row_operations, _exactly_one, _reduce_stabilizer_generators
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
@@ -60,8 +60,8 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
         The qubit permutation mapping ``code1`` to ``code2``, or ``None`` if no
         such permutation exists. Entry ``i`` gives the target of qubit ``i``.
     """
-    code1 = reduce_stabilizer_generators(code1)
-    code2 = reduce_stabilizer_generators(code2)
+    code1 = _reduce_stabilizer_generators(code1)
+    code2 = _reduce_stabilizer_generators(code2)
 
     cheap_invariants = (
         _preserved_n,
@@ -316,7 +316,7 @@ def _sat_stabilizer_code(
         for row in range(r)
         for column in range(2 * n)
     ]
-    encode_row_operations(solver, auxiliary_tableau, c2.symplectic, variable_prefix="r")
+    _encode_row_operations(solver, auxiliary_tableau, c2.symplectic, variable_prefix="r")
 
     if solver.check() != z3.sat:
         return None
@@ -341,8 +341,8 @@ def _sat_css_code(
     auxiliary_z = [z3.Bool(f"aux_z_{row}_{column}") for row in range(rz) for column in range(n)]
     permutation_variables = _encode_permutation(solver, n, partition1, partition2)
     _encode_permutation_implications(solver, permutation_variables, c1.Hx, c1.Hz, auxiliary_x, auxiliary_z)
-    encode_row_operations(solver, auxiliary_x, c2.Hx, variable_prefix="r_x")
-    encode_row_operations(solver, auxiliary_z, c2.Hz, variable_prefix="r_z")
+    _encode_row_operations(solver, auxiliary_x, c2.Hx, variable_prefix="r_x")
+    _encode_row_operations(solver, auxiliary_z, c2.Hz, variable_prefix="r_z")
 
     if solver.check() != z3.sat:
         return None
@@ -357,88 +357,6 @@ def _matroid_css_code(
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
     """Check CSS-code permutation equivalence through matroid isomorphism."""
-
-    def _circuits_binary_matroid(a: npt.NDArray[np.int8]) -> list[int]:
-        def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
-            support = 0
-            for col in np.flatnonzero(row):
-                support |= 1 << int(col)
-            return support
-
-        k = nullspace(a)
-        k_m, _ = k.shape
-        row_supports = [_row_support_as_mask(row) for row in k]
-        circuits_by_size: list[list[int]] = [[] for _ in range(a.shape[1] + 1)]
-
-        support = 0
-        previous_gray = 0
-        for mask in range(1, 1 << k_m):
-            gray = mask ^ (mask >> 1)
-            changed = gray ^ previous_gray
-            support ^= row_supports[changed.bit_length() - 1]
-            previous_gray = gray
-
-            if not support:
-                continue
-
-            support_size = support.bit_count()
-
-            if any(
-                (circuit & support) == circuit
-                for size in range(1, support_size + 1)
-                for circuit in circuits_by_size[size]
-            ):
-                continue
-
-            for size in range(support_size + 1, len(circuits_by_size)):
-                if not circuits_by_size[size]:
-                    continue
-                circuits_by_size[size] = [
-                    circuit for circuit in circuits_by_size[size] if (support & circuit) != support
-                ]
-
-            circuits_by_size[support_size].append(support)
-
-        return [circuit for circuits in circuits_by_size for circuit in sorted(circuits)]
-
-    def _graph_from_circuits_and_invariants(
-        n: int, circuits_hx: list[int], circuits_hz: list[int], partition: dict[int, list[int]]
-    ) -> nx.Graph:
-        def _iter_mask_bits(mask: int) -> Iterator[int]:
-            while mask:
-                bit = mask & -mask
-                yield bit.bit_length() - 1
-                mask ^= bit
-
-        n_hx = len(circuits_hx)
-        n_hz = len(circuits_hz)
-
-        hx_offset = n
-        hz_offset = n + n_hx
-
-        graph = nx.Graph()
-        graph.add_nodes_from(range(n + n_hx + n_hz))
-
-        qubit_color: dict[int, int] = {}
-        for color, (_, columns) in enumerate(sorted(partition.items())):
-            for column in columns:
-                qubit_color[column] = color
-
-        for q in range(n):
-            graph.nodes[q]["color"] = ("qubit", qubit_color[q])
-
-        def _add_edges_from_circuits(circuits: list[int], offset: int, kind: str) -> None:
-            for i, circuit in enumerate(circuits):
-                circuit_vertex = offset + i
-                graph.nodes[circuit_vertex]["color"] = (kind,)
-                for q in _iter_mask_bits(circuit):
-                    graph.add_edge(q, circuit_vertex)
-
-        _add_edges_from_circuits(circuits_hx, hx_offset, "hx")
-        _add_edges_from_circuits(circuits_hz, hz_offset, "hz")
-
-        return graph
-
     n = c1.n
 
     circuits_c1_hx = _circuits_binary_matroid(c1.Hx)
@@ -479,6 +397,77 @@ def _matroid_css_code(
 # ----------------------------------------------------------------------------------------------------
 #   Helper functions
 # ----------------------------------------------------------------------------------------------------
+
+
+def _circuits_binary_matroid(matrix: npt.NDArray[np.integer]) -> list[int]:
+    """Return the circuits of a binary matroid as support bit masks."""
+    kernel = nullspace(matrix)
+    kernel_rows = kernel.shape[0]
+    row_supports = [sum(1 << int(column) for column in np.flatnonzero(row)) for row in kernel]
+    circuits_by_size: list[list[int]] = [[] for _ in range(matrix.shape[1] + 1)]
+
+    support = 0
+    previous_gray = 0
+    for mask in range(1, 1 << kernel_rows):
+        gray = mask ^ (mask >> 1)
+        changed = gray ^ previous_gray
+        support ^= row_supports[changed.bit_length() - 1]
+        previous_gray = gray
+
+        if not support:
+            continue
+
+        support_size = support.bit_count()
+        if any(
+            (circuit & support) == circuit for size in range(1, support_size + 1) for circuit in circuits_by_size[size]
+        ):
+            continue
+
+        for size in range(support_size + 1, len(circuits_by_size)):
+            if circuits_by_size[size]:
+                circuits_by_size[size] = [
+                    circuit for circuit in circuits_by_size[size] if (support & circuit) != support
+                ]
+
+        circuits_by_size[support_size].append(support)
+
+    return [circuit for circuits in circuits_by_size for circuit in sorted(circuits)]
+
+
+def _graph_from_circuits_and_invariants(
+    n: int,
+    circuits_hx: list[int],
+    circuits_hz: list[int],
+    partition: dict[int, list[int]],
+) -> nx.Graph:
+    """Build a colored incidence graph for two binary matroids."""
+    n_hx = len(circuits_hx)
+    n_hz = len(circuits_hz)
+    hx_offset = n
+    hz_offset = n + n_hx
+
+    graph = nx.Graph()
+    graph.add_nodes_from(range(n + n_hx + n_hz))
+
+    qubit_color: dict[int, int] = {}
+    for color, (_, columns) in enumerate(sorted(partition.items())):
+        for column in columns:
+            qubit_color[column] = color
+
+    for qubit in range(n):
+        graph.nodes[qubit]["color"] = ("qubit", qubit_color[qubit])
+
+    for circuits, offset, kind in ((circuits_hx, hx_offset, "hx"), (circuits_hz, hz_offset, "hz")):
+        for index, circuit in enumerate(circuits):
+            circuit_vertex = offset + index
+            graph.nodes[circuit_vertex]["color"] = (kind,)
+            remaining = circuit
+            while remaining:
+                bit = remaining & -remaining
+                graph.add_edge(bit.bit_length() - 1, circuit_vertex)
+                remaining ^= bit
+
+    return graph
 
 
 def _binary_punctured_hull_bases(
@@ -600,9 +589,9 @@ def _encode_permutation(
     }
 
     for source in range(n):
-        solver.add(exactly_one(variable for (src, _), variable in variables.items() if src == source))
+        solver.add(_exactly_one(variable for (src, _), variable in variables.items() if src == source))
     for target in range(n):
-        solver.add(exactly_one(variable for (_, tgt), variable in variables.items() if tgt == target))
+        solver.add(_exactly_one(variable for (_, tgt), variable in variables.items() if tgt == target))
 
     return variables
 
@@ -625,8 +614,8 @@ def _encode_permutation_implications(
             z3.Implies(
                 permutation_variable,
                 z3.And(
-                    elementwise_map(source_x[:, source], target_x_column),
-                    elementwise_map(source_z[:, source], target_z_column),
+                    _elementwise_map(source_x[:, source], target_x_column),
+                    _elementwise_map(source_z[:, source], target_z_column),
                 ),
             )
         )

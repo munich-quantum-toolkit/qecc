@@ -30,19 +30,19 @@ if TYPE_CHECKING:
 # ----------------------------------------------------------------------------------------------------
 
 
-def elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
+def _elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
     """Constrain Boolean variables to equal a binary vector."""
     return z3.And([
         variable if bit == 1 else z3.Not(variable) for bit, variable in zip(normal_bool, variables, strict=True)
     ])
 
 
-def exactly_one(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
+def _exactly_one(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
     """Constrain exactly one of the given Boolean variables to hold."""
     return z3.PbEq([(variable, 1) for variable in variables], 1)
 
 
-def xor_list(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
+def _xor_list(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
     """Return the exclusive-or of an iterable of Boolean variables."""
     result = z3.BoolVal(False)
     for variable in variables:
@@ -50,7 +50,7 @@ def xor_list(variables: Iterable[z3.BoolRef]) -> z3.BoolRef:
     return result
 
 
-def encode_row_operations(
+def _encode_row_operations(
     solver: z3.Solver,
     auxiliary_matrix: Sequence[z3.BoolRef],
     target_matrix: npt.NDArray[np.integer],
@@ -66,18 +66,18 @@ def encode_row_operations(
             contributions = (
                 coefficients[row * rows + source] for source in range(rows) if target_matrix[source, column] == 1
             )
-            solver.add(auxiliary_matrix[row * columns + column] == xor_list(contributions))
+            solver.add(auxiliary_matrix[row * columns + column] == _xor_list(contributions))
 
 
 @overload
-def reduce_stabilizer_generators(code: CSSCode) -> CSSCode: ...
+def _reduce_stabilizer_generators(code: CSSCode) -> CSSCode: ...
 
 
 @overload
-def reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode: ...
+def _reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode: ...
 
 
-def reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode:
+def _reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode:
     """Return an equivalent code with a minimal independent generator set."""
     if isinstance(code, CSSCode):
         return CSSCode(
