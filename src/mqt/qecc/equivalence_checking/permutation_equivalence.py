@@ -97,12 +97,10 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
     if code1.n >= LINEAR_DEPENDENCY_MIN_QUBITS_CSS and not _preserved_linear_dependencies(code1, code2):
         return None
 
-    result, partition1, partition2 = _preserved_punctured_hull_weight_enumerator_css_code(code1, code2)
-    if not result:
+    partitions = _preserved_punctured_hull_weight_enumerator_css_code(code1, code2)
+    if partitions is None:
         return None
-
-    assert partition1 is not None
-    assert partition2 is not None
+    partition1, partition2 = partitions
 
     if code1.n <= MATROID_MAX_QUBITS_CSS:
         return _matroid_css_code(code1, partition1, code2, partition2)
@@ -137,18 +135,10 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
     partition1 = {(): list(range(code1.n))}
     partition2 = {(): list(range(code2.n))}
     if code1.n <= PUNCTURED_HULL_MAX_QUBITS_STB:
-        result, refined_partition1, refined_partition2 = _preserved_punctured_hull_weight_enumerator_stabilizer_code(
-            code1, code2
-        )
-
-        if not result:
+        refined_partitions = _preserved_punctured_hull_weight_enumerator_stabilizer_code(code1, code2)
+        if refined_partitions is None:
             return None
-
-        partition1 = refined_partition1
-        partition2 = refined_partition2
-
-    assert partition1 is not None
-    assert partition2 is not None
+        partition1, partition2 = refined_partitions
     return _sat_stabilizer_code(code1, partition1, code2, partition2)
 
 
@@ -184,7 +174,7 @@ def _preserved_number_zero_columns(c1: StabilizerCode | CSSCode, c2: StabilizerC
 def _preserved_number_duplicate_columns(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
     """Check the duplicate-column-count invariant for permutation equivalence."""
 
-    def _duplicate_column(m: np.ndarray) -> list[int]:
+    def _duplicate_column(m: npt.NDArray[np.integer]) -> list[int]:
         columns = [tuple(m[:, j].tolist()) for j in range(m.shape[1])]
         counts = Counter(columns)
         return sorted(counts.values())
@@ -220,7 +210,7 @@ def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerC
 
 def _preserved_punctured_hull_weight_enumerator_css_code(
     c1: CSSCode, c2: CSSCode
-) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
+) -> tuple[dict[int, list[int]], dict[int, list[int]]] | None:
     """Partition CSS-code qubits using punctured-hull weight enumerators.
 
     This invariant is based on Sendrier's support splitting algorithm:
@@ -228,7 +218,9 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
     """
     n = c1.n
 
-    def _generator_matrix_from_parity_check(parity_check: np.ndarray) -> np.ndarray:
+    def _generator_matrix_from_parity_check(
+        parity_check: npt.NDArray[np.integer],
+    ) -> npt.NDArray[np.integer]:
         if parity_check.size == 0 or parity_check.shape[0] == 0:
             return np.eye(n, dtype=np.uint8)
         return nullspace(parity_check)
@@ -245,7 +237,7 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
 
 def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
     c1: StabilizerCode, c2: StabilizerCode
-) -> tuple[bool, dict[tuple[int, ...], list[int]] | None, dict[tuple[int, ...], list[int]] | None]:
+) -> tuple[dict[tuple[int, ...], list[int]], dict[tuple[int, ...], list[int]]] | None:
     """Partition stabilizer-code qubits using punctured-hull weight enumerators.
 
     This invariant is based on Sendrier's support splitting algorithm:
@@ -489,7 +481,9 @@ def _matroid_css_code(
 # ----------------------------------------------------------------------------------------------------
 
 
-def _binary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]:
+def _binary_punctured_hull_bases(
+    matrix: npt.NDArray[np.integer],
+) -> Iterator[npt.NDArray[np.integer]]:
     """Yield a binary hull basis for every punctured column of a matrix."""
     for column in range(matrix.shape[1]):
         punctured = np.delete(matrix, column, axis=1)
@@ -507,7 +501,9 @@ def _binary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]:
                 yield row_basis((coefficients @ punctured) & 1).astype(np.uint8)
 
 
-def _quaternary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]:
+def _quaternary_punctured_hull_bases(
+    matrix: npt.NDArray[np.integer],
+) -> Iterator[npt.NDArray[np.integer]]:
     """Yield an additive GF(4) hull basis for every punctured column of a matrix."""
     num_rows, num_columns = matrix.shape
     contributions = np.zeros((num_columns, num_rows, num_rows), dtype=np.uint8)
@@ -530,13 +526,13 @@ def _quaternary_punctured_hull_bases(matrix: np.ndarray) -> Iterator[np.ndarray]
 
 
 def _punctured_hull_weight_enumerators(
-    hull_bases: Iterator[np.ndarray], weight: Callable[[npt.NDArray[np.integer]], int]
+    hull_bases: Iterator[npt.NDArray[np.integer]], weight: Callable[[npt.NDArray[np.integer]], int]
 ) -> list[tuple[int, ...]]:
     """Compute a weight enumerator for each punctured hull basis."""
     return [tuple(_gray_code_weight_enumerator(basis, weight)) for basis in hull_bases]
 
 
-def _css_punctured_hull_signatures(gx: np.ndarray, gz: np.ndarray) -> list[int]:
+def _css_punctured_hull_signatures(gx: npt.NDArray[np.integer], gz: npt.NDArray[np.integer]) -> list[int]:
     """Combine binary X- and Z-code punctured-hull enumerators into signatures."""
     x_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gx), lambda word: int(word.sum()))
     z_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gz), lambda word: int(word.sum()))
@@ -550,16 +546,16 @@ def _css_punctured_hull_signatures(gx: np.ndarray, gz: np.ndarray) -> list[int]:
 
 def _matching_invariant_partitions(
     invariants1: Sequence[InvariantT], invariants2: Sequence[InvariantT]
-) -> tuple[bool, dict[InvariantT, list[int]] | None, dict[InvariantT, list[int]] | None]:
+) -> tuple[dict[InvariantT, list[int]], dict[InvariantT, list[int]]] | None:
     """Build and compare column partitions induced by two invariant sequences."""
     partition1 = _partition_columns_by_invariants(invariants1)
     partition2 = _partition_columns_by_invariants(invariants2)
 
     if partition1.keys() != partition2.keys():
-        return False, None, None
+        return None
     if any(len(partition1[invariant]) != len(partition2[invariant]) for invariant in partition1):
-        return False, None, None
-    return True, partition1, partition2
+        return None
+    return partition1, partition2
 
 
 def _partition_columns_by_invariants(invariants: Sequence[InvariantT]) -> dict[InvariantT, list[int]]:

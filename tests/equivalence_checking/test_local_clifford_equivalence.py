@@ -19,9 +19,9 @@ from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     CLIFFORD_ACTIONS,
     LOCAL_CLIFFORDS,
     _locally_equivalent_connected_graphs,  # ruff: ignore[import-private-name]
+    _preserved_low_degree_local_invariant,  # ruff: ignore[import-private-name]
     _stabilizer_code_to_state,  # ruff: ignore[import-private-name]
     _stabilizer_state_to_graph_state,  # ruff: ignore[import-private-name]
-    preserved_low_degree_local_invariant,
 )
 from mqt.qecc.mod2 import is_in_row_space, rank
 
@@ -248,7 +248,7 @@ def test_are_local_clifford_equivalent_low_degree_invariant_rules_out_pair() -> 
     assert code1.k == code2.k == 2
     assert code1.distance == code2.distance
 
-    assert not preserved_low_degree_local_invariant(code1, code2)
+    assert not _preserved_low_degree_local_invariant(code1, code2)
 
     assert are_local_clifford_equivalent(code1, code2) is None
 

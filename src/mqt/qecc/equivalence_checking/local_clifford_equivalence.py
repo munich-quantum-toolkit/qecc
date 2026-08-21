@@ -67,7 +67,7 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     if code1.k < 2:
         return _lse_stabilizer_code(code1, code2)
 
-    if code1.n <= LOW_DEGREE_INVARIANT_MAX_QUBITS and not preserved_low_degree_local_invariant(code1, code2):
+    if code1.n <= LOW_DEGREE_INVARIANT_MAX_QUBITS and not _preserved_low_degree_local_invariant(code1, code2):
         return None
 
     return _sat_stabilizer_code(code1, code2)
@@ -110,7 +110,7 @@ def _preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     return c1.distance == c2.distance
 
 
-def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def _preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the degree-2 local invariant is preserved.
 
     The invariant is described by Van den Nest, Dehaene, and De Moor:
@@ -119,7 +119,7 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
     n = c1.n
     rk = c1.k
 
-    def _supp_subcode_dim(code: np.ndarray, subset: tuple[int, ...]) -> int:
+    def _supp_subcode_dim(code: npt.NDArray[np.integer], subset: tuple[int, ...]) -> int:
         g = np.asarray(code, dtype=np.uint8) & 1
 
         a = set(subset)
@@ -242,7 +242,7 @@ def _sat_css_code(c: StabilizerCode) -> bool:
 # ----------------------------------------------------------------------------------------------------
 
 
-def _stabilizer_code_to_state(code: StabilizerCode) -> np.ndarray:
+def _stabilizer_code_to_state(code: StabilizerCode) -> npt.NDArray[np.integer]:
     """Extend a stabilizer code to a purified stabilizer state."""
     if code.k == 0:
         return code.symplectic.copy()
@@ -268,7 +268,7 @@ def _stabilizer_code_to_state(code: StabilizerCode) -> np.ndarray:
     return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
 
-def _make_x_part_invertible(tableau: np.ndarray, operations: list[str]) -> None:
+def _make_x_part_invertible(tableau: npt.NDArray[np.integer], operations: list[str]) -> None:
     """Apply local Cliffords until the tableau's X part has full rank."""
     n = tableau.shape[1] // 2
     x_rank = rank(tableau[:, :n])
@@ -280,7 +280,7 @@ def _make_x_part_invertible(tableau: np.ndarray, operations: list[str]) -> None:
                 break
 
             best_rank = x_rank
-            best_columns: tuple[np.ndarray, np.ndarray] | None = None
+            best_columns: tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]] | None = None
             best_operation = ""
             x_column = tableau[:, qubit].copy()
             z_column = tableau[:, qubit + n].copy()
@@ -312,7 +312,9 @@ def _make_x_part_invertible(tableau: np.ndarray, operations: list[str]) -> None:
             break
 
 
-def _stabilizer_state_to_graph_state(tableau: np.ndarray) -> tuple[np.ndarray, list[str]]:
+def _stabilizer_state_to_graph_state(
+    tableau: npt.NDArray[np.integer],
+) -> tuple[npt.NDArray[np.integer], list[str]]:
     """Convert a stabilizer state to an LC-equivalent graph state."""
     state = tableau.copy()
     n = state.shape[1] // 2
@@ -340,7 +342,7 @@ def _stabilizer_state_to_graph_state(tableau: np.ndarray) -> tuple[np.ndarray, l
     return adjacency, operations
 
 
-def _satisfies_lc_determinant_constraints(solution: np.ndarray) -> bool:
+def _satisfies_lc_determinant_constraints(solution: npt.NDArray[np.integer]) -> bool:
     """Check the single-qubit determinant constraints for an LSE solution."""
     solution = np.asarray(solution, dtype=np.uint8) % 2
     n = len(solution) // 4
@@ -351,7 +353,7 @@ def _satisfies_lc_determinant_constraints(solution: np.ndarray) -> bool:
     return bool(np.all(((a & d) ^ (b & c)) == 1))
 
 
-def _extract_lc_operations(solution: np.ndarray) -> list[str] | None:
+def _extract_lc_operations(solution: npt.NDArray[np.integer]) -> list[str] | None:
     """Decode the local Clifford operations represented by an LSE solution."""
     n = len(solution) // 4
     operations = []
@@ -374,7 +376,9 @@ def _extract_lc_operations(solution: np.ndarray) -> list[str] | None:
     return operations
 
 
-def _locally_equivalent_connected_graphs(graph1: np.ndarray, graph2: np.ndarray) -> list[str] | None:
+def _locally_equivalent_connected_graphs(
+    graph1: npt.NDArray[np.integer], graph2: npt.NDArray[np.integer]
+) -> list[str] | None:
     """Check LC equivalence of two connected graph states using a linear system."""
     n = graph1.shape[0]
 

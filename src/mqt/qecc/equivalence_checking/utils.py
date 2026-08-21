@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 def elementwise_map(normal_bool: npt.NDArray[np.integer], variables: Sequence[z3.BoolRef]) -> z3.BoolRef:
     """Constrain Boolean variables to equal a binary vector."""
     return z3.And([
-        variable if bit == 1 else z3.Not(variable) for bit, variable in zip(normal_bool, variables, strict=False)
+        variable if bit == 1 else z3.Not(variable) for bit, variable in zip(normal_bool, variables, strict=True)
     ])
 
 
