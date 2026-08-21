@@ -58,14 +58,17 @@ def _reduce_stabilizer_generators(code: StabilizerCode | CSSCode) -> StabilizerC
 
 
 def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: StabilizerCode | CSSCode) -> list[int] | None:
-    """Check if two stabilizer codes define the same code space up to a permutation of output qubits, not considering phase information.
+    """Check whether two stabilizer codes are permutation equivalent.
+
+    Phase information is not considered.
 
     Args:
         code1: First stabilizer code.
         code2: Second stabilizer code.
 
     Returns:
-        A list of integers representing the permutation of qubits that maps code1 to code2, or None if no such permutation exists.
+        The qubit permutation mapping ``code1`` to ``code2``, or ``None`` if no
+        such permutation exists. Entry ``i`` gives the target of qubit ``i``.
     """
     code1 = _reduce_stabilizer_generators(code1)
     code2 = _reduce_stabilizer_generators(code2)
@@ -92,7 +95,7 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
 
 
 def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | None:
-    """Check if two CSS codes are permutation equivalent.
+    """Check whether two CSS codes are permutation equivalent.
 
     Employs a combination of brute-force, matroid, and SAT-based algorithms depending on the size of the codes.
     Uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
@@ -129,7 +132,7 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
 
 
 def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCode) -> list[int] | None:
-    """Check if two stabilizer codes are permutation equivalent.
+    """Check whether two stabilizer codes are permutation equivalent.
 
     Employs a combination of brute-force and SAT-based algorithms depending on the size of the codes.
     For medium-sized codes, uses a qubit signature to partition the qubits into equivalence classes, which reduces the permutation search space.
@@ -203,31 +206,31 @@ def _bruteforce_stb(c1: StabilizerCode, c2: StabilizerCode) -> list[int] | None:
 
 
 def _preserved_n(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the number of qubits is preserved, which is a necessary condition for P-equivalence."""
+    """Check the number-of-qubits invariant for permutation equivalence."""
     return c1.n == c2.n
 
 
 def _preserved_k(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the number of logical qubits is preserved, which is a necessary condition for P-equivalence."""
+    """Check the number-of-logical-qubits invariant for permutation equivalence."""
     return c1.k == c2.k
 
 
 def _preserved_d(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the distance is preserved, which is a necessary condition for P-equivalence."""
+    """Check the code-distance invariant for permutation equivalence."""
     if isinstance(c1, CSSCode) and isinstance(c2, CSSCode):
         return c1.x_distance == c2.x_distance and c1.z_distance == c2.z_distance
     return c1.distance == c2.distance
 
 
 def _preserved_number_zero_columns(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the number of zero columns is preserved, which is a necessary condition for P-equivalence."""
+    """Check the zero-column-count invariant for permutation equivalence."""
     return int(np.count_nonzero(np.all(c1.symplectic == 0, axis=0))) == int(
         np.count_nonzero(np.all(c2.symplectic == 0, axis=0))
     )
 
 
 def _preserved_number_duplicate_columns(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the number of duplicate columns is preserved, which is a necessary condition for P-equivalence."""
+    """Check the duplicate-column-count invariant for permutation equivalence."""
 
     def _duplicate_column(m: np.ndarray) -> list[int]:
         columns = [tuple(m[:, j].tolist()) for j in range(m.shape[1])]
@@ -238,7 +241,7 @@ def _preserved_number_duplicate_columns(c1: StabilizerCode | CSSCode, c2: Stabil
 
 
 def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence."""
+    """Check low-order column-rank invariants for permutation equivalence."""
 
     def _linear_dependencies(c: StabilizerCode | CSSCode) -> tuple[list[int], list[int], list[int]]:
         n = c.n
@@ -266,7 +269,11 @@ def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerC
 def _preserved_punctured_hull_weight_enumerator_css_code(
     c1: CSSCode, c2: CSSCode
 ) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
-    """Compute the partition of the qubits of a CSS code based on the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code."""
+    """Partition CSS-code qubits using punctured-hull weight enumerators.
+
+    This invariant is based on Sendrier's support splitting algorithm:
+    https://doi.org/10.1109/18.850662.
+    """
 
     def _generator_matrix_from_parity_check(h: np.ndarray, n: int) -> np.ndarray:
         if h.size == 0 or h.shape[0] == 0:
@@ -354,14 +361,18 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
 def _preserved_punctured_hull_weight_enumerator_stabilizer_code(
     c1: StabilizerCode, c2: StabilizerCode
 ) -> tuple[bool, dict[tuple[int, ...], list[int]] | None, dict[tuple[int, ...], list[int]] | None]:
-    """Compute the partition of the qubits of a stabilizer code based on Sendrier's invariant of the weight enumerator of the hull of the punctured code."""
+    """Partition stabilizer-code qubits using punctured-hull weight enumerators.
+
+    This invariant is based on Sendrier's support splitting algorithm:
+    https://doi.org/10.1109/18.850662.
+    """
 
     def _symplectic_to_gf4(symplectic: np.ndarray) -> np.ndarray:
         n = symplectic.shape[1] // 2
         return symplectic[:, :n] + 2 * symplectic[:, n:]
 
     def _compute_signatures(matrix: np.ndarray) -> list[tuple[int, ...]]:
-        """Compute the combined Sendriers invariant of the weight enumerator of the hull of the punctured code of each column of the code."""
+        """Compute Sendrier signatures for all punctured columns."""
 
         def _gf4_column_gram_contributions(m: np.ndarray) -> np.ndarray:
             k, n = m.shape
@@ -516,7 +527,7 @@ def _sat_stabilizer_code(
     c2: StabilizerCode,
     partition2: dict[tuple[int, ...], list[int]],
 ) -> list[int] | None:
-    """Map the permutation equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
+    """Check permutation equivalence of stabilizer codes using a SAT encoding."""
     solver = z3.Solver()
 
     r, n = c1.symplectic.shape[0], c1.n
@@ -583,7 +594,7 @@ def _sat_css_code(
     c2: CSSCode,
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
-    """Map the permutation equivalence problem of two CSS codes to a SAT problem and solve it using Z3."""
+    """Check permutation equivalence of CSS codes using a SAT encoding."""
     solver = z3.Solver()
 
     n = c1.n
@@ -663,7 +674,7 @@ def _matroid_css_code(
     c2: CSSCode,
     partition2: dict[int, list[int]],
 ) -> list[int] | None:
-    """Map the permutation equivalence problem of two CSS codes to a matroid and graph isomorphism problem and solve it using an isomorphism solver."""
+    """Check CSS-code permutation equivalence through matroid isomorphism."""
 
     def _circuits_binary_matroid(a: npt.NDArray[np.int8]) -> list[int]:
         def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:

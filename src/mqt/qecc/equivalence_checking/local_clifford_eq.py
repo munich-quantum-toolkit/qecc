@@ -38,14 +38,17 @@ def _reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode:
 
 
 def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) -> list[str] | None:
-    """Check if two stabilizer codes define the same code space up to local Clifford operations on output qubits, not considering phase information.
+    """Check whether two stabilizer codes are locally Clifford equivalent.
+
+    Phase information is not considered.
 
     Args:
         code1: First stabilizer code.
         code2: Second stabilizer code.
 
     Returns:
-        A list of strings representing the local Clifford operations on qubits that maps code1 to code2, or None if no such operations exist.
+        The single-qubit Clifford operations mapping ``code1`` to ``code2``,
+        or ``None`` if no such operations exist.
     """
     code1 = _reduce_stabilizer_generators(code1)
     code2 = _reduce_stabilizer_generators(code2)
@@ -69,13 +72,13 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
 
 
 def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
-    """Check if a stabilizer code is local clifford equivalent to a CSS code.
+    """Check whether a stabilizer code is locally Clifford equivalent to a CSS code.
 
     Args:
         code: The stabilizer code to check.
 
     Returns:
-        True if the code is local clifford equivalent to a CSS code, False otherwise.
+        Whether the code is locally Clifford equivalent to a CSS code.
     """
     code = _reduce_stabilizer_generators(code)
 
@@ -91,22 +94,26 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
 
 
 def _preserved_n(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check whether the number of qubits is preserved, which is a necessary condition for LC-equivalence."""
+    """Check the number-of-qubits invariant for LC equivalence."""
     return c1.n == c2.n
 
 
 def _preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check whether the number of logical qubits is preserved, which is a necessary condition for LC-equivalence."""
+    """Check the number-of-logical-qubits invariant for LC equivalence."""
     return c1.k == c2.k
 
 
 def _preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check whether the distance is preserved, which is a necessary condition for LC-equivalence."""
+    """Check the code-distance invariant for LC equivalence."""
     return c1.distance == c2.distance
 
 
 def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check whether the degree-2 local invariant is preserved, which is a necessary condition for LC-equivalence."""
+    """Check whether the degree-2 local invariant is preserved.
+
+    The invariant is described by Van den Nest, Dehaene, and De Moor:
+    https://doi.org/10.1103/PhysRevA.70.032323.
+    """
     n = c1.n
     rk = c1.k
 
@@ -139,7 +146,7 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
 
 
 def _bruteforce_css_code(c: StabilizerCode) -> bool:
-    """lc_css_bruteforce.py."""
+    """Check LC equivalence to a CSS code by enumerating local Cliffords."""
     r, n = c.symplectic.shape[0], c.n
 
     def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> None:
@@ -177,10 +184,14 @@ LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 
 def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | None:
-    """Use a linear system of equations to check if two stabilizer codes are equivalent under local clifford operations. (Efficient Algorithm from Van den Nest, and Dehaene, and De Moor)."""
+    """Check LC equivalence by solving a linear system over graph states.
+
+    Implements the efficient algorithm by Van den Nest, Dehaene, and De Moor:
+    https://doi.org/10.1103/PhysRevA.70.034302.
+    """
 
     def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
-        """Convert a stabilizer code into a stabilizer state."""
+        """Extend a stabilizer code to a purified stabilizer state."""
         if code.k == 0:
             return code.symplectic.copy()
 
@@ -204,7 +215,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
         return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
     def _stab_state_to_graph_state(tableau: np.ndarray) -> tuple[np.ndarray, list[str]]:
-        """Convert a stabilizer state into a graph state under local Clifford operations."""
+        """Convert a stabilizer state to an LC-equivalent graph state."""
         n = tableau.shape[1] // 2
         lc = [""] * n
 
@@ -288,7 +299,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
             return rre[:, n:]
 
         def _remove_diagonal(tableau: np.ndarray) -> None:
-            """Basically apply S gate on all qubits to remove self-loops in the graph state."""
+            """Apply phase gates to remove self-loops from the graph state."""
             for i in range(tableau.shape[0]):
                 if tableau[i, i] == 1:
                     lc[i] = "S" + lc[i]
@@ -357,7 +368,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
         return lc
 
     def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n: int) -> list[str] | None:
-        """Check if two graph states are equivalent under local complementations using an efficient algorithm that considers a linear system of equations."""
+        """Check LC equivalence of two connected graph states using a linear system."""
 
         def _build_lse() -> npt.NDArray[np.uint8]:
             """Build the matrix for the following LSE.
@@ -457,7 +468,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
         return lc
 
     def _simplify_lc_operations(lc: list[str]) -> list[str]:
-        """Simplify a list of local clifford operations by removing identity operations."""
+        """Replace local Clifford words with canonical representatives."""
         identity = np.eye(2, dtype=np.uint8)
         h = np.array([[0, 1], [1, 0]], dtype=np.uint8)
         s = np.array([[1, 0], [1, 1]], dtype=np.uint8)
@@ -504,7 +515,7 @@ def _lse_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
 
 
 def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | None:
-    """Map the LC equivalence problem of two stabilizer codes to a SAT problem and solve it using Z3."""
+    """Check LC equivalence of two stabilizer codes using a SAT encoding."""
     solver = z3.Solver()
 
     r, n = c1.symplectic.shape[0], c1.n
@@ -619,7 +630,11 @@ def _sat_stabilizer_code(c1: StabilizerCode, c2: StabilizerCode) -> list[str] | 
 
 
 def _sat_css_code(c: StabilizerCode) -> bool:
-    """lc_css_sat.py."""
+    """Check LC equivalence to a CSS code using a SAT encoding.
+
+    This encoding is based on the ideas by Dasu and Burton:
+    https://arxiv.org/abs/2507.10519.
+    """
     solver = z3.Solver()
 
     r, n = c.symplectic.shape[0], c.n
