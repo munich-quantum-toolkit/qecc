@@ -13,9 +13,14 @@ import numpy as np
 import pytest
 
 from mqt.qecc import CSSCode, StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+
+# Import the private mathematical helpers intentionally for focused unit tests.
 from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     CLIFFORD_ACTIONS,
     LOCAL_CLIFFORDS,
+    _locally_equivalent_connected_graphs,  # ruff: ignore[import-private-name]
+    _stabilizer_code_to_state,  # ruff: ignore[import-private-name]
+    _stabilizer_state_to_graph_state,  # ruff: ignore[import-private-name]
     preserved_low_degree_local_invariant,
 )
 from mqt.qecc.mod2 import is_in_row_space, rank
@@ -51,6 +56,79 @@ def _assert_maps_rowspace(
 
     assert rank(code2.symplectic) == rank(code1.symplectic)
     assert all(is_in_row_space(row, code2.symplectic) for row in transformed)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        pytest.param(StabilizerCode(["Z"]), np.array([[0, 1]], dtype=np.uint8), id="single-qubit-z-state"),
+        pytest.param(StabilizerCode(["X"]), np.array([[1, 0]], dtype=np.uint8), id="single-qubit-x-state"),
+        pytest.param(
+            StabilizerCode.get_trivial_code(1),
+            np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.uint8),
+            id="one-qubit-trivial-code",
+        ),
+        pytest.param(
+            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
+            np.array([[0, 0, 0, 1, 1, 0], [1, 1, 1, 0, 0, 0], [0, 0, 0, 1, 0, 1]], dtype=np.uint8),
+            id="two-qubit-repetition-code",
+        ),
+        pytest.param(
+            StabilizerCode(["ZZI", "IZZ"], z_logicals=["ZII"], x_logicals=["XXX"]),
+            np.array(
+                [
+                    [0, 0, 0, 0, 1, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 0],
+                    [1, 1, 1, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 1, 0, 0, 1],
+                ],
+                dtype=np.uint8,
+            ),
+            id="three-qubit-repetition-code",
+        ),
+    ],
+)
+def test_stabilizer_code_to_state_small_codes(code: StabilizerCode, expected: np.ndarray) -> None:
+    """Convert benchmark stabilizer codes to their expected purified states."""
+    assert np.array_equal(_stabilizer_code_to_state(code), expected)
+
+
+@pytest.mark.parametrize(
+    ("tableau", "expected"),
+    [
+        pytest.param(np.array([[1, 0]], dtype=np.uint8), np.array([[0]], dtype=np.uint8), id="isolated-vertex"),
+        pytest.param(
+            np.array([[1, 0, 0, 0, 1, 1], [0, 1, 0, 1, 0, 1], [0, 0, 1, 1, 1, 0]], dtype=np.uint8),
+            np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]], dtype=np.uint8),
+            id="triangle",
+        ),
+        pytest.param(
+            np.array([[0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.uint8),
+            np.zeros((2, 2), dtype=np.uint8),
+            id="hadamard-improvement",
+        ),
+        pytest.param(
+            np.array([[0, 0, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0], [0, 0, 1, 0, 1, 1]], dtype=np.uint8),
+            np.zeros((3, 3), dtype=np.uint8),
+            id="mixed-columns",
+        ),
+    ],
+)
+def test_stabilizer_state_to_graph_state_small_tableau(tableau: np.ndarray, expected: np.ndarray) -> None:
+    """Convert benchmark stabilizer-state tableaux to the expected graphs."""
+    original = tableau.copy()
+    adjacency, _ = _stabilizer_state_to_graph_state(tableau)
+
+    assert np.array_equal(adjacency, expected)
+    assert np.array_equal(tableau, original)
+
+
+def test_locally_equivalent_connected_graphs_star_and_complete() -> None:
+    """Recognize the benchmark star and complete graphs as locally equivalent."""
+    star = np.array([[0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]], dtype=np.uint8)
+    complete = np.ones((4, 4), dtype=np.uint8) ^ np.eye(4, dtype=np.uint8)
+
+    assert _locally_equivalent_connected_graphs(star, complete) is not None
 
 
 # ----------------------------------------------------------------------------------------------------
