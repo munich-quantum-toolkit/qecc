@@ -36,7 +36,7 @@ self
 tools/synthesis
 tools/decoders
 tools/compilation
-EquivalenceChecking
+tools/analysis
 ```
 
 ```{toctree}
