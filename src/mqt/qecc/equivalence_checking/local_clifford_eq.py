@@ -16,14 +16,25 @@ from typing import TYPE_CHECKING
 import numpy as np
 import z3
 
-from ..mod2 import nullspace, rank
+from ..codes.core.pauli import PauliTableau
+from ..codes.core.stabilizer_code import StabilizerCode
+from ..mod2 import nullspace, rank, row_basis
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     import numpy.typing as npt
 
-    from ..codes.core.stabilizer_code import StabilizerCode
+
+def _reduce_stabilizer_generators(code: StabilizerCode) -> StabilizerCode:
+    """Return an equivalent code with a minimal independent generator set."""
+    reduced_symplectic = row_basis(code.symplectic).astype(np.int8)
+    return StabilizerCode(
+        generators=PauliTableau.from_matrix(reduced_symplectic),
+        distance=code.distance,
+        z_logicals=code.z_logicals,
+        x_logicals=code.x_logicals,
+    )
 
 
 def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) -> list[str] | None:
@@ -36,6 +47,9 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     Returns:
         A list of strings representing the local Clifford operations on qubits that maps code1 to code2, or None if no such operations exist.
     """
+    code1 = _reduce_stabilizer_generators(code1)
+    code2 = _reduce_stabilizer_generators(code2)
+
     cheap_invariants = (
         _preserved_n,
         _preserved_k,
@@ -63,6 +77,8 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
     Returns:
         True if the code is local clifford equivalent to a CSS code, False otherwise.
     """
+    code = _reduce_stabilizer_generators(code)
+
     if code.n < 4:
         return _bruteforce_css_code(code)
 

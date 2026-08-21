@@ -20,6 +20,8 @@ import numpy as np
 import z3
 
 from ..codes.core.css_code import CSSCode
+from ..codes.core.pauli import PauliTableau
+from ..codes.core.stabilizer_code import StabilizerCode
 from ..mod2 import nullspace, rank, row_basis
 
 if TYPE_CHECKING:
@@ -27,11 +29,32 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
 
-    from ..codes.core.stabilizer_code import StabilizerCode
-
 
 BRUTEFORCE_THRESHOLD_STB = 5
 BRUTEFORCE_THRESHOLD_CSS = 5
+
+
+def _reduce_stabilizer_generators(code: StabilizerCode | CSSCode) -> StabilizerCode | CSSCode:
+    """Return an equivalent code with a minimal independent generator set."""
+    if isinstance(code, CSSCode):
+        reduced_hx = row_basis(code.Hx).astype(np.int8)
+        reduced_hz = row_basis(code.Hz).astype(np.int8)
+        return CSSCode(
+            Hx=reduced_hx,
+            Hz=reduced_hz,
+            distance=code.distance,
+            x_distance=code.x_distance,
+            z_distance=code.z_distance,
+            Lx=code.Lx,
+            Lz=code.Lz,
+        )
+    reduced_symplectic = row_basis(code.symplectic).astype(np.int8)
+    return StabilizerCode(
+        generators=PauliTableau.from_matrix(reduced_symplectic),
+        distance=code.distance,
+        z_logicals=code.z_logicals,
+        x_logicals=code.x_logicals,
+    )
 
 
 def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: StabilizerCode | CSSCode) -> list[int] | None:
@@ -44,6 +67,9 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
     Returns:
         A list of integers representing the permutation of qubits that maps code1 to code2, or None if no such permutation exists.
     """
+    code1 = _reduce_stabilizer_generators(code1)
+    code2 = _reduce_stabilizer_generators(code2)
+
     cheap_invariants = (
         _preserved_n,
         _preserved_k,

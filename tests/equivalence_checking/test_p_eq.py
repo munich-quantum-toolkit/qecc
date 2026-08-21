@@ -99,6 +99,17 @@ def test_are_permutation_equivalent_one_qubit_codes_reject_pauli_mismatch() -> N
     assert are_permutation_equivalent(StabilizerCode(["Z"]), StabilizerCode(["X"])) is None
 
 
+def test_are_permutation_equivalent_ignores_redundant_generators() -> None:
+    """Equivalent codes may use different numbers of stabilizer generators."""
+    code = StabilizerCode(["ZZ"])
+    code_with_redundancy = StabilizerCode(["ZZ", "ZZ"])
+
+    permutation = are_permutation_equivalent(code, code_with_redundancy)
+
+    assert permutation is not None
+    _assert_maps_rowspace_stabilizer(code, code_with_redundancy, permutation)
+
+
 def test_are_permutation_equivalent_stabilizer_hardcoded_positive() -> None:
     """A hardcoded pair of codes related by an interleaving permutation is recognized as equivalent."""
     code1 = StabilizerCode(["XXII", "IIZZ"])

@@ -222,6 +222,17 @@ def test_are_local_clifford_equivalent_one_qubit_codes_are_equivalent() -> None:
     assert witness == ["I"]
 
 
+def test_are_local_clifford_equivalent_ignores_redundant_generators() -> None:
+    """Equivalent codes may use different numbers of stabilizer generators."""
+    code = StabilizerCode(["ZZ"])
+    code_with_redundancy = StabilizerCode(["ZZ", "ZZ"])
+
+    witness = are_local_clifford_equivalent(code, code_with_redundancy)
+
+    assert witness is not None
+    _assert_maps_rowspace(code, code_with_redundancy, witness)
+
+
 # ----------------------------------------------------------------------------------------------------
 # is_local_clifford_equivalent_to_css
 # ----------------------------------------------------------------------------------------------------
