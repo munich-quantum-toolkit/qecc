@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import operator
 from collections import Counter, defaultdict
 from itertools import permutations
@@ -45,6 +44,7 @@ MATROID_MAX_GENERATORS_CSS = 9
 PUNCTURED_HULL_MAX_QUBITS_STB = 20
 
 InvariantT = TypeVar("InvariantT", bound="Hashable")
+_CSSHullSignature = tuple[tuple[int, ...], tuple[int, ...]]
 
 
 def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: StabilizerCode | CSSCode) -> list[int] | None:
@@ -210,7 +210,7 @@ def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerC
 
 def _preserved_punctured_hull_weight_enumerator_css_code(
     c1: CSSCode, c2: CSSCode
-) -> tuple[dict[int, list[int]], dict[int, list[int]]] | None:
+) -> tuple[dict[_CSSHullSignature, list[int]], dict[_CSSHullSignature, list[int]]] | None:
     """Partition CSS-code qubits using punctured-hull weight enumerators.
 
     This invariant is based on Sendrier's support splitting algorithm:
@@ -225,13 +225,25 @@ def _preserved_punctured_hull_weight_enumerator_css_code(
             return np.eye(n, dtype=np.uint8)
         return nullspace(parity_check)
 
+    def _combined_signature(
+        gx: npt.NDArray[np.integer], gz: npt.NDArray[np.integer]
+    ) -> list[tuple[tuple[int, ...], tuple[int, ...]]]:
+        return list(
+            zip(
+                _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gx), lambda word: int(word.sum())),
+                _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gz), lambda word: int(word.sum())),
+                strict=True,
+            )
+        )
+
     gx1 = _generator_matrix_from_parity_check(c1.Hx)
     gz1 = _generator_matrix_from_parity_check(c1.Hz)
     gx2 = _generator_matrix_from_parity_check(c2.Hx)
     gz2 = _generator_matrix_from_parity_check(c2.Hz)
 
-    signatures_c1 = _css_punctured_hull_signatures(gx1, gz1)
-    signatures_c2 = _css_punctured_hull_signatures(gx2, gz2)
+    signatures_c1 = _combined_signature(gx1, gz1)
+    signatures_c2 = _combined_signature(gx2, gz2)
+
     return _matching_invariant_partitions(signatures_c1, signatures_c2)
 
 
@@ -326,9 +338,9 @@ def _sat_stabilizer_code(
 
 def _sat_css_code(
     c1: CSSCode,
-    partition1: dict[int, list[int]],
+    partition1: Mapping[InvariantT, Sequence[int]],
     c2: CSSCode,
-    partition2: dict[int, list[int]],
+    partition2: Mapping[InvariantT, Sequence[int]],
 ) -> list[int] | None:
     """Check permutation equivalence of CSS codes using a SAT encoding."""
     solver = z3.Solver()
@@ -352,9 +364,9 @@ def _sat_css_code(
 
 def _matroid_css_code(
     c1: CSSCode,
-    partition1: dict[int, list[int]],
+    partition1: Mapping[InvariantT, Sequence[int]],
     c2: CSSCode,
-    partition2: dict[int, list[int]],
+    partition2: Mapping[InvariantT, Sequence[int]],
 ) -> list[int] | None:
     """Check CSS-code permutation equivalence through matroid isomorphism."""
     n = c1.n
@@ -367,6 +379,7 @@ def _matroid_css_code(
     len_circuits_c1_hx = len(circuits_c1_hx)
     len_circuits_c1_hz = len(circuits_c1_hz)
 
+    # delete the potentially large lists of circuits to save memory
     del circuits_c1_hx
     del circuits_c1_hz
 
@@ -438,7 +451,7 @@ def _graph_from_circuits_and_invariants(
     n: int,
     circuits_hx: list[int],
     circuits_hz: list[int],
-    partition: dict[int, list[int]],
+    partition: Mapping[InvariantT, Sequence[int]],
 ) -> nx.Graph:
     """Build a colored incidence graph for two binary matroids."""
     n_hx = len(circuits_hx)
@@ -519,18 +532,6 @@ def _punctured_hull_weight_enumerators(
 ) -> list[tuple[int, ...]]:
     """Compute a weight enumerator for each punctured hull basis."""
     return [tuple(_gray_code_weight_enumerator(basis, weight)) for basis in hull_bases]
-
-
-def _css_punctured_hull_signatures(gx: npt.NDArray[np.integer], gz: npt.NDArray[np.integer]) -> list[int]:
-    """Combine binary X- and Z-code punctured-hull enumerators into signatures."""
-    x_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gx), lambda word: int(word.sum()))
-    z_enumerators = _punctured_hull_weight_enumerators(_binary_punctured_hull_bases(gz), lambda word: int(word.sum()))
-
-    signatures = []
-    for x_enumerator, z_enumerator in zip(x_enumerators, z_enumerators, strict=True):
-        payload = (",".join(map(str, x_enumerator)) + "|" + ",".join(map(str, z_enumerator))).encode("ascii")
-        signatures.append(int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big"))
-    return signatures
 
 
 def _matching_invariant_partitions(
