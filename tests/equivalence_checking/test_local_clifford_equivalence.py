@@ -15,8 +15,6 @@ import pytest
 from mqt.qecc import StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
 from mqt.qecc.codes import RotatedSurfaceCode
 from mqt.qecc.equivalence_checking._cliffords import _canonicalize_clifford  # ruff: ignore[import-private-name]
-
-# Import the private mathematical helpers intentionally for focused unit tests.
 from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     CLIFFORD_ACTIONS,
     LOCAL_CLIFFORDS,
@@ -310,11 +308,6 @@ def test_lse_negative() -> None:
     star = StabilizerCode(["XZZZ", "ZXII", "ZIXI", "ZIIX"])
 
     assert are_local_clifford_equivalent(path, star) is None
-
-
-# ----------------------------------------------------------------------------------------------------
-# are_local_clifford_equivalent - edge cases
-# ----------------------------------------------------------------------------------------------------
 
 
 def test_trivial_code() -> None:
