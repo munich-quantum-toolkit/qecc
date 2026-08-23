@@ -50,7 +50,7 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
 
     Returns:
         The single-qubit Clifford operations mapping ``code1`` to ``code2``,
-        or ``None`` if no such operations exist.
+        or ``None`` if no such operations exist.  Entry ``i`` acts on qubit ``i``.
     """
     code1 = _reduce_stabilizer_generators(code1)
     code2 = _reduce_stabilizer_generators(code2)
