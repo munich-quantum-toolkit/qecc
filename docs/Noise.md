@@ -1,51 +1,135 @@
-# Noise simulation
+# Noise Simulation
 
 MQT QECC separates the description of noise from its execution. A channel
-describes a local error, a model assigns channels to parts of an experiment, and
-an adapter or sampler realizes that model for a particular simulation method.
-This separation allows the same noise configuration to be inspected, validated,
-and reused without embedding simulator-specific instructions in it.
+describes a local error, a location-aware model assigns channels to parts of an
+experiment, and an adapter or sampler realizes that model for a particular
+simulation method. This separation allows the same noise configuration to be
+inspected, validated, and reused without embedding simulator-specific
+instructions in it.
 
 All channel and model objects are immutable and validate their parameters during
 construction.
 
-## Typical data flow
-
-Circuit-level noise follows this path:
-
-```text
-Channels → Circuit noise model → Schedule → Backend adapter → Noisy circuit
-```
-
-Phenomenological simulation does not require a circuit schedule or circuit
-backend:
-
-```text
-Channels → Phenomenological noise model → Sampler → Error and syndrome samples
-```
-
-The adapter and sampler are execution boundaries. They interpret a model, but
-the model itself does not depend on Stim, NumPy, or another simulator.
-
-## Architecture layers
+## Architecture and Data Flow
 
 The shared noise functionality is constructed as an adaptable layered
-architecture:
+architecture, which describe a *uses* relationship rather than class
+inheritance:
 
-| Layer | Module                              | Main abstractions                                                                                    | Responsibility                                                                                   |
-| ----: | ----------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-|     1 | {py:mod}`mqt.qecc.noise.channels`   | `IdentityChannel`, `BitFlipChannel`, `DepolarizingChannel`, `PauliChannel`, `GaussianReadoutChannel` | Local quantum errors or a classical corruption of a measurement result.                          |
-|     2 | {py:mod}`mqt.qecc.noise.models`     | `CircuitNoiseModel`, `PhenomenologicalNoiseModel`                                                    | Assign discrete channels to circuit locations or to phenomenological data and syndrome noise.    |
-|     3 | {py:mod}`mqt.qecc.noise.scheduling` | `ParallelSchedule`, `SequentialSchedule`                                                             | Circuit time steps used to identify idle locations.                                              |
-|     4 | {py:mod}`mqt.qecc.noise.adapters`   | `StimCircuitNoiseAdapter`                                                                            | Translate a circuit model and optional schedule into the representation of a simulation backend. |
-|     4 | {py:mod}`mqt.qecc.noise.sampling`   | `PhenomenologicalNoiseSampler`                                                                       | Randomly draw data and syndrome errors.                                                          |
+::::{grid} 1
+:gutter: 2
 
-The layers describe a *uses* relationship rather than class inheritance.
-Scheduling applies only to circuit-level models, while direct sampling applies
-to phenomenological models.
+:::{grid-item-card} Single-site noise channels
+:text-align: center
+
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item-card} `CircuitNoiseModel`
+:text-align: center
+
+Assigns channels to gate, reset, measurement, and idle locations.
+:::
+
+:::{grid-item-card} `PhenomenologicalNoiseModel`
+:text-align: center
+
+Assigns channels to data qubits and syndrome measurements.
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item-card} `Schedule` + `StimCircuitNoiseAdapter`
+:text-align: center
+
+Identifies circuit time steps and translates channels into Stim instructions.
+:::
+
+:::{grid-item-card} `PhenomenologicalNoiseSampler`
+:text-align: center
+
+Resolves per-qubit assignments and samples data and readout noise.
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+:::{grid-item}
+:class: sd-text-center sd-fs-5
+
+↓
+:::
+
+::::
+
+::::{grid} 2 2 2 2
+:gutter: 3
+
+:::{grid-item}
+:class: sd-text-center
+
+**Noisy Stim circuit**
+:::
+
+:::{grid-item}
+:class: sd-text-center
+
+**Data errors and noisy syndromes**
+:::
+
+::::
 
 ```{note}
-MQT [YAQS](https://github.com/munich-quantum-toolkit/yaqs) could be potentially
+[MQT YAQS](https://github.com/munich-quantum-toolkit/yaqs) could be potentially
 integrated through an additional adapter in `mqt.qecc.noise.adapters`,
 describing continuous-time open-system processes.
 ```
