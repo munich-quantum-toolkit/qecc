@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Backend-independent descriptions of common noise channels."""
+"""Backend-independent quantum and readout noise channels."""
 
 from __future__ import annotations
 
@@ -19,6 +19,11 @@ def _validate_probability(value: float, name: str = "probability") -> None:
     if not math.isfinite(value) or not 0.0 <= value <= 1.0:
         msg = f"{name} must be finite and between 0 and 1, got {value}."
         raise ValueError(msg)
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Quantum channels
+# ----------------------------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -106,6 +111,11 @@ class PauliChannel:
         return cls(*(probability * value / total_bias for value in bias))
 
 
+# ----------------------------------------------------------------------------------------------------
+#   Readout channels
+# ----------------------------------------------------------------------------------------------------
+
+
 @dataclass(frozen=True)
 class GaussianReadoutChannel:
     """Additive Gaussian channel for signed analog measurement outcomes."""
@@ -137,6 +147,9 @@ class GaussianReadoutChannel:
         return float(0.5 * erfc(1.0 / math.sqrt(2.0 * self.sigma**2)))
 
 
-NoiseChannel = IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel | GaussianReadoutChannel
+# Channel families used to constrain noise models and backend adapters
+QuantumChannel = IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel
+ReadoutChannel = IdentityChannel | BitFlipChannel | GaussianReadoutChannel
+NoiseChannel = QuantumChannel | ReadoutChannel
 DiscreteChannel = IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel
-SyndromeChannel = IdentityChannel | BitFlipChannel | GaussianReadoutChannel
+SyndromeChannel = ReadoutChannel

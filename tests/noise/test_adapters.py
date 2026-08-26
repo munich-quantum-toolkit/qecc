@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Tests for the Stim circuit-noise adapter."""
+"""Tests for noise-model backend adapters."""
 
 from __future__ import annotations
 

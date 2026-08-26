@@ -5,13 +5,17 @@
 #
 # Licensed under the MIT License
 
-"""Backend-independent noise-model configurations."""
+"""Circuit-level and phenomenological noise-model configurations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from .channels import DiscreteChannel, IdentityChannel, PauliChannel, SyndromeChannel
+
+# ----------------------------------------------------------------------------------------------------
+#   Circuit-level models
+# ----------------------------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -28,8 +32,13 @@ class CircuitNoiseModel:
     def __post_init__(self) -> None:
         """Validate ideal-qubit indices."""
         if any(qubit < 0 for qubit in self.ideal_qubits):
-            msg = f"Ideal-qubit indices must be nonnegative, got {sorted(self.ideal_qubits)}."
+            msg = f"Ideal-qubit indices must be non-negative, got {sorted(self.ideal_qubits)}."
             raise ValueError(msg)
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Phenomenological models
+# ----------------------------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)

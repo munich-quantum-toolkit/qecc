@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""Tests for the phenomenological NumPy noise backend."""
+"""Tests for phenomenological noise sampling."""
 
 from __future__ import annotations
 

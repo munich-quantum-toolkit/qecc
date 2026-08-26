@@ -20,7 +20,7 @@ from scipy.special import erfc, erfcinv
 
 from mqt.qecc.mod2 import rank
 from mqt.qecc.noise import GaussianReadoutChannel, PauliChannel
-from mqt.qecc.noise.phenomenological import sample_inhomogeneous_pauli
+from mqt.qecc.noise.sampling import sample_inhomogeneous_pauli
 
 from .data_utils import calculate_error_rates, replace_inf
 

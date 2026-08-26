@@ -5,20 +5,25 @@
 #
 # Licensed under the MIT License
 
-"""Stim backend adapter for circuit-level noise models."""
+"""Adapters between QECC noise models and simulation backends."""
 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 
 import stim
 
 from .channels import BitFlipChannel, DepolarizingChannel, IdentityChannel, PauliChannel
+from .scheduling import Schedule, qubits_in_stim_circuit, schedule_stim_circuit
 
 if TYPE_CHECKING:
     from .models import CircuitNoiseModel
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Stim adapter
+# ----------------------------------------------------------------------------------------------------
 
 _SINGLE_QUBIT_GATES = {
     "C_XYZ",
@@ -71,23 +76,6 @@ _MEASUREMENTS = {"M", "MR", "MRX", "MRY", "MRZ", "MX", "MY", "MZ"}
 _RESETS = {"R", "RX", "RY", "RZ"}
 
 
-@dataclass(frozen=True)
-class ParallelSchedule:
-    """Schedule nonconflicting operations in the same time step."""
-
-    reset_timing: Literal["asap", "alap"] = "asap"
-
-
-@dataclass(frozen=True)
-class SequentialSchedule:
-    """Schedule every operation target group in a separate time step."""
-
-    reset_timing: Literal["asap", "alap"] = "asap"
-
-
-Schedule = ParallelSchedule | SequentialSchedule
-
-
 class StimCircuitNoiseAdapter:
     """Compile a backend-independent circuit noise model into Stim operations."""
 
@@ -109,7 +97,7 @@ class StimCircuitNoiseAdapter:
         """Return a noisy copy of a Stim circuit."""
         if self.schedule is None:
             return self._apply_locations(circuit)
-        layers = self._collect_layers(circuit)
+        layers = schedule_stim_circuit(circuit, self.schedule)
         return self._apply_scheduled(layers, circuit.num_qubits)
 
     def _apply_locations(self, circuit: stim.Circuit) -> stim.Circuit:
@@ -151,7 +139,7 @@ class StimCircuitNoiseAdapter:
         uninitialized = set(range(n_qubits))
         reset_alap = self.schedule is not None and self.schedule.reset_timing == "alap"
         for layer in layers:
-            active = _qubits_in(layer)
+            active = qubits_in_stim_circuit(layer)
             resets = _reset_qubits(layer)
             idle = set(range(n_qubits)) - active - uninitialized
             noisy_layer = self._apply_locations(layer)
@@ -161,37 +149,6 @@ class StimCircuitNoiseAdapter:
                     self._append_channel(noisy_layer, self.model.idle, [qubit], arity=1)
             noisy += noisy_layer
         return noisy
-
-    def _collect_layers(self, circuit: stim.Circuit) -> list[stim.Circuit]:
-        groups: list[stim.Circuit] = []
-        for operation in circuit:
-            if not isinstance(operation, stim.CircuitInstruction):
-                msg = "Stim repeat blocks are not supported by scheduled noise; flatten the circuit first."
-                raise TypeError(msg)
-            for targets in operation.target_groups():
-                group = stim.Circuit()
-                group.append(operation.name, list(targets), operation.gate_args_copy())
-                groups.append(group)
-        if isinstance(self.schedule, SequentialSchedule):
-            return groups
-        layers: list[stim.Circuit] = []
-        remaining = groups
-        while remaining:
-            layer = stim.Circuit()
-            used: set[int] = set()
-            deferred: list[stim.Circuit] = []
-            blocked: set[int] = set()
-            for group in remaining:
-                qubits = _qubits_in(group)
-                if not used.isdisjoint(qubits) or not blocked.isdisjoint(qubits):
-                    deferred.append(group)
-                    blocked.update(qubits)
-                else:
-                    layer += group
-                    used.update(qubits)
-            layers.append(layer)
-            remaining = deferred
-        return layers
 
     @staticmethod
     def _append_channel(
@@ -216,16 +173,6 @@ class StimCircuitNoiseAdapter:
             circuit.append("PAULI_CHANNEL_1", targets, [channel.p_x, channel.p_y, channel.p_z])
         else:  # pragma: no cover
             raise TypeError(type(channel))
-
-
-def _qubits_in(circuit: stim.Circuit) -> set[int]:
-    qubits: set[int] = set()
-    for operation in circuit:
-        if isinstance(operation, stim.CircuitInstruction):
-            for target in operation.targets_copy():
-                if target.qubit_value is not None:
-                    qubits.add(target.qubit_value)
-    return qubits
 
 
 def _reset_qubits(circuit: stim.Circuit) -> set[int]:

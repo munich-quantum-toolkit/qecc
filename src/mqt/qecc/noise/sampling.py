@@ -5,7 +5,7 @@
 #
 # Licensed under the MIT License
 
-"""NumPy backend for sampling phenomenological noise models."""
+"""Sampling implementations for noise models."""
 
 from __future__ import annotations
 
@@ -19,6 +19,11 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from .models import PhenomenologicalNoiseModel
+
+
+# ----------------------------------------------------------------------------------------------------
+#   Phenomenological sampling
+# ----------------------------------------------------------------------------------------------------
 
 
 class PhenomenologicalNoiseSampler:
