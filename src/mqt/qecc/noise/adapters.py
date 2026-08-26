@@ -25,56 +25,6 @@ if TYPE_CHECKING:
 #   Stim adapter
 # ----------------------------------------------------------------------------------------------------
 
-_SINGLE_QUBIT_GATES = {
-    "C_XYZ",
-    "C_ZYX",
-    "H",
-    "H_XY",
-    "H_XZ",
-    "H_YZ",
-    "S",
-    "S_DAG",
-    "SQRT_X",
-    "SQRT_X_DAG",
-    "SQRT_Y",
-    "SQRT_Y_DAG",
-    "SQRT_Z",
-    "SQRT_Z_DAG",
-    "X",
-    "Y",
-    "Z",
-}
-_TWO_QUBIT_GATES = {
-    "CNOT",
-    "CX",
-    "CXSWAP",
-    "CY",
-    "CZ",
-    "CZSWAP",
-    "ISWAP",
-    "ISWAP_DAG",
-    "SQRT_XX",
-    "SQRT_XX_DAG",
-    "SQRT_YY",
-    "SQRT_YY_DAG",
-    "SQRT_ZZ",
-    "SQRT_ZZ_DAG",
-    "SWAP",
-    "SWAPCX",
-    "SWAPCZ",
-    "XCX",
-    "XCY",
-    "XCZ",
-    "YCX",
-    "YCY",
-    "YCZ",
-    "ZCX",
-    "ZCY",
-    "ZCZ",
-}
-_MEASUREMENTS = {"M", "MR", "MRX", "MRY", "MRZ", "MX", "MY", "MZ"}
-_RESETS = {"R", "RX", "RY", "RZ"}
-
 
 class StimCircuitNoiseAdapter:
     """Compile a backend-independent circuit noise model into Stim operations."""
@@ -107,7 +57,12 @@ class StimCircuitNoiseAdapter:
                 msg = "Stim repeat blocks are not supported by the circuit noise adapter; flatten the circuit first."
                 raise TypeError(msg)
             name = operation.name
-            if name not in _SINGLE_QUBIT_GATES | _TWO_QUBIT_GATES | _MEASUREMENTS | _RESETS:
+            gate = stim.gate_data(name)
+            is_measurement = gate.produces_measurements
+            is_reset = gate.is_reset and not is_measurement
+            is_single_qubit_gate = gate.is_unitary and gate.is_single_qubit_gate
+            is_two_qubit_gate = gate.is_unitary and gate.is_two_qubit_gate
+            if not (is_single_qubit_gate or is_two_qubit_gate or is_measurement or is_reset):
                 noisy.append(operation)
                 continue
             for targets in operation.target_groups():
@@ -118,17 +73,17 @@ class StimCircuitNoiseAdapter:
                     raise ValueError(msg)
                 integer_qubits = cast("list[int]", qubits)
                 ideal = any(qubit in self.model.ideal_qubits for qubit in integer_qubits)
-                if name in _MEASUREMENTS and isinstance(self.model.measurement, BitFlipChannel) and not ideal:
+                if is_measurement and isinstance(self.model.measurement, BitFlipChannel) and not ideal:
                     noisy.append(name, target_list, self.model.measurement.probability)
                     continue
                 noisy.append(name, target_list, operation.gate_args_copy())
                 if ideal:
                     continue
-                if name in _SINGLE_QUBIT_GATES:
+                if is_single_qubit_gate:
                     self._append_channel(noisy, self.model.single_qubit_gate, integer_qubits, arity=1)
-                elif name in _TWO_QUBIT_GATES:
+                elif is_two_qubit_gate:
                     self._append_channel(noisy, self.model.two_qubit_gate, integer_qubits, arity=2)
-                elif name in _RESETS:
+                elif is_reset:
                     self._append_channel(noisy, self.model.reset, integer_qubits, arity=1)
                 else:
                     self._append_channel(noisy, self.model.measurement, integer_qubits, arity=1)
@@ -178,6 +133,6 @@ class StimCircuitNoiseAdapter:
 def _reset_qubits(circuit: stim.Circuit) -> set[int]:
     qubits: set[int] = set()
     for operation in circuit:
-        if isinstance(operation, stim.CircuitInstruction) and operation.name in _RESETS:
+        if isinstance(operation, stim.CircuitInstruction) and stim.gate_data(operation.name).is_reset:
             qubits.update(target.qubit_value for target in operation.targets_copy() if target.qubit_value is not None)
     return qubits
