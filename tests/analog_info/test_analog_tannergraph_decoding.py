@@ -21,6 +21,7 @@ from mqt.qecc.analog_information_decoding.simulators.analog_tannergraph_decoding
 )
 from mqt.qecc.analog_information_decoding.utils import simulation_utils
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
+from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -149,6 +150,8 @@ def test_atd_simulator_syndrome_error_channels_setup(atd_simulator_sigma: AtdSim
     assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(
         expect_chnl[2][0] + expect_chnl[1][0]
     )
+    assert isinstance(atd_simulator_sigma.noise_model, PhenomenologicalNoiseModel)
+    assert isinstance(atd_simulator_sigma.noise_sampler, PhenomenologicalNoiseSampler)
 
 
 def test_atd_simulator_syndrome_error_channels_setup_ser(atd_simulator_ser: AtdSimulator) -> None:

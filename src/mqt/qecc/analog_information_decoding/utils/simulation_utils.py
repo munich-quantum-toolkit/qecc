@@ -30,13 +30,9 @@ if TYPE_CHECKING:
     from .data_utils import BpParams
 
 
-_RNG_STATE = [np.random.default_rng()]
-
-
 def set_seed(value: float) -> None:
-    """Seed both legacy NumPy code and noise helpers."""
+    """Seed code that still uses NumPy's legacy process-global generator."""
     np.random.seed(value)  # ruff:ignore[numpy-legacy-random]
-    _RNG_STATE[0] = np.random.default_rng(int(value))
 
 
 def alist2numpy(fname: str) -> NDArray[np.int32]:  # current original implementation is buggy
@@ -113,9 +109,8 @@ def generate_err(
     if nr_qubits != channel_probs[0].size:
         msg = f"nr_qubits={nr_qubits} does not match channel size {channel_probs[0].size}."
         raise ValueError(msg)
-    return sample_inhomogeneous_pauli(
-        channel_probs, (residual_err[0], residual_err[1]), _RNG_STATE[0] if rng is None else rng
-    )
+    generator = np.random.default_rng() if rng is None else rng
+    return sample_inhomogeneous_pauli(channel_probs, (residual_err[0], residual_err[1]), generator)
 
 
 def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
@@ -156,7 +151,7 @@ def generate_syndr_err(channel_probs: NDArray[np.float64], rng: np.random.Genera
     if np.any(~np.isfinite(probabilities)) or np.any((probabilities < 0.0) | (probabilities > 1.0)):
         msg = "Syndrome-error probabilities must be finite and between 0 and 1."
         raise ValueError(msg)
-    generator = _RNG_STATE[0] if rng is None else rng
+    generator = np.random.default_rng() if rng is None else rng
     return np.asarray(generator.random(probabilities.shape) < probabilities, dtype=np.int32)
 
 
@@ -177,7 +172,7 @@ def get_noisy_analog_syndrome(
         np.full_like(perfect_syndr, -1.0),
     ).astype(np.float64)
 
-    generator = _RNG_STATE[0] if rng is None else rng
+    generator = np.random.default_rng() if rng is None else rng
     return np.asarray(generator.normal(loc=sgns, scale=sigma, size=perfect_syndr.shape), dtype=np.float64)
 
 

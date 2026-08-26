@@ -19,6 +19,7 @@ from mqt.qecc.noise import (
     DepolarizingChannel,
     GaussianReadoutChannel,
     PauliChannel,
+    PhenomenologicalNoiseModel,
 )
 
 
@@ -56,6 +57,17 @@ def test_pauli_total_probability_validation() -> None:
         PauliChannel(0.4, 0.4, 0.4)
 
 
+def test_phenomenological_model_owns_per_qubit_assignments() -> None:
+    """Keep spatial channel assignments immutable and separate from channels."""
+    overrides = {1: PauliChannel(0.2, 0.0, 0.0)}
+    model = PhenomenologicalNoiseModel(data=PauliChannel(0.1, 0.0, 0.0), data_by_qubit=overrides)
+    overrides[1] = PauliChannel(0.9, 0.0, 0.0)
+    assert model.data_channel(0) == PauliChannel(0.1, 0.0, 0.0)
+    assert model.data_channel(1) == PauliChannel(0.2, 0.0, 0.0)
+    with pytest.raises(TypeError):
+        model.data_by_qubit[1] = PauliChannel(0.3, 0.0, 0.0)  # ty: ignore[invalid-assignment]
+
+
 def test_gaussian_conversion_round_trip() -> None:
     """Convert consistently between analog width and hard-decision error rate."""
     channel = GaussianReadoutChannel.from_bit_error_probability(0.1)
@@ -74,5 +86,5 @@ def test_channels_and_models_are_immutable() -> None:
 
 def test_ideal_qubit_validation() -> None:
     """Reject negative ideal-qubit indices."""
-    with pytest.raises(ValueError, match="nonnegative"):
+    with pytest.raises(ValueError, match="non-negative"):
         CircuitNoiseModel(ideal_qubits=frozenset({-1}))

@@ -17,6 +17,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ldpc.bposd_decoder import BpOsdDecoder
 
+from mqt.qecc.noise import (
+    GaussianReadoutChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalNoiseSampler,
+)
+
 from ..utils import simulation_utils
 from ..utils.data_utils import calculate_error_rates, is_converged
 
@@ -124,7 +130,6 @@ class AtdSimulator:
         """Initialize the simulator."""
         if bias is None:
             bias = np.array([1.0, 1.0, 1.0])
-        simulation_utils.set_seed(seed)
         self.Hx = hx
         self.Lx = lx
         self.Hz = hz
@@ -188,6 +193,12 @@ class AtdSimulator:
             xyz_error_bias=self.bias,
             nr_qubits=self.n,
         )
+        self.noise_model = PhenomenologicalNoiseModel.from_pauli_probabilities(
+            *self.full_error_channel,
+            x_syndrome=GaussianReadoutChannel(self.x_sigma),
+            z_syndrome=GaussianReadoutChannel(self.z_sigma),
+        )
+        self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
         self.x_decoder = Decoder(
             error_channel=self.full_error_channel[0] + self.full_error_channel[1],  # x + y errors
             pcm=self.Hz,
@@ -209,28 +220,16 @@ class AtdSimulator:
             np.zeros(self.n).astype(np.int32),
             np.zeros(self.n).astype(np.int32),
         ]  # no residual error
-        (
-            x_err,
-            z_err,
-        ) = simulation_utils.generate_err(  # no residual error, only one side needed
-            nr_qubits=self.n,
-            channel_probs=self.full_error_channel,
-            residual_err=residual_err,
-            rng=self.rng,
-        )
+        x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))  # no residual error
 
         x_perf_syndr = (self.Hz @ x_err) % 2
-        x_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(
-            sigma=self.x_sigma, perfect_syndr=x_perf_syndr, rng=self.rng
-        )
+        x_noisy_syndr = np.asarray(self.noise_sampler.sample_x_syndrome(x_perf_syndr), dtype=np.float64)
         x_decoding = self.x_decoder.decode(x_noisy_syndr)[: self.n]
         self.x_bp_iterations += self.x_decoder.bposd_decoder.iter
         x_residual = (x_err + x_decoding) % 2
 
         z_perf_syndr = (self.Hx @ z_err) % 2
-        z_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(
-            sigma=self.z_sigma, perfect_syndr=z_perf_syndr, rng=self.rng
-        )
+        z_noisy_syndr = np.asarray(self.noise_sampler.sample_z_syndrome(z_perf_syndr), dtype=np.float64)
         z_decoding = self.z_decoder.decode(z_noisy_syndr)[: self.n]
         self.z_bp_iterations += self.z_decoder.bposd_decoder.iter
         z_residual = (z_err + z_decoding) % 2

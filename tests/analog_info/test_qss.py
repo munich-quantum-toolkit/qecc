@@ -19,6 +19,7 @@ from ldpc.bposd_decoder import BpOsdDecoder
 from mqt.qecc import QssSimulator
 from mqt.qecc.analog_information_decoding.utils import simulation_utils
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
+from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -67,6 +68,8 @@ def test_err_channel_setup(qss_simulator: QssSimulator) -> None:
     assert qss_simulator.err_idx == 1
     assert np.allclose(qss_simulator.data_err_channel, expected_data_chnl)
     assert np.allclose(qss_simulator.syndr_err_channel, expected_syndr_chnl)
+    assert isinstance(qss_simulator.noise_model, PhenomenologicalNoiseModel)
+    assert isinstance(qss_simulator.noise_sampler, PhenomenologicalNoiseSampler)
 
 
 def test_decoder_error_channel_setup(qss_simulator: QssSimulator) -> None:

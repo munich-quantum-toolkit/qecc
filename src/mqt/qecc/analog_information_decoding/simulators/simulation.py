@@ -19,6 +19,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ldpc.bposd_decoder import BpOsdDecoder
 
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    GaussianReadoutChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalNoiseSampler,
+)
+
 from ..utils.data_utils import (
     calculate_error_rates,
     is_converged,
@@ -29,15 +36,11 @@ from ..utils.simulation_utils import (
     build_single_stage_pcm,
     check_logical_err_h,
     error_channel_setup,
-    generate_err,
-    generate_syndr_err,
     get_binary_from_analog,
-    get_noisy_analog_syndrome,
     get_sigma_from_syndr_er,
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
-    set_seed,
 )
 
 if TYPE_CHECKING:
@@ -74,7 +77,6 @@ class SingleShotSimulator:
         **kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Initialize simulator."""
-        set_seed(seed)
         self.codename = codename
         self.data_err_rate = per
         self.syndr_err_rate = ser
@@ -146,6 +148,19 @@ class SingleShotSimulator:
             self.sigma_x = get_sigma_from_syndr_er(self.x_syndr_error_channel[0])
             self.sigma_z = get_sigma_from_syndr_er(self.z_syndr_error_channel[0])
 
+        if self.analog_info or self.analog_tg:
+            x_syndrome_channel = GaussianReadoutChannel(self.sigma_x)
+            z_syndrome_channel = GaussianReadoutChannel(self.sigma_z)
+        else:
+            x_syndrome_channel = BitFlipChannel(float(self.x_syndr_error_channel[0]))
+            z_syndrome_channel = BitFlipChannel(float(self.z_syndr_error_channel[0]))
+        self.noise_model = PhenomenologicalNoiseModel.from_pauli_probabilities(
+            *self.data_error_channel,
+            x_syndrome=x_syndrome_channel,
+            z_syndrome=z_syndrome_channel,
+        )
+        self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
+
         # if we want to decode with the analog tanner graph method construct respective matrices.
         # These are assumed to exist in the *_setup() methods
         if self.analog_tg:
@@ -174,12 +189,7 @@ class SingleShotSimulator:
         # for single shot simulation we have sus_th_depth number of 'noisy' simulations (residual error carried over)
         # followed by a single round of perfect syndrome extraction after the sustainable threshold loop
         for _ in range(self.sus_th_depth):
-            x_err, z_err = generate_err(
-                nr_qubits=self.n,
-                channel_probs=self.data_error_channel,
-                residual_err=residual_err,
-                rng=self.rng,
-            )
+            x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))
             # by our convention, we call the syndrome after the error that is occurred
             # however, the check_error_rate depends on which check errors,
             # hence is named after the check matrix.
@@ -203,12 +213,7 @@ class SingleShotSimulator:
             ]
 
         # perfect measurement round at the end
-        x_err, z_err = generate_err(
-            nr_qubits=self.n,
-            channel_probs=self.data_error_channel,
-            residual_err=residual_err,
-            rng=self.rng,
-        )
+        x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))
 
         # X-syndrome: sx = Hz * ex
         # Z-syndrome: sz = Hx * ez
@@ -248,14 +253,8 @@ class SingleShotSimulator:
         z_syndrome_w_err: NDArray[Any]
 
         if not math.isclose(self.syndr_err_rate, 0.0):
-            if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
-                x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x, rng=self.rng)
-                z_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=z_syndrome, sigma=self.sigma_z, rng=self.rng)
-            else:  # usual pauli error channel syndrome error
-                x_syndrome_err = generate_syndr_err(channel_probs=self.x_syndr_error_channel, rng=self.rng)
-                x_syndrome_w_err = (x_syndrome + x_syndrome_err) % 2
-                z_syndrome_err = generate_syndr_err(channel_probs=self.z_syndr_error_channel, rng=self.rng)
-                z_syndrome_w_err = (z_syndrome + z_syndrome_err) % 2
+            x_syndrome_w_err = self.noise_sampler.sample_x_syndrome(x_syndrome)
+            z_syndrome_w_err = self.noise_sampler.sample_z_syndrome(z_syndrome)
         else:
             x_syndrome_w_err = np.copy(x_syndrome)
             z_syndrome_w_err = np.copy(z_syndrome)

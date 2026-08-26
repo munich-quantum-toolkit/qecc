@@ -21,6 +21,7 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     error_channel_setup,
     get_sigma_from_syndr_er,
 )
+from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -147,6 +148,8 @@ def test_analog_ss_simulator_setup(
 
 def test_single_stage_initialization(single_stage_analog_simulator: SingleShotSimulator) -> None:
     """Test single stage single shot simulation initialization."""
+    assert isinstance(single_stage_analog_simulator.noise_model, PhenomenologicalNoiseModel)
+    assert isinstance(single_stage_analog_simulator.noise_sampler, PhenomenologicalNoiseSampler)
     res = single_stage_analog_simulator._single_sample()  # ruff:ignore[private-member-access]
     assert res[0] is not None
     assert res[1] is not None

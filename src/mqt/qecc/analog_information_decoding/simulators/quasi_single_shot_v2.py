@@ -15,17 +15,20 @@ import numpy as np
 from ldpc.bposd_decoder import BpOsdDecoder
 from pymatching import Matching
 
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    GaussianReadoutChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalNoiseSampler,
+)
+
 from ..utils.data_utils import _check_convergence
 from ..utils.simulation_utils import (
     error_channel_setup,
-    generate_err,
-    generate_syndr_err,
     get_binary_from_analog,
-    get_noisy_analog_syndrome,
     get_sigma_from_syndr_er,
     is_logical_err,
     save_results,
-    set_seed,
 )
 from .memory_experiment_v2 import (
     build_multiround_pcm,
@@ -107,7 +110,6 @@ class QssSimulator:
 
         self.rounds = rounds
         self.experiment = experiment
-        set_seed(seed)
         self.code_params = code_params
         self.input_values = self.__dict__.copy()
         self.rng = np.random.default_rng(seed)
@@ -164,6 +166,17 @@ class QssSimulator:
             self.sigma = get_sigma_from_syndr_er(
                 self.syndr_err_channel[0]  # x/z + y
             )  # assumes all sigmas are the same
+            syndrome_channel = GaussianReadoutChannel(self.sigma)
+        else:
+            syndrome_channel = BitFlipChannel(float(self.syndr_err_channel[0]))
+        self.noise_model = PhenomenologicalNoiseModel.from_pauli_probabilities(
+            self.x_bit_chnl,
+            self.y_bit_chnl,
+            self.z_bit_chnl,
+            x_syndrome=syndrome_channel,
+            z_syndrome=syndrome_channel,
+        )
+        self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
         self.bp_iterations = 0
         if self.decoding_method == "bposd":
             self.decoder = BpOsdDecoder(
@@ -215,29 +228,30 @@ class QssSimulator:
 
         for rnd in range(self.rounds):
             residual_err = [np.copy(err), np.copy(err)]
-            err = generate_err(
-                nr_qubits=self.num_qubits,
-                channel_probs=(
-                    self.x_bit_chnl,
-                    self.y_bit_chnl,
-                    self.z_bit_chnl,
-                ),
-                residual_err=residual_err,
-                rng=self.rng,
-            )[self.err_idx]  # only first or last vector needed, depending on side (X or Z)
+            err = self.noise_sampler.sample_data(self.num_qubits, (residual_err[0], residual_err[1]))[
+                self.err_idx
+            ]  # only first or last vector needed, depending on side (X or Z)
             noiseless_syndrome = (self.H @ err) % 2
 
             # add syndrome error
             if rnd != (self.rounds - 1):
                 if self.analog_tg:
-                    analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, self.sigma, rng=self.rng)
+                    analog_syndrome = np.asarray(
+                        self.noise_sampler.sample_syndrome(noiseless_syndrome, self.noise_model.x_syndrome),
+                        dtype=np.float64,
+                    )
                     syndrome = get_binary_from_analog(analog_syndrome)
                 else:
-                    syndrome_error = generate_syndr_err(self.syndr_err_channel, rng=self.rng)
-                    syndrome = (noiseless_syndrome + syndrome_error) % 2
+                    syndrome = np.asarray(
+                        self.noise_sampler.sample_syndrome(noiseless_syndrome, self.noise_model.x_syndrome),
+                        dtype=np.int32,
+                    )
             else:  # last round is perfect
                 syndrome = np.copy(noiseless_syndrome)
-                analog_syndrome = get_noisy_analog_syndrome(noiseless_syndrome, 0.0, rng=self.rng)  # no noise
+                analog_syndrome = np.asarray(
+                    self.noise_sampler.sample_syndrome(noiseless_syndrome, GaussianReadoutChannel(0.0)),
+                    dtype=np.float64,
+                )  # no noise
 
             # fill the corresponding column of the syndrome/analog syndrome matrix
             syndrome_mat[:, cnt] += syndrome
