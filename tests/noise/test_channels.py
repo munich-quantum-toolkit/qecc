@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 
+import numpy as np
 import pytest
 
 from mqt.qecc.noise import (
@@ -72,6 +73,39 @@ def test_gaussian_conversion_round_trip() -> None:
     """Convert consistently between analog width and hard-decision error rate."""
     channel = GaussianReadoutChannel.from_bit_error_probability(0.1)
     assert channel.bit_error_probability == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("sigma", [-0.1, float("inf"), float("nan")])
+def test_gaussian_width_validation(sigma: float) -> None:
+    """Reject invalid Gaussian standard deviations."""
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        GaussianReadoutChannel(sigma)
+
+
+def test_zero_width_gaussian_conversion() -> None:
+    """Handle the noiseless endpoint without dividing by zero."""
+    channel = GaussianReadoutChannel.from_bit_error_probability(0.0)
+    assert channel.sigma == pytest.approx(0.0)
+    assert channel.bit_error_probability == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("probability", [0.5, 1.0])
+def test_gaussian_conversion_rejects_ambiguous_error_rates(probability: float) -> None:
+    """Reject hard-decision error rates that cannot define a finite width."""
+    with pytest.raises(ValueError, match=r"below 0\.5"):
+        GaussianReadoutChannel.from_bit_error_probability(probability)
+
+
+def test_phenomenological_model_validation() -> None:
+    """Reject invalid per-qubit assignments and probability-array shapes."""
+    with pytest.raises(ValueError, match="non-negative integers"):
+        PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0), data_by_qubit={-1: PauliChannel(0.0, 0.0, 0.0)})
+    with pytest.raises(ValueError, match="non-negative"):
+        PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0)).data_channel(-1)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        PhenomenologicalNoiseModel.from_pauli_probabilities(np.zeros((1, 2)), np.zeros(2), np.zeros(2))
+    with pytest.raises(ValueError, match="identical shapes"):
+        PhenomenologicalNoiseModel.from_pauli_probabilities(np.zeros(1), np.zeros(2), np.zeros(1))
 
 
 def test_channels_and_models_are_immutable() -> None:

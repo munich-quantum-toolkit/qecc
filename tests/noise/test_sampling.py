@@ -10,14 +10,17 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from mqt.qecc.noise import (
     BitFlipChannel,
     GaussianReadoutChannel,
+    IdentityChannel,
     PauliChannel,
     PhenomenologicalNoiseModel,
     PhenomenologicalNoiseSampler,
 )
+from mqt.qecc.noise.sampling import sample_inhomogeneous_pauli
 
 
 def test_seeded_data_sampling_is_reproducible() -> None:
@@ -67,3 +70,42 @@ def test_gaussian_syndrome_channel_without_noise() -> None:
     model = PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0), z_syndrome=GaussianReadoutChannel(0.0))
     sampled = PhenomenologicalNoiseSampler(model, np.random.default_rng(1)).sample_z_syndrome(np.array([0, 1]))
     assert np.array_equal(sampled, np.array([1.0, -1.0]))
+
+
+def test_data_sampling_validates_dimensions() -> None:
+    """Reject invalid sample sizes, residuals, and out-of-range assignments."""
+    sampler = PhenomenologicalNoiseSampler(PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0)))
+    with pytest.raises(ValueError, match="nonnegative"):
+        sampler.sample_data(-1)
+    with pytest.raises(ValueError, match="shape"):
+        sampler.sample_data(2, (np.zeros(1, dtype=np.int32), np.zeros(2, dtype=np.int32)))
+    assigned = PhenomenologicalNoiseSampler(
+        PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0), data_by_qubit={2: PauliChannel(0.0, 0.0, 0.0)})
+    )
+    with pytest.raises(ValueError, match="below n_qubits"):
+        assigned.sample_data(2)
+
+
+def test_syndrome_sampling_edge_cases() -> None:
+    """Validate syndrome input and preserve identity-channel semantics."""
+    sampler = PhenomenologicalNoiseSampler(PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0)))
+    with pytest.raises(ValueError, match="binary"):
+        sampler.sample_syndrome(np.array([0, 2]), IdentityChannel())
+    syndrome = np.array([0, 1], dtype=np.int32)
+    sampled = sampler.sample_syndrome(syndrome, IdentityChannel())
+    assert np.array_equal(sampled, syndrome)
+    assert sampled is not syndrome
+    with pytest.raises(TypeError):
+        sampler.sample_syndrome(syndrome, object())  # ty: ignore[invalid-argument-type]
+
+
+def test_legacy_pauli_sampler_validation() -> None:
+    """Reject inconsistent and invalid legacy probability arrays."""
+    residual = (np.zeros(2, dtype=np.int32), np.zeros(2, dtype=np.int32))
+    rng = np.random.default_rng(1)
+    with pytest.raises(ValueError, match="identical shapes"):
+        sample_inhomogeneous_pauli((np.zeros(1), np.zeros(2), np.zeros(2)), residual, rng)
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        sample_inhomogeneous_pauli((np.array([np.nan, 0.0]), np.zeros(2), np.zeros(2)), residual, rng)
+    with pytest.raises(ValueError, match="sum to at most 1"):
+        sample_inhomogeneous_pauli((np.full(2, 0.6), np.full(2, 0.5), np.zeros(2)), residual, rng)

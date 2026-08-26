@@ -329,6 +329,22 @@ def test_generate_err() -> None:
     assert np.array_equal(res[1], expected[1])
 
 
+def test_noise_helper_input_validation() -> None:
+    """Reject inconsistent legacy noise-helper inputs."""
+    channel = (np.zeros(2), np.zeros(2), np.zeros(2))
+    residual = [np.zeros(2, dtype=np.int32), np.zeros(2, dtype=np.int32)]
+    with pytest.raises(ValueError, match="does not match channel size"):
+        generate_err(1, channel, residual)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        generate_syndr_err(np.array([np.nan]))
+    with pytest.raises(ValueError, match="binary"):
+        get_noisy_analog_syndrome(np.array([2]), 0.1)
+    with pytest.raises(ValueError, match="nonnegative"):
+        error_channel_setup(0.1, np.ones(3), -1)
+    with pytest.raises(ValueError, match="exactly three"):
+        error_channel_setup(0.1, np.ones(2), 1)
+
+
 def test_explicit_generator_controls_noise_helpers() -> None:
     """Reproduce complete helper sequences with explicitly owned generators."""
     n = 100

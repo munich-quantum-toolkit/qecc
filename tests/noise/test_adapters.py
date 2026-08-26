@@ -18,8 +18,10 @@ from mqt.qecc.noise import (
     DepolarizingChannel,
     ParallelSchedule,
     PauliChannel,
+    SequentialSchedule,
     StimCircuitNoiseAdapter,
 )
+from mqt.qecc.noise.scheduling import schedule_stim_circuit
 
 
 def test_location_channels_compile_to_stim() -> None:
@@ -63,3 +65,46 @@ def test_single_qubit_pauli_rejected_at_two_qubit_location() -> None:
     model = CircuitNoiseModel(two_qubit_gate=PauliChannel(0.1, 0.0, 0.0))
     with pytest.raises(ValueError, match="one-qubit noise"):
         StimCircuitNoiseAdapter(model).apply(stim.Circuit("CX 0 1"))
+
+
+def test_adapter_preserves_unrecognized_operations_and_ideal_qubits() -> None:
+    """Pass metadata through and omit noise from ideal qubits."""
+    model = CircuitNoiseModel(single_qubit_gate=DepolarizingChannel(0.1), ideal_qubits=frozenset({0}))
+    circuit = stim.Circuit("TICK\nH 0")
+    assert StimCircuitNoiseAdapter(model).apply(circuit) == circuit
+
+
+def test_non_bit_flip_measurement_channel_is_appended() -> None:
+    """Append quantum measurement noise when it is not a readout flip."""
+    model = CircuitNoiseModel(measurement=DepolarizingChannel(0.1))
+    assert StimCircuitNoiseAdapter(model).apply(stim.Circuit("M 0")) == stim.Circuit("M 0\nDEPOLARIZE1(0.1) 0")
+
+
+def test_zero_probability_channel_is_omitted() -> None:
+    """Avoid emitting redundant zero-probability Stim operations."""
+    circuit = stim.Circuit("H 0")
+    model = CircuitNoiseModel(single_qubit_gate=PauliChannel(0.0, 0.0, 0.0))
+    assert StimCircuitNoiseAdapter(model).apply(circuit) == circuit
+
+
+def test_repeat_blocks_require_flattening() -> None:
+    """Reject repeat blocks in both unscheduled and scheduled paths."""
+    circuit = stim.Circuit("REPEAT 2 {\nH 0\n}")
+    with pytest.raises(TypeError, match="flatten"):
+        StimCircuitNoiseAdapter(CircuitNoiseModel()).apply(circuit)
+    with pytest.raises(TypeError, match="flatten"):
+        schedule_stim_circuit(circuit, SequentialSchedule())
+
+
+def test_sequential_schedule_separates_target_groups() -> None:
+    """Place every target group in its own layer."""
+    assert schedule_stim_circuit(stim.Circuit("H 0 1"), SequentialSchedule()) == [
+        stim.Circuit("H 0"),
+        stim.Circuit("H 1"),
+    ]
+
+
+def test_rec_controlled_gate_is_rejected_as_quantum_gate_noise_location() -> None:
+    """Reject recognized gates containing classical record targets."""
+    with pytest.raises(ValueError, match="non-qubit target"):
+        StimCircuitNoiseAdapter(CircuitNoiseModel()).apply(stim.Circuit("CX rec[-1] 0"))

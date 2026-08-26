@@ -19,7 +19,7 @@ from ldpc.bposd_decoder import BpOsdDecoder
 from mqt.qecc import QssSimulator
 from mqt.qecc.analog_information_decoding.utils import simulation_utils
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
-from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
+from mqt.qecc.noise import GaussianReadoutChannel, PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -77,6 +77,25 @@ def test_decoder_error_channel_setup(qss_simulator: QssSimulator) -> None:
     expected = np.full((1, 20), 0.06666667)
     assert isinstance(qss_simulator.decoder, BpOsdDecoder)
     assert np.allclose(qss_simulator.decoder.channel_probs, expected)
+
+
+def test_analog_noise_model_setup(pcm: NDArray[np.int32], code_params: dict[str, int]) -> None:
+    """Configure Gaussian syndrome channels for analog decoding."""
+    simulator = QssSimulator(
+        pcm=pcm,
+        per=0.1,
+        ser=0.1,
+        logicals=np.ones(7, dtype=np.int32),
+        bias=np.ones(3),
+        codename="test",
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
+        code_params=code_params,
+        analog_tg=True,
+        repetitions=2,
+        rounds=1,
+    )
+    assert isinstance(simulator.noise_model.x_syndrome, GaussianReadoutChannel)
+    assert simulator.noise_model.x_syndrome.sigma == pytest.approx(simulator.sigma)
 
 
 def test_single_sample(qss_simulator: QssSimulator) -> None:
