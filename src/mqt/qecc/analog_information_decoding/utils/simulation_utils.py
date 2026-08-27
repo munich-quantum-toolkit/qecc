@@ -30,11 +30,6 @@ if TYPE_CHECKING:
     from .data_utils import BpParams
 
 
-def set_seed(value: float) -> None:
-    """Seed code that still uses NumPy's legacy process-global generator."""
-    np.random.seed(value)  # ruff:ignore[numpy-legacy-random]
-
-
 def alist2numpy(fname: str) -> NDArray[np.int32]:  # current original implementation is buggy
     """Converts an alist file to a numpy array."""
     alist_file: NDArray[np.str_] = np.loadtxt(fname, delimiter=",", dtype=str)
@@ -162,7 +157,7 @@ def get_noisy_analog_syndrome(
 
     Assumes perfect_syndr has entries in {0,1}.
     """
-    GaussianReadoutChannel(sigma)
+    GaussianReadoutChannel(sigma)  # used as validation
     if not np.all((perfect_syndr == 0) | (perfect_syndr == 1)):
         msg = "A perfect syndrome must contain only binary values."
         raise ValueError(msg)
