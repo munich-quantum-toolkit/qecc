@@ -51,11 +51,15 @@ def test_per_qubit_data_channel_assignments() -> None:
     assert np.array_equal(sampled[1], np.array([0, 0]))
 
 
-def test_model_factory_compresses_probability_arrays_to_overrides() -> None:
-    """Construct a default channel plus assignments from legacy arrays."""
-    model = PhenomenologicalNoiseModel.from_pauli_probabilities(np.array([0.1, 0.2]), np.zeros(2), np.zeros(2))
-    assert model.data == PauliChannel(0.1, 0.0, 0.0)
-    assert model.data_by_qubit == {1: PauliChannel(0.2, 0.0, 0.0)}
+def test_model_expands_default_and_overrides_to_arrays() -> None:
+    """Expand the default channel and per-qubit overrides into probability arrays."""
+    model = PhenomenologicalNoiseModel(data=PauliChannel(0.1, 0.0, 0.0), data_by_qubit={1: PauliChannel(0.2, 0.0, 0.0)})
+    p_x, p_y, p_z = model.pauli_probabilities(2)
+    assert np.array_equal(p_x, np.array([0.1, 0.2]))
+    assert np.array_equal(p_y, np.zeros(2))
+    assert np.array_equal(p_z, np.zeros(2))
+    assert np.array_equal(model.x_marginals(2), np.array([0.1, 0.2]))
+    assert np.array_equal(model.z_marginals(2), np.zeros(2))
 
 
 def test_bit_flip_syndrome_channel() -> None:

@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import starmap
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -21,7 +20,7 @@ from .channels import IdentityChannel, PauliChannel, QuantumChannel, ReadoutChan
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from numpy.typing import ArrayLike
+    from numpy.typing import NDArray
 
 # ----------------------------------------------------------------------------------------------------
 #   Circuit-level models
@@ -74,34 +73,37 @@ class PhenomenologicalNoiseModel:
             raise ValueError(msg)
         return self.data_by_qubit.get(qubit, self.data)
 
-    @classmethod
-    def from_pauli_probabilities(
-        cls,
-        p_x: ArrayLike,
-        p_y: ArrayLike,
-        p_z: ArrayLike,
-        *,
-        x_syndrome: ReadoutChannel | None = None,
-        z_syndrome: ReadoutChannel | None = None,
-    ) -> PhenomenologicalNoiseModel:
-        """Construct a model from per-qubit Pauli probability arrays.
+    def pauli_probabilities(
+        self, n_qubits: int
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        """Expand the data channels into per-qubit X, Y, and Z probability arrays."""
+        self._check_extent(n_qubits)
+        p_x = np.full(n_qubits, self.data.p_x, dtype=np.float64)
+        p_y = np.full(n_qubits, self.data.p_y, dtype=np.float64)
+        p_z = np.full(n_qubits, self.data.p_z, dtype=np.float64)
+        for qubit, channel in self.data_by_qubit.items():
+            p_x[qubit], p_y[qubit], p_z[qubit] = channel.p_x, channel.p_y, channel.p_z
+        return p_x, p_y, p_z
 
-        The first qubit's channel becomes the default; only locations with a
-        different channel are retained as explicit assignments.
-        """
-        arrays = tuple(np.asarray(values, dtype=np.float64) for values in (p_x, p_y, p_z))
-        if any(values.ndim != 1 for values in arrays):
-            msg = "Per-qubit Pauli probabilities must be one-dimensional."
+    def x_marginals(self, n_qubits: int) -> NDArray[np.float64]:
+        """Per-qubit probability of an X-type error, as used for decoder priors."""
+        return self._marginals(n_qubits, "x_marginal")
+
+    def z_marginals(self, n_qubits: int) -> NDArray[np.float64]:
+        """Per-qubit probability of a Z-type error, as used for decoder priors."""
+        return self._marginals(n_qubits, "z_marginal")
+
+    def _marginals(self, n_qubits: int, attribute: str) -> NDArray[np.float64]:
+        self._check_extent(n_qubits)
+        marginals = np.full(n_qubits, getattr(self.data, attribute), dtype=np.float64)
+        for qubit, channel in self.data_by_qubit.items():
+            marginals[qubit] = getattr(channel, attribute)
+        return marginals
+
+    def _check_extent(self, n_qubits: int) -> None:
+        if n_qubits < 0:
+            msg = f"n_qubits must be nonnegative, got {n_qubits}."
             raise ValueError(msg)
-        if arrays[0].shape != arrays[1].shape or arrays[0].shape != arrays[2].shape:
-            msg = "Per-qubit Pauli probability arrays must have identical shapes."
+        if any(qubit >= n_qubits for qubit in self.data_by_qubit):
+            msg = f"Per-qubit data assignments must be below n_qubits={n_qubits}."
             raise ValueError(msg)
-        channels = list(starmap(PauliChannel, zip(*arrays, strict=True)))
-        default = channels[0] if channels else PauliChannel(0.0, 0.0, 0.0)
-        overrides = {qubit: channel for qubit, channel in enumerate(channels) if channel != default}
-        return cls(
-            data=default,
-            data_by_qubit=overrides,
-            x_syndrome=IdentityChannel() if x_syndrome is None else x_syndrome,
-            z_syndrome=IdentityChannel() if z_syndrome is None else z_syndrome,
-        )

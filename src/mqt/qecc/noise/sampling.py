@@ -60,40 +60,19 @@ class PhenomenologicalNoiseSampler:
         """
         self.model = model
         self.rng = np.random.default_rng() if rng is None else rng
-        self._data_probability_cache: dict[
-            int, tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]
-        ] = {}
 
     def sample_data(
         self, n_qubits: int, residual: tuple[NDArray[np.int32], NDArray[np.int32]] | None = None
     ) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
         """Sample the X and Z components of Pauli errors."""
-        if n_qubits < 0:
-            msg = f"n_qubits must be nonnegative, got {n_qubits}."
-            raise ValueError(msg)
+        probabilities = self.model.pauli_probabilities(n_qubits)
         if residual is None:
             residual = (np.zeros(n_qubits, dtype=np.int32), np.zeros(n_qubits, dtype=np.int32))
         elif residual[0].shape != (n_qubits,) or residual[1].shape != (n_qubits,):
             msg = "Residual X and Z arrays must both have shape (n_qubits,)."
             raise ValueError(msg)
 
-        return _apply_pauli_samples(*self._data_probabilities(n_qubits), residual, self.rng)
-
-    def _data_probabilities(
-        self, n_qubits: int
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-        """Resolve and cache per-qubit channel assignments as probability arrays."""
-        if any(qubit >= n_qubits for qubit in self.model.data_by_qubit):
-            msg = f"Per-qubit data assignments must be below n_qubits={n_qubits}."
-            raise ValueError(msg)
-        if n_qubits not in self._data_probability_cache:
-            channels = [self.model.data_channel(qubit) for qubit in range(n_qubits)]
-            self._data_probability_cache[n_qubits] = (
-                np.fromiter((channel.p_x for channel in channels), dtype=np.float64, count=n_qubits),
-                np.fromiter((channel.p_y for channel in channels), dtype=np.float64, count=n_qubits),
-                np.fromiter((channel.p_z for channel in channels), dtype=np.float64, count=n_qubits),
-            )
-        return self._data_probability_cache[n_qubits]
+        return _apply_pauli_samples(*probabilities, residual, self.rng)
 
     def sample_x_syndrome(self, perfect_syndrome: NDArray[np.int32]) -> NDArray[np.int32] | NDArray[np.float64]:
         """Apply the configured X-syndrome channel to a perfect syndrome."""

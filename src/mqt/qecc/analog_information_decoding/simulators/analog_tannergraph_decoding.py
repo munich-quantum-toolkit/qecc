@@ -147,11 +147,6 @@ class AtdSimulator:
                 raise ValueError(msg)
 
             self.syndr_err_rate = syndr_err_rate
-            synd_err_channel = simulation_utils.error_channel_setup(
-                error_rate=self.syndr_err_rate,
-                xyz_error_bias=self.bias,
-                nr_qubits=1,
-            )
 
         else:
             if syndr_err_rate is not None:
@@ -159,16 +154,13 @@ class AtdSimulator:
                 raise ValueError(msg)
 
             self.syndr_err_rate = simulation_utils.get_error_rate_from_sigma(sigma)
-            synd_err_channel = simulation_utils.error_channel_setup(
-                error_rate=self.syndr_err_rate,
-                xyz_error_bias=self.bias,
-                nr_qubits=1,
-            )
 
-        x_synd_err_rate = synd_err_channel[0][0] + synd_err_channel[1][0]  # x + y errors, 1st bit only
-        z_synd_err_rate = synd_err_channel[2][0] + synd_err_channel[1][0]  # z + y errors, 1st bit only
-        self.x_sigma = simulation_utils.get_sigma_from_syndr_er(x_synd_err_rate)
-        self.z_sigma = simulation_utils.get_sigma_from_syndr_er(z_synd_err_rate)
+        synd_err_channel = simulation_utils.error_channel_setup(
+            error_rate=self.syndr_err_rate,
+            xyz_error_bias=self.bias,
+        )
+        self.x_sigma = simulation_utils.get_sigma_from_syndr_er(synd_err_channel.x_marginal)
+        self.z_sigma = simulation_utils.get_sigma_from_syndr_er(synd_err_channel.z_marginal)
 
         self.bp_params = bp_params
         self.save_interval = kwargs.get("save_interval", 1_000)
@@ -188,25 +180,23 @@ class AtdSimulator:
             Decoder = AnalogTannergraphDecoder  # ruff:ignore[non-lowercase-variable-in-function]
 
         # single-sided error only, no bias
-        self.full_error_channel = simulation_utils.error_channel_setup(
-            error_rate=self.data_err_rate,
-            xyz_error_bias=self.bias,
-            nr_qubits=self.n,
-        )
-        self.noise_model = PhenomenologicalNoiseModel.from_pauli_probabilities(
-            *self.full_error_channel,
+        self.noise_model = PhenomenologicalNoiseModel(
+            data=simulation_utils.error_channel_setup(
+                error_rate=self.data_err_rate,
+                xyz_error_bias=self.bias,
+            ),
             x_syndrome=GaussianReadoutChannel(self.x_sigma),
             z_syndrome=GaussianReadoutChannel(self.z_sigma),
         )
         self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
         self.x_decoder = Decoder(
-            error_channel=self.full_error_channel[0] + self.full_error_channel[1],  # x + y errors
+            error_channel=self.noise_model.x_marginals(self.n),
             pcm=self.Hz,
             sigma=self.x_sigma,
             bp_params=self.bp_params,
         )
         self.z_decoder = Decoder(
-            error_channel=self.full_error_channel[2] + self.full_error_channel[1],  # z + y errors
+            error_channel=self.noise_model.z_marginals(self.n),
             pcm=self.Hx,
             sigma=self.z_sigma,
             bp_params=self.bp_params,

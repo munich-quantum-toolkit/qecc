@@ -76,6 +76,16 @@ class PauliChannel:
         """Total probability of a non-identity error."""
         return self.p_x + self.p_y + self.p_z
 
+    @property
+    def x_marginal(self) -> float:
+        """Probability of an X-type error, i.e. of an X or a Y error."""
+        return self.p_x + self.p_y
+
+    @property
+    def z_marginal(self) -> float:
+        """Probability of a Z-type error, i.e. of a Z or a Y error."""
+        return self.p_z + self.p_y
+
     @classmethod
     def from_total_probability(
         cls, probability: float, *, bias: tuple[float, float, float] = (1.0, 1.0, 1.0)

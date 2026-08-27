@@ -30,6 +30,7 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     get_virtual_check_init_vals,
     is_logical_err,
 )
+from mqt.qecc.noise import PauliChannel
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -339,10 +340,8 @@ def test_noise_helper_input_validation() -> None:
         generate_syndr_err(np.array([np.nan]))
     with pytest.raises(ValueError, match="binary"):
         get_noisy_analog_syndrome(np.array([2]), 0.1)
-    with pytest.raises(ValueError, match="nonnegative"):
-        error_channel_setup(0.1, np.ones(3), -1)
     with pytest.raises(ValueError, match="exactly three"):
-        error_channel_setup(0.1, np.ones(2), 1)
+        error_channel_setup(0.1, np.ones(2))
 
 
 def test_explicit_generator_controls_noise_helpers() -> None:
@@ -428,41 +427,21 @@ def test_get_noisy_analog_syndr() -> None:
 def test_err_chnl_setup() -> None:
     """Test error_channel_setup function."""
     p = 0.1
-    bias = np.array([1.0, 1.0, 1.0])
-    n = 10
-    ar = np.ones(n) * p / 3
-    exp = np.array([np.copy(ar), np.copy(ar), np.copy(ar)])
-    res = error_channel_setup(p, bias, n)
 
-    assert np.array_equal(res, exp)
+    channel = error_channel_setup(p, np.array([1.0, 1.0, 1.0]))
+    assert channel == PauliChannel(p / 3, p / 3, p / 3)
 
-    bias = np.array([1.0, 0.0, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.copy(ar), np.zeros(n), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
+    assert error_channel_setup(p, np.array([1.0, 0.0, 0.0])) == PauliChannel(p, 0.0, 0.0)
+    assert error_channel_setup(p, np.array([1.0, 1.0, 0.0])) == PauliChannel(p / 2, p / 2, 0.0)
+    assert error_channel_setup(p, np.array([np.inf, 0.0, 0.0])) == PauliChannel(p, 0.0, 0.0)
+    assert error_channel_setup(p, np.array([0.0, np.inf, 0.0])) == PauliChannel(0.0, p, 0.0)
 
-    assert np.array_equal(res, exp)
 
-    bias = np.array([1.0, 1.0, 0.0])
-    ar = np.ones(n) * p / 2
-    exp = np.array([np.copy(ar), np.copy(ar), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
-
-    bias = np.array([np.inf, 0.0, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.copy(ar), np.zeros(n), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
-
-    bias = np.array([0.0, np.inf, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.zeros(n), np.copy(ar), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
+def test_err_chnl_marginals() -> None:
+    """The marginals are what decoders consume as priors."""
+    channel = error_channel_setup(0.3, np.array([1.0, 1.0, 1.0]))
+    assert channel.x_marginal == pytest.approx(0.2)  # p_x + p_y
+    assert channel.z_marginal == pytest.approx(0.2)  # p_z + p_y
 
 
 def test_build_ss_pcm() -> None:

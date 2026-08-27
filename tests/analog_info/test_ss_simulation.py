@@ -131,9 +131,9 @@ def test_analog_ss_simulator_setup(
     single_stage_analog_simulator: SingleShotSimulator,
 ) -> None:
     """Test the initialization of error channels the simulator."""
-    chnl = error_channel_setup(error_rate, bias, pcm.shape[0])
-    expected_x_syndr_chnl = chnl[0] + chnl[1]
-    expected_z_syndr_chnl = chnl[2] + chnl[1]
+    chnl = error_channel_setup(error_rate, bias)
+    expected_x_syndr_chnl = np.full(pcm.shape[0], chnl.x_marginal)
+    expected_z_syndr_chnl = np.full(pcm.shape[0], chnl.z_marginal)
     assert np.allclose(expected_x_syndr_chnl, single_stage_analog_simulator.x_syndr_error_channel)
     assert np.allclose(expected_z_syndr_chnl, single_stage_analog_simulator.z_syndr_error_channel)
     assert single_stage_analog_simulator.sigma_x == get_sigma_from_syndr_er(expected_x_syndr_chnl[0])

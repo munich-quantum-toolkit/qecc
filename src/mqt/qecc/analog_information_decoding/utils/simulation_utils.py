@@ -171,25 +171,13 @@ def get_noisy_analog_syndrome(
     return np.asarray(generator.normal(loc=sgns, scale=sigma, size=perfect_syndr.shape), dtype=np.float64)
 
 
-def error_channel_setup(
-    error_rate: float, xyz_error_bias: NDArray[np.float64], nr_qubits: int
-) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-    """Set up an error_channel given the physical error rate, bias, and number of bits."""
-    if nr_qubits < 0:
-        msg = f"nr_qubits must be nonnegative, got {nr_qubits}."
-        raise ValueError(msg)
+def error_channel_setup(error_rate: float, xyz_error_bias: NDArray[np.float64]) -> PauliChannel:
+    """Set up the Pauli error channel given the physical error rate and bias."""
     bias_values = tuple(float(value) for value in np.asarray(xyz_error_bias).tolist())
     if len(bias_values) != 3:
         msg = f"xyz_error_bias must contain exactly three values, got {len(bias_values)}."
         raise ValueError(msg)
-    channel = PauliChannel.from_total_probability(error_rate, bias=bias_values)
-    px, py, pz = channel.p_x, channel.p_y, channel.p_z
-
-    channel_probs_x = np.ones(nr_qubits) * px
-    channel_probs_z = np.ones(nr_qubits) * pz
-    channel_probs_y = np.ones(nr_qubits) * py
-
-    return channel_probs_x, channel_probs_y, channel_probs_z
+    return PauliChannel.from_total_probability(error_rate, bias=bias_values)
 
 
 def build_single_stage_pcm(pcm: NDArray[np.int32], meta: NDArray[np.int32]) -> NDArray[np.int32]:

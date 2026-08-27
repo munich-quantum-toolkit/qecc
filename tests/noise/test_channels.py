@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 
-import numpy as np
 import pytest
 
 from mqt.qecc.noise import (
@@ -102,10 +101,12 @@ def test_phenomenological_model_validation() -> None:
         PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0), data_by_qubit={-1: PauliChannel(0.0, 0.0, 0.0)})
     with pytest.raises(ValueError, match="non-negative"):
         PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0)).data_channel(-1)
-    with pytest.raises(ValueError, match="one-dimensional"):
-        PhenomenologicalNoiseModel.from_pauli_probabilities(np.zeros((1, 2)), np.zeros(2), np.zeros(2))
-    with pytest.raises(ValueError, match="identical shapes"):
-        PhenomenologicalNoiseModel.from_pauli_probabilities(np.zeros(1), np.zeros(2), np.zeros(1))
+    with pytest.raises(ValueError, match="nonnegative"):
+        PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0)).pauli_probabilities(-1)
+    with pytest.raises(ValueError, match="below n_qubits"):
+        PhenomenologicalNoiseModel(
+            data=PauliChannel(0.0, 0.0, 0.0), data_by_qubit={3: PauliChannel(0.0, 0.0, 0.0)}
+        ).x_marginals(2)
 
 
 def test_channels_and_models_are_immutable() -> None:

@@ -20,6 +20,7 @@ from mqt.qecc.noise import (
     GaussianReadoutChannel,
     PhenomenologicalNoiseModel,
     PhenomenologicalNoiseSampler,
+    ReadoutChannel,
 )
 
 from ..utils.data_utils import _check_convergence
@@ -122,27 +123,22 @@ class QssSimulator:
 
         self.num_checks, self.num_qubits = self.H.shape
 
-        self.x_bit_chnl, self.y_bit_chnl, self.z_bit_chnl = error_channel_setup(
-            error_rate=self.data_err_rate,
-            xyz_error_bias=bias,
-            nr_qubits=self.num_qubits,
-        )
-        self.x_syndr_err_chnl, self.y_syndr_err_chnl, self.z_syndr_err_chnl = error_channel_setup(
-            error_rate=self.syndr_err_rate,
-            xyz_error_bias=bias,
-            nr_qubits=self.num_checks,
-        )
+        data_channel = error_channel_setup(error_rate=self.data_err_rate, xyz_error_bias=bias)
+        syndrome_pauli_channel = error_channel_setup(error_rate=self.syndr_err_rate, xyz_error_bias=bias)
+
         if self.check_side == "X":
             self.err_idx = 1
             # Z bit/syndrome errors
-            self.data_err_channel = self.y_bit_chnl + self.z_bit_chnl
-            self.syndr_err_channel = 1.0 * (self.z_syndr_err_chnl + self.y_syndr_err_chnl)
+            data_err_rate = data_channel.z_marginal
+            syndr_err_rate = syndrome_pauli_channel.z_marginal
         else:
             # we have X errors on qubits
             self.err_idx = 0
             # X bit/syndrome errors
-            self.data_err_channel = self.x_bit_chnl + self.y_bit_chnl
-            self.syndr_err_channel = 1.0 * (self.x_syndr_err_chnl + self.y_syndr_err_chnl)
+            data_err_rate = data_channel.x_marginal
+            syndr_err_rate = syndrome_pauli_channel.x_marginal
+        self.data_err_channel = np.full(self.num_qubits, data_err_rate)
+        self.syndr_err_channel = np.full(self.num_checks, syndr_err_rate)
 
         # initialize the multiround parity-check matrix as described in the paper
         self.H3D = build_multiround_pcm(
@@ -155,24 +151,20 @@ class QssSimulator:
 
         channel_probs: NDArray[np.float64] = np.zeros(self.H3D.shape[1]).astype(np.float64)
         # The bits corresponding to the columns of the diagonal H-block of H3D are initialized with the bit channel
-        channel_probs[: self.check_block_size] = np.array(self.data_err_channel.tolist() * (self.repetitions))
+        channel_probs[: self.check_block_size] = data_err_rate
 
         # The remaining bits (corresponding to the identity block of H3D)
         # are initialized with the syndrome error channel
-        channel_probs[self.check_block_size :] = np.array(self.syndr_err_channel.tolist() * (self.repetitions))
+        channel_probs[self.check_block_size :] = syndr_err_rate
 
         # If we do ATG decoding, initialize sigma (syndrome noise strength)
         if self.analog_tg:
-            self.sigma = get_sigma_from_syndr_er(
-                self.syndr_err_channel[0]  # x/z + y
-            )  # assumes all sigmas are the same
-            syndrome_channel = GaussianReadoutChannel(self.sigma)
+            self.sigma = get_sigma_from_syndr_er(syndr_err_rate)  # x/z + y
+            syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma)
         else:
-            syndrome_channel = BitFlipChannel(float(self.syndr_err_channel[0]))
-        self.noise_model = PhenomenologicalNoiseModel.from_pauli_probabilities(
-            self.x_bit_chnl,
-            self.y_bit_chnl,
-            self.z_bit_chnl,
+            syndrome_channel = BitFlipChannel(syndr_err_rate)
+        self.noise_model = PhenomenologicalNoiseModel(
+            data=data_channel,
             x_syndrome=syndrome_channel,
             z_syndrome=syndrome_channel,
         )
