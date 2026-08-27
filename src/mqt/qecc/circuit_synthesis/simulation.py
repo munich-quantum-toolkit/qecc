@@ -633,24 +633,29 @@ class LutDecoder:
 
             # Create a generator of all combinations for this weight.
             comb_iter = itertools.combinations(range(n_qubits), weight)
-            # Split the combinations into chunks.
-            chunks = _chunked_iterable(comb_iter, chunk_size)
+            # Split the combinations into chunks, allowing us to size the pool to the actual work (small codes yield a single chunk).
+            chunks = list(_chunked_iterable(comb_iter, chunk_size))
 
             weight_dict: dict[bytes, npt.NDArray[np.int8]] = {}
-            with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-                d2 = weight_dict.copy()
-                futures = [
-                    executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, d2) for chunk in chunks
-                ]
-                if print_progress:
-                    for future in tqdm(
-                        concurrent.futures.as_completed(futures), total=len(futures), desc=f"Weight {weight}"
-                    ):
-                        _merge_into(weight_dict, future.result())
+            d2 = weight_dict.copy()
+            if len(chunks) <= 1:
+                # Spawning worker processes for a single chunk is overhead
+                for chunk in chunks:
+                    _merge_into(weight_dict, _process_combinations_chunk(chunk, checks, n_qubits, d2))
+            else:
+                with concurrent.futures.ProcessPoolExecutor(max_workers=min(num_workers, len(chunks))) as executor:
+                    futures = [
+                        executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, d2) for chunk in chunks
+                    ]
+                    if print_progress:
+                        for future in tqdm(
+                            concurrent.futures.as_completed(futures), total=len(futures), desc=f"Weight {weight}"
+                        ):
+                            _merge_into(weight_dict, future.result())
 
-                else:
-                    for future in concurrent.futures.as_completed(futures):
-                        _merge_into(weight_dict, future.result())
+                    else:
+                        for future in concurrent.futures.as_completed(futures):
+                            _merge_into(weight_dict, future.result())
 
             _merge_into(global_lut, weight_dict)
 
