@@ -14,15 +14,73 @@ from typing import TYPE_CHECKING, cast
 
 import stim
 
-from .channels import BitFlipChannel, DepolarizingChannel, IdentityChannel, PauliChannel, QuantumChannel
+from .channels import (
+    BitFlipChannel,
+    DepolarizingChannel,
+    GaussianReadoutChannel,
+    IdentityChannel,
+    PauliChannel,
+    QuantumChannel,
+    ReadoutChannel,
+)
 from .scheduling import Schedule, qubits_in_stim_circuit, schedule_stim_circuit
 
 if TYPE_CHECKING:
-    from .models import CircuitNoiseModel
+    from collections.abc import Sequence
+
+    from .models import CircuitNoiseModel, PhenomenologicalNoiseModel
+
+
+def append_quantum_channel(
+    circuit: stim.Circuit,
+    channel: QuantumChannel,
+    targets: Sequence[int],
+    *,
+    arity: int = 1,
+) -> None:
+    """Append the Stim instruction that realizes a quantum channel."""
+    if isinstance(channel, IdentityChannel):
+        return
+    if math.isclose(channel.probability, 0.0):
+        return
+    if isinstance(channel, DepolarizingChannel):
+        circuit.append(f"DEPOLARIZE{arity}", list(targets), channel.probability)
+    elif isinstance(channel, BitFlipChannel):
+        circuit.append("X_ERROR", list(targets), channel.probability)
+    elif isinstance(channel, PauliChannel):
+        if arity != 1:
+            msg = "PauliChannel describes one-qubit noise and cannot be applied to a two-qubit location."
+            raise ValueError(msg)
+        # A channel supported on a single axis is exactly the corresponding Pauli error.
+        axes = [(channel.p_x, "X_ERROR"), (channel.p_y, "Y_ERROR"), (channel.p_z, "Z_ERROR")]
+        supported = [(probability, name) for probability, name in axes if probability > 0.0]
+        if len(supported) == 1:
+            circuit.append(supported[0][1], list(targets), supported[0][0])
+        else:
+            circuit.append("PAULI_CHANNEL_1", list(targets), [channel.p_x, channel.p_y, channel.p_z])
+    else:
+        msg = f"Unsupported quantum channel: {type(channel).__name__}."
+        raise TypeError(msg)
+
+
+def readout_flip_probability(channel: ReadoutChannel) -> float:
+    """Return the probability that a readout channel flips a measurement outcome.
+
+    A Gaussian channel has no Stim counterpart, so it contributes its
+    hard-decision error probability.
+    """
+    if isinstance(channel, IdentityChannel):
+        return 0.0
+    if isinstance(channel, BitFlipChannel):
+        return channel.probability
+    if isinstance(channel, GaussianReadoutChannel):
+        return channel.bit_error_probability
+    msg = f"Unsupported readout channel: {type(channel).__name__}."
+    raise TypeError(msg)
 
 
 # ----------------------------------------------------------------------------------------------------
-#   Stim adapter
+#   Stim adapters
 # ----------------------------------------------------------------------------------------------------
 
 
@@ -105,30 +163,7 @@ class StimCircuitNoiseAdapter:
             noisy += noisy_layer
         return noisy
 
-    @staticmethod
-    def _append_channel(
-        circuit: stim.Circuit,
-        channel: QuantumChannel,
-        targets: list[int],
-        *,
-        arity: int,
-    ) -> None:
-        if isinstance(channel, IdentityChannel):
-            return
-        if math.isclose(channel.probability, 0.0):
-            return
-        if isinstance(channel, DepolarizingChannel):
-            circuit.append(f"DEPOLARIZE{arity}", targets, channel.probability)
-        elif isinstance(channel, BitFlipChannel):
-            circuit.append("X_ERROR", targets, channel.probability)
-        elif isinstance(channel, PauliChannel):
-            if arity != 1:
-                msg = "PauliChannel describes one-qubit noise and cannot be applied to a two-qubit location."
-                raise ValueError(msg)
-            circuit.append("PAULI_CHANNEL_1", targets, [channel.p_x, channel.p_y, channel.p_z])
-        else:
-            msg = f"Unsupported quantum channel: {type(channel).__name__}."
-            raise TypeError(msg)
+    _append_channel = staticmethod(append_quantum_channel)
 
 
 def _reset_qubits(circuit: stim.Circuit) -> set[int]:
@@ -137,3 +172,42 @@ def _reset_qubits(circuit: stim.Circuit) -> set[int]:
         if isinstance(operation, stim.CircuitInstruction) and stim.gate_data(operation.name).is_reset:
             qubits.update(target.qubit_value for target in operation.targets_copy() if target.qubit_value is not None)
     return qubits
+
+
+class PhenomenologicalStimAdapter:
+    """Emit phenomenological noise into a Stim circuit under construction.
+
+    Phenomenological noise cannot be annotated onto a finished circuit the way
+    circuit-level noise is: data noise happens between measurement rounds, and
+    readout noise is an argument of the measurement instruction itself. The
+    adapter therefore exposes exactly those two pieces to a round builder.
+    """
+
+    def __init__(self, model: PhenomenologicalNoiseModel) -> None:
+        """Initialize the adapter.
+
+        Args:
+            model: Phenomenological noise configuration.
+        """
+        self.model = model
+
+    def append_data_noise(self, circuit: stim.Circuit, qubits: Sequence[int]) -> None:
+        """Append one round of data-qubit noise."""
+        if any(qubit < 0 for qubit in qubits):
+            msg = f"Qubit indices must be non-negative, got {sorted(qubits)}."
+            raise ValueError(msg)
+        append_quantum_channel(circuit, self.model.data, [q for q in qubits if q not in self.model.data_by_qubit])
+        for qubit in qubits:
+            override = self.model.data_by_qubit.get(qubit)
+            if override is not None:
+                append_quantum_channel(circuit, override, [qubit])
+
+    @property
+    def x_readout_probability(self) -> float:
+        """Flip probability for an X-check measurement."""
+        return readout_flip_probability(self.model.x_syndrome)
+
+    @property
+    def z_readout_probability(self) -> float:
+        """Flip probability for a Z-check measurement."""
+        return readout_flip_probability(self.model.z_syndrome)

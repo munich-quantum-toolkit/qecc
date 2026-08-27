@@ -16,8 +16,11 @@ from mqt.qecc.noise import (
     BitFlipChannel,
     CircuitNoiseModel,
     DepolarizingChannel,
+    GaussianReadoutChannel,
     ParallelSchedule,
     PauliChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalStimAdapter,
     SequentialSchedule,
     StimCircuitNoiseAdapter,
 )
@@ -122,3 +125,31 @@ def test_rec_controlled_gate_is_rejected_as_quantum_gate_noise_location() -> Non
     """Reject recognized gates containing classical record targets."""
     with pytest.raises(ValueError, match="non-qubit target"):
         StimCircuitNoiseAdapter(CircuitNoiseModel()).apply(stim.Circuit("CX rec[-1] 0"))
+
+
+def test_phenomenological_adapter_matches_scalar_noise() -> None:
+    """Emit data noise and expose the readout flip probability for a round."""
+    model = PhenomenologicalNoiseModel(data=PauliChannel(0.02, 0.0, 0.0), z_syndrome=BitFlipChannel(0.05))
+    adapter = PhenomenologicalStimAdapter(model)
+    circuit = stim.Circuit()
+    adapter.append_data_noise(circuit, [0, 1, 2])
+    assert circuit == stim.Circuit("X_ERROR(0.02) 0 1 2")
+    assert adapter.z_readout_probability == pytest.approx(0.05)
+    assert adapter.x_readout_probability == pytest.approx(0.0)  # identity by default
+
+
+def test_phenomenological_adapter_honors_per_qubit_overrides() -> None:
+    """Give overridden qubits their own instruction."""
+    model = PhenomenologicalNoiseModel(
+        data=PauliChannel(0.02, 0.0, 0.0), data_by_qubit={1: PauliChannel(0.0, 0.0, 0.3)}
+    )
+    circuit = stim.Circuit()
+    PhenomenologicalStimAdapter(model).append_data_noise(circuit, [0, 1, 2])
+    assert circuit == stim.Circuit("X_ERROR(0.02) 0 2\nZ_ERROR(0.3) 1")
+
+
+def test_gaussian_readout_uses_hard_decision_probability() -> None:
+    """Stim has no analog readout, so the hard-decision rate is used."""
+    channel = GaussianReadoutChannel.from_bit_error_probability(0.1)
+    model = PhenomenologicalNoiseModel(data=PauliChannel(0.0, 0.0, 0.0), z_syndrome=channel)
+    assert PhenomenologicalStimAdapter(model).z_readout_probability == pytest.approx(0.1)

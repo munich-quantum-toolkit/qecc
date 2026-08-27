@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from .adapters import StimCircuitNoiseAdapter
+from .adapters import PhenomenologicalStimAdapter, StimCircuitNoiseAdapter
 from .channels import (
     BitFlipChannel,
     DepolarizingChannel,
@@ -33,6 +33,7 @@ __all__ = [
     "PauliChannel",
     "PhenomenologicalNoiseModel",
     "PhenomenologicalNoiseSampler",
+    "PhenomenologicalStimAdapter",
     "QuantumChannel",
     "ReadoutChannel",
     "SequentialSchedule",
