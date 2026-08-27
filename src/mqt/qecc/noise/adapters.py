@@ -60,7 +60,7 @@ class StimCircuitNoiseAdapter:
             gate = stim.gate_data(name)
             is_measurement = gate.produces_measurements
             is_reset = gate.is_reset and not is_measurement
-            is_single_qubit_gate = gate.is_unitary and gate.is_single_qubit_gate
+            is_single_qubit_gate = gate.is_unitary and gate.is_single_qubit_gate and name != "I"
             is_two_qubit_gate = gate.is_unitary and gate.is_two_qubit_gate
             if not (is_single_qubit_gate or is_two_qubit_gate or is_measurement or is_reset):
                 noisy.append(operation)
@@ -126,8 +126,9 @@ class StimCircuitNoiseAdapter:
                 msg = "PauliChannel describes one-qubit noise and cannot be applied to a two-qubit location."
                 raise ValueError(msg)
             circuit.append("PAULI_CHANNEL_1", targets, [channel.p_x, channel.p_y, channel.p_z])
-        else:  # pragma: no cover
-            raise TypeError(type(channel))
+        else:
+            msg = f"Unsupported quantum channel: {type(channel).__name__}."
+            raise TypeError(msg)
 
 
 def _reset_qubits(circuit: stim.Circuit) -> set[int]:

@@ -48,7 +48,15 @@ def test_plain_measurements_are_recognized() -> None:
 def test_stim_metadata_classifies_gates_not_listed_by_qecc() -> None:
     """Use Stim metadata as the source of truth for supported unitary gates."""
     model = CircuitNoiseModel(single_qubit_gate=DepolarizingChannel(0.1))
-    assert StimCircuitNoiseAdapter(model).apply(stim.Circuit("I 0")) == stim.Circuit("I 0\nDEPOLARIZE1(0.1) 0")
+    assert StimCircuitNoiseAdapter(model).apply(stim.Circuit("SQRT_X 0")) == stim.Circuit(
+        "SQRT_X 0\nDEPOLARIZE1(0.1) 0"
+    )
+
+
+def test_identity_gate_is_not_a_gate_location() -> None:
+    """Treat the identity as a timing marker, so only idle noise applies to it."""
+    model = CircuitNoiseModel(single_qubit_gate=DepolarizingChannel(0.1))
+    assert StimCircuitNoiseAdapter(model).apply(stim.Circuit("I 0")) == stim.Circuit("I 0")
 
 
 def test_idle_noise_requires_schedule() -> None:
