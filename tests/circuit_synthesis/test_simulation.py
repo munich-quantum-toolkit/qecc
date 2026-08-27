@@ -127,6 +127,23 @@ def test_lut(steane_code: CSSCode) -> None:
     assert np.sum(estimate_3) == 0
 
 
+@pytest.mark.parametrize("print_progress", [False, True])
+def test_lut_chunked_parallel(print_progress: bool) -> None:
+    """Test that the multi-chunk (parallel) LUT generation agrees with the single-chunk one."""
+    checks = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
+
+    serial_lut = LutDecoder._generate_lut(checks)  # ruff: ignore[private-member-access]
+    parallel_lut = LutDecoder._generate_lut(  # ruff: ignore[private-member-access]
+        checks, chunk_size=1, num_workers=2, print_progress=print_progress
+    )
+
+    assert set(parallel_lut) == set(serial_lut)
+    assert len(parallel_lut) == 2 ** checks.shape[0]  # all syndromes are covered
+    for syndrome, state in parallel_lut.items():
+        assert ((checks @ state) % 2).astype(np.int8).tobytes() == syndrome
+        assert np.sum(state) == np.sum(serial_lut[syndrome])  # same (minimal) error weight
+
+
 def test_ideal_sim(steane_code: CSSCode, non_ft_steane_zero: QuantumCircuit) -> None:
     """Test the simulation of a non fault-tolerant state preparation circuit for the Steane |0>."""
     noise = make_uniform_error_model(0)
