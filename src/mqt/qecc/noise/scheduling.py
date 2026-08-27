@@ -30,15 +30,28 @@ class SequentialSchedule:
 
 
 Schedule = ParallelSchedule | SequentialSchedule
+POSITIONAL_ANNOTATIONS = frozenset({"DETECTOR", "OBSERVABLE_INCLUDE", "QUBIT_COORDS", "SHIFT_COORDS"})
 
 
 def schedule_stim_circuit(circuit: stim.Circuit, policy: Schedule) -> list[stim.Circuit]:
-    """Split a Stim circuit into layers according to a scheduling policy."""
+    """Split a Stim circuit into layers according to a scheduling policy.
+
+    Time steps are derived from the operations themselves, so ``TICK`` markers in
+    the source circuit carry no information and are dropped.
+    """
     groups: list[stim.Circuit] = []
     for operation in circuit:
         if not isinstance(operation, stim.CircuitInstruction):
             msg = "Stim repeat blocks are not supported by scheduled noise; flatten the circuit first."
             raise TypeError(msg)
+        if operation.name == "TICK":
+            continue
+        if operation.name in POSITIONAL_ANNOTATIONS:
+            msg = (
+                f"Annotation {operation.name} cannot be scheduled because layering reorders operations, "
+                "which would invalidate its references. Remove annotations before applying scheduled noise."
+            )
+            raise ValueError(msg)
         for targets in operation.target_groups():
             group = stim.Circuit()
             group.append(operation.name, list(targets), operation.gate_args_copy())
