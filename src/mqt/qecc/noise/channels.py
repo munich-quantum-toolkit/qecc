@@ -147,9 +147,6 @@ class GaussianReadoutChannel:
         return float(0.5 * erfc(1.0 / math.sqrt(2.0 * self.sigma**2)))
 
 
-# Channel families used to constrain noise models and backend adapters
+# Channel families (qubit site or classical readout site) used to constrain noise models and backend adapters
 QuantumChannel = IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel
 ReadoutChannel = IdentityChannel | BitFlipChannel | GaussianReadoutChannel
-NoiseChannel = QuantumChannel | ReadoutChannel
-DiscreteChannel = IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel
-SyndromeChannel = ReadoutChannel

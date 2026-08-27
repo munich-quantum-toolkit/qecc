@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, cast
 
 import stim
 
-from .channels import BitFlipChannel, DepolarizingChannel, IdentityChannel, PauliChannel
+from .channels import BitFlipChannel, DepolarizingChannel, IdentityChannel, PauliChannel, QuantumChannel
 from .scheduling import Schedule, qubits_in_stim_circuit, schedule_stim_circuit
 
 if TYPE_CHECKING:
@@ -108,7 +108,7 @@ class StimCircuitNoiseAdapter:
     @staticmethod
     def _append_channel(
         circuit: stim.Circuit,
-        channel: IdentityChannel | BitFlipChannel | DepolarizingChannel | PauliChannel,
+        channel: QuantumChannel,
         targets: list[int],
         *,
         arity: int,

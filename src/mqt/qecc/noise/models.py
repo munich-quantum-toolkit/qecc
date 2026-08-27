@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .channels import DiscreteChannel, IdentityChannel, PauliChannel, SyndromeChannel
+from .channels import IdentityChannel, PauliChannel, QuantumChannel, ReadoutChannel
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,11 +32,11 @@ if TYPE_CHECKING:
 class CircuitNoiseModel:
     """Noise channels associated with circuit operation locations."""
 
-    single_qubit_gate: DiscreteChannel = field(default_factory=IdentityChannel)
-    two_qubit_gate: DiscreteChannel = field(default_factory=IdentityChannel)
-    reset: DiscreteChannel = field(default_factory=IdentityChannel)
-    measurement: DiscreteChannel = field(default_factory=IdentityChannel)
-    idle: DiscreteChannel = field(default_factory=IdentityChannel)
+    single_qubit_gate: QuantumChannel = field(default_factory=IdentityChannel)
+    two_qubit_gate: QuantumChannel = field(default_factory=IdentityChannel)
+    reset: QuantumChannel = field(default_factory=IdentityChannel)
+    measurement: QuantumChannel = field(default_factory=IdentityChannel)
+    idle: QuantumChannel = field(default_factory=IdentityChannel)
     ideal_qubits: frozenset[int] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
@@ -57,8 +57,8 @@ class PhenomenologicalNoiseModel:
 
     data: PauliChannel
     data_by_qubit: Mapping[int, PauliChannel] = field(default_factory=dict)
-    x_syndrome: SyndromeChannel = field(default_factory=IdentityChannel)
-    z_syndrome: SyndromeChannel = field(default_factory=IdentityChannel)
+    x_syndrome: ReadoutChannel = field(default_factory=IdentityChannel)
+    z_syndrome: ReadoutChannel = field(default_factory=IdentityChannel)
 
     def __post_init__(self) -> None:
         """Validate and own the per-qubit channel assignments."""
@@ -81,8 +81,8 @@ class PhenomenologicalNoiseModel:
         p_y: ArrayLike,
         p_z: ArrayLike,
         *,
-        x_syndrome: SyndromeChannel | None = None,
-        z_syndrome: SyndromeChannel | None = None,
+        x_syndrome: ReadoutChannel | None = None,
+        z_syndrome: ReadoutChannel | None = None,
     ) -> PhenomenologicalNoiseModel:
         """Construct a model from per-qubit Pauli probability arrays.
 
