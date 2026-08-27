@@ -95,7 +95,7 @@ def test_syndrome_sampling_edge_cases() -> None:
     sampled = sampler.sample_syndrome(syndrome, IdentityChannel())
     assert np.array_equal(sampled, syndrome)
     assert sampled is not syndrome
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="Unsupported readout channel"):
         sampler.sample_syndrome(syndrome, object())  # ty: ignore[invalid-argument-type]
 
 

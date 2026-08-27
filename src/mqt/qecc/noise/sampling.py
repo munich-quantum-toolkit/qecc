@@ -17,13 +17,30 @@ from .channels import (
     BitFlipChannel,
     GaussianReadoutChannel,
     IdentityChannel,
-    SyndromeChannel,
+    ReadoutChannel,
 )
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from .models import PhenomenologicalNoiseModel
+
+
+def _apply_pauli_samples(
+    p_x: NDArray[np.float64],
+    p_y: NDArray[np.float64],
+    p_z: NDArray[np.float64],
+    residual: tuple[NDArray[np.int32], NDArray[np.int32]],
+    rng: np.random.Generator,
+) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
+    """Draw one Pauli per location and XOR it onto a copy of the residual error."""
+    samples = rng.random(p_x.shape)
+    z_mask = samples < p_z
+    x_mask = (p_z <= samples) & (samples < p_z + p_x)
+    y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
+    error_x = np.array(residual[0], dtype=np.int32, copy=True) ^ np.asarray(x_mask | y_mask, dtype=np.int32)
+    error_z = np.array(residual[1], dtype=np.int32, copy=True) ^ np.asarray(z_mask | y_mask, dtype=np.int32)
+    return error_x, error_z
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -55,23 +72,12 @@ class PhenomenologicalNoiseSampler:
             msg = f"n_qubits must be nonnegative, got {n_qubits}."
             raise ValueError(msg)
         if residual is None:
-            error_x = np.zeros(n_qubits, dtype=np.int32)
-            error_z = np.zeros(n_qubits, dtype=np.int32)
-        else:
-            if residual[0].shape != (n_qubits,) or residual[1].shape != (n_qubits,):
-                msg = "Residual X and Z arrays must both have shape (n_qubits,)."
-                raise ValueError(msg)
-            error_x = np.array(residual[0], dtype=np.int32, copy=True)
-            error_z = np.array(residual[1], dtype=np.int32, copy=True)
+            residual = (np.zeros(n_qubits, dtype=np.int32), np.zeros(n_qubits, dtype=np.int32))
+        elif residual[0].shape != (n_qubits,) or residual[1].shape != (n_qubits,):
+            msg = "Residual X and Z arrays must both have shape (n_qubits,)."
+            raise ValueError(msg)
 
-        p_x, p_y, p_z = self._data_probabilities(n_qubits)
-        samples = self.rng.random(n_qubits)
-        z_mask = samples < p_z
-        x_mask = (p_z <= samples) & (samples < p_z + p_x)
-        y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
-        error_x ^= np.asarray(x_mask | y_mask, dtype=np.int32)
-        error_z ^= np.asarray(z_mask | y_mask, dtype=np.int32)
-        return error_x, error_z
+        return _apply_pauli_samples(*self._data_probabilities(n_qubits), residual, self.rng)
 
     def _data_probabilities(
         self, n_qubits: int
@@ -98,7 +104,7 @@ class PhenomenologicalNoiseSampler:
         return self.sample_syndrome(perfect_syndrome, self.model.z_syndrome)
 
     def sample_syndrome(
-        self, perfect_syndrome: NDArray[np.int32], channel: SyndromeChannel
+        self, perfect_syndrome: NDArray[np.int32], channel: ReadoutChannel
     ) -> NDArray[np.int32] | NDArray[np.float64]:
         """Apply a syndrome channel to a perfect binary syndrome."""
         syndrome = np.asarray(perfect_syndrome, dtype=np.int32)
@@ -113,7 +119,8 @@ class PhenomenologicalNoiseSampler:
         if isinstance(channel, GaussianReadoutChannel):
             signed = np.where(syndrome == 0, 1.0, -1.0)
             return np.asarray(self.rng.normal(signed, channel.sigma), dtype=np.float64)
-        raise TypeError(type(channel))
+        msg = f"Unsupported readout channel: {type(channel).__name__}."
+        raise TypeError(msg)
 
 
 def sample_inhomogeneous_pauli(
@@ -137,10 +144,4 @@ def sample_inhomogeneous_pauli(
     if np.any(p_x + p_y + p_z > 1.0):
         msg = "Pauli probabilities must sum to at most 1 at every location."
         raise ValueError(msg)
-    samples = rng.random(p_x.shape)
-    z_mask = samples < p_z
-    x_mask = (p_z <= samples) & (samples < p_z + p_x)
-    y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
-    error_x = np.array(residual[0], dtype=np.int32, copy=True) ^ np.asarray(x_mask | y_mask, dtype=np.int32)
-    error_z = np.array(residual[1], dtype=np.int32, copy=True) ^ np.asarray(z_mask | y_mask, dtype=np.int32)
-    return error_x, error_z
+    return _apply_pauli_samples(p_x, p_y, p_z, residual, rng)
