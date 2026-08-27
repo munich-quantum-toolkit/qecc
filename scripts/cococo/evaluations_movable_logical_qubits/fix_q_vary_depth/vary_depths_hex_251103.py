@@ -57,7 +57,7 @@ gates_str = "_".join(map(str, gates_list))
 
 use_dag = True
 
-date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+date_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
 path = f"circuit_depths_m{m}_n{n}_layout{layout_type}_sigma{sigma}_ncirc{n_circ}_num_gates{gates_str}_{date_str}_usedag{use_dag}_p.pkl"
 
 
