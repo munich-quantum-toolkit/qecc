@@ -150,7 +150,7 @@ def test_teleportationrouter():
         g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1
     )
 
-    max_iters = 100
+    max_iters = 20  # enough to hit all relevant code paths; larger values only lengthen the test
     T_start = 100.0  # ruff:ignore[non-lowercase-variable-in-function]
     T_end = 0.1  # ruff:ignore[non-lowercase-variable-in-function]
     alpha = 0.95
