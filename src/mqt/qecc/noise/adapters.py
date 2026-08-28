@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from .models import CircuitNoiseModel, PhenomenologicalNoiseModel
 
 
-def append_quantum_channel(
+def _append_quantum_channel(
     circuit: stim.Circuit,
     channel: QuantumChannel,
     targets: Sequence[int],
@@ -63,7 +63,7 @@ def append_quantum_channel(
         raise TypeError(msg)
 
 
-def readout_flip_probability(channel: ReadoutChannel) -> float:
+def _readout_flip_probability(channel: ReadoutChannel) -> float:
     """Return the probability that a readout channel flips a measurement outcome.
 
     A Gaussian channel has no Stim counterpart, so it contributes its
@@ -138,13 +138,13 @@ class StimCircuitNoiseAdapter:
                 if ideal:
                     continue
                 if is_single_qubit_gate:
-                    self._append_channel(noisy, self.model.single_qubit_gate, integer_qubits, arity=1)
+                    _append_quantum_channel(noisy, self.model.single_qubit_gate, integer_qubits, arity=1)
                 elif is_two_qubit_gate:
-                    self._append_channel(noisy, self.model.two_qubit_gate, integer_qubits, arity=2)
+                    _append_quantum_channel(noisy, self.model.two_qubit_gate, integer_qubits, arity=2)
                 elif is_reset:
-                    self._append_channel(noisy, self.model.reset, integer_qubits, arity=1)
+                    _append_quantum_channel(noisy, self.model.reset, integer_qubits, arity=1)
                 else:
-                    self._append_channel(noisy, self.model.measurement, integer_qubits, arity=1)
+                    _append_quantum_channel(noisy, self.model.measurement, integer_qubits, arity=1)
         return noisy
 
     def _apply_scheduled(self, layers: list[stim.Circuit], n_qubits: int) -> stim.Circuit:
@@ -159,11 +159,9 @@ class StimCircuitNoiseAdapter:
             uninitialized -= active - resets if reset_alap else active
             for qubit in sorted(idle):
                 if qubit not in self.model.ideal_qubits:
-                    self._append_channel(noisy_layer, self.model.idle, [qubit], arity=1)
+                    _append_quantum_channel(noisy_layer, self.model.idle, [qubit], arity=1)
             noisy += noisy_layer
         return noisy
-
-    _append_channel = staticmethod(append_quantum_channel)
 
 
 def _reset_qubits(circuit: stim.Circuit) -> set[int]:
@@ -196,18 +194,18 @@ class PhenomenologicalStimAdapter:
         if any(qubit < 0 for qubit in qubits):
             msg = f"Qubit indices must be non-negative, got {sorted(qubits)}."
             raise ValueError(msg)
-        append_quantum_channel(circuit, self.model.data, [q for q in qubits if q not in self.model.data_by_qubit])
+        _append_quantum_channel(circuit, self.model.data, [q for q in qubits if q not in self.model.data_by_qubit])
         for qubit in qubits:
             override = self.model.data_by_qubit.get(qubit)
             if override is not None:
-                append_quantum_channel(circuit, override, [qubit])
+                _append_quantum_channel(circuit, override, [qubit])
 
     @property
     def x_readout_probability(self) -> float:
         """Flip probability for an X-check measurement."""
-        return readout_flip_probability(self.model.x_syndrome)
+        return _readout_flip_probability(self.model.x_syndrome)
 
     @property
     def z_readout_probability(self) -> float:
         """Flip probability for a Z-check measurement."""
-        return readout_flip_probability(self.model.z_syndrome)
+        return _readout_flip_probability(self.model.z_syndrome)
