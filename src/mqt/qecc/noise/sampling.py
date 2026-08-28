@@ -64,6 +64,7 @@ class PhenomenologicalNoiseSampler:
         z_mask = samples < p_z
         x_mask = (p_z <= samples) & (samples < p_z + p_x)
         y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
+        # A Y error is both an X and a Z error, so it enters both components below.
         error_x = np.array(residual[0], dtype=np.int32, copy=True) ^ np.asarray(x_mask | y_mask, dtype=np.int32)
         error_z = np.array(residual[1], dtype=np.int32, copy=True) ^ np.asarray(z_mask | y_mask, dtype=np.int32)
         return error_x, error_z
@@ -90,6 +91,8 @@ class PhenomenologicalNoiseSampler:
             flips = self.rng.random(syndrome.shape) < channel.probability
             return syndrome ^ np.asarray(flips, dtype=np.int32)
         if isinstance(channel, GaussianReadoutChannel):
+            # Signed syndrome: +1 = check satisfied, -1 = check violated. The analog
+            # outcome is that value plus Gaussian noise of standard deviation sigma.
             signed = np.where(syndrome == 0, 1.0, -1.0)
             return np.asarray(self.rng.normal(signed, channel.sigma), dtype=np.float64)
         msg = f"Unsupported readout channel: {type(channel).__name__}."
