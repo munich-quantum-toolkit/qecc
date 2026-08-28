@@ -20,7 +20,6 @@ from mqt.qecc.noise import (
     PhenomenologicalNoiseModel,
     PhenomenologicalNoiseSampler,
 )
-from mqt.qecc.noise.sampling import sample_inhomogeneous_pauli
 
 
 def test_seeded_data_sampling_is_reproducible() -> None:
@@ -103,13 +102,16 @@ def test_syndrome_sampling_edge_cases() -> None:
         sampler.sample_syndrome(syndrome, object())  # ty: ignore[invalid-argument-type]
 
 
-def test_legacy_pauli_sampler_validation() -> None:
-    """Reject inconsistent and invalid legacy probability arrays."""
-    residual = (np.zeros(2, dtype=np.int32), np.zeros(2, dtype=np.int32))
-    rng = np.random.default_rng(1)
-    with pytest.raises(ValueError, match="identical shapes"):
-        sample_inhomogeneous_pauli((np.zeros(1), np.zeros(2), np.zeros(2)), residual, rng)
-    with pytest.raises(ValueError, match="finite and non-negative"):
-        sample_inhomogeneous_pauli((np.array([np.nan, 0.0]), np.zeros(2), np.zeros(2)), residual, rng)
+def test_channel_rejects_probabilities_that_exceed_one() -> None:
+    """The channel enforces what the removed array sampler used to re-check."""
     with pytest.raises(ValueError, match="sum to at most 1"):
-        sample_inhomogeneous_pauli((np.full(2, 0.6), np.full(2, 0.5), np.zeros(2)), residual, rng)
+        PauliChannel(0.6, 0.5, 0.0)
+
+
+def test_seeded_sampling_reproduces_a_full_sequence() -> None:
+    """Two samplers seeded alike agree over a long run, not just one draw."""
+    model = PhenomenologicalNoiseModel(data=PauliChannel(0.2, 0.1, 0.3))
+    first = PhenomenologicalNoiseSampler(model, np.random.default_rng(42))
+    second = PhenomenologicalNoiseSampler(model, np.random.default_rng(42))
+    for _ in range(10):
+        assert np.array_equal(first.sample_data(100), second.sample_data(100))

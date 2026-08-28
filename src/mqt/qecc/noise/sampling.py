@@ -26,23 +26,6 @@ if TYPE_CHECKING:
     from .models import PhenomenologicalNoiseModel
 
 
-def _apply_pauli_samples(
-    p_x: NDArray[np.float64],
-    p_y: NDArray[np.float64],
-    p_z: NDArray[np.float64],
-    residual: tuple[NDArray[np.int32], NDArray[np.int32]],
-    rng: np.random.Generator,
-) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
-    """Draw one Pauli per location and XOR it onto a copy of the residual error."""
-    samples = rng.random(p_x.shape)
-    z_mask = samples < p_z
-    x_mask = (p_z <= samples) & (samples < p_z + p_x)
-    y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
-    error_x = np.array(residual[0], dtype=np.int32, copy=True) ^ np.asarray(x_mask | y_mask, dtype=np.int32)
-    error_z = np.array(residual[1], dtype=np.int32, copy=True) ^ np.asarray(z_mask | y_mask, dtype=np.int32)
-    return error_x, error_z
-
-
 # ----------------------------------------------------------------------------------------------------
 #   Phenomenological sampling
 # ----------------------------------------------------------------------------------------------------
@@ -65,14 +48,25 @@ class PhenomenologicalNoiseSampler:
         self, n_qubits: int, residual: tuple[NDArray[np.int32], NDArray[np.int32]] | None = None
     ) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
         """Sample the X and Z components of Pauli errors."""
-        probabilities = self.model.pauli_probabilities(n_qubits)
+        p_x, p_y, p_z = self.model.pauli_probabilities(n_qubits)
         if residual is None:
             residual = (np.zeros(n_qubits, dtype=np.int32), np.zeros(n_qubits, dtype=np.int32))
         elif residual[0].shape != (n_qubits,) or residual[1].shape != (n_qubits,):
             msg = "Residual X and Z arrays must both have shape (n_qubits,)."
             raise ValueError(msg)
 
-        return _apply_pauli_samples(*probabilities, residual, self.rng)
+        # Draw one Pauli per qubit by inverse transform sampling, then XOR it onto the residual.
+        # Adapted from
+        # https://github.com/quantumgizmos/bp_osd/blob/a179e6e86237f4b9cc2c952103fce919da2777c8/src/bposd/css_decode_sim.py#L430
+        # and
+        # https://github.com/MikeVasmer/single_shot_3D_HGP/blob/bdfb437b2abcfa514997f26be97a711b878448cb/sim_scripts/single_shot_hgp3d.cpp#L207
+        samples = self.rng.random(n_qubits)
+        z_mask = samples < p_z
+        x_mask = (p_z <= samples) & (samples < p_z + p_x)
+        y_mask = (p_z + p_x <= samples) & (samples < p_z + p_x + p_y)
+        error_x = np.array(residual[0], dtype=np.int32, copy=True) ^ np.asarray(x_mask | y_mask, dtype=np.int32)
+        error_z = np.array(residual[1], dtype=np.int32, copy=True) ^ np.asarray(z_mask | y_mask, dtype=np.int32)
+        return error_x, error_z
 
     def sample_x_syndrome(self, perfect_syndrome: NDArray[np.int32]) -> NDArray[np.int32] | NDArray[np.float64]:
         """Apply the configured X-syndrome channel to a perfect syndrome."""
@@ -100,27 +94,3 @@ class PhenomenologicalNoiseSampler:
             return np.asarray(self.rng.normal(signed, channel.sigma), dtype=np.float64)
         msg = f"Unsupported readout channel: {type(channel).__name__}."
         raise TypeError(msg)
-
-
-def sample_inhomogeneous_pauli(
-    channel_probabilities: tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]],
-    residual: tuple[NDArray[np.int32], NDArray[np.int32]],
-    rng: np.random.Generator,
-) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
-    """Sample an inhomogeneous Pauli channel used by legacy simulators."""
-    p_x, p_y, p_z = (np.asarray(probabilities, dtype=np.float64) for probabilities in channel_probabilities)
-    if (
-        p_x.shape != p_y.shape
-        or p_x.shape != p_z.shape
-        or residual[0].shape != p_x.shape
-        or residual[1].shape != p_x.shape
-    ):
-        msg = "Channel probabilities and residual errors must have identical shapes."
-        raise ValueError(msg)
-    if np.any(~np.isfinite(p_x + p_y + p_z)) or np.any(p_x < 0) or np.any(p_y < 0) or np.any(p_z < 0):
-        msg = "Pauli probabilities must be finite and non-negative."
-        raise ValueError(msg)
-    if np.any(p_x + p_y + p_z > 1.0):
-        msg = "Pauli probabilities must sum to at most 1 at every location."
-        raise ValueError(msg)
-    return _apply_pauli_samples(p_x, p_y, p_z, residual, rng)

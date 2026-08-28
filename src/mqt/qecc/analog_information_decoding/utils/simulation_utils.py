@@ -17,8 +17,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from mqt.qecc.mod2 import rank
-from mqt.qecc.noise import GaussianReadoutChannel, PauliChannel
-from mqt.qecc.noise.sampling import sample_inhomogeneous_pauli
+from mqt.qecc.noise import PauliChannel
 
 from .data_utils import calculate_error_rates, replace_inf
 
@@ -86,26 +85,6 @@ def is_logical_err(logicals: NDArray[np.int32], residual_err: NDArray[np.int32])
     return bool(l_check.any())  # check all zeros
 
 
-# adapted from https://github.com/quantumgizmos/bp_osd/blob/a179e6e86237f4b9cc2c952103fce919da2777c8/src/bposd/css_decode_sim.py#L430
-# and https://github.com/MikeVasmer/single_shot_3D_HGP/blob/bdfb437b2abcfa514997f26be97a711b878448cb/sim_scripts/single_shot_hgp3d.cpp#L207
-# channel_probs = [x,y,z], residual_err = [x,z]
-def generate_err(
-    nr_qubits: int,
-    channel_probs: tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]],
-    residual_err: list[NDArray[np.int32]],
-    rng: np.random.Generator | None = None,
-) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
-    """Computes error vector with X and Z part given channel probabilities and residual error.
-
-    Assumes that residual error has two equally sized parts.
-    """
-    if nr_qubits != channel_probs[0].size:
-        msg = f"nr_qubits={nr_qubits} does not match channel size {channel_probs[0].size}."
-        raise ValueError(msg)
-    generator = np.random.default_rng() if rng is None else rng
-    return sample_inhomogeneous_pauli(channel_probs, (residual_err[0], residual_err[1]), generator)
-
-
 def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
     """Computes analog LLRs given analog syndrome and sigma."""
     if sigma <= 0.0:
@@ -116,43 +95,15 @@ def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArra
 def get_virtual_check_init_vals(noisy_syndr: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
     """Computes a vector of values v_i from the noisy syndrome bits y_i s.t.
 
-    BP initializes the LLRs l_i of the analog nodes with the analog info values (see paper section). v_i := 1/(e^{y_i}+1).
+    BP initializes the LLRs l_i of the analog nodes with the analog info values,
+    v_i := 1/(e^{y_i}+1), as described in Berent et al., "Analog information
+    decoding of bosonic quantum LDPC codes", PRX Quantum 5, 020349 (2024),
+    arXiv:2311.01328.
     """
     if sigma <= 0.0:
         return np.zeros_like(noisy_syndr).astype(np.float64)
     llrs = get_analog_llr(noisy_syndr, sigma)
     return np.array(1 / (np.exp(np.abs(llrs)) + 1))
-
-
-def generate_syndr_err(channel_probs: NDArray[np.float64], rng: np.random.Generator | None = None) -> NDArray[np.int32]:
-    """Generates a random error vector given the error channel probabilities."""
-    probabilities = np.asarray(channel_probs, dtype=np.float64)
-    if np.any(~np.isfinite(probabilities)) or np.any((probabilities < 0.0) | (probabilities > 1.0)):
-        msg = "Syndrome-error probabilities must be finite and between 0 and 1."
-        raise ValueError(msg)
-    generator = np.random.default_rng() if rng is None else rng
-    return np.asarray(generator.random(probabilities.shape) < probabilities, dtype=np.int32)
-
-
-def get_noisy_analog_syndrome(
-    perfect_syndr: NDArray[np.int32], sigma: float, rng: np.random.Generator | None = None
-) -> NDArray[np.float64]:
-    """Generate noisy analog syndrome vector given the perfect syndrome and standard deviation sigma (~ noise strength).
-
-    Assumes perfect_syndr has entries in {0,1}.
-    """
-    GaussianReadoutChannel(sigma)  # used as validation
-    if not np.all((perfect_syndr == 0) | (perfect_syndr == 1)):
-        msg = "A perfect syndrome must contain only binary values."
-        raise ValueError(msg)
-    sgns: NDArray[np.float64] = np.where(
-        np.isclose(perfect_syndr, 0.0, atol=0.0),
-        np.ones_like(perfect_syndr),
-        np.full_like(perfect_syndr, -1.0),
-    ).astype(np.float64)
-
-    generator = np.random.default_rng() if rng is None else rng
-    return np.asarray(generator.normal(loc=sgns, scale=sigma, size=perfect_syndr.shape), dtype=np.float64)
 
 
 def error_channel_setup(error_rate: float, xyz_error_bias: NDArray[np.float64]) -> PauliChannel:
