@@ -82,14 +82,23 @@ Assigns channels to data qubits and syndrome measurements.
 
 :::{grid-item-card} `Schedule` + `StimCircuitNoiseAdapter`
 :text-align: center
+:columns: 6
 
 Identifies circuit time steps and translates channels into Stim instructions.
 :::
 
 :::{grid-item-card} `PhenomenologicalNoiseSampler`
 :text-align: center
+:columns: 3
 
 Resolves per-qubit assignments and samples data and readout noise.
+:::
+
+:::{grid-item-card} `PhenomenologicalStimAdapter`
+:text-align: center
+:columns: 3
+
+Emits data and readout noise into a Stim circuit as it is built.
 :::
 
 ::::
@@ -123,7 +132,7 @@ Resolves per-qubit assignments and samples data and readout noise.
 :::{grid-item}
 :class: sd-text-center
 
-**Data errors and noisy syndromes**
+**Data errors and noisy syndromes, or a noisy Stim circuit**
 :::
 
 ::::
