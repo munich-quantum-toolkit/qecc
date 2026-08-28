@@ -27,7 +27,6 @@ from ..utils.data_utils import _check_convergence
 from ..utils.simulation_utils import (
     error_channel_setup,
     get_binary_from_analog,
-    get_sigma_from_syndr_er,
     is_logical_err,
     save_results,
 )
@@ -159,7 +158,7 @@ class QssSimulator:
 
         # If we do ATG decoding, initialize sigma (syndrome noise strength)
         if self.analog_tg:
-            self.sigma = get_sigma_from_syndr_er(syndr_err_rate)  # x/z + y
+            self.sigma = GaussianReadoutChannel.from_bit_error_probability(syndr_err_rate).sigma  # x/z + y
             syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma)
         else:
             syndrome_channel = BitFlipChannel(syndr_err_rate)

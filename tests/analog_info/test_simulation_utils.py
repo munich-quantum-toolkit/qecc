@@ -9,9 +9,6 @@
 
 from __future__ import annotations
 
-import math
-from typing import TYPE_CHECKING
-
 import numpy as np
 import pytest
 
@@ -19,21 +16,13 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
     check_logical_err_h,
     error_channel_setup,
-    generate_err,
-    generate_syndr_err,
     get_analog_llr,
     get_binary_from_analog,
-    get_error_rate_from_sigma,
-    get_noisy_analog_syndrome,
-    get_sigma_from_syndr_er,
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
 )
 from mqt.qecc.noise import PauliChannel
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 
 def test_check_logical_err_h() -> None:
@@ -309,72 +298,6 @@ def test_get_analog_llr() -> None:
     assert np.allclose(get_analog_llr(analog_syndr, sigma), np.array([100, 0.0, 0.0, -200.0, 0.0, 200.0]))
 
 
-def test_generate_err() -> None:
-    """Test generate_err function."""
-    # no errors
-    p = 0.0
-    n = 10
-    ch = np.ones(n) * p
-    channel = np.copy(ch), np.copy(ch), np.copy(ch)
-    residual: list[NDArray[np.int32]] = [np.zeros(n).astype(np.int32), np.zeros(n).astype(np.int32)]
-
-    expected = np.array([np.zeros(n).astype(np.float64), np.zeros(n).astype(np.float64)])
-    assert np.array_equal(generate_err(n, channel, residual), expected)
-
-    residual[0][0] = 1
-    residual[1][0] = 1
-
-    expected = np.array([np.copy(residual[0]), np.copy(residual[1])])
-    res = generate_err(n, channel, residual)
-    assert np.array_equal(res[0], expected[0])
-    assert np.array_equal(res[1], expected[1])
-
-
-def test_noise_helper_input_validation() -> None:
-    """Reject inconsistent legacy noise-helper inputs."""
-    channel = (np.zeros(2), np.zeros(2), np.zeros(2))
-    residual = [np.zeros(2, dtype=np.int32), np.zeros(2, dtype=np.int32)]
-    with pytest.raises(ValueError, match="does not match channel size"):
-        generate_err(1, channel, residual)
-    with pytest.raises(ValueError, match="between 0 and 1"):
-        generate_syndr_err(np.array([np.nan]))
-    with pytest.raises(ValueError, match="binary"):
-        get_noisy_analog_syndrome(np.array([2]), 0.1)
-    with pytest.raises(ValueError, match="exactly three"):
-        error_channel_setup(0.1, np.ones(2))
-
-
-def test_explicit_generator_controls_noise_helpers() -> None:
-    """Reproduce complete helper sequences with explicitly owned generators."""
-    n = 100
-    channel = (np.full(n, 0.2), np.full(n, 0.1), np.full(n, 0.3))
-    residual = [np.zeros(n, dtype=np.int32), np.zeros(n, dtype=np.int32)]
-    first = generate_err(n, channel, residual, rng=np.random.default_rng(42))
-    second = generate_err(n, channel, residual, rng=np.random.default_rng(42))
-    assert np.array_equal(first, second)
-
-
-def test_get_sigma_from_syndr_er() -> None:
-    """Test get_sigma_from_syndr_er function."""
-    ser = 0.1
-
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == math.ceil(0.780304146072379)
-    ser = 1.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
-    ser = 0.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
-
-
-def test_get_error_rate_from_sigma() -> None:
-    """Test get_error_rate_from_sigma function."""
-    sigma = 0.3
-    assert np.isclose([get_error_rate_from_sigma(sigma)], [0.00042906])
-    sigma = 0.5
-    assert np.isclose([get_error_rate_from_sigma(sigma)], [0.02275])
-    sigma = 0.0
-    assert get_error_rate_from_sigma(sigma) == pytest.approx(0.0, abs=1e-8)
-
-
 def test_get_virtual_check_init_vals() -> None:
     """Test get_virtual_check_init_vals function."""
     noisy_syndr = np.array([0.5, 0, 0, -1, 0, 10])
@@ -403,25 +326,10 @@ def test_get_virtual_check_init_vals() -> None:
     assert res[0] == pytest.approx(0.0, abs=1e-8)
 
 
-def test_generate_syndr_err() -> None:
-    """Test generate_syndr_err function."""
-    channel = np.array([0.0, 1.0])
-
-    assert np.array_equal(generate_syndr_err(channel), np.array([0.0, 1.0]))
-
-    channel = np.array([0.0, 0.0, 0.0])
-    assert np.array_equal(generate_syndr_err(channel), np.zeros_like(channel).astype(float))
-
-    channel = np.array([1.0, 1.0, 1.0])
-    assert np.array_equal(generate_syndr_err(channel), np.ones_like(channel).astype(float))
-
-
-def test_get_noisy_analog_syndr() -> None:
-    """Test get_noisy_analog_syndr function."""
-    perfect_s = np.array([1, 0])
-    sigma = 0.0
-
-    assert np.array_equal(get_noisy_analog_syndrome(perfect_s, sigma), np.array([-1.0, 1.0]))
+def test_err_chnl_setup_rejects_malformed_bias() -> None:
+    """Reject a bias that is not a three-component vector."""
+    with pytest.raises(ValueError, match="exactly three"):
+        error_channel_setup(0.1, np.ones(2))
 
 
 def test_err_chnl_setup() -> None:

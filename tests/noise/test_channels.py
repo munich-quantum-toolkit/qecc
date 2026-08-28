@@ -123,3 +123,18 @@ def test_ideal_qubit_validation() -> None:
     """Reject negative ideal-qubit indices."""
     with pytest.raises(ValueError, match="non-negative"):
         CircuitNoiseModel(ideal_qubits=frozenset({-1}))
+
+
+def test_gaussian_channel_converts_between_sigma_and_error_rate() -> None:
+    """Reproduce the conversion the analog simulators rely on."""
+    assert GaussianReadoutChannel.from_bit_error_probability(0.1).sigma == pytest.approx(0.780304146072379)
+    assert GaussianReadoutChannel.from_bit_error_probability(0.0).sigma == pytest.approx(0.0)
+    assert GaussianReadoutChannel(0.3).bit_error_probability == pytest.approx(0.00042906, abs=1e-8)
+    assert GaussianReadoutChannel(0.5).bit_error_probability == pytest.approx(0.02275, abs=1e-5)
+    assert GaussianReadoutChannel(0.0).bit_error_probability == pytest.approx(0.0)
+
+
+def test_gaussian_channel_rejects_indistinguishable_readout() -> None:
+    """A flip probability of at least one half carries no information."""
+    with pytest.raises(ValueError, match=r"below 0\.5"):
+        GaussianReadoutChannel.from_bit_error_probability(1.0)

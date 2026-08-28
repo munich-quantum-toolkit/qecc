@@ -19,9 +19,8 @@ from mqt.qecc.analog_information_decoding.simulators.simulation import SingleSho
 from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
     error_channel_setup,
-    get_sigma_from_syndr_er,
 )
-from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
+from mqt.qecc.noise import GaussianReadoutChannel, PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -136,8 +135,14 @@ def test_analog_ss_simulator_setup(
     expected_z_syndr_chnl = np.full(pcm.shape[0], chnl.z_marginal)
     assert np.allclose(expected_x_syndr_chnl, single_stage_analog_simulator.x_syndr_error_channel)
     assert np.allclose(expected_z_syndr_chnl, single_stage_analog_simulator.z_syndr_error_channel)
-    assert single_stage_analog_simulator.sigma_x == get_sigma_from_syndr_er(expected_x_syndr_chnl[0])
-    assert single_stage_analog_simulator.sigma_z == get_sigma_from_syndr_er(expected_z_syndr_chnl[0])
+    assert (
+        single_stage_analog_simulator.sigma_x
+        == GaussianReadoutChannel.from_bit_error_probability(expected_x_syndr_chnl[0]).sigma
+    )
+    assert (
+        single_stage_analog_simulator.sigma_z
+        == GaussianReadoutChannel.from_bit_error_probability(expected_z_syndr_chnl[0]).sigma
+    )
     assert np.array_equal(
         single_stage_analog_simulator.x_apcm, np.hstack([pcm, np.identity(pcm.shape[0], dtype=np.int32)])
     )

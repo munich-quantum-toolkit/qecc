@@ -59,7 +59,7 @@ class AnalogTannergraphDecoder:
             if self.syndr_err_rate is None:
                 msg = "Either sigma or ser must be specified"
                 raise ValueError(msg)
-            self.sigma = simulation_utils.get_sigma_from_syndr_er(self.syndr_err_rate)
+            self.sigma = GaussianReadoutChannel.from_bit_error_probability(self.syndr_err_rate).sigma
         elif self.syndr_err_rate is not None:
             msg = "Only one of sigma or ser must be specified"
             raise ValueError(msg)
@@ -153,14 +153,14 @@ class AtdSimulator:
                 msg = "Only one of sigma or ser must be specified"
                 raise ValueError(msg)
 
-            self.syndr_err_rate = simulation_utils.get_error_rate_from_sigma(sigma)
+            self.syndr_err_rate = GaussianReadoutChannel(sigma).bit_error_probability
 
         synd_err_channel = simulation_utils.error_channel_setup(
             error_rate=self.syndr_err_rate,
             xyz_error_bias=self.bias,
         )
-        self.x_sigma = simulation_utils.get_sigma_from_syndr_er(synd_err_channel.x_marginal)
-        self.z_sigma = simulation_utils.get_sigma_from_syndr_er(synd_err_channel.z_marginal)
+        self.x_sigma = GaussianReadoutChannel.from_bit_error_probability(synd_err_channel.x_marginal).sigma
+        self.z_sigma = GaussianReadoutChannel.from_bit_error_probability(synd_err_channel.z_marginal).sigma
 
         self.bp_params = bp_params
         self.save_interval = kwargs.get("save_interval", 1_000)

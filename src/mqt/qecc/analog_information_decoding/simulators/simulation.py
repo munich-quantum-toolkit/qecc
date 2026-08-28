@@ -38,7 +38,6 @@ from ..utils.simulation_utils import (
     check_logical_err_h,
     error_channel_setup,
     get_binary_from_analog,
-    get_sigma_from_syndr_er,
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
@@ -131,8 +130,8 @@ class SingleShotSimulator:
 
         # if we want to decode with analog syndrome noise and an analog decoder
         if self.analog_info or self.analog_tg:
-            self.sigma_x = get_sigma_from_syndr_er(syndrome_channel.x_marginal)
-            self.sigma_z = get_sigma_from_syndr_er(syndrome_channel.z_marginal)
+            self.sigma_x = GaussianReadoutChannel.from_bit_error_probability(syndrome_channel.x_marginal).sigma
+            self.sigma_z = GaussianReadoutChannel.from_bit_error_probability(syndrome_channel.z_marginal).sigma
             x_syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma_x)
             z_syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma_z)
         else:

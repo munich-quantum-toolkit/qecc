@@ -140,7 +140,13 @@ class GaussianReadoutChannel:
 
     @classmethod
     def from_bit_error_probability(cls, probability: float) -> GaussianReadoutChannel:
-        """Construct a Gaussian channel with the given hard-decision error rate."""
+        """Construct a Gaussian channel with the given hard-decision error rate.
+
+        For analog Cat syndrome noise the syndrome error model is converted as
+        described in Berent et al., "Analog information decoding of bosonic quantum LDPC
+        codes", PRX Quantum 5, 020349 (2024), arXiv:2311.01328. This inverts the
+        error-rate-to-sigma relation given there.
+        """
         _validate_probability(probability)
         if probability >= 0.5:
             msg = f"Gaussian hard-decision error probability must be below 0.5, got {probability}."
@@ -151,7 +157,12 @@ class GaussianReadoutChannel:
 
     @property
     def bit_error_probability(self) -> float:
-        """Hard-decision error probability of the channel."""
+        """Hard-decision error probability of the channel.
+
+        For analog Cat syndrome noise the syndrome error model is converted as
+        described in Berent et al., "Analog information decoding of bosonic quantum LDPC
+        codes", PRX Quantum 5, 020349 (2024), arXiv:2311.01328.
+        """
         if math.isclose(self.sigma, 0.0):
             return 0.0
         return float(0.5 * erfc(1.0 / math.sqrt(2.0 * self.sigma**2)))

@@ -11,12 +11,10 @@ from __future__ import annotations
 
 import json
 import locale
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from scipy.special import erfc, erfcinv
 
 from mqt.qecc.mod2 import rank
 from mqt.qecc.noise import GaussianReadoutChannel, PauliChannel
@@ -113,20 +111,6 @@ def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArra
     if sigma <= 0.0:
         return np.zeros_like(analog_syndrome).astype(np.float64)
     return (2 * analog_syndrome) / (sigma**2)
-
-
-def get_sigma_from_syndr_er(ser: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
-    if math.isclose(ser, 0.0):
-        return 0.0
-    return float(1 / np.sqrt(2) / (erfcinv(2 * ser)))  # see Eq. cref{eq:perr-to-sigma} in our paper
-
-
-def get_error_rate_from_sigma(sigma: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
-    if math.isclose(sigma, 0.0):
-        return 0.0
-    return float(0.5 * erfc(1 / np.sqrt(2 * sigma**2)))  # see Eq. cref{eq:perr-to-sigma} in our paper
 
 
 def get_virtual_check_init_vals(noisy_syndr: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:

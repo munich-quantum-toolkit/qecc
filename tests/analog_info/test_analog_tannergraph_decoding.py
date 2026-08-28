@@ -21,7 +21,7 @@ from mqt.qecc.analog_information_decoding.simulators.analog_tannergraph_decoding
 )
 from mqt.qecc.analog_information_decoding.utils import simulation_utils
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
-from mqt.qecc.noise import PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
+from mqt.qecc.noise import GaussianReadoutChannel, PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -137,14 +137,18 @@ def test_atd_simulator_data_error_channels_setup(pcm: NDArray[np.int32], code_pa
 def test_atd_simulator_syndrome_error_channels_setup(atd_simulator_sigma: AtdSimulator) -> None:
     """Test AtdSimulator syndrome channel computation and initialization."""
     sigma = 0.1
-    ser = simulation_utils.get_error_rate_from_sigma(sigma)
+    ser = GaussianReadoutChannel(sigma).bit_error_probability
     expect_chnl = simulation_utils.error_channel_setup(
         error_rate=ser,
         xyz_error_bias=np.array([0.1, 0.1, 0.1]).astype(np.float64),
     )
-    assert atd_simulator_sigma.syndr_err_rate == simulation_utils.get_error_rate_from_sigma(sigma=sigma)
-    assert atd_simulator_sigma.x_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl.x_marginal)
-    assert atd_simulator_sigma.z_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl.z_marginal)
+    assert atd_simulator_sigma.syndr_err_rate == GaussianReadoutChannel(sigma).bit_error_probability
+    assert (
+        atd_simulator_sigma.x_sigma == GaussianReadoutChannel.from_bit_error_probability(expect_chnl.x_marginal).sigma
+    )
+    assert (
+        atd_simulator_sigma.z_sigma == GaussianReadoutChannel.from_bit_error_probability(expect_chnl.z_marginal).sigma
+    )
     assert isinstance(atd_simulator_sigma.noise_model, PhenomenologicalNoiseModel)
     assert isinstance(atd_simulator_sigma.noise_sampler, PhenomenologicalNoiseSampler)
 
@@ -156,8 +160,8 @@ def test_atd_simulator_syndrome_error_channels_setup_ser(atd_simulator_ser: AtdS
         error_rate=ser,
         xyz_error_bias=np.array([0.1, 0.1, 0.1]).astype(np.float64),
     )
-    assert atd_simulator_ser.x_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl.x_marginal)
-    assert atd_simulator_ser.z_sigma == simulation_utils.get_sigma_from_syndr_er(expect_chnl.z_marginal)
+    assert atd_simulator_ser.x_sigma == GaussianReadoutChannel.from_bit_error_probability(expect_chnl.x_marginal).sigma
+    assert atd_simulator_ser.z_sigma == GaussianReadoutChannel.from_bit_error_probability(expect_chnl.z_marginal).sigma
 
 
 def test_single_sample(atd_simulator_ser: AtdSimulator) -> None:
