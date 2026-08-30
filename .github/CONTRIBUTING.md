@@ -5,4 +5,4 @@
 
 Thank you for your interest in contributing to MQT QECC! An extensive
 contribution guide is available in our
-[documentation](https://mqt.readthedocs.io/projects/qecc/en/latest/contributing.html).
+[documentation](https://mqt.readthedocs.io/projects/qecc/en/stable/contributing.html).
