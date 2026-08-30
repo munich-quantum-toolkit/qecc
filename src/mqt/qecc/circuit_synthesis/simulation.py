@@ -243,8 +243,8 @@ class NoisyNDFTStatePrepSimulator(ABC):
         corrected = state + estimates
 
         num_discarded = detection_events.shape[0] - filtered_events.shape[0]
-        num_logical_errors: int = np.sum(
-            np.any(corrected @ observables.T % 2 != 0, axis=1)
+        num_logical_errors = int(
+            np.sum(np.any(corrected @ observables.T % 2 != 0, axis=1))
         )  # number of non-commuting corrected states
         return num_logical_errors, num_discarded
 
@@ -284,8 +284,8 @@ class NoisyNDFTStatePrepSimulator(ABC):
         corrected_anc ^= estimates
 
         num_discarded = detection_events.shape[0] - filtered_events.shape[0]
-        num_logical_errors: int = np.sum(
-            np.any(corrected_anc @ observables.T % 2 != 0, axis=1)
+        num_logical_errors = int(
+            np.sum(np.any(corrected_anc @ observables.T % 2 != 0, axis=1))
         )  # number of non-commuting corrected states
         return num_logical_errors, num_discarded
 
