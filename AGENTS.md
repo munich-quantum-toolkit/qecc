@@ -49,6 +49,9 @@
   `ty`, formatting, and metadata checks). All hooks must pass before submitting.
 - MUST add or update tests for every code change, even if not explicitly
   requested.
+- MUST write tests that protect intended behavior or reproduce a concrete
+  regression. NEVER test provisional implementation choices that are not part of
+  the supported contract.
 - MUST place tests in the repository's corresponding test tree, organized by the
   component that owns the behavior. NEVER place tests or test fixtures in
   production source or tool directories. Reserve tool- or CLI-level subprocess
@@ -57,6 +60,37 @@
   build; avoid promoting an otherwise optional production tool into the default
   build solely for subprocess testing.
 - MUST follow existing code style by checking neighboring files for patterns.
+- MUST write code comments, documentation, tests, changelog entries, and public
+  text for the final design. NEVER preserve prompts, review chronology, former
+  names, or abandoned approaches unless they remain necessary user-facing
+  context.
+- MUST apply
+  [Orwell's six rules for writing](https://www.orwellfoundation.com/the-orwell-foundation/orwell/essays-and-other-works/politics-and-the-english-language/)
+  to every category of prose, including reasoning, descriptions, commit
+  messages, documentation, docstrings, comments, test text, diagnostics, and
+  handoffs:
+
+  1. Do not use a familiar metaphor, simile, or other figure of speech.
+  2. Use a short word when it has the same meaning as a long word.
+  3. Remove every word that does not add meaning.
+  4. Use active voice when possible.
+  5. Use everyday English instead of a foreign phrase, scientific word, or
+     jargon term when this does not reduce precision.
+  6. Break a rule before it makes the text unclear, incorrect, or needlessly
+     difficult to read.
+
+- MUST apply the relevant principles of
+  [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/): use
+  short, direct sentences; give each sentence one main idea; use one term for
+  one meaning; and use explicit nouns instead of vague pronouns. These are
+  mandatory style rules, not a claim of formal ASD-STE100 compliance.
+- MUST base terminology and phrasing on existing usage in the repository and on
+  established precedents in the communities the repository draws from. Use the
+  established term that most precisely matches the concept. If communities use
+  different terms, explain the mapping once. NEVER invent synonyms for variety.
+- MUST remove obsolete scaffolding and diagnostic suppressions before handoff.
+  Keep a workaround or suppression only when it is still necessary, scope it as
+  narrowly as possible, and document the technical reason.
 - AI assistance MUST be disclosed in the PR description.
 - Commit-level `Assisted-by: [Model Name] via [Tool Name]` trailers are
   recommended, not required. For example:
