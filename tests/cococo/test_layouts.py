@@ -29,7 +29,7 @@ def test_scalable_layout():
     for layout_type in ("single", "pair", "triple", "hex"):
         try:
             layouts.gen_layout_scalable(layout_type, m, n, factories, remove_edges)
-        except Exception as e:  # ruff:ignore[try-except-in-loop]
+        except Exception as e:
             msg = f"Problem with {layout_type} scalable layouts."
             raise ValueError(msg) from e
 
