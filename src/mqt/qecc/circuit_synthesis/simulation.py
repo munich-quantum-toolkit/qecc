@@ -13,6 +13,7 @@ import concurrent.futures
 import itertools
 import logging
 import math
+import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -609,14 +610,17 @@ class LutDecoder:
 
     @staticmethod
     def _generate_lut(
-        checks: npt.NDArray[np.int8], chunk_size: int = 2**20, num_workers: int = 8, print_progress: bool = False
+        checks: npt.NDArray[np.int8],
+        chunk_size: int = 2**20,
+        num_workers: int | None = None,
+        print_progress: bool = False,
     ) -> dict[bytes, npt.NDArray[np.int8]]:
         """Generate a lookup table (LUT) for error correction by processing the state space in chunks, in parallel, and displaying a progress bar.
 
         Parameters:
             checks: The stabilizer check matrix (binary).
             chunk_size: Number of states processed per chunk.
-            num_workers: Number of parallel worker processes (default: use available cores).
+            num_workers: Number of parallel worker processes (default: the number of available cores).
             print_progress: Whether to print progress information.
 
         Returns:
@@ -633,19 +637,22 @@ class LutDecoder:
 
             # Create a generator of all combinations for this weight.
             comb_iter = itertools.combinations(range(n_qubits), weight)
-            # Split the combinations into chunks, allowing us to size the pool to the actual work (small codes yield a single chunk).
-            chunks = list(_chunked_iterable(comb_iter, chunk_size))
+            # Split the combinations into chunks. The count is known up front, so the pool can be sized to the
+            # actual work (small codes yield a single chunk) without materializing the chunks themselves.
+            num_chunks = (total_combinations + chunk_size - 1) // chunk_size
+            chunks = _chunked_iterable(comb_iter, chunk_size)
 
             weight_dict: dict[bytes, npt.NDArray[np.int8]] = {}
-            d2 = weight_dict.copy()
-            if len(chunks) <= 1:
-                # Spawning worker processes for a single chunk is overhead
-                for chunk in chunks:
-                    _merge_into(weight_dict, _process_combinations_chunk(chunk, checks, n_qubits, d2))
+            if num_chunks <= 1:
+                # Spawning worker processes for a single chunk is pure overhead.
+                chunk_iter = tqdm(chunks, total=num_chunks, desc=f"Weight {weight}") if print_progress else chunks
+                for chunk in chunk_iter:
+                    _merge_into(weight_dict, _process_combinations_chunk(chunk, checks, n_qubits, {}))
             else:
-                with concurrent.futures.ProcessPoolExecutor(max_workers=min(num_workers, len(chunks))) as executor:
+                workers = num_workers if num_workers is not None else os.cpu_count() or 1
+                with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, num_chunks)) as executor:
                     futures = [
-                        executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, d2) for chunk in chunks
+                        executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, {}) for chunk in chunks
                     ]
                     if print_progress:
                         for future in tqdm(

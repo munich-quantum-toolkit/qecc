@@ -132,7 +132,7 @@ def test_lut_chunked_parallel(print_progress: bool) -> None:
     """Test that the multi-chunk (parallel) LUT generation agrees with the single-chunk one."""
     checks = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
 
-    serial_lut = LutDecoder._generate_lut(checks)  # ruff: ignore[private-member-access]
+    serial_lut = LutDecoder._generate_lut(checks, print_progress=print_progress)  # ruff: ignore[private-member-access]
     parallel_lut = LutDecoder._generate_lut(  # ruff: ignore[private-member-access]
         checks, chunk_size=1, num_workers=2, print_progress=print_progress
     )
