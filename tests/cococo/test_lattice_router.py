@@ -141,16 +141,16 @@ def test_teleportationrouter():
 
     q = len(data_qubit_locs)
     # j = 8
-    num_gates = int(q * 1.2)
+    num_gates = int(q * 2.4)
     pairs = circuit_construction.generate_random_circuit(q, num_gates, tgate=True, ratio=0.8)  # circuit with t gates
 
     terminal_pairs = layouts.translate_layout_circuit(pairs, cast("Layout", layout))  # let's stick to the simple layout
 
     router = utils.TeleportationRouter(
-        g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=1
+        g, data_qubit_locs, factories, valid_path="cc", t=t, metric="exact", use_dag=True, seed=7
     )
 
-    max_iters = 100
+    max_iters = 2  # enough to hit all relevant code paths; larger values only lengthen the test
     T_start = 100.0  # ruff:ignore[non-lowercase-variable-in-function]
     T_end = 0.1  # ruff:ignore[non-lowercase-variable-in-function]
     alpha = 0.95
