@@ -19,14 +19,32 @@ import numpy as np
 import stim
 import z3
 
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    StimCircuitNoiseAdapter,
+)
+
 from .circuit_utils import compact_stim_circuit, relabel_qubits
-from .noise import CircuitLevelNoise
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any
 
     import numpy.typing as npt
+
+
+def _uniform_noise(p: float) -> StimCircuitNoiseAdapter:
+    """Depolarizing gate and reset noise of strength p with a 2p/3 measurement flip."""
+    return StimCircuitNoiseAdapter(
+        CircuitNoiseModel(
+            single_qubit_gate=DepolarizingChannel(p),
+            two_qubit_gate=DepolarizingChannel(p),
+            reset=DepolarizingChannel(p),
+            measurement=BitFlipChannel(2 / 3 * p),
+        )
+    )
 
 
 def cat_state_balanced_tree(w: int) -> stim.Circuit:
@@ -139,7 +157,7 @@ class CatStatePreparationExperiment:
 
     def _get_noisy_circ(self, p: float) -> stim.Circuit:
         """Return a noisy version of the combined circuit."""
-        return CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(self.circ)
+        return _uniform_noise(p).apply(self.circ)
 
     def sample_cat_state(
         self, p: float, n_samples: int = 1024, batch_size: int | None = None
@@ -624,7 +642,7 @@ def simulate_recursive_cat_construction(
     anc_controls = _build_anc_controls(circ_base)  # for parity correction
     rx_qubits = _rx_prepared_qubits(circ_base)  # base-4 ancillas have RX
 
-    circ_base = CircuitLevelNoise(p, p, 2 / 3 * p, p).apply(circ_base)
+    circ_base = _uniform_noise(p).apply(circ_base)
     circ_run = stim.Circuit()
     circ_run += circ_base
     circ_run.append("TICK")  # ty: ignore[invalid-argument-type]

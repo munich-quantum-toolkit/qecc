@@ -22,9 +22,16 @@ import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit
 from tqdm import tqdm
 
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    ParallelSchedule,
+    StimCircuitNoiseAdapter,
+)
+
 from .circuit_utils import measured_qubits, qiskit_to_stim_circuit, relabel_qubits, unmeasured_qubits
 from .circuits import CNOTCircuit
-from .noise import CircuitLevelNoiseIdlingParallel
 from .state_prep import heuristic_prep_circuit
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,10 +41,23 @@ if TYPE_CHECKING:  # pragma: no cover
     import stim
 
     from ..codes.core.css_code import CSSCode
-    from .noise import NoiseModel
 
 
 logger = logging.getLogger(__name__)
+
+
+def _uniform_noise(p: float, p_idle_factor: float) -> StimCircuitNoiseAdapter:
+    """Uniform depolarizing noise with idling, scheduled in parallel with ALAP resets."""
+    return StimCircuitNoiseAdapter(
+        CircuitNoiseModel(
+            single_qubit_gate=DepolarizingChannel(p),
+            two_qubit_gate=DepolarizingChannel(p),
+            reset=DepolarizingChannel(p),
+            measurement=BitFlipChannel(p),
+            idle=DepolarizingChannel(p * p_idle_factor),
+        ),
+        ParallelSchedule("alap"),
+    )
 
 
 class NoisyNDFTStatePrepSimulator(ABC):
@@ -76,7 +96,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         self.data_qubits = sorted(unmeasured_qubits(self.circ))
         self.data_measurements = list(range(self.circ.num_measurements, self.circ.num_measurements + code.n))
 
-    def _build_noisy_circuit(self, noise: NoiseModel) -> stim.Circuit:
+    def _build_noisy_circuit(self, noise: StimCircuitNoiseAdapter) -> stim.Circuit:
         """Set the error rate and initialize the noisy stim circuit.
 
         Args:
@@ -94,7 +114,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         self._noisy_circ = noisy_circ
         return noisy_circ
 
-    def _build_noisy_gadget(self, noise: NoiseModel, p: float) -> stim.Circuit:
+    def _build_noisy_gadget(self, noise: StimCircuitNoiseAdapter, p: float) -> stim.Circuit:
         anc = heuristic_prep_circuit(
             self.code, state="all_zero" if not self.zero_state else "all_plus"
         ).circ.to_stim_circuit()
@@ -157,7 +177,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
     def logical_error_rate(
         self,
-        noise: NoiseModel,
+        noise: StimCircuitNoiseAdapter,
         shots: int = 100000,
         shots_per_batch: int = 100000,
         at_least_min_errors: bool = True,
@@ -180,7 +200,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
     def secondary_logical_error_rate(
         self,
-        noise: NoiseModel,
+        noise: StimCircuitNoiseAdapter,
         p: float,
         shots: int = 100000,
         shots_per_batch: int = 100000,
@@ -312,7 +332,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         if plot_primary:
             results = [
                 self.logical_error_rate(
-                    CircuitLevelNoiseIdlingParallel(p, p, p, p, p * p_idle_factor, True),
+                    _uniform_noise(p, p_idle_factor),
                     min_errors=min_errors,
                 )
                 for p in ps
@@ -322,7 +342,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         if plot_secondary:
             results_secondary = [
                 self.secondary_logical_error_rate(
-                    CircuitLevelNoiseIdlingParallel(p, p, p, p, p * p_idle_factor, True),
+                    _uniform_noise(p, p_idle_factor),
                     p,
                     min_errors=min_errors,
                 )
