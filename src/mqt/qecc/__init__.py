@@ -17,6 +17,11 @@ from ._version import __version__
 from .analog_information_decoding.simulators.analog_tannergraph_decoding import AnalogTannergraphDecoder, AtdSimulator
 from .analog_information_decoding.simulators.quasi_single_shot_v2 import QssSimulator
 from .codes import CSSCode, StabilizerCode
+from .equivalence_checking import (
+    are_local_clifford_equivalent,
+    are_permutation_equivalent,
+    is_local_clifford_equivalent_to_css,
+)
 
 __all__ = [
     "AnalogTannergraphDecoder",
@@ -25,4 +30,7 @@ __all__ = [
     "QssSimulator",
     "StabilizerCode",
     "__version__",
+    "are_local_clifford_equivalent",
+    "are_permutation_equivalent",
+    "is_local_clifford_equivalent_to_css",
 ]
