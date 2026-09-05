@@ -24,7 +24,7 @@
 
 ### Python
 
-- Python 3.10+
+- Python 3.11+
 - `uv` for installation, packaging, and tooling
 - `ruff` for formatting/linting (configured in `pyproject.toml`)
 - `ty` for type checking
