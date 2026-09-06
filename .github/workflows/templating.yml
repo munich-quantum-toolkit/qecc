@@ -24,7 +24,7 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           permission-contents: write # Needed to push the templating branch
           permission-pull-requests: write # Needed to open the templating pull request
-      - uses: munich-quantum-toolkit/templates@8caeb0bd8d0e2ebf906e7c3a826c06f72844a83b # v1.5.0
+      - uses: munich-quantum-toolkit/templates@26c7cb8534daf355596bf0a31379ba84d097c768 # v1.5.1
         with:
           token: ${{ steps.create-token.outputs.token }}
           name: QECC
