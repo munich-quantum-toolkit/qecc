@@ -32,6 +32,7 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@99af11652a4238dbe50ebe4b003a9f0fd5fb8085 # v2.4.1
     with:
       runs-on: ${{ matrix.runs-on }}
+      use-sccache-gha: false
     permissions:
       contents: read
 
