@@ -12,13 +12,13 @@ permissions: {}
 jobs:
   build-sdist:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@99af11652a4238dbe50ebe4b003a9f0fd5fb8085 # v2.4.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@ace7363a2a8e036e5efc6717be67f1eda29a120e # v2.4.2
     permissions:
       contents: read
 
   build-wheel:
     name: 🐍 Packaging
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@99af11652a4238dbe50ebe4b003a9f0fd5fb8085 # v2.4.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-build.yml@ace7363a2a8e036e5efc6717be67f1eda29a120e # v2.4.2
     permissions:
       contents: read
 
