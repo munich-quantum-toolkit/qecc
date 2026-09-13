@@ -92,8 +92,8 @@ ecosystem, which is being developed as part of the
 Thank you to all the contributors who have helped make MQT QECC a reality!
 
 <p align="center">
-<a href="https://github.com/cda-tum/qecc/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=cda-tum/qecc" />
+<a href="https://github.com/munich-quantum-toolkit/qecc/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=munich-quantum-toolkit/qecc" />
 </a>
 </p>
 
