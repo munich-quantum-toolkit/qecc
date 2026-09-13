@@ -127,6 +127,13 @@ repos:
       - id: rumdl-fmt
         priority: 6
 
+  ## Format pyproject.toml files with pyproject-fmt
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: v2.29.3
+    hooks:
+      - id: pyproject-fmt
+        priority: 5
+
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.6
