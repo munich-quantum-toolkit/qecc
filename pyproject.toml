@@ -304,8 +304,6 @@ filterwarnings = [
   "ignore:pkg_resources is deprecated:UserWarning",
   "ignore:Deprecated call to `pkg_resources\\.declare_namespace\\('.+'\\)`\\.:DeprecationWarning",
   "ignore::DeprecationWarning:.*(simpleeval).*",
-  # Qiskit 1.3 deprecations
-  "ignore:.*``qiskit.dagcircuit.dagcircuit.DAGCircuit.*`` is deprecated as of qiskit 1.3.0.*:DeprecationWarning:",
 ]
 log_level = "INFO"
 minversion = "9.0"
