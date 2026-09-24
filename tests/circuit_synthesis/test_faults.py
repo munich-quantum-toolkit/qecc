@@ -64,16 +64,42 @@ def test_add_fault_invalid_length():
 
 def test_combine_fault_sets():
     """Test combining two fault sets."""
-    fault_set_1 = PureFaultSet(num_qubits=3)
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="Z")
     fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
 
-    fault_set_2 = PureFaultSet(num_qubits=3)
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
     fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
 
     # Combine the fault sets
     combined_fault_set = fault_set_1.combine(fault_set_2)
     expected = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8)
     assert combined_fault_set.to_set() == set(map(tuple, expected)), "Fault sets were not combined correctly."
+    assert combined_fault_set.kind == "Z", "Fault kind was not preserved when combining fault sets."
+
+
+def test_combine_fault_sets_different_kind():
+    """Test combining two fault sets with different kinds."""
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="X")
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
+
+    with pytest.raises(ValueError, match=r"Fault sets must have the same kind to combine."):
+        _ = fault_set_1.combine(fault_set_2)
+
+
+def test_combine_fault_sets_inplace_false_propagates_kind():
+    """Test that non-inplace combining preserves the left fault set kind."""
+    fault_set_1 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_1.add_fault(np.array([1, 0, 1], dtype=np.int8))
+
+    fault_set_2 = PureFaultSet(num_qubits=3, kind="Z")
+    fault_set_2.add_fault(np.array([0, 1, 0], dtype=np.int8))
+
+    combined_fault_set = fault_set_1.combine(fault_set_2, inplace=False)
+    assert combined_fault_set.kind == "Z", "Fault kind was not propagated for inplace=False combine."
+    assert fault_set_1.kind == "Z", "Original fault set kind should remain unchanged."
 
 
 def test_combine_fault_sets_invalid():
@@ -96,6 +122,14 @@ def test_from_fault_array():
 
     # Check that the rows in the result match the expected rows, regardless of order
     assert set(map(tuple, result)) == set(map(tuple, faults)), "Fault set was not created correctly from array."
+
+
+def test_from_fault_array_invalid_dimension():
+    """Test creating a PureFaultSet from an array with invalid dimensions."""
+    faults = np.array([1, 0, 1], dtype=np.int8)  # 1D array instead of 2D
+
+    with pytest.raises(ValueError, match=r"Input array must be 2-dimensional."):
+        PureFaultSet.from_fault_array(faults)
 
 
 @pytest.mark.parametrize(
@@ -619,21 +653,133 @@ def test_not_t_distinct_four_qubits():
 def test_permute_qubits_basic():
     """Test basic permutation of faults."""
     faults = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8)
-    fault_set = PureFaultSet.from_fault_array(faults)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
     permutation = [2, 0, 1]
 
     permuted_fault_set = fault_set.permute_qubits(permutation, inplace=False)
 
     assert np.array_equal(permuted_fault_set.faults, faults[:, permutation]), "Faults were not permuted correctly"
-    assert fault_set == PureFaultSet.from_fault_array(faults), "Original fault set should remain unchanged"
+    assert fault_set == PureFaultSet.from_fault_array(faults, kind="Z"), "Original fault set should remain unchanged"
+    assert permuted_fault_set.kind == "Z", "Fault kind should be preserved after permutation"
+    assert fault_set.kind == "Z", "Original fault kind should be preserved after permutation"
 
 
 def test_permute_qubits_inplace():
     """Test inplace permutation of fault set."""
     faults = np.array([[1, 1, 0], [0, 0, 1]], dtype=np.int8)
-    fault_set = PureFaultSet.from_fault_array(faults)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
     permutation = [2, 0, 1]
 
     fault_set.permute_qubits(permutation, inplace=True)
 
-    assert fault_set != PureFaultSet.from_fault_array(faults), "Faults were not permuted correctly in place"
+    assert fault_set != PureFaultSet.from_fault_array(faults, kind="Z"), "Faults were not permuted correctly in place"
+
+
+def test_invalid_fault_kind():
+    """Test that an invalid kind raises an assertion error."""
+    with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
+        pfs = PureFaultSet(5, kind="Y")
+
+    with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
+        pfs = PureFaultSet.from_fault_array(np.array([[1, 0, 1]], dtype=np.int8), kind="Y")
+
+    pfs = PureFaultSet(5)
+    with pytest.raises(AssertionError, match=r"Kind must be either 'X' or 'Z'."):
+        pfs.kind = "Y"
+
+
+def test_apply_cnot_x():
+    """Test applying a CNOT gate to the fault set."""
+    faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set1 = PureFaultSet.from_fault_array(faults1, kind="X")
+
+    # Apply CNOT with control=0 and target=1
+    fault_set1.apply_cnot(control=0, target=1)
+
+    expected_faults1 = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set1.to_array(), expected_faults1), (
+        "CNOT gate was not applied correctly to the fault set"
+    )
+
+    faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    fault_set2 = PureFaultSet.from_fault_array(faults2, kind="X")
+
+    # Apply CNOT with control=0 and target=1
+    fault_set2.apply_cnot(control=0, target=1)
+
+    expected_faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set2.to_array(), expected_faults2), (
+        "CNOT gate was not applied correctly to the fault set"
+    )
+
+
+def test_apply_cnot_z():
+    """Test applying a CNOT gate to the fault set."""
+    faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set1 = PureFaultSet.from_fault_array(faults1, kind="Z")
+
+    # Apply CNOT with control=0 and target=1
+    fault_set1.apply_cnot(control=0, target=1)
+
+    expected_faults1 = np.array([[1, 0, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set1.to_array(), expected_faults1), (
+        "CNOT gate was not applied correctly to the fault set"
+    )
+
+    faults2 = np.array([[0, 1, 0]], dtype=np.int8)
+    fault_set2 = PureFaultSet.from_fault_array(faults2, kind="Z")
+
+    # Apply CNOT with control=0 and target=1
+    fault_set2.apply_cnot(control=0, target=1)
+
+    expected_faults2 = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(fault_set2.to_array(), expected_faults2), (
+        "CNOT gate was not applied correctly to the fault set"
+    )
+
+
+def test_apply_cnot_invalid_qubits():
+    """Test that applying a CNOT gate with invalid qubit indices raises an error."""
+    faults = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+
+    with pytest.raises(ValueError, match=r"Control and target qubits must be different."):
+        fault_set.apply_cnot(control=0, target=0)
+
+    with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
+        fault_set.apply_cnot(control=3, target=1)
+
+    with pytest.raises(ValueError, match=r"Control and target indices must be between 0 and 2."):
+        fault_set.apply_cnot(control=-1, target=1)
+
+
+def test_apply_cnot_not_inplace():
+    """Test that applying a CNOT gate does not modify the original fault set when inplace=False."""
+    faults = np.array([[1, 0, 0]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults)
+
+    # Apply CNOT with control=0 and target=1 without modifying the original fault set
+    new_fault_set = fault_set.apply_cnot(control=0, target=1, inplace=False)
+
+    expected_new_faults = np.array([[1, 1, 0]], dtype=np.int8)
+    assert np.array_equal(new_fault_set.to_array(), expected_new_faults), (
+        "CNOT gate was not applied correctly to the new fault set"
+    )
+    assert np.array_equal(fault_set.to_array(), faults), "Original fault set should remain unchanged"
+
+
+def test_pure_fault_set_copy():
+    """Test that PureFaultSet.copy() returns an independent copy."""
+    faults = np.array([[1, 0, 0], [0, 1, 1]], dtype=np.int8)
+    fault_set = PureFaultSet.from_fault_array(faults, kind="Z")
+
+    copied_fault_set = fault_set.copy()
+
+    assert copied_fault_set is not fault_set
+    assert np.array_equal(copied_fault_set.to_array(), fault_set.to_array())
+    assert copied_fault_set.kind == fault_set.kind
+
+    copied_fault_set.apply_cnot(control=0, target=1)
+
+    assert not np.array_equal(copied_fault_set.to_array(), fault_set.to_array())
+    assert np.array_equal(fault_set.to_array(), np.unique(faults, axis=0))
