@@ -221,9 +221,8 @@ def check_duplicate_nodes_per_layer_st(vdp_layers: list[VdpDict]) -> bool:
         all_nodes = []
         for path in vdp_dict.values():
             all_nodes += path
-        # check whether there are duplicate items, then problem!!
+        # check whether there are duplicate items, then problem!
         duplicates = _find_duplicates(all_nodes)
-
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
             raise ValueError(msg)
@@ -251,10 +250,8 @@ def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # ruff:ignore[any-t
                 ][
                     1:
                 ]  # the very first item is on the path, i.e. it would be duplicate by construction, this is not what we want to catch here
-        # check whether there are duplicate items, then problem!!
-
+        # check whether there are duplicate items, then problem!
         duplicates = _find_duplicates(all_nodes)
-
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
             raise ValueError(msg)
