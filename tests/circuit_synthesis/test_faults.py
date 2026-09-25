@@ -73,7 +73,7 @@ def test_combine_fault_sets():
     # Combine the fault sets
     combined_fault_set = fault_set_1.combine(fault_set_2)
     expected = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.int8)
-    assert combined_fault_set.to_set() == set(map(tuple, expected)), "Fault sets were not combined correctly."
+    assert combined_fault_set.to_set() == set(map(tuple, expected.tolist())), "Fault sets were not combined correctly."
 
 
 def test_combine_fault_sets_invalid():
@@ -95,7 +95,9 @@ def test_from_fault_array():
     result = fault_set.to_array()
 
     # Check that the rows in the result match the expected rows, regardless of order
-    assert set(map(tuple, result)) == set(map(tuple, faults)), "Fault set was not created correctly from array."
+    assert set(map(tuple, result.tolist())) == set(map(tuple, faults.tolist())), (
+        "Fault set was not created correctly from array."
+    )
 
 
 @pytest.mark.parametrize(
@@ -155,7 +157,7 @@ def test_from_cnot_circuit_x_faults():
     )
 
     # Check the result
-    assert fault_set.to_set() == set(map(tuple, expected_faults)), (
+    assert fault_set.to_set() == set(map(tuple, expected_faults.tolist())), (
         "X-type faults were not generated correctly from the CNOT circuit."
     )
 
@@ -183,7 +185,7 @@ def test_from_cnot_circuit_z_faults():
     )
 
     # Check the result
-    assert fault_set.to_set() == set(map(tuple, expected_faults)), (
+    assert fault_set.to_set() == set(map(tuple, expected_faults.tolist())), (
         "Z-type faults were not generated correctly from the CNOT circuit."
     )
 
