@@ -160,8 +160,8 @@ class PureFaultSet:
         for i, fault in enumerate(self.faults):
             # Identify the indices of pivot columns where the fault has a 1
             active_pivots = [pivots.index(p) for p in pivots if fault[p] == 1]
-            if active_pivots:  # Ensure there are active pivots to reduce with
-                self.faults[i] = fault ^ np.bitwise_xor.reduce(rref[active_pivots], axis=0)
+            for pivot in active_pivots:
+                self.faults[i] ^= rref[pivot]
 
     def remove_zero_rows(self) -> None:
         """Remove all zero rows from the fault set.
