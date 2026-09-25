@@ -19,8 +19,8 @@ from mqt.qecc.analog_information_decoding.simulators.simulation import SingleSho
 from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
     error_channel_setup,
-    get_sigma_from_syndr_er,
 )
+from mqt.qecc.noise import GaussianReadoutChannel, PhenomenologicalNoiseModel, PhenomenologicalNoiseSampler
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -130,13 +130,19 @@ def test_analog_ss_simulator_setup(
     single_stage_analog_simulator: SingleShotSimulator,
 ) -> None:
     """Test the initialization of error channels the simulator."""
-    chnl = error_channel_setup(error_rate, bias, pcm.shape[0])
-    expected_x_syndr_chnl = chnl[0] + chnl[1]
-    expected_z_syndr_chnl = chnl[2] + chnl[1]
+    chnl = error_channel_setup(error_rate, bias)
+    expected_x_syndr_chnl = np.full(pcm.shape[0], chnl.x_marginal)
+    expected_z_syndr_chnl = np.full(pcm.shape[0], chnl.z_marginal)
     assert np.allclose(expected_x_syndr_chnl, single_stage_analog_simulator.x_syndr_error_channel)
     assert np.allclose(expected_z_syndr_chnl, single_stage_analog_simulator.z_syndr_error_channel)
-    assert single_stage_analog_simulator.sigma_x == get_sigma_from_syndr_er(expected_x_syndr_chnl[0])
-    assert single_stage_analog_simulator.sigma_z == get_sigma_from_syndr_er(expected_z_syndr_chnl[0])
+    assert (
+        single_stage_analog_simulator.sigma_x
+        == GaussianReadoutChannel.from_bit_error_probability(expected_x_syndr_chnl[0]).sigma
+    )
+    assert (
+        single_stage_analog_simulator.sigma_z
+        == GaussianReadoutChannel.from_bit_error_probability(expected_z_syndr_chnl[0]).sigma
+    )
     assert np.array_equal(
         single_stage_analog_simulator.x_apcm, np.hstack([pcm, np.identity(pcm.shape[0], dtype=np.int32)])
     )
@@ -147,6 +153,8 @@ def test_analog_ss_simulator_setup(
 
 def test_single_stage_initialization(single_stage_analog_simulator: SingleShotSimulator) -> None:
     """Test single stage single shot simulation initialization."""
+    assert isinstance(single_stage_analog_simulator.noise_model, PhenomenologicalNoiseModel)
+    assert isinstance(single_stage_analog_simulator.noise_sampler, PhenomenologicalNoiseSampler)
     res = single_stage_analog_simulator._single_sample()  # ruff:ignore[private-member-access]
     assert res[0] is not None
     assert res[1] is not None
