@@ -61,7 +61,7 @@ repos:
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.12.16
+    rev: 0.12.17
     hooks:
       - id: uv-lock
         priority: 0
