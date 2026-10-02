@@ -22,6 +22,14 @@ Lattice-surgery routing for color codes, including compilation that exploits
 movable logical qubits on a hexagonal routing graph.
 :::
 
+:::{grid-item-card} Encoding-Aware Compilation
+:link: ../EncodingAwareCompilation
+:link-type: doc
+
+Encoding-aware ZX-calculus circuit extraction for tetrahedral color codes, built
+on PyZX.
+:::
+
 ::::
 
 ```{toctree}
@@ -30,4 +38,5 @@ movable logical qubits on a hexagonal routing graph.
 
 ../CodeSwitching
 ../cococo
+../EncodingAwareCompilation
 ```
