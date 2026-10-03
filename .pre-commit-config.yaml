@@ -78,7 +78,7 @@ repos:
 
   ## Check for typos
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.50.2
+    rev: v1.50.3
     hooks:
       - id: typos
         priority: 3
