@@ -298,13 +298,14 @@ def _quaternary_punctured_hull_bases(
     """Yield an additive GF(4) hull basis for every punctured column of a matrix."""
     num_rows, num_columns = matrix.shape
     contributions = np.zeros((num_columns, num_rows, num_rows), dtype=np.uint8)
+    full_gram = np.zeros((num_rows, num_rows), dtype=np.uint8)
 
     for column in range(num_columns):
         x_column = matrix[:, column] & 1
         z_column = matrix[:, column] >> 1
         contributions[column] = (x_column[:, None] & z_column[None, :]) ^ (z_column[:, None] & x_column[None, :])
+        full_gram ^= contributions[column]
 
-    full_gram = np.bitwise_xor.reduce(contributions, axis=0, initial=0)
     for column in range(num_columns):
         punctured = np.delete(matrix, column, axis=1)
         gram = full_gram ^ contributions[column]

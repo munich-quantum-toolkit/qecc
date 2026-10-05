@@ -114,10 +114,10 @@ def matmul_gf2_gf4(lhs: npt.NDArray[np.integer], rhs: npt.NDArray[np.integer]) -
         msg = "Incompatible shapes for matrix multiplication."
         raise ValueError(msg)
 
+    summands = rhs.astype(np.uint8)
     product = np.zeros((num_rows, num_cols), dtype=np.uint8)
     for row in range(num_rows):
-        selected_rows = np.flatnonzero(lhs[row])
-        if selected_rows.size:
-            product[row, :] = np.bitwise_xor.reduce(rhs[selected_rows, :], axis=0)
+        for selected_row in np.flatnonzero(lhs[row]):
+            product[row] ^= summands[selected_row]
 
     return product

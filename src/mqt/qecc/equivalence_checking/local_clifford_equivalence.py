@@ -340,7 +340,7 @@ def _locally_equivalent_connected_graphs(
         )
     else:
         candidates = (
-            np.bitwise_xor.reduce(solution_space[np.flatnonzero(coefficients)], axis=0, initial=0)
+            (np.array(coefficients, dtype=np.uint8) @ solution_space) % 2
             for coefficients in product([0, 1], repeat=dimension)
         )
 
