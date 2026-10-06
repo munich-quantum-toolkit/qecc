@@ -121,7 +121,9 @@ def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
 def row_span(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.uint8]:
     """Compute all vectors in the row space of a binary matrix over GF(2).
 
-    The result grows exponentially with the number of rows of the matrix.
+    The result grows exponentially with the number of rows of the matrix: it has
+    ``2 ** matrix.shape[0]`` rows, so callers must bound the number of rows
+    themselves. This is only practical for a few dozen rows at most.
 
     Args:
         matrix: Binary matrix.

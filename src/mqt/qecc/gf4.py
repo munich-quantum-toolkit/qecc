@@ -5,7 +5,12 @@
 #
 # Licensed under the MIT License
 
-"""Utilities for additive linear algebra over GF(4)."""
+"""Utilities for additive linear algebra over GF(4).
+
+GF(4) is the field with four elements, which has characteristic two: addition is
+bitwise XOR, not integer arithmetic modulo four. The functions here mirror those
+of :mod:`mqt.qecc.mod2` for matrices whose entries encode GF(4) elements.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +26,7 @@ def row_echelon(
     matrix: npt.NDArray[np.integer],
     *,
     full: bool = False,
-) -> tuple[int, npt.NDArray[np.integer]]:
+) -> tuple[npt.NDArray[np.integer], int]:
     """Convert a GF(4) matrix to row echelon form over GF(2).
 
     The input is assumed to be a dense integer matrix whose entries encode
@@ -36,11 +41,17 @@ def row_echelon(
             (reduced row echelon form). Otherwise only eliminate below.
 
     Returns:
-        A tuple containing the binary rank and row echelon form.
+        A tuple containing
+
+        - the row echelon form,
+        - the binary rank.
+
+        The order matches :func:`mqt.qecc.mod2.row_echelon`, which additionally
+        returns a transformation matrix and the pivot columns.
     """
     num_rows, num_cols = matrix.shape
     if num_rows == 0:
-        return 0, np.copy(matrix)
+        return np.copy(matrix), 0
 
     the_matrix = np.copy(matrix)
     pivot_row = 0
@@ -67,7 +78,7 @@ def row_echelon(
         if pivot_row >= num_rows:
             break
 
-    return pivot_row, the_matrix
+    return the_matrix, pivot_row
 
 
 def rank(matrix: npt.NDArray[np.integer]) -> int:
@@ -79,7 +90,7 @@ def rank(matrix: npt.NDArray[np.integer]) -> int:
     Returns:
         The binary rank of the matrix.
     """
-    return row_echelon(matrix)[0]
+    return row_echelon(matrix)[1]
 
 
 def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
@@ -91,11 +102,11 @@ def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
     Returns:
         A matrix whose rows form a basis of the additive row space.
     """
-    matrix_rank, reduced = row_echelon(matrix)
+    reduced, matrix_rank = row_echelon(matrix)
     return reduced[:matrix_rank, :]
 
 
-def matmul_gf2_gf4(lhs: npt.NDArray[np.integer], rhs: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
+def matmul_gf2(lhs: npt.NDArray[np.integer], rhs: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
     """Multiply a GF(2) matrix by a GF(4) matrix.
 
     Args:

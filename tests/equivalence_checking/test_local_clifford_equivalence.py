@@ -17,6 +17,11 @@ import pytest
 from mqt.qecc import StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
 from mqt.qecc.codes import RotatedSurfaceCode
 from mqt.qecc.equivalence_checking import local_clifford_equivalence
+from mqt.qecc.equivalence_checking.invariants import (
+    _preserved_distance,  # ruff: ignore[import-private-name]
+    _preserved_k,  # ruff: ignore[import-private-name]
+    _preserved_n,  # ruff: ignore[import-private-name]
+)
 from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     CLIFFORD_ACTIONS,
     LOCAL_CLIFFORDS,
@@ -24,14 +29,9 @@ from mqt.qecc.equivalence_checking.local_clifford_equivalence import (
     _graph_isomorphism_stabilizer_code,  # ruff: ignore[import-private-name]
     _locally_equivalent_connected_graphs,  # ruff: ignore[import-private-name]
     _lse_stabilizer_code,  # ruff: ignore[import-private-name]
-    _preserved_d,  # ruff: ignore[import-private-name]
     _preserved_low_degree_local_invariant,  # ruff: ignore[import-private-name]
     _stabilizer_code_to_state,  # ruff: ignore[import-private-name]
     _stabilizer_state_to_graph_state,  # ruff: ignore[import-private-name]
-)
-from mqt.qecc.equivalence_checking.utils import (
-    _preserved_k,  # ruff: ignore[import-private-name]
-    _preserved_n,  # ruff: ignore[import-private-name]
 )
 
 from .conftest import assert_same_row_space
@@ -220,7 +220,9 @@ def test_stabilizer_group_graph() -> None:
     [
         pytest.param(_preserved_n, StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4), id="n"),
         pytest.param(_preserved_k, StabilizerCode.get_trivial_code(3), StabilizerCode(["ZII"]), id="k"),
-        pytest.param(_preserved_d, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"),
+        pytest.param(
+            _preserved_distance, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"
+        ),
     ],
 )
 def test_cheap_invariants(

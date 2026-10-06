@@ -17,7 +17,7 @@ import numpy as np
 import z3
 
 from ..mod2 import nullspace, rank, row_echelon, row_span
-from ._cliffords import (
+from .cliffords import (
     CLIFFORD_ACTIONS,
     CLIFFORD_BY_MATRIX,
     LOCAL_CLIFFORDS,
@@ -25,15 +25,14 @@ from ._cliffords import (
     _canonicalize_clifford,
     _select_column,
 )
-from .utils import (
-    _colored_graph_isomorphism,
-    _elementwise_map,
-    _encode_row_operations,
-    _exactly_one,
+from .graphs import _colored_graph_isomorphism
+from .invariants import (
+    _preserved_distance,
     _preserved_k,
     _preserved_n,
     _reduce_stabilizer_generators,
 )
+from .sat import _elementwise_map, _encode_row_operations, _exactly_one
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -74,7 +73,7 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     cheap_invariants = (
         _preserved_n,
         _preserved_k,
-        _preserved_d,
+        _preserved_distance,
     )
 
     if not all(invariant(code1, code2) for invariant in cheap_invariants):
@@ -117,11 +116,6 @@ def is_local_clifford_equivalent_to_css(code: StabilizerCode) -> bool:
 # ----------------------------------------------------------------------------------------------------
 #   Invariants
 # ----------------------------------------------------------------------------------------------------
-
-
-def _preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check the code-distance invariant for LC equivalence."""
-    return c1.distance == c2.distance
 
 
 def _preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:

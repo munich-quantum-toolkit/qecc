@@ -18,6 +18,14 @@ import pytest
 
 from mqt.qecc import CSSCode, StabilizerCode, are_permutation_equivalent
 from mqt.qecc.equivalence_checking import permutation_equivalence
+from mqt.qecc.equivalence_checking.graphs import (
+    _colored_graph_isomorphism,  # ruff: ignore[import-private-name]
+    _merge_parallel_edges,  # ruff: ignore[import-private-name]
+)
+from mqt.qecc.equivalence_checking.invariants import (
+    _preserved_k,  # ruff: ignore[import-private-name]
+    _preserved_n,  # ruff: ignore[import-private-name]
+)
 from mqt.qecc.equivalence_checking.permutation_equivalence import (
     _binary_punctured_hull_bases,  # ruff: ignore[import-private-name]
     _circuits_binary_matroid,  # ruff: ignore[import-private-name]
@@ -25,18 +33,12 @@ from mqt.qecc.equivalence_checking.permutation_equivalence import (
     _graph_from_stabilizer_group_and_invariants,  # ruff: ignore[import-private-name]
     _graph_isomorphism_stabilizer_code,  # ruff: ignore[import-private-name]
     _matching_invariant_partitions,  # ruff: ignore[import-private-name]
-    _preserved_d,  # ruff: ignore[import-private-name]
     _preserved_number_duplicate_columns,  # ruff: ignore[import-private-name]
     _preserved_number_zero_columns,  # ruff: ignore[import-private-name]
     _preserved_ranks,  # ruff: ignore[import-private-name]
+    _preserved_sector_distances,  # ruff: ignore[import-private-name]
     _punctured_hull_weight_enumerators,  # ruff: ignore[import-private-name]
     _quaternary_punctured_hull_bases,  # ruff: ignore[import-private-name]
-)
-from mqt.qecc.equivalence_checking.utils import (
-    _colored_graph_isomorphism,  # ruff: ignore[import-private-name]
-    _merge_parallel_edges,  # ruff: ignore[import-private-name]
-    _preserved_k,  # ruff: ignore[import-private-name]
-    _preserved_n,  # ruff: ignore[import-private-name]
 )
 from mqt.qecc.mod2 import is_in_row_space, rank
 
@@ -51,7 +53,7 @@ STAGES = {
     "linear-dependencies": "_preserved_linear_dependencies",
     "css-hull": "_preserved_punctured_hull_weight_enumerator_css_code",
     "stabilizer-hull": "_preserved_punctured_hull_weight_enumerator_stabilizer_code",
-    "bruteforce": "_bruteforce_css",
+    "bruteforce": "_bruteforce_css_codes",
     "matroid": "_matroid_css_code",
     "css-sat": "_sat_css_code",
     "graph-isomorphism": "_graph_isomorphism_stabilizer_code",
@@ -254,7 +256,9 @@ def test_isomorphism_beyond_color_refinement() -> None:
     [
         pytest.param(_preserved_n, StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4), id="n"),
         pytest.param(_preserved_k, StabilizerCode.get_trivial_code(3), StabilizerCode(["ZII"]), id="k"),
-        pytest.param(_preserved_d, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"),
+        pytest.param(
+            _preserved_sector_distances, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"
+        ),
         pytest.param(_preserved_ranks, StabilizerCode(["Z"]), StabilizerCode(["X"]), id="ranks-one-qubit"),
         pytest.param(_preserved_ranks, StabilizerCode(["XII"]), StabilizerCode(["ZII"]), id="ranks-x-vs-z"),
         pytest.param(
@@ -280,7 +284,7 @@ def test_isomorphism_beyond_color_refinement() -> None:
             id="css-k",
         ),
         pytest.param(
-            _preserved_d,
+            _preserved_sector_distances,
             CSSCode(Hx=np.array([[1, 1, 0]], dtype=np.int8), distance=1, x_distance=2, z_distance=1),
             CSSCode(Hx=np.array([[1, 1, 0]], dtype=np.int8), distance=1, x_distance=1, z_distance=2),
             id="css-d",

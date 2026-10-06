@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import operator
 from collections import Counter, defaultdict
-from itertools import permutations
+from itertools import combinations, permutations
 from typing import TYPE_CHECKING, TypeVar
 
 import networkx as nx
@@ -19,18 +19,16 @@ import numpy as np
 import z3
 
 from ..codes.core.css_code import CSSCode
+from ..gf4 import matmul_gf2 as gf4_matmul_gf2
+from ..gf4 import row_basis as gf4_row_basis
 from ..mod2 import nullspace, rank, row_basis, row_span
-from ..mod4 import matmul_gf2_gf4
-from ..mod4 import row_basis as gf4_row_basis
-from .utils import (
-    _colored_graph_isomorphism,
-    _elementwise_map,
-    _encode_row_operations,
-    _exactly_one,
+from .graphs import _colored_graph_isomorphism
+from .invariants import (
     _preserved_k,
     _preserved_n,
     _reduce_stabilizer_generators,
 )
+from .sat import _elementwise_map, _encode_row_operations, _exactly_one
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
@@ -47,6 +45,7 @@ if TYPE_CHECKING:
 # and finally decides equivalence with a complete procedure.
 
 # Refute
+LINEAR_DEPENDENCY_MAX_SUBSET_SIZE = 3
 LINEAR_DEPENDENCY_MIN_QUBITS_CSS = 23
 LINEAR_DEPENDENCY_MIN_GENERATORS_CSS = 10
 LINEAR_DEPENDENCY_MIN_QUBITS_STB = 25
@@ -86,7 +85,7 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
     cheap_invariants = (
         _preserved_n,
         _preserved_k,
-        _preserved_d,
+        _preserved_sector_distances,
         _preserved_ranks,
         _preserved_number_zero_columns,
         _preserved_number_duplicate_columns,
@@ -99,18 +98,21 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
         return list(range(code1.n))
 
     if isinstance(code1, CSSCode) and isinstance(code2, CSSCode):
-        return _permutation_eq_css_codes(code1, code2)
-    return _permutation_eq_stabilizer_codes(code1, code2)
+        return _permutation_equivalent_css_codes(code1, code2)
+    return _permutation_equivalent_stabilizer_codes(code1, code2)
 
 
-def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | None:
+def _permutation_equivalent_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | None:
     """Check whether two non-trivial CSS codes with matching cheap invariants are permutation equivalent.
 
     Refutes equivalence of larger codes with a linear-dependency invariant, refines the qubits into classes
     using a qubit signature, and decides equivalence with a brute-force, matroid, or SAT-based algorithm
     depending on the size of the codes.
 
-    Note: Due to a different graph isomorphism tool (pynauty vs. networkx), the empirical threshold between the matroid and SAT-based algorithms differs between the paper and MQT version.
+    Note:
+        Due to a different graph isomorphism tool (pynauty vs. networkx), the
+        empirical threshold between the matroid and SAT-based algorithms differs
+        between the paper and the MQT version.
     """
     n = code1.n
     r = code1.Hx.shape[0] + code1.Hz.shape[0]
@@ -131,13 +133,13 @@ def _permutation_eq_css_codes(code1: CSSCode, code2: CSSCode) -> list[int] | Non
 
     # Decide
     if n <= BRUTEFORCE_MAX_QUBITS_CSS:
-        return _bruteforce_css(code1, code2)
+        return _bruteforce_css_codes(code1, code2)
     if n <= MATROID_MAX_QUBITS_CSS:
         return _matroid_css_code(code1, partition1, code2, partition2)
     return _sat_css_code(code1, partition1, code2, partition2)
 
 
-def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCode) -> list[int] | None:
+def _permutation_equivalent_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCode) -> list[int] | None:
     """Check whether two non-trivial stabilizer codes with matching cheap invariants are permutation equivalent.
 
     Refutes equivalence of larger codes with a linear-dependency invariant, refines the qubits of smaller codes
@@ -175,8 +177,13 @@ def _permutation_eq_stabilizer_codes(code1: StabilizerCode, code2: StabilizerCod
 # ----------------------------------------------------------------------------------------------------
 
 
-def _preserved_d(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check the code-distance invariant for permutation equivalence."""
+def _preserved_sector_distances(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
+    """Check the code-distance invariant, refined to the X and Z sectors for CSS codes.
+
+    A permutation acts on the physical qubits without mixing the X and Z sector, so the
+    X- and Z-distances of a CSS code are preserved individually. This refinement is not
+    available to local Clifford equivalence, which may exchange the two sectors.
+    """
     if isinstance(c1, CSSCode) and isinstance(c2, CSSCode):
         return c1.x_distance == c2.x_distance and c1.z_distance == c2.z_distance
     return c1.distance == c2.distance
@@ -209,30 +216,28 @@ def _preserved_number_duplicate_columns(c1: StabilizerCode | CSSCode, c2: Stabil
     return _duplicate_column(c1.symplectic) == _duplicate_column(c2.symplectic)
 
 
+def _linear_dependency_profile(c: StabilizerCode | CSSCode) -> tuple[tuple[int, ...], ...]:
+    """Return the sorted symplectic column ranks of all qubit subsets up to a fixed size.
+
+    A permutation only reorders the qubit columns, so for every subset size the multiset
+    of ranks is invariant under it.
+    """
+    n = c.n
+    symplectic = c.symplectic
+    return tuple(
+        tuple(
+            sorted(
+                rank(symplectic[:, [qubit + offset for qubit in subset for offset in (0, n)]])
+                for subset in combinations(range(n), size)
+            )
+        )
+        for size in range(1, LINEAR_DEPENDENCY_MAX_SUBSET_SIZE + 1)
+    )
+
+
 def _preserved_linear_dependencies(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
     """Check low-order column-rank invariants for permutation equivalence."""
-
-    def _linear_dependencies(c: StabilizerCode | CSSCode) -> tuple[list[int], list[int], list[int]]:
-        n = c.n
-        m = c.symplectic
-
-        one_columns = [rank(np.column_stack([m[:, q], m[:, q + n]])) for q in range(n)]
-
-        two_columns = [
-            rank(np.column_stack([m[:, i], m[:, i + n], m[:, j], m[:, j + n]]))
-            for i in range(n)
-            for j in range(i + 1, n)
-        ]
-        three_columns = [
-            rank(np.column_stack([m[:, i], m[:, i + n], m[:, j], m[:, j + n], m[:, k], m[:, k + n]]))
-            for i in range(n)
-            for j in range(i + 1, n)
-            for k in range(j + 1, n)
-        ]
-
-        return (sorted(one_columns), sorted(two_columns), sorted(three_columns))
-
-    return _linear_dependencies(c1) == _linear_dependencies(c2)
+    return _linear_dependency_profile(c1) == _linear_dependency_profile(c2)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -309,7 +314,7 @@ def _quaternary_punctured_hull_bases(
     for column in range(num_columns):
         punctured = np.delete(matrix, column, axis=1)
         gram = full_gram ^ contributions[column]
-        yield gf4_row_basis(matmul_gf2_gf4(nullspace(gram.T), punctured))
+        yield gf4_row_basis(gf4_matmul_gf2(nullspace(gram.T), punctured))
 
 
 def _punctured_hull_weight_enumerators(
@@ -380,7 +385,7 @@ def _partition_columns_by_invariants(invariants: Sequence[InvariantT]) -> dict[I
 # --------------------------------------------------
 
 
-def _bruteforce_css(c1: CSSCode, c2: CSSCode) -> list[int] | None:
+def _bruteforce_css_codes(c1: CSSCode, c2: CSSCode) -> list[int] | None:
     """Brute-force check for permutation equivalence of two CSS codes."""
     hx_rank = c1.Hx.shape[0]
     hz_rank = c1.Hz.shape[0]

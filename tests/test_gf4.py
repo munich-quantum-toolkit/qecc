@@ -12,13 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.mod4 import matmul_gf2_gf4, rank, row_basis, row_echelon
+from mqt.qecc.gf4 import matmul_gf2, rank, row_basis, row_echelon
 
 
 def test_row_echelon_empty_matrix() -> None:
     """A matrix with zero rows is returned unchanged with rank zero."""
     matrix = np.empty((0, 4), dtype=np.uint8)
-    matrix_rank, reduced = row_echelon(matrix)
+    reduced, matrix_rank = row_echelon(matrix)
 
     assert matrix_rank == 0
     assert np.array_equal(reduced, matrix)
@@ -29,7 +29,7 @@ def test_row_echelon_does_not_mutate_input() -> None:
     matrix = np.array([[1, 2], [3, 1], [2, 3]], dtype=np.uint8)
     original = matrix.copy()
 
-    matrix_rank, reduced = row_echelon(matrix, full=True)
+    reduced, matrix_rank = row_echelon(matrix, full=True)
 
     assert np.array_equal(matrix, original)
     assert matrix_rank == 2
@@ -40,7 +40,7 @@ def test_row_echelon_full_is_reduced() -> None:
     """Full reduction eliminates entries both above and below each pivot."""
     matrix = np.array([[1, 1], [0, 1]], dtype=np.uint8)
 
-    echelon, reduced = row_echelon(matrix)[1], row_echelon(matrix, full=True)[1]
+    echelon, reduced = row_echelon(matrix)[0], row_echelon(matrix, full=True)[0]
 
     assert np.array_equal(echelon, matrix)
     assert np.array_equal(reduced, np.eye(2, dtype=np.uint8))
@@ -69,15 +69,15 @@ def test_rank() -> None:
     assert rank(np.zeros((3, 3), dtype=np.uint8)) == 0
 
 
-def test_matmul_gf2_gf4() -> None:
+def test_matmul_gf2() -> None:
     """Binary coefficients select and XOR rows of the GF(4) matrix."""
     lhs = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.uint8)
     rhs = np.array([[1, 2], [2, 3], [3, 1]], dtype=np.uint8)
 
-    assert np.array_equal(matmul_gf2_gf4(lhs, rhs), np.array([[2, 3], [1, 2]], dtype=np.uint8))
+    assert np.array_equal(matmul_gf2(lhs, rhs), np.array([[2, 3], [1, 2]], dtype=np.uint8))
 
 
-def test_matmul_gf2_gf4_rejects_incompatible_shapes() -> None:
+def test_matmul_gf2_rejects_incompatible_shapes() -> None:
     """Matrix multiplication rejects mismatched inner dimensions."""
     with pytest.raises(ValueError, match="Incompatible shapes"):
-        matmul_gf2_gf4(np.zeros((2, 3), dtype=np.uint8), np.zeros((2, 4), dtype=np.uint8))
+        matmul_gf2(np.zeros((2, 3), dtype=np.uint8), np.zeros((2, 4), dtype=np.uint8))
