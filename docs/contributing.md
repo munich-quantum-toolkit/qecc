@@ -113,11 +113,11 @@ picks up the same file.
 - Use a clear title, reference related issues by number, and describe the
   changes. Follow the PR template; only omit the issue reference if not
   applicable.
-- CI runs on all supported platforms and Python versions to build, test, format,
-  and lint. All checks must pass before merging.
-- When ready, convert the draft to a regular PR and request a review from a
-  maintainer. If unsure, ask in PR comments. If you are a first-time
-  contributor, mention a maintainer in a comment to request a review.
+- Draft PRs may use a reduced test matrix, while all other CI checks still run.
+  Converting a draft to a regular PR triggers the full test matrix.
+- After the full test matrix passes, request a review from a maintainer. If
+  unsure, ask in the PR comments. If you are a first-time contributor, mention a
+  maintainer in a comment to request a review.
 - If your PR gets a "Changes requested" review, address the feedback and push
   updates to the same branch. Do not close and reopen a new PR. Respond to
   comments to signal that you have addressed the feedback. Do not resolve review
@@ -314,38 +314,30 @@ The documentation is written in
 Markdown) and built using [Sphinx](https://www.sphinx-doc.org/en/master/). The
 documentation source files can be found in the {code}`docs/` directory.
 
-On top of the API documentation, we provide a set of tutorials and examples that
-demonstrate how to use the library. These are written in Markdown using
-[myst-nb](https://myst-nb.readthedocs.io/en/latest/), which allows executing
-Python code blocks in the documentation. The code blocks are executed during the
-documentation build process, and the output is included in the documentation.
-This allows us to provide up-to-date examples and tutorials that are guaranteed
-to work with the latest version of the library.
+Tutorials use [MyST-NB](https://myst-nb.readthedocs.io/) Markdown notebooks.
+Only `{code-cell}` blocks in notebook pages execute; ordinary code fences are
+illustrative. Keep required setup visible, show useful output, and assert the
+behavior that each example demonstrates. Use local simulation for executable
+examples; leave credentials and remote-device deployment as configuration
+recipes.
 
-You can build the documentation using the {code}`nox` session {code}`docs`.
-
-```console
-nox -s docs
-```
-
-This will install all dependencies for building the documentation in an isolated
-environment, build the Python package, and then build the documentation. It will
-then host the documentation on a local web server for you to view.
-
-:::{note}
-
-If you do not want to use {code}`nox`, you can also build the documentation
-directly using {code}`sphinx-build`. This requires that you have the project and
-its documentation dependencies installed in your virtual environment (e.g., by
-running {code}`uv sync`).
+Use the documentation session to install Python dependencies, build the package
+and generated references, and render the examples:
 
 ```console
-sphinx-build -b html docs/ docs/_build
+uvx nox --non-interactive -s docs
 ```
 
-The docs can then be found in the {code}`docs/_build` directory.
+Install the project's native build requirements first. C++ API generation needs
+Doxygen; DD visualizations also need the Graphviz `dot` executable. The session
+manages Python packages, not these system tools.
 
-:::
+Omit `--non-interactive` to serve the documentation while editing. To check
+external links, run:
+
+```console
+uvx nox --non-interactive -s docs -- -b linkcheck
+```
 
 ## Tips for Development
 

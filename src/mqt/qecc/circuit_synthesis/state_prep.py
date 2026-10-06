@@ -391,7 +391,7 @@ def all_gate_optimal_verification_stabilizers(
         # Start with maximal number of ancillas
         # Minimal CNOT solution must be achievable with these
         num_anc = max_ancillas
-        min_cnots: int = np.min(np.sum(stabs, axis=1))
+        min_cnots = int(np.min(np.sum(stabs, axis=1)))
         max_cnots = int(np.sum(stabs))
 
         logger.info(

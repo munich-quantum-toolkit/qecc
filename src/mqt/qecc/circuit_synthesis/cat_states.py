@@ -976,7 +976,7 @@ def search_ft_cnot_local_search(
         else:
             ctrl_list = [list(c) for c in cast("list[list[int]]", ctrls)]  # Explicitly cast to list[list[int]]
     else:
-        ctrl_list = [sorted(rng.choice(w1, w2, replace=False)) for _ in range(ctrls)]
+        ctrl_list = [sorted(map(int, rng.choice(w1, w2, replace=False))) for _ in range(ctrls)]
 
     rs = 0
     for controls in ctrl_list:
@@ -1038,7 +1038,7 @@ def search_ft_cnot_smt(
         else:
             ctrl_list = [list(c) for c in cast("list[list[int]]", ctrls)]  # Explicitly cast to list[list[int]]
     else:
-        ctrl_list = [sorted(rng.choice(w1, w2, replace=False)) for _ in range(ctrls)]
+        ctrl_list = [sorted(map(int, rng.choice(w1, w2, replace=False))) for _ in range(ctrls)]
 
     rs = 0
     for controls in ctrl_list:
@@ -1190,7 +1190,7 @@ def _permutation_local_repair(
         if data_support and error_free_qubits:
             for _ in range(max_swaps):
                 i = rng.choice(data_support)
-                c = rng.choice(error_free_qubits)
+                c = int(rng.choice(error_free_qubits))
                 k = inverse_perm[c]
                 old_i, old_k = perm[i], perm[k]
                 ancilla_err_swapped = (ancilla_err ^ (1 << old_i)) | (1 << c)

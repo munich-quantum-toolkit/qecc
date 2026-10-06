@@ -13,6 +13,7 @@ import concurrent.futures
 import itertools
 import logging
 import math
+import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -243,9 +244,8 @@ class NoisyNDFTStatePrepSimulator(ABC):
         corrected = state + estimates
 
         num_discarded = detection_events.shape[0] - filtered_events.shape[0]
-        num_logical_errors: int = np.sum(
-            np.any(corrected @ observables.T % 2 != 0, axis=1)
-        )  # number of non-commuting corrected states
+        # number of non-commuting corrected states
+        num_logical_errors = int(np.sum(np.any(corrected @ observables.T % 2 != 0, axis=1)))
         return num_logical_errors, num_discarded
 
     def _simulate_secondary_batch(self, sampler: stim.CompiledMeasurementSampler, shots: int = 1024) -> tuple[int, int]:
@@ -284,9 +284,8 @@ class NoisyNDFTStatePrepSimulator(ABC):
         corrected_anc ^= estimates
 
         num_discarded = detection_events.shape[0] - filtered_events.shape[0]
-        num_logical_errors: int = np.sum(
-            np.any(corrected_anc @ observables.T % 2 != 0, axis=1)
-        )  # number of non-commuting corrected states
+        # number of non-commuting corrected states
+        num_logical_errors = int(np.sum(np.any(corrected_anc @ observables.T % 2 != 0, axis=1)))
         return num_logical_errors, num_discarded
 
     def plot_state_prep(  # pragma: no cover
@@ -609,14 +608,17 @@ class LutDecoder:
 
     @staticmethod
     def _generate_lut(
-        checks: npt.NDArray[np.int8], chunk_size: int = 2**20, num_workers: int = 8, print_progress: bool = False
+        checks: npt.NDArray[np.int8],
+        chunk_size: int = 2**20,
+        num_workers: int | None = None,
+        print_progress: bool = False,
     ) -> dict[bytes, npt.NDArray[np.int8]]:
         """Generate a lookup table (LUT) for error correction by processing the state space in chunks, in parallel, and displaying a progress bar.
 
         Parameters:
             checks: The stabilizer check matrix (binary).
             chunk_size: Number of states processed per chunk.
-            num_workers: Number of parallel worker processes (default: use available cores).
+            num_workers: Number of parallel worker processes (default: the number of available cores).
             print_progress: Whether to print progress information.
 
         Returns:
@@ -633,24 +635,32 @@ class LutDecoder:
 
             # Create a generator of all combinations for this weight.
             comb_iter = itertools.combinations(range(n_qubits), weight)
-            # Split the combinations into chunks.
+            # Split the combinations into chunks. The count is known up front, so the pool can be sized to the
+            # actual work (small codes yield a single chunk) without materializing the chunks themselves.
+            num_chunks = (total_combinations + chunk_size - 1) // chunk_size
             chunks = _chunked_iterable(comb_iter, chunk_size)
 
             weight_dict: dict[bytes, npt.NDArray[np.int8]] = {}
-            with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-                d2 = weight_dict.copy()
-                futures = [
-                    executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, d2) for chunk in chunks
-                ]
-                if print_progress:
-                    for future in tqdm(
-                        concurrent.futures.as_completed(futures), total=len(futures), desc=f"Weight {weight}"
-                    ):
-                        _merge_into(weight_dict, future.result())
+            if num_chunks <= 1:
+                # Spawning worker processes for a single chunk is pure overhead.
+                chunk_iter = tqdm(chunks, total=num_chunks, desc=f"Weight {weight}") if print_progress else chunks
+                for chunk in chunk_iter:
+                    _merge_into(weight_dict, _process_combinations_chunk(chunk, checks, n_qubits, {}))
+            else:
+                workers = num_workers if num_workers is not None else os.cpu_count() or 1
+                with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, num_chunks)) as executor:
+                    futures = [
+                        executor.submit(_process_combinations_chunk, chunk, checks, n_qubits, {}) for chunk in chunks
+                    ]
+                    if print_progress:
+                        for future in tqdm(
+                            concurrent.futures.as_completed(futures), total=len(futures), desc=f"Weight {weight}"
+                        ):
+                            _merge_into(weight_dict, future.result())
 
-                else:
-                    for future in concurrent.futures.as_completed(futures):
-                        _merge_into(weight_dict, future.result())
+                    else:
+                        for future in concurrent.futures.as_completed(futures):
+                            _merge_into(weight_dict, future.result())
 
             _merge_into(global_lut, weight_dict)
 

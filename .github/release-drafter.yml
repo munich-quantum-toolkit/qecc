@@ -3,6 +3,7 @@
 
 name-template: "MQT QECC $RESOLVED_VERSION Release"
 tag-template: "v$RESOLVED_VERSION"
+filter-by-commitish: true
 categories:
   - title: "🚀 Features and Enhancements"
     when:
@@ -61,7 +62,7 @@ categories:
       label: "patch"
   - type: "version-resolver"
     semver-increment: "patch"
-change-template: "- $TITLE ([#$NUMBER]($URL)) (**@$AUTHOR**)"
+change-template: "- $TITLE (#$NUMBER) (@$AUTHOR)"
 change-title-escapes: '\<*_&'
 
 template: |

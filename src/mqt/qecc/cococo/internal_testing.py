@@ -200,6 +200,17 @@ def check_order_dyn_gates(terminal_pairs: Sequence[pos | tuple[pos, pos]], sched
     return tableau1 == tableau2
 
 
+def _find_duplicates(nodes: Sequence[pos]) -> list[pos]:
+    """Return each repeated node after its first occurrence."""
+    seen: set[pos] = set()
+    duplicates = []
+    for node in nodes:
+        if node in seen:
+            duplicates.append(node)
+        seen.add(node)
+    return duplicates
+
+
 def check_duplicate_nodes_per_layer_st(vdp_layers: list[VdpDict]) -> bool:
     """Checks whether there are duplicate nodes in the paths of one layer.
 
@@ -210,10 +221,8 @@ def check_duplicate_nodes_per_layer_st(vdp_layers: list[VdpDict]) -> bool:
         all_nodes = []
         for path in vdp_dict.values():
             all_nodes += path
-        # check whether there are duplicate items, then problem!!
-        seen = set()
-        duplicates = [x for x in all_nodes if x in seen or seen.add(x)]  # type: ignore[func-returns-value]
-
+        # check whether there are duplicate items, then problem!
+        duplicates = _find_duplicates(all_nodes)
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
             raise ValueError(msg)
@@ -241,11 +250,8 @@ def check_duplicate_nodes_per_layer(schedule: Any) -> bool:  # ruff:ignore[any-t
                 ][
                     1:
                 ]  # the very first item is on the path, i.e. it would be duplicate by construction, this is not what we want to catch here
-        # check whether there are duplicate items, then problem!!
-
-        seen = set()
-        duplicates = [x for x in all_nodes if x in seen or seen.add(x)]  # type: ignore[func-returns-value]
-
+        # check whether there are duplicate items, then problem!
+        duplicates = _find_duplicates(all_nodes)
         if len(duplicates) != 0:
             msg = f"There are duplicates in layer {i} !!! The duplicate elements are {duplicates}"
             raise ValueError(msg)

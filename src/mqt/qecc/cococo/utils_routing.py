@@ -739,7 +739,7 @@ class TeleportationRouter(BasicRouter):
                     try:
                         path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, terminal_node)
                         paths_lst_temp.append(path_temp)
-                    except (nx.NetworkXNoPath, nx.NodeNotFound):  # ruff:ignore[try-except-in-loop]
+                    except (nx.NetworkXNoPath, nx.NodeNotFound):
                         pass
                 if paths_lst_temp:
                     path_steiner = min(paths_lst_temp, key=len)
@@ -855,7 +855,7 @@ class TeleportationRouter(BasicRouter):
                 try:
                     path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, new_terminal)
                     paths_lst_temp.append(path_temp)
-                except nx.NetworkXNoPath:  # ruff:ignore[try-except-in-loop]
+                except nx.NetworkXNoPath:
                     pass
             if paths_lst_temp:
                 path_terminal = min(paths_lst_temp, key=len)
@@ -911,7 +911,7 @@ class TeleportationRouter(BasicRouter):
                     try:
                         path_temp = nx.dijkstra_path(g_temp_temp, node_on_path, terminal)
                         paths_lst_temp.append(path_temp)
-                    except nx.NetworkXNoPath:  # ruff:ignore[try-except-in-loop]
+                    except nx.NetworkXNoPath:
                         pass
                 if paths_lst_temp:
                     path_terminal = min(paths_lst_temp, key=len)
@@ -1439,7 +1439,9 @@ class TeleportationRouter(BasicRouter):
             raise ValueError(msg)
 
         schedule: Any = []
-        filename = f"schedule_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}.pkl"  # logging filename
+        filename = (
+            f"schedule_{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d_%H-%M-%S')}.pkl"  # logging filename
+        )
 
         available_gaps: list[pos] = []  # a list of gap positions which are free due to moves
         danger_qubits: dict[

@@ -100,7 +100,7 @@ shown in the notebook
 [on GitHub](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/movable_qubit_router_examples.ipynb).
 
 Results shown in (2) can be reproduced in
-[scripts/cococo/evaluations_movable_qubits](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/evaluations_movable_qubits)
+[scripts/cococo/evaluations_movable_logical_qubits](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/cococo/evaluations_movable_logical_qubits)
 
 ## Selected Examples
 

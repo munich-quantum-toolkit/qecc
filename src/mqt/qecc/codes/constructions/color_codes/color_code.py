@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
-class LatticeType(str, Enum):
+class LatticeType(StrEnum):
     """The type of lattice used for the color code."""
 
     HEXAGON = "hexagon"
