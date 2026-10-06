@@ -118,6 +118,28 @@ def row_basis(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.integer]:
     return matrix[row_echelon(matrix.T)[3]]
 
 
+def row_span(matrix: npt.NDArray[np.integer]) -> npt.NDArray[np.uint8]:
+    """Compute all vectors in the row space of a binary matrix over GF(2).
+
+    The result grows exponentially with the number of rows of the matrix: it has
+    ``2 ** matrix.shape[0]`` rows, so callers must bound the number of rows
+    themselves. This is only practical for a few dozen rows at most.
+
+    Args:
+        matrix: Binary matrix.
+
+    Returns:
+        A matrix with one row for each binary linear combination of the rows of
+        ``matrix``. Row ``mask`` is the sum of the rows of ``matrix`` that are
+        selected by the bits of ``mask``, so vectors repeat if the rows of
+        ``matrix`` are linearly dependent.
+    """
+    span = np.zeros((1, matrix.shape[1]), dtype=np.uint8)
+    for row in matrix.astype(np.uint8):
+        span = np.vstack([span, span ^ row])
+    return span
+
+
 def is_in_row_space(vector: npt.NDArray[np.integer], basis: npt.NDArray[np.integer]) -> bool:
     """Check whether a binary vector lies in the binary row space of a basis.
 

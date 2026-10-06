@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.mod2 import are_in_same_coset, is_in_row_space, nullspace, rank, row_basis, row_echelon
+from mqt.qecc.mod2 import are_in_same_coset, is_in_row_space, nullspace, rank, row_basis, row_echelon, row_span
 
 
 def test_row_echelon_empty_matrix() -> None:
@@ -106,6 +106,20 @@ def test_row_basis() -> None:
         assert any(np.array_equal(row, original) for original in matrix)
     # The basis spans the same row space as the full matrix.
     assert rank(np.vstack((matrix, basis))) == rank(matrix)
+
+
+def test_row_span() -> None:
+    """The row span is indexed by the bit masks of the selected rows and does not mutate the input."""
+    matrix = np.array([[1, 0, 1], [0, 1, 1]], dtype=np.int8)
+    original = matrix.copy()
+
+    assert np.array_equal(row_span(matrix), [[0, 0, 0], [1, 0, 1], [0, 1, 1], [1, 1, 0]])
+    assert np.array_equal(matrix, original)
+
+
+def test_row_span_empty_matrix() -> None:
+    """A matrix with zero rows only spans the zero vector."""
+    assert np.array_equal(row_span(np.zeros((0, 2), dtype=np.int8)), [[0, 0]])
 
 
 def test_row_space_helpers() -> None:
