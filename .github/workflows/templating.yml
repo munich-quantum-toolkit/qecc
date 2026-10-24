@@ -25,6 +25,8 @@ jobs:
           permission-contents: write # Needed to push the templating branch
           permission-pull-requests: write # Needed to open the templating pull request
       - uses: munich-quantum-toolkit/templates@cf0390a674091c1a428c5c59b90d48c7a38dd51c # v1.6.0
+        env:
+          PREK_SKIP: ty
         with:
           token: ${{ steps.create-token.outputs.token }}
           name: QECC
