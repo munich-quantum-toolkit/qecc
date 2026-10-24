@@ -62,10 +62,14 @@ categories:
       label: "patch"
   - type: "version-resolver"
     semver-increment: "patch"
-change-template: "- $TITLE (#$NUMBER) (@$AUTHOR)"
+change-template: "- $TITLE (#$NUMBER) ($AUTHORS)"
 change-title-escapes: '\<*_&'
 
 template: |
   $CHANGES
+
+  ## 🤝 New Contributors
+
+  $NEW_CONTRIBUTORS
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
