@@ -329,8 +329,7 @@ uvx nox --non-interactive -s docs
 ```
 
 Install the project's native build requirements first. C++ API generation needs
-Doxygen; DD visualizations also need the Graphviz `dot` executable. The session
-manages Python packages, not these system tools.
+Doxygen. The session manages Python packages, not these system tools.
 
 Omit `--non-interactive` to serve the documentation while editing. To check
 external links, run:
