@@ -395,7 +395,8 @@ def test_synthesized_circuit_keeps_code_distance() -> None:
 
 def test_get_fs_based_on_d_unknown_distance() -> None:
     """A circuit whose code has no distance gives an explanatory error."""
-    c1 = heuristic_prep_circuit(CSSCode(HexagonalColorCode(5).Hx, HexagonalColorCode(5).Hz))
+    with pytest.warns(UserWarning, match="max_errors=0"):
+        c1 = heuristic_prep_circuit(CSSCode(HexagonalColorCode(5).Hx, HexagonalColorCode(5).Hz))
     with pytest.raises(ValueError, match="distance unknown"):
         get_fs_based_on_d(c1)
 
