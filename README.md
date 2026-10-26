@@ -44,11 +44,14 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
   circuits with static or movable qubits.
 
 > [!NOTE]
-> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using
-> Steane-type Error Detection_ can be found in the branch
-> [`ft-stateprep-qubit-perm`](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
-> The documentation is a work in progress and this branch undergoes some final
-> improvements before being merged into `main`.
+> The code for _Synthesis of Fault-tolerant State Preparation Circuits using
+> Steane-type Error Detection_ (Phys. Rev. A,
+> [doi:10.1103/y9ln-b4t9](https://doi.org/10.1103/y9ln-b4t9)) is frozen at the
+> tag
+> [`steane-ftsp-pra`](https://github.com/munich-quantum-toolkit/qecc/tree/steane-ftsp-pra).
+> The circuits and simulation data are on Zenodo
+> ([doi:10.5281/zenodo.23183006](https://doi.org/10.5281/zenodo.23183006)). The
+> feature is being ported to `main`.
 
 > [!WARNING]
 > The C++ implementation of the
