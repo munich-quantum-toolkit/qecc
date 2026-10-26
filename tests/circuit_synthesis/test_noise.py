@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import pytest
-from stim import Circuit
+from stim import Circuit, CircuitInstruction
 
 from mqt.qecc.circuit_synthesis.noise import (
     CircuitLevelNoise,
@@ -180,6 +180,27 @@ def test_ideal_qubits(noise_free, ideal_qubits, expected_noisy):
 
     # Check that the noisy circuit has the expected operations
     assert noisy == expected_noisy, f"Expected: {expected_noisy}, Got: {noisy}"
+
+
+@pytest.mark.parametrize("noise_class", [CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential])
+@pytest.mark.parametrize("resets_alap", [False, True])
+def test_ideal_qubits_do_not_idle(
+    noise_class: type[CircuitLevelNoiseIdlingParallel | CircuitLevelNoiseIdlingSequential], resets_alap: bool
+) -> None:
+    """Ideal qubits get no idling noise."""
+    noise_model = noise_class(
+        p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=resets_alap, ideal_qubits={0}
+    )
+    noisy = noise_model.apply(Circuit("RX 0 1 2\nCX 0 1\nCX 1 2\nCX 0 2"))
+
+    idle_targets = {
+        target.value
+        for instr in noisy
+        if isinstance(instr, CircuitInstruction) and instr.name == "DEPOLARIZE1" and instr.gate_args_copy() == [0.5]
+        for target in instr.targets_copy()
+    }
+    assert 0 not in idle_targets
+    assert 1 in idle_targets  # qubit 1 idles during CX 0 2 and is not ideal
 
 
 class MockNoiseModel(NoiseModel):

@@ -301,3 +301,32 @@ def test_steane_type_ftsp_one_ancilla(steane_code: CSSCode, non_ft_steane_zero: 
     p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
 
     assert p_l_correction - tol < lower
+
+
+def test_steane_type_ftsp_plus(
+    steane_code: CSSCode, non_ft_steane_plus: QuantumCircuit, steane_lut: LutDecoder
+) -> None:
+    """Test the four-circuit Steane-type protocol for the logical |+> state."""
+    tol = 5e-3
+    p = 1e-2
+    noise = make_uniform_error_model(p)
+    lower = 1e-2
+    simulator = SteaneNDFTStatePrepSimulator(
+        non_ft_steane_plus,
+        non_ft_steane_plus,
+        steane_code,
+        non_ft_steane_plus,
+        non_ft_steane_plus,
+        zero_state=False,
+        decoder=steane_lut,
+    )
+
+    p_l, r_a, _, _ = simulator.logical_error_rate(noise, min_errors=100)
+    assert p_l - tol < lower
+    assert r_a > 0
+
+    p_l_ideal, r_a_ideal, _, _ = simulator.logical_error_rate(
+        make_uniform_error_model(0.0), shots=1000, shots_per_batch=1000, at_least_min_errors=False
+    )
+    assert p_l_ideal == 0
+    assert r_a_ideal == 1
