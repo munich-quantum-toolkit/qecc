@@ -182,11 +182,48 @@ class CSSCode(StabilizerCode):
         """Check if two Z errors are in the same coset of the Z stabilizers."""
         return are_in_same_coset(error_1, error_2, self.Hz)
 
+    def stabilizer_eq_z_error_with_logical(self, error_1: npt.NDArray[np.int8], error_2: npt.NDArray[np.int8]) -> bool:
+        """Check if two Z errors are equal up to Z stabilizers and logical Z operators.
+
+        When the Z-type logical state is prepared, a logical Z operator acts trivially on the state. Two Z errors that
+        differ by a logical Z operator therefore have the same effect.
+
+        Args:
+            error_1: The first Z error.
+            error_2: The second Z error.
+
+        Returns:
+            True if the two errors are in the same coset of the span of the Z stabilizers and logical Z operators.
+            If the code has no Z stabilizers, True only if the two errors are equal.
+        """
+        if self.Hz.shape[0] == 0:
+            return bool(np.array_equal(error_1, error_2))
+        return are_in_same_coset(error_1, error_2, np.vstack((self.Lz, self.Hz)))
+
     def is_self_dual(self) -> bool:
         """Check if the code is self-dual."""
         return bool(
             self.Hx.shape[0] == self.Hz.shape[0] and mod2.rank(self.Hx) == mod2.rank(np.vstack([self.Hx, self.Hz]))
         )
+
+    def check_fs_overlap(self, fs_1: npt.NDArray[np.int8], fs_2: npt.NDArray[np.int8], x_error: bool = True) -> bool:
+        """Check if two fault sets contain equivalent errors.
+
+        X errors are equivalent if they differ by an X stabilizer. Z errors are equivalent if they differ by a Z
+        stabilizer or a logical Z operator (see :meth:`stabilizer_eq_z_error_with_logical`).
+
+        Args:
+            fs_1: The first fault set, one error per row.
+            fs_2: The second fault set, one error per row.
+            x_error: If True, compare the fault sets as X errors. If False, compare them as Z errors.
+
+        Returns:
+            True if some error of ``fs_1`` is equivalent to some error of ``fs_2``. False if either fault set is empty.
+        """
+        if not fs_1.size or not fs_2.size:
+            return False
+        check_fn = self.stabilizer_eq_x_error if x_error else self.stabilizer_eq_z_error_with_logical
+        return any(check_fn(f1, f2) for f1 in fs_1 for f2 in fs_2)
 
     @staticmethod
     def _check_valid_check_matrices(Hx: npt.NDArray[np.int8] | None, Hz: npt.NDArray[np.int8] | None) -> None:  # ruff:ignore[invalid-argument-name]
@@ -250,7 +287,13 @@ class CSSCode(StabilizerCode):
         return CSSCode(hx, hz, distance, x_distance=x_distance, z_distance=z_distance)
 
     @classmethod
-    def from_file(cls, file_path: str | Path) -> CSSCode:
+    def from_file(
+        cls,
+        file_path: str | Path,
+        distance: int | None = None,
+        x_distance: int | None = None,
+        z_distance: int | None = None,
+    ) -> CSSCode:
         """Load a CSS code from a file.
 
         The file can contain either:
@@ -294,6 +337,9 @@ class CSSCode(StabilizerCode):
 
         Args:
             file_path: The path to the file containing the code.
+            distance: The distance of the code. The file does not contain the distance, so it is 1 if not given.
+            x_distance: The X distance of the code. Defaults to ``distance``.
+            z_distance: The Z distance of the code. Defaults to ``distance``.
 
         Returns:
             CSSCode: The CSS code.
@@ -305,7 +351,8 @@ class CSSCode(StabilizerCode):
             raise InvalidCSSCodeError(msg)
 
         if _is_css_binary_matrix_format(content):
-            return _load_css_from_binary_matrix(content)
+            hx, hz = _checks_from_binary_matrix(content)
+            return CSSCode(hx, hz, distance=distance, x_distance=x_distance, z_distance=z_distance)
 
         lines = content.split("\n")
         stabilizers = [line.strip() for line in lines if line.strip()]
@@ -325,7 +372,7 @@ class CSSCode(StabilizerCode):
         x_stabs_array = np.array(x_stabs, dtype=np.int8) if x_stabs else None
         z_stabs_array = np.array(z_stabs, dtype=np.int8) if z_stabs else None
 
-        return CSSCode(x_stabs_array, z_stabs_array)
+        return CSSCode(x_stabs_array, z_stabs_array, distance=distance, x_distance=x_distance, z_distance=z_distance)
 
     @staticmethod
     def _normalize_logicals(lx: npt.NDArray[np.int8], lz: npt.NDArray[np.int8], num_logicals: int) -> None:
@@ -422,19 +469,19 @@ def _is_css_binary_matrix_format(content: str) -> bool:
     return all(token in {"0", "1"} for token in tokens[:5])
 
 
-def _load_css_from_binary_matrix(content: str) -> CSSCode:
-    """Load a CSS code from binary matrix format.
+def _checks_from_binary_matrix(content: str) -> tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]:
+    """Read the check matrices of a CSS code from binary matrix format.
 
     Args:
         content: The file content containing the binary matrices.
 
     Returns:
-        CSSCode: The CSS code.
+        The X and Z check matrices. A matrix is None if the file does not contain it.
     """
     content = content.strip()
 
     if content.startswith("[["):
-        return _load_css_from_list_notation(content)
+        return _checks_from_list_notation(content)
 
     lines = content.split("\n")
     sections = []
@@ -463,17 +510,17 @@ def _load_css_from_binary_matrix(content: str) -> CSSCode:
     hx = _parse_binary_matrix_section(sections[0]) if len(sections) >= 1 else None
     hz = _parse_binary_matrix_section(sections[1]) if len(sections) >= 2 else None
 
-    return CSSCode(hx, hz)
+    return hx, hz
 
 
-def _load_css_from_list_notation(content: str) -> CSSCode:
-    """Load a CSS code from list notation format.
+def _checks_from_list_notation(content: str) -> tuple[npt.NDArray[np.int8] | None, npt.NDArray[np.int8] | None]:
+    """Read the check matrices of a CSS code from list notation format.
 
     Args:
         content: The file content in list notation format.
 
     Returns:
-        CSSCode: The CSS code.
+        The X and Z check matrices. A matrix is None if the file does not contain it.
     """
     sections = content.split("]]")
     matrices = []
@@ -525,7 +572,7 @@ def _load_css_from_list_notation(content: str) -> CSSCode:
     hx = matrices[0] if len(matrices) >= 1 else None
     hz = matrices[1] if len(matrices) >= 2 else None
 
-    return CSSCode(hx, hz)
+    return hx, hz
 
 
 def _parse_binary_matrix_section(lines: list[str]) -> npt.NDArray[np.int8]:

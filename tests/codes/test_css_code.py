@@ -427,3 +427,59 @@ def test_trivial_code_syndromes_and_cosets() -> None:
     assert not code.stabilizer_eq_x_error(e, zero)
     assert code.check_if_logical_x_error(e)
     assert code.check_if_logical_z_error(e)
+
+
+def test_css_code_from_file_with_distance(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The distances of a code loaded from a file can be given explicitly."""
+    pauli_file = tmp_path / "steane.txt"
+    pauli_file.write_text("XIIXXXI\nIXIIXXX\nIIXXIXX\nZIIZZZI\nIZIIZZZ\nIIZZIZZ")
+    matrix_file = tmp_path / "steane_matrix.txt"
+    matrix_file.write_text("1 0 0 1 1 1 0\n0 1 0 0 1 1 1\n0 0 1 1 0 1 1\n\n1 0 0 1 1 1 0\n0 1 0 0 1 1 1\n0 0 1 1 0 1 1")
+
+    for file_path in (pauli_file, matrix_file):
+        assert CSSCode.from_file(file_path).distance == 1
+        code = CSSCode.from_file(file_path, distance=3)
+        assert (code.distance, code.x_distance, code.z_distance) == (3, 3, 3)
+        code = CSSCode.from_file(file_path, distance=3, x_distance=4)
+        assert (code.distance, code.x_distance, code.z_distance) == (3, 4, 3)
+
+
+def test_stabilizer_eq_z_error_with_logical(steane_code: CSSCode) -> None:
+    """Z errors that differ by a logical Z operator are equivalent, but not stabilizer-equivalent."""
+    error = np.zeros(steane_code.n, dtype=np.int8)
+    error[0] = 1
+    with_logical = (error + steane_code.Lz[0]) % 2
+    with_stabilizer = (error + steane_code.Hz[0]) % 2
+    other = np.zeros(steane_code.n, dtype=np.int8)
+    other[1] = 1
+
+    assert steane_code.stabilizer_eq_z_error_with_logical(error, with_logical)
+    assert not steane_code.stabilizer_eq_z_error(error, with_logical)
+    assert steane_code.stabilizer_eq_z_error_with_logical(error, with_stabilizer)
+    assert not steane_code.stabilizer_eq_z_error_with_logical(error, other)
+
+
+def test_stabilizer_eq_z_error_with_logical_without_z_checks() -> None:
+    """Without Z stabilizers, only equal Z errors are equivalent."""
+    code = CSSCode(Hx=np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8))
+    error = np.array([1, 0, 0], dtype=np.int8)
+    assert code.stabilizer_eq_z_error_with_logical(error, error.copy())
+    assert not code.stabilizer_eq_z_error_with_logical(error, np.array([1, 1, 1], dtype=np.int8))
+
+
+def test_check_fs_overlap(steane_code: CSSCode) -> None:
+    """Two fault sets overlap if they contain equivalent errors."""
+    error = np.zeros((1, steane_code.n), dtype=np.int8)
+    error[0, 0] = 1
+    other = np.zeros((1, steane_code.n), dtype=np.int8)
+    other[0, 1] = 1
+    x_equivalent = (error + steane_code.Hx[0]) % 2
+    z_equivalent = (error + steane_code.Lz[0]) % 2
+    empty = np.empty((0, steane_code.n), dtype=np.int8)
+
+    assert steane_code.check_fs_overlap(np.vstack((other, error)), x_equivalent)
+    assert not steane_code.check_fs_overlap(other, x_equivalent)
+    assert steane_code.check_fs_overlap(error, z_equivalent, x_error=False)
+    assert not steane_code.check_fs_overlap(error, z_equivalent)
+    assert not steane_code.check_fs_overlap(empty, error)
+    assert not steane_code.check_fs_overlap(error, empty)
