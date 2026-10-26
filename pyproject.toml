@@ -242,6 +242,10 @@ convention = "google"
 
 
 [tool.typos]
+[tool.typos.files]
+# verbatim copy of an old library version, kept unchanged on purpose
+extend-exclude = ["scripts/ft_stateprep/eval_steane_ftsp/legacy_synthesis.py"]
+
 [tool.typos.default.extend-words]
 wille = "wille"
 ser = "ser"
