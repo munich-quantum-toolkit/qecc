@@ -23,10 +23,12 @@ from mqt.qecc.circuit_synthesis import (
     gate_optimal_verification_circuit,
     gate_optimal_verification_stabilizers,
     heuristic_prep_circuit,
+    heuristic_reference_prep_circuit,
     heuristic_verification_circuit,
     heuristic_verification_stabilizers,
 )
-from mqt.qecc.codes import RotatedSurfaceCode, SquareOctagonColorCode
+from mqt.qecc.circuit_synthesis.fault_set_guided import get_fs_based_on_d
+from mqt.qecc.codes import HexagonalColorCode, RotatedSurfaceCode, SquareOctagonColorCode
 
 from .utils import eq_span, in_span
 
@@ -130,6 +132,7 @@ def test_gate_optimal_prep_consistent(code: str, request: pytest.FixtureRequest)
     code_ = request.getfixturevalue(code)
     sp_circ = gate_optimal_prep_circuit(code_, max_timeout=3)
     assert sp_circ is not None
+    assert sp_circ.code.distance == code_.distance
 
     circ = sp_circ.circ
     max_cnots = np.sum(code_.Hx) + np.sum(code_.Hz)
@@ -152,6 +155,7 @@ def test_depth_optimal_prep_consistent(code: str, request: pytest.FixtureRequest
 
     sp_circ = depth_optimal_prep_circuit(code_, max_timeout=3)
     assert sp_circ is not None
+    assert sp_circ.code.distance == code_.distance
     circ = sp_circ.circ
     max_cnots = np.sum(code_.Hx) + np.sum(code_.Hz)
 
@@ -414,3 +418,74 @@ def test_heuristic_explicit_compatibility(logical_state: str, equivalent_string:
 
 #     assert combined_faults[0] == combined_1
 #     assert combined_faults[1] == combined_2
+
+
+def test_synthesized_circuit_keeps_code_distance() -> None:
+    """The code stored in a synthesized circuit carries the distances of the code it was synthesized for."""
+    code = HexagonalColorCode(5)
+    c1 = heuristic_prep_circuit(code)
+    assert (c1.code.distance, c1.code.x_distance, c1.code.z_distance) == (5, 5, 5)
+    assert np.array_equal(c1.code.Hx, c1.circ.get_code().Hx)  # check matrices still come from the circuit
+
+    x_faults, _ = get_fs_based_on_d(c1)
+    c2 = heuristic_reference_prep_circuit(code, ref_x_fs=x_faults)
+    assert c2.code.distance == 5
+
+
+def test_get_fs_based_on_d_unknown_distance() -> None:
+    """A circuit whose code has no distance gives an explanatory error."""
+    with pytest.warns(UserWarning, match="max_errors=0"):
+        c1 = heuristic_prep_circuit(CSSCode(HexagonalColorCode(5).Hx, HexagonalColorCode(5).Hz))
+    with pytest.raises(ValueError, match="distance unknown"):
+        get_fs_based_on_d(c1)
+
+
+def test_css_code_from_file_with_distance(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The distance of a code loaded from a file reaches the synthesized circuit."""
+    file_path = tmp_path / "steane.txt"
+    file_path.write_text("XIIXXXI\nIXIIXXX\nIIXXIXX\nZIIZZZI\nIZIIZZZ\nIIZZIZZ")
+
+    code = CSSCode.from_file(file_path, distance=3)
+    assert heuristic_prep_circuit(code).code.distance == 3
+
+
+def test_reference_prep_does_not_modify_penalty_cnots() -> None:
+    """The penalty CNOT list passed by the caller is not modified by the synthesis."""
+    code = SquareOctagonColorCode(5)
+    c1 = heuristic_prep_circuit(code)
+    x_faults, _ = get_fs_based_on_d(c1)
+    penalty_cnots = c1.circ.cnots[:3]
+    expected = list(penalty_cnots)
+    heuristic_reference_prep_circuit(code, ref_x_fs=x_faults, penalty_cnots=penalty_cnots)
+    assert penalty_cnots == expected
+
+
+def test_reference_prep_avoids_reference_faults() -> None:
+    """The X faults of a circuit synthesized against the X faults of C1 are not equivalent to those faults."""
+    code = SquareOctagonColorCode(5)
+    c1 = heuristic_prep_circuit(code)
+    x_faults, _ = get_fs_based_on_d(c1)
+    assert len(x_faults) > 0
+
+    c2 = heuristic_reference_prep_circuit(code, ref_x_fs=x_faults)
+    assert eq_span(code.Hx, c2.x_checks)
+    assert not code.check_fs_overlap(x_faults, c2.compute_fault_set().faults)
+
+
+@pytest.mark.parametrize("state", ["all_zero", "all_plus"])
+def test_reference_prep_state(steane_code: CSSCode, state: str) -> None:
+    """The fault-set-guided synthesis prepares the requested logical basis state."""
+    reference = np.zeros((1, steane_code.n), dtype=np.int8)
+    sp_circ = heuristic_reference_prep_circuit(steane_code, state=state, ref_x_fs=reference)
+    if state == "all_zero":
+        assert eq_span(steane_code.Hx, sp_circ.x_checks)
+        assert eq_span(np.vstack((steane_code.Hz, steane_code.Lz)), sp_circ.z_checks)
+    else:
+        assert eq_span(np.vstack((steane_code.Hx, steane_code.Lx)), sp_circ.x_checks)
+        assert eq_span(steane_code.Hz, sp_circ.z_checks)
+
+
+def test_reference_prep_rejects_unknown_state(steane_code: CSSCode) -> None:
+    """The fault-set-guided synthesis supports only the all-zero and the all-plus state."""
+    with pytest.raises(ValueError, match="Unsupported state"):
+        heuristic_reference_prep_circuit(steane_code, state="0+")

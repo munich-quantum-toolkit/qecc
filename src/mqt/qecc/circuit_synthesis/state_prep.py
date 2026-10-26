@@ -22,6 +22,7 @@ from ..codes.core.pauli import CheckMatrix
 from .circuits import CNOTCircuit
 from .encoding import cnot_encoding_circuit
 from .exact import Objective, SynthesisStatus, TargetKind, synthesize_isometry_exact
+from .fault_set_guided import EliminationCNOTSynthesizer
 from .faults import PureFaultSet, coset_leader, product_fault_set
 from .synthesis import SynthesisConfig
 from .synthesis_utils import (
@@ -45,20 +46,26 @@ if TYPE_CHECKING:  # pragma: no cover
 class FaultyStatePrepCircuit:
     """Represents a state preparation circuit for a CSS code."""
 
-    def __init__(self, circ: CNOTCircuit, max_x_errors: int, max_z_errors: int) -> None:
+    def __init__(self, circ: CNOTCircuit, max_x_errors: int, max_z_errors: int, code: CSSCode | None = None) -> None:
         """Initialize a state preparation circuit.
 
         Args:
             circ: The state preparation circuit.
             max_x_errors: Maximum number of independent x errors that can happen in the circuit.
             max_z_errors: Maximum number of independent z errors that can happen in the circuit.
+            code: The code the circuit was synthesized for. The check matrices always come from the circuit itself.
+                Only the distances are copied from this code, because they cannot be derived from the circuit.
         """
         if not circ.is_state():
             msg = "Input circuit is not a state!"
             raise ValueError(msg)
 
         self.circ = circ
-        code = circ.get_code()
+        self.code = circ.get_code()
+        if code is not None:
+            self.code.distance = code.distance
+            self.code.x_distance = code.x_distance
+            self.code.z_distance = code.z_distance
         self.num_qubits = circ.num_qubits()
         self.max_x_errors = max_x_errors
         self.max_z_errors = max_z_errors
@@ -71,8 +78,8 @@ class FaultyStatePrepCircuit:
                 stacklevel=2,
             )
 
-        self.x_checks = code.Hx
-        self.z_checks = code.Hz
+        self.x_checks = self.code.Hx
+        self.z_checks = self.code.Hz
         self.x_fault_sets: list[PureFaultSet] = []
         self.z_fault_sets: list[PureFaultSet] = []
         self.x_fault_sets_unreduced: list[PureFaultSet] = []
@@ -238,7 +245,93 @@ def heuristic_prep_circuit(
         config=config,
     )
 
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
+
+
+def _build_state_prep_circuit_from_back(
+    checks: npt.NDArray[np.int8], cnots: list[tuple[int, int]], zero_state: bool = True
+) -> CNOTCircuit:
+    """Build a state preparation circuit from a reduced check matrix and the elimination steps.
+
+    The circuit applies the eliminations in reverse order. A CNOT ``(i, j)`` of the elimination becomes a CNOT with
+    control ``i`` and target ``j`` for the zero state and with control ``j`` and target ``i`` for the plus state.
+
+    Args:
+        checks: The reduced check matrix. Its non-zero columns mark the qubits that start in the |+> state (zero
+            state) or in the |0> state (plus state).
+        cnots: The elimination steps that reduced the check matrix. The list is reversed in place.
+        zero_state: If True, build the circuit for the zero state. If False, build it for the plus state.
+
+    Returns:
+        The state preparation circuit.
+    """
+    cnots.reverse()
+    if zero_state:
+        hadamards = np.where(np.sum(checks, axis=0) != 0)[0]
+    else:
+        hadamards = np.where(np.sum(checks, axis=0) == 0)[0]
+        cnots = [(j, i) for i, j in cnots]
+    non_hadamards = [i for i in range(checks.shape[1]) if i not in hadamards]
+    return CNOTCircuit.from_cnot_list(cnots, initialize_z=non_hadamards, initialize_x=hadamards)
+
+
+def heuristic_reference_prep_circuit(
+    code: CSSCode,
+    optimize_depth: bool = True,
+    state: str = "all_zero",
+    penalty_cnots: list[tuple[int, int]] | None = None,
+    guide_by_x: bool = True,
+    ref_x_fs: npt.NDArray[np.int8] | None = None,
+    ref_z_fs: npt.NDArray[np.int8] | None = None,
+    ref_x_1fs: npt.NDArray[np.int8] | None = None,
+    ref_z_1fs: npt.NDArray[np.int8] | None = None,
+) -> FaultyStatePrepCircuit:
+    """Return a state preparation circuit whose fault sets do not overlap with given reference fault sets.
+
+    The circuit is synthesized with :meth:`EliminationCNOTSynthesizer.fault_set_guided_synthesis`. The search only
+    applies a CNOT if the new single faults are not equivalent to a fault of the reference fault sets.
+
+    Args:
+        code: The CSS code to prepare the state for.
+        optimize_depth: If True, optimize the depth of the circuit. This may lead to a higher number of CNOTs.
+        state: ``"all_zero"`` prepares the +1 eigenstate of the Z basis. ``"all_plus"`` prepares the +1 eigenstate of
+            the X basis.
+        penalty_cnots: CNOTs ``(control, target)`` that are initially forbidden. A penalty CNOT becomes allowed again
+            when its control (``guide_by_x=True``) or its target (``guide_by_x=False``) is used by another CNOT.
+        guide_by_x: Selects which qubit of a forbidden CNOT releases it again: the control if True, the target if
+            False.
+        ref_x_fs: Reference X fault set. The X faults of the new circuit must not be equivalent to these faults.
+        ref_z_fs: Reference Z fault set. The Z faults of the new circuit must not be equivalent to these faults.
+        ref_x_1fs: Reference X fault set of single faults. No combination of two faults of the new circuit may be
+            equivalent to one of these faults.
+        ref_z_1fs: Reference Z fault set of single faults. No combination of two faults of the new circuit may be
+            equivalent to one of these faults.
+
+    Returns:
+        A state preparation circuit for the given code.
+
+    Raises:
+        ValueError: If ``state`` is neither ``"all_zero"`` nor ``"all_plus"``.
+        RuntimeError: If the search exhausts all candidates without finding a circuit.
+    """
+    if state not in {"all_zero", "all_plus"}:
+        msg = f'Unsupported state "{state}". Use "all_zero" or "all_plus".'
+        raise ValueError(msg)
+    zero_state = state == "all_zero"
+    logger.info("Starting fault-set-guided state preparation.")
+
+    checks = code.Hx if zero_state else code.Hz
+    synthesizer = EliminationCNOTSynthesizer(matrix=checks, code=code, parallel_elimination=optimize_depth)
+    synthesizer.fault_set_guided_synthesis(
+        ref_x_fs=ref_x_fs,
+        ref_z_fs=ref_z_fs,
+        ref_x_1fs=ref_x_1fs,
+        ref_z_1fs=ref_z_1fs,
+        penalty_cnots=penalty_cnots,
+        guide_by_x=guide_by_x,
+    )
+    circ = _build_state_prep_circuit_from_back(synthesizer.matrix, synthesizer.eliminations, zero_state)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def _optimal_prep_circuit(
@@ -271,7 +364,7 @@ def _optimal_prep_circuit(
     if result.status != SynthesisStatus.SUCCESS:
         return None
     assert isinstance(result.circuit, CNOTCircuit)
-    return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def depth_optimal_prep_circuit(
