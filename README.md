@@ -37,8 +37,10 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - Performing lattice surgery compilation for the color code for CNOT + T circuits with static or movable qubits.
 
 > [!NOTE]
-> Usage for _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_ can be found in the branch ['ft-stateprep-qubit-perm'](https://github.com/munich-quantum-toolkit/qecc/tree/ft-stateprep-qubit-perm).
-> The documentation is a work in progress and this branch undergoes some final improvements before being merged into `main`.
+> This is the frozen code state (tag [`steane-ftsp-pra`](https://github.com/munich-quantum-toolkit/qecc/tree/steane-ftsp-pra)) of E. Weilandt, T. Peham, R. Wille, _Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error Detection_, Phys. Rev. A (2026), [doi:10.1103/y9ln-b4t9](https://doi.org/10.1103/y9ln-b4t9).
+> It will not be merged into `main`; the feature is ported there separately.
+> Usage: [`docs/SteaneFTSP.md`](docs/SteaneFTSP.md). Reproducing the published circuits: [`scripts/ft_stateprep/eval_steane_ftsp/`](scripts/ft_stateprep/eval_steane_ftsp/).
+> Data and archived code: [doi:10.5281/zenodo.23183006](https://doi.org/10.5281/zenodo.23183006).
 
 > [!WARNING]
 > The C++ implementation of the [union find decoder for LDPC codes](https://arxiv.org/pdf/2301.05731) and the [circuit transpilation framework](https://arxiv.org/abs/2209.0118) have been removed with `v2.0.0` and are no longer available.

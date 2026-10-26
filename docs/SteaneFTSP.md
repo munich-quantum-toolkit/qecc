@@ -255,7 +255,7 @@ def penalty_layers(cnots, layers, check_control=True):
 The published distance-7 circuits were synthesized in April 2025 with an earlier version of the synthesis routine.
 That version applied the echelon seeding automatically for codes with $d>5$.
 Its search bookkeeping also differs slightly from the current `heuristic_reference_prep_circuit`, which finds _different_ circuits for the same inputs and is considerably slower at $d=7$.
-To regenerate the exact published circuits, use the frozen recipes in the repository at tag `steane-ftsp-pra-2026` (see below).
+To regenerate the exact published circuits, use the frozen recipes in the repository at tag `steane-ftsp-pra` (see below).
 :::
 
 ## Using the Published Circuits
@@ -352,7 +352,7 @@ print(f"p_L = {p_logical:.2e} ({n_errors} logical errors in {n_shots} shots), ac
 
 ## Reproducing the Paper Circuits
 
-The repository at tag `steane-ftsp-pra-2026` contains the synthesis recipe of every circuit set in `scripts/ft_stateprep/eval_steane_ftsp/recipes.py`.
+The repository at tag `steane-ftsp-pra` contains the synthesis recipe of every circuit set in `scripts/ft_stateprep/eval_steane_ftsp/recipes.py`.
 The distance-7 recipes use the frozen April 2025 synthesis routine in `legacy_synthesis.py` next to it.
 The script `check_reproduction.py` rebuilds all 24 circuits and compares them with the archived ones, up to reordering of CNOTs that act on disjoint qubits.
 It also checks the disjointness conditions above:
