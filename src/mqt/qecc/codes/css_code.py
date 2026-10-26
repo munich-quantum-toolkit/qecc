@@ -252,7 +252,13 @@ class CSSCode(StabilizerCode):
         raise InvalidCSSCodeError(msg)
 
     @classmethod
-    def from_file(cls, file_path: str | Path) -> CSSCode:
+    def from_file(
+        cls,
+        file_path: str | Path,
+        distance: int | None = None,
+        x_distance: int | None = None,
+        z_distance: int | None = None,
+    ) -> CSSCode:
         """Load a CSS code from a file.
 
         The file should have one line per stabilizer generator as a string.
@@ -267,6 +273,9 @@ class CSSCode(StabilizerCode):
 
         Args:
             file_path: The path to the file containing the code.
+            distance: The distance of the code. The file does not contain it, so it defaults to 1 if not given.
+            x_distance: The X distance of the code (defaults to ``distance``).
+            z_distance: The Z distance of the code (defaults to ``distance``).
 
         Returns:
             CSSCode: The CSS code.
@@ -290,7 +299,7 @@ class CSSCode(StabilizerCode):
         x_stabs_array = np.array(x_stabs, dtype=np.int8)
         z_stabs_array = np.array(z_stabs, dtype=np.int8)
         # check if the code is valid
-        return CSSCode(x_stabs_array, z_stabs_array)
+        return CSSCode(x_stabs_array, z_stabs_array, distance=distance, x_distance=x_distance, z_distance=z_distance)
 
 
 class InvalidCSSCodeError(ValueError):

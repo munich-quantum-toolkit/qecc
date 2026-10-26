@@ -45,13 +45,16 @@ if TYPE_CHECKING:  # pragma: no cover
 class FaultyStatePrepCircuit:
     """Represents a state preparation circuit for a CSS code."""
 
-    def __init__(self, circ: CNOTCircuit, max_x_errors: int, max_z_errors: int) -> None:
+    def __init__(self, circ: CNOTCircuit, max_x_errors: int, max_z_errors: int, code: CSSCode | None = None) -> None:
         """Initialize a state preparation circuit.
 
         Args:
             circ: The state preparation circuit.
             max_x_errors: Maximum number of independent x errors that can happen in the circuit.
             max_z_errors: Maximum number of independent z errors that can happen in the circuit.
+            code: (Optional) The code the circuit was synthesized for. The check matrices are always taken from the
+                circuit itself; only the distances are copied from this code, since they cannot be derived from the
+                circuit.
         """
         if not circ.is_state():
             msg = "Input circuit is not a state!"
@@ -59,6 +62,10 @@ class FaultyStatePrepCircuit:
 
         self.circ = circ
         self.code = circ.get_code()
+        if code is not None:
+            self.code.distance = code.distance
+            self.code.x_distance = code.x_distance
+            self.code.z_distance = code.z_distance
         self.num_qubits = circ.num_qubits()
         self.max_x_errors = max_x_errors
         self.max_z_errors = max_z_errors
@@ -214,7 +221,7 @@ def heuristic_prep_circuit(
     ge.greedy_synthesis()
 
     circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def heuristic_reference_prep_circuit(
@@ -264,7 +271,7 @@ def heuristic_reference_prep_circuit(
         guide_by_x=guide_by_x,
     )
     circ = _build_state_prep_circuit_from_back(ge.matrix, ge.eliminations, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def depth_optimal_prep_circuit(
@@ -301,7 +308,7 @@ def depth_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def gate_optimal_prep_circuit(
@@ -338,7 +345,7 @@ def gate_optimal_prep_circuit(
         return None
     checks, cnots = res
     circ = _build_state_prep_circuit_from_back(checks, cnots, zero_state)
-    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2)
+    return FaultyStatePrepCircuit(circ, code.x_distance // 2, code.z_distance // 2, code=code)
 
 
 def gate_optimal_verification_stabilizers(

@@ -153,9 +153,8 @@ class EliminationCNOTSynthesizer:
         self.ref_x_1fs = _default_array(ref_x_1fs)
         self.ref_z_1fs = _default_array(ref_z_1fs)
         self.guide_by_x = guide_by_x
-        self.failed_cnots: list[tuple[int, int]] = (
-            penalty_cnots or []
-        )  # NOTE: this is already a feature and not necessarily default
+        # NOTE: this is already a feature and not necessarily default. Copy so the caller's list is not modified.
+        self.failed_cnots: list[tuple[int, int]] = list(penalty_cnots or [])
         self.x_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.z_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.backtrack_required: bool = False
@@ -556,7 +555,13 @@ def get_fs_based_on_d(spc: FaultyStatePrepCircuit) -> tuple[npt.NDArray[np.int8]
             ]),
         )
 
-    msg = f"Unsupported code distance: {spc.code.distance}"
+    if spc.code.distance == 1:
+        msg = (
+            "Code distance unknown (1). Synthesize the circuit from a code with its distance set, e.g. "
+            "CSSCode(..., distance=d) or CSSCode.from_file(..., distance=d)."
+        )
+    else:
+        msg = f"Unsupported code distance: {spc.code.distance}. Supported are 3, 5 and 7."
     raise ValueError(msg)
 
 
