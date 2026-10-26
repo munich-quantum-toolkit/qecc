@@ -155,6 +155,7 @@ class EliminationCNOTSynthesizer:
         self.guide_by_x = guide_by_x
         # NOTE: this is already a feature and not necessarily default. Copy so the caller's list is not modified.
         self.failed_cnots: list[tuple[int, int]] = list(penalty_cnots or [])
+        self.penalty_cnots: list[tuple[int, int]] = list(penalty_cnots or [])
         self.x_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.z_propagation_matrix: npt.NDArray[np.int8] = np.eye(self.matrix.shape[1], dtype=np.int8)
         self.backtrack_required: bool = False
@@ -226,11 +227,11 @@ class EliminationCNOTSynthesizer:
                     break
 
                 if action == CandidateAction.TRIGGER_BACKTRACK:
-                    if self.stack:
-                        self._backtrack()
-                    else:
-                        # This case means we backtracked to the beginning and still failed.
-                        logger.error("Backtracking stack is empty. No solution found.")
+                    if not self.stack:
+                        # Backtracked to the beginning and still failed: the search space is exhausted.
+                        msg = "Backtracking stack is empty. No solution found."
+                        raise RuntimeError(msg)
+                    self._backtrack()
                     break
 
                 if action == CandidateAction.EVALUATE:
@@ -346,6 +347,10 @@ class EliminationCNOTSynthesizer:
         else:
             self.failed_cnots = [fcnot for fcnot in self.failed_cnots if removed_cnot[1] != fcnot[1]]
         self.failed_cnots.append(removed_cnot)
+        # restore penalties whose qubit is no longer used by the remaining eliminations
+        k = 0 if self.guide_by_x else 1
+        used = {cnot[k] for cnot in self.eliminations}
+        self.failed_cnots += [p for p in self.penalty_cnots if p[k] not in used and p not in self.failed_cnots]
         # print_dynamic_eliminations(eliminations, failed_cnots)
         self.backtrack_required = False
 
