@@ -41,6 +41,7 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from recipes import CODES, FIND_4_CODES, RECIPES
 
+import mqt.qecc
 from mqt.qecc.circuit_synthesis import CNOTCircuit, FaultyStatePrepCircuit
 from mqt.qecc.circuit_synthesis.synthesis_utils import check_mutually_disjointness_spcs
 
@@ -154,11 +155,11 @@ def environment() -> str:
         cmd = ["git", "-C", str(repo), *args]
         return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout.strip()  # noqa: S603
 
-    head = git("rev-parse", "--short", "HEAD")
-    dirty = git("status", "--porcelain", "--", "src")
+    head = git("rev-parse", "--short", "HEAD") or "- (no git checkout)"
+    dirty = git("status", "--porcelain", "--untracked-files=no", "--", "src")
     return (
-        f"git HEAD {head}{' (src/ modified)' if dirty else ''} | python {sys.version.split()[0]} | "
-        f"numpy {np.__version__} | qiskit {qiskit.__version__} | stim {stim.__version__}"
+        f"mqt-qecc {mqt.qecc.__version__} | git HEAD {head}{' (src/ modified)' if dirty else ''} | "
+        f"python {sys.version.split()[0]} | numpy {np.__version__} | qiskit {qiskit.__version__} | stim {stim.__version__}"
     )
 
 
