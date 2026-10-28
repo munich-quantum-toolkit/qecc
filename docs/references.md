@@ -24,8 +24,8 @@ following BibTeX entry:
 
 If you use MQT QECC in your work, we would appreciate if you cited
 {cite:p}`berent2022software`, {cite:p}`berent2023decoding`,
-{cite:p}`grurl2023eccframework`, {cite:p}`peham2024automated`, or
-{cite:p}`schmid2024deterministic`.
+{cite:p}`grurl2023eccframework`, {cite:p}`peham2024automated`,
+{cite:p}`schmid2024deterministic`, or {cite:p}`weilandt2026synthesis`.
 
 A full list of references is given below.
 
