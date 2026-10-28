@@ -181,6 +181,10 @@ Embedded Systems (VLSID)_, 2023.
 Software Tools for Decoding Quantum Low-Density Parity Check Codes.
 _Asia and South Pacific Design Automation Conference (ASP-DAC)_, 2023.
 
+[[7]](https://arxiv.org/pdf/2601.13313) E. Weilandt, T. Peham, and R. Wille.
+Synthesis of Fault-tolerant State Preparation Circuits using Steane-type Error
+Detection. _Phys. Rev. A_, 2026.
+
 ---
 
 ## Acknowledgements
