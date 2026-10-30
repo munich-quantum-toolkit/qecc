@@ -74,7 +74,7 @@ def _cyclic_matrix_sum(x_terms: list[int], y_terms: list[int], l_: int, m: int) 
 
 
 def _cyclic_code_check_matrix(
-    m: int, l_: int, a_terms: tuple[list[int], list[int]], b_terms: tuple[list[int], list[int]]
+    l_: int, m: int, a_terms: tuple[list[int], list[int]], b_terms: tuple[list[int], list[int]]
 ) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]:
     a = _cyclic_matrix_sum(a_terms[0], a_terms[1], l_, m) % 2
     b = _cyclic_matrix_sum(b_terms[0], b_terms[1], l_, m) % 2
