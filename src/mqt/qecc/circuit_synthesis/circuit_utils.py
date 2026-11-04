@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, cast
 
 from stim import Circuit, CircuitInstruction, CircuitRepeatBlock
 
-from .definitions import STIM_MEASUREMENTS
-
 if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
+
+STIM_MEASUREMENTS = {"MR", "MRX", "MRY", "MRZ"}
 
 
 def get_stim_qubit_values(operation: CircuitInstruction | CircuitRepeatBlock) -> list[int]:

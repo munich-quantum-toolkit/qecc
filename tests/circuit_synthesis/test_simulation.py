@@ -25,15 +25,30 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_prep_circuit,
     naive_verification_circuit,
 )
-from mqt.qecc.circuit_synthesis.noise import CircuitLevelNoiseIdlingParallel
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    ParallelSchedule,
+    StimCircuitNoiseAdapter,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from qiskit import QuantumCircuit
 
 
-def make_uniform_error_model(p: float) -> CircuitLevelNoiseIdlingParallel:
+def make_uniform_error_model(p: float) -> StimCircuitNoiseAdapter:
     """Create a uniform error model."""
-    return CircuitLevelNoiseIdlingParallel(p_tqg=p, p_sqg=p, p_idle=p * 0.01, p_meas=2 / 3 * p, p_init=p)
+    return StimCircuitNoiseAdapter(
+        CircuitNoiseModel(
+            single_qubit_gate=DepolarizingChannel(p),
+            two_qubit_gate=DepolarizingChannel(p),
+            reset=DepolarizingChannel(p),
+            measurement=BitFlipChannel(2 / 3 * p),
+            idle=DepolarizingChannel(p * 0.01),
+        ),
+        ParallelSchedule(),
+    )
 
 
 @pytest.fixture

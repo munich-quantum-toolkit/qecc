@@ -97,10 +97,26 @@ results. We can simulate the non-FT and FT circuits and compare the results.
 [^1]: <https://www.nature.com/articles/srep19578>
 
 ```{code-cell} ipython3
-from mqt.qecc.circuit_synthesis import VerificationNDFTStatePrepSimulator, CircuitLevelNoiseIdlingParallel
+from mqt.qecc.circuit_synthesis import VerificationNDFTStatePrepSimulator
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    ParallelSchedule,
+    StimCircuitNoiseAdapter,
+)
 
 p = 0.05
-noise = CircuitLevelNoiseIdlingParallel(p_tqg=p, p_sqg=p, p_init=p, p_meas=p, p_idle=p/100)
+noise = StimCircuitNoiseAdapter(
+    CircuitNoiseModel(
+        single_qubit_gate=DepolarizingChannel(p),
+        two_qubit_gate=DepolarizingChannel(p),
+        reset=DepolarizingChannel(p),
+        measurement=BitFlipChannel(p),
+        idle=DepolarizingChannel(p / 100),
+    ),
+    ParallelSchedule(),
+)
 
 non_ft_simulator = VerificationNDFTStatePrepSimulator(
     non_ft_sp.circ, code=steane_code, zero_state=True

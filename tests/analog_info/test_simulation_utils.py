@@ -9,9 +9,6 @@
 
 from __future__ import annotations
 
-import math
-from typing import TYPE_CHECKING
-
 import numpy as np
 import pytest
 
@@ -19,20 +16,13 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
     check_logical_err_h,
     error_channel_setup,
-    generate_err,
-    generate_syndr_err,
     get_analog_llr,
     get_binary_from_analog,
-    get_error_rate_from_sigma,
-    get_noisy_analog_syndrome,
-    get_sigma_from_syndr_er,
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
 )
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
+from mqt.qecc.noise import PauliChannel
 
 
 def test_check_logical_err_h() -> None:
@@ -308,48 +298,6 @@ def test_get_analog_llr() -> None:
     assert np.allclose(get_analog_llr(analog_syndr, sigma), np.array([100, 0.0, 0.0, -200.0, 0.0, 200.0]))
 
 
-def test_generate_err() -> None:
-    """Test generate_err function."""
-    # no errors
-    p = 0.0
-    n = 10
-    ch = np.ones(n) * p
-    channel = np.copy(ch), np.copy(ch), np.copy(ch)
-    residual: list[NDArray[np.int32]] = [np.zeros(n).astype(np.int32), np.zeros(n).astype(np.int32)]
-
-    expected = np.array([np.zeros(n).astype(np.float64), np.zeros(n).astype(np.float64)])
-    assert np.array_equal(generate_err(n, channel, residual), expected)
-
-    residual[0][0] = 1
-    residual[1][0] = 1
-
-    expected = np.array([np.copy(residual[0]), np.copy(residual[1])])
-    res = generate_err(n, channel, residual)
-    assert np.array_equal(res[0], expected[0])
-    assert np.array_equal(res[1], expected[1])
-
-
-def test_get_sigma_from_syndr_er() -> None:
-    """Test get_sigma_from_syndr_er function."""
-    ser = 0.1
-
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == math.ceil(0.780304146072379)
-    ser = 1.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
-    ser = 0.0
-    assert math.ceil(get_sigma_from_syndr_er(ser)) == pytest.approx(0.0, abs=1e-8)
-
-
-def test_get_error_rate_from_sigma() -> None:
-    """Test get_error_rate_from_sigma function."""
-    sigma = 0.3
-    assert np.isclose([get_error_rate_from_sigma(sigma)], [0.00042906])
-    sigma = 0.5
-    assert np.isclose([get_error_rate_from_sigma(sigma)], [0.02275])
-    sigma = 0.0
-    assert get_error_rate_from_sigma(sigma) == pytest.approx(0.0, abs=1e-8)
-
-
 def test_get_virtual_check_init_vals() -> None:
     """Test get_virtual_check_init_vals function."""
     noisy_syndr = np.array([0.5, 0, 0, -1, 0, 10])
@@ -378,65 +326,30 @@ def test_get_virtual_check_init_vals() -> None:
     assert res[0] == pytest.approx(0.0, abs=1e-8)
 
 
-def test_generate_syndr_err() -> None:
-    """Test generate_syndr_err function."""
-    channel = np.array([0.0, 1.0])
-
-    assert np.array_equal(generate_syndr_err(channel), np.array([0.0, 1.0]))
-
-    channel = np.array([0.0, 0.0, 0.0])
-    assert np.array_equal(generate_syndr_err(channel), np.zeros_like(channel).astype(float))
-
-    channel = np.array([1.0, 1.0, 1.0])
-    assert np.array_equal(generate_syndr_err(channel), np.ones_like(channel).astype(float))
-
-
-def test_get_noisy_analog_syndr() -> None:
-    """Test get_noisy_analog_syndr function."""
-    perfect_s = np.array([1, 0])
-    sigma = 0.0
-
-    assert np.array_equal(get_noisy_analog_syndrome(perfect_s, sigma), np.array([-1.0, 1.0]))
+def test_err_chnl_setup_rejects_malformed_bias() -> None:
+    """Reject a bias that is not a three-component vector."""
+    with pytest.raises(ValueError, match="exactly three"):
+        error_channel_setup(0.1, np.ones(2))
 
 
 def test_err_chnl_setup() -> None:
     """Test error_channel_setup function."""
     p = 0.1
-    bias = np.array([1.0, 1.0, 1.0])
-    n = 10
-    ar = np.ones(n) * p / 3
-    exp = np.array([np.copy(ar), np.copy(ar), np.copy(ar)])
-    res = error_channel_setup(p, bias, n)
 
-    assert np.array_equal(res, exp)
+    channel = error_channel_setup(p, np.array([1.0, 1.0, 1.0]))
+    assert channel == PauliChannel(p / 3, p / 3, p / 3)
 
-    bias = np.array([1.0, 0.0, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.copy(ar), np.zeros(n), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
+    assert error_channel_setup(p, np.array([1.0, 0.0, 0.0])) == PauliChannel(p, 0.0, 0.0)
+    assert error_channel_setup(p, np.array([1.0, 1.0, 0.0])) == PauliChannel(p / 2, p / 2, 0.0)
+    assert error_channel_setup(p, np.array([np.inf, 0.0, 0.0])) == PauliChannel(p, 0.0, 0.0)
+    assert error_channel_setup(p, np.array([0.0, np.inf, 0.0])) == PauliChannel(0.0, p, 0.0)
 
-    assert np.array_equal(res, exp)
 
-    bias = np.array([1.0, 1.0, 0.0])
-    ar = np.ones(n) * p / 2
-    exp = np.array([np.copy(ar), np.copy(ar), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
-
-    bias = np.array([np.inf, 0.0, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.copy(ar), np.zeros(n), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
-
-    bias = np.array([0.0, np.inf, 0.0])
-    ar = np.ones(n) * p
-    exp = np.array([np.zeros(n), np.copy(ar), np.zeros(n)])
-    res = error_channel_setup(p, bias, n)
-
-    assert np.array_equal(res, exp)
+def test_err_chnl_marginals() -> None:
+    """The marginals are what decoders consume as priors."""
+    channel = error_channel_setup(0.3, np.array([1.0, 1.0, 1.0]))
+    assert channel.x_marginal == pytest.approx(0.2)  # p_x + p_y
+    assert channel.z_marginal == pytest.approx(0.2)  # p_z + p_y
 
 
 def test_build_ss_pcm() -> None:

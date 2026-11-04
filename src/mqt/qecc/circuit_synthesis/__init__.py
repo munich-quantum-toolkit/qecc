@@ -20,7 +20,6 @@ from .encoding import (
     gottesman_encoding_circuit,
     synthesize_encoding_circuit,
 )
-from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
 from .state_prep import (
     FaultyStatePrepCircuit,
@@ -43,8 +42,6 @@ from .synthesis import (
 __all__ = [
     "CNOTCircuit",
     "CatStatePreparationExperiment",
-    "CircuitLevelNoiseIdlingParallel",
-    "CircuitLevelNoiseIdlingSequential",
     "CliffordIsometry",
     "DeterministicVerification",
     "DeterministicVerificationHelper",
