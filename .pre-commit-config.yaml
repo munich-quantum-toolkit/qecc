@@ -61,7 +61,7 @@ repos:
 
   ## Ensure uv.lock is up to date
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.13.6
+    rev: 0.13.7
     hooks:
       - id: uv-lock
         priority: 0
@@ -129,14 +129,14 @@ repos:
 
   ## Format pyproject.toml files with pyproject-fmt
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.30.3
+    rev: v2.30.6
     hooks:
       - id: pyproject-fmt
         priority: 5
 
   ## Format and lint Python files with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.3
+    rev: v0.17.4
     hooks:
       - id: ruff-check
         require_serial: true
@@ -159,7 +159,7 @@ repos:
 
   ## Check Python types with ty
   - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: v0.0.95
+    rev: v0.0.99
     hooks:
       - id: ty
         args: [--isolated]
