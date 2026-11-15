@@ -152,7 +152,7 @@ repos:
       - id: nb-clean
         args:
           - --remove-empty-cells
-          - --preserve-cell-metadata
+          - --preserve-cell-metadata-field
           - raw_mimetype
           - --
         priority: 8
