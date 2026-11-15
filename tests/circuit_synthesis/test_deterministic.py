@@ -22,7 +22,7 @@ from mqt.qecc.codes import RotatedSurfaceCode
 from .utils import in_span
 
 try:
-    from qsample import noise  # ty: ignore[unresolved-import]
+    from qsample import noise  # ty: ignore[import-not-found]
 
     from mqt.qecc.circuit_synthesis.simulation_det import NoisyDFTStatePrepSimulator
 

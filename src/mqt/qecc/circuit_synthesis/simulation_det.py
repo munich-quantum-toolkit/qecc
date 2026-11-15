@@ -18,7 +18,7 @@ import numpy.typing as npt
 from .simulation import LutDecoder
 
 try:
-    import qsample as qs  # ty: ignore[unresolved-import]
+    import qsample as qs  # ty: ignore[import-not-found]
 except ImportError:
     msg = (
         "NoisyDFTStatePrepSimulator requires the optional dependency 'qsample'. "
@@ -29,7 +29,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from qiskit.circuit import QuantumCircuit
-    from qsample.callbacks import Callback, CallbackList  # ty: ignore[unresolved-import]
+    from qsample.callbacks import Callback, CallbackList  # ty: ignore[import-not-found]
 
     from ..codes.core.css_code import CSSCode
     from .state_prep_det import DeterministicCorrection, DeterministicVerification
