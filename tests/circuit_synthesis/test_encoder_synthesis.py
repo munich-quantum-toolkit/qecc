@@ -250,6 +250,10 @@ def test_depth_optimal_encoding_non_css_edge_cases(code: StabilizerCode, request
         stim.Circuit("H 0\nCX 0 1\nH 1\nCX 1 2"),
         stim.Circuit("H 0\nCX 0 1\nCX 1 2\nCX 2 3\nH 3"),
         stim.Circuit("H 0\nCX 0 1\nCX 1 2\nH 2\nCX 2 3\nH 3"),
+        # circuits with a CSS tableau, which used to be resynthesized into a different operation
+        stim.Circuit("X 0"),
+        stim.Circuit("CX 0 1\nCX 1 0"),
+        stim.Circuit("CX 0 1\nCX 1 0\nCX 0 1"),
     ],
 )
 @pytest.mark.parametrize("rollout_depth", [0, 1, 2])
@@ -262,7 +266,7 @@ def test_resynthesize_stim_circuit(
     clifford_synthesis_config.rollout = rollout_depth
     clifford_synthesis_config.num_rollout_candidates = 5
 
-    resynthesized_circuit = resynthesize_stim_circuit(circuit, config=clifford_synthesis_config, use_cnots_if_css=False)
+    resynthesized_circuit = resynthesize_stim_circuit(circuit, config=clifford_synthesis_config)
     resynthesized_tableau = resynthesized_circuit.to_tableau()
     resynthesized_two_qubit_gates = num_two_qubit_gates(resynthesized_circuit)
 

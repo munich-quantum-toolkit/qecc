@@ -271,37 +271,20 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
 
 def synthesize_clifford(
     tableau: PauliTableau,
-    use_cnots_if_css: bool = True,
     config: SynthesisConfig | None = None,
 ) -> CliffordIsometry:
     """Synthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
     Args:
         tableau: The stabilizer tableau representing the Clifford operation to synthesize.
-        use_cnots_if_css: Whether to use CNOT-only synthesis if the tableau is CSS.
         config: Configuration options for the synthesis process.
 
     Returns:
         A CliffordIsometry representing the synthesized Clifford operation that implements
-        the same operation as the input tableau. The synthesis aims to minimize the two-qubit
-        gate count. If the tableau is CSS and use_cnots_if_css is True, the circuit uses only
-        CNOT gates; otherwise, a general Clifford synthesis is performed.
+        the same operation as the input tableau, including the signs of the mapped Paulis.
+        The synthesis aims to minimize the two-qubit gate count.
     """
-    if tableau.is_css() and use_cnots_if_css:
-        x_checks, z_checks = tableau.to_css()
-        assert isinstance(config, SynthesisConfig) or config is None, (
-            "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
-        )
-        logicals = x_checks if x_checks.num_rows() <= z_checks.num_rows() else z_checks
-        return cnot_encoding_circuit(
-            CheckMatrix(np.empty((0, tableau.n), dtype=np.int8), pauli_type=logicals.type),
-            logicals,
-            config=config,
-        )
-
-    assert isinstance(config, SynthesisConfig) or config is None, (
-        "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
-    )
+    assert isinstance(config, SynthesisConfig) or config is None, "A SynthesisConfig must be provided."
     ops, _ = synthesize_non_css(
         tableau,
         config=config,
@@ -353,12 +336,12 @@ def synthesize_encoding_circuit(
         )
 
         assert isinstance(config, SynthesisConfig) or config is None, (
-            "CNOTSynthesisConfig must be provided when use_cnots_if_css is True."
+            "A SynthesisConfig must be provided when use_cnots_if_css is True."
         )
         return cnot_encoding_circuit(checks, logicals, config=config)
 
     assert isinstance(config, SynthesisConfig) or config is None, (
-        "CliffordSynthesisConfig must be provided when use_cnots_if_css is False."
+        "A SynthesisConfig must be provided when use_cnots_if_css is False."
     )
 
     additional_x_rows = code.x_logicals.tableau.data[additional_x_checks]
@@ -389,21 +372,20 @@ def synthesize_encoding_circuit(
 
 def resynthesize_stim_circuit(
     circ: stim.Circuit,
-    use_cnots_if_css: bool = True,
     config: SynthesisConfig | None = None,
 ) -> stim.Circuit:
     """Resynthesize a stim circuit implementing a Clifford operation to minimize two-qubit gate count.
 
     Args:
         circ: The stim.Circuit to resynthesize.
-        use_cnots_if_css: Whether to use CNOT-only synthesis if the circuit is CSS.
         config: Configuration options for the synthesis process.
 
     Returns:
-        A stim.Circuit that implements the same operation as the input circuit but with potentially fewer two
+        A stim.Circuit that implements the same operation as the input circuit but with potentially fewer
+        two-qubit gates.
     """
     tableau = PauliTableau.from_stim_circuit(circ)
-    return synthesize_clifford(tableau, use_cnots_if_css=use_cnots_if_css, config=config).to_stim_circuit()
+    return synthesize_clifford(tableau, config=config).to_stim_circuit()
 
 
 def encoder_from_stabilizers_and_logicals(
@@ -439,7 +421,6 @@ def encoder_from_stabilizers_and_logicals(
 
     iso = synthesize_clifford(
         optimized_tableau,
-        use_cnots_if_css=False,
         config=config,
     )
     iso.initialize_qubits(stab_indices, basis="Z")
