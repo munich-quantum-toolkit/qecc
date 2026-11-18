@@ -64,7 +64,8 @@ class Circuit:
             data: Data qubits. Defaults to all qubits that are never measured.
 
         Raises:
-            ValueError: An unsupported gate (for example a Pauli gate) or an inverted measurement target.
+            ValueError: An unsupported gate (for example a Pauli gate), a target that is not a qubit (for example a
+                measurement record), an inverted measurement target or a measurement with a flip probability.
         """
         ops: list[Op] = []
         dets: list[list[int]] = []
@@ -79,6 +80,12 @@ class Circuit:
                 continue
             if any(t.is_inverted_result_target for t in inst.targets_copy()):
                 msg = f"inverted measurement targets are not supported: {inst}"
+                raise ValueError(msg)
+            if not all(t.is_qubit_target for t in inst.targets_copy()):
+                msg = f"only qubit targets are supported: {inst}"
+                raise ValueError(msg)
+            if any(inst.gate_args_copy()):
+                msg = f"noisy measurements are not supported: {inst}"
                 raise ValueError(msg)
             qs = [t.value for t in inst.targets_copy()]
             if name in MEASUREMENTS:

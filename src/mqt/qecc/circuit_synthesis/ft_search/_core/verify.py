@@ -555,8 +555,9 @@ class _Reps:
 
     def __iter__(self) -> Iterator[tuple[int, ...]]:
         for a in self.arrays:
-            for row in a.tolist():
-                yield tuple(row)
+            for i in range(0, len(a), 4096):  # in chunks: one list of all rows can take GBs
+                for row in a[i : i + 4096].tolist():
+                    yield tuple(row)
 
     def __eq__(self, other: object) -> bool:
         return list(self) == list(other)  # ty: ignore[invalid-argument-type]  (compared with other sequences only)

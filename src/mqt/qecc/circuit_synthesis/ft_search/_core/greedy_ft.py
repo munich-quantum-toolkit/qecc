@@ -9,8 +9,8 @@
 
 Each step ranks the candidates (stabilizer checks at every layer boundary, flags on existing checks) by their coverage
 of the failing combinations, inserts the best ``top_k`` for an exact trial, and keeps the one with the best
-gain / (Δops + λ · max(Δdepth, 0)); the gain is the drop of the weighted failure count sum_s W^(t-s) * failures(s),
-which includes the failures the candidate's own faults create. Repeat until FT. The scope's blocks stay as they are.
+gain / (Δops + λ · max(Δdepth, 0) + MU · new failing classes); the gain is sum_s W^(t-s) times the drop of the raw
+failures of order s (an order whose count rises adds 0). Repeat until FT. The scope's blocks stay as they are.
 """
 
 from __future__ import annotations
@@ -25,6 +25,8 @@ from .gauge import CheckCoverage, Gadget, apply_candidate, build, candidate_spac
 from .verify import CSSState, check_added, check_ft, check_noiseless
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from .circuit import Circuit
 
 logger = logging.getLogger(__name__)
@@ -63,24 +65,26 @@ def greedy_ft(
     base, end, positions = space.base, space.end, space.positions
     nd = len(base.data)
     dpos = {d: i for i, d in enumerate(base.data)}
-    # forward images of single-qubit Paulis: img[kind][p1][p2] = (nd x nd) matrix, row q = image of P_q at p2
-    img: dict = {"Z": {}, "X": {}}
-    for kind in ("Z", "X"):
-        for i1, p1 in enumerate(positions):
-            cur = np.eye(nd, dtype=np.uint8)
-            img[kind][p1] = {}
-            k = p1
-            for p2 in positions[i1 + 1 :]:
-                while k < p2:
-                    op = base.ops[k]
-                    if op.name == "CX" and op.qubits[0] in dpos and op.qubits[1] in dpos:
-                        c, tq = dpos[op.qubits[0]], dpos[op.qubits[1]]
-                        if kind == "X":  # X on control spreads to target
-                            cur[:, tq] ^= cur[:, c]
-                        else:  # Z on target spreads to control
-                            cur[:, c] ^= cur[:, tq]
-                    k += 1
-                img[kind][p1][p2] = cur.copy()
+
+    def images(kind: str, p1: int) -> Iterator[tuple[int, np.ndarray]]:
+        """Forward images of single-qubit Paulis from ``p1`` to each later position p2.
+
+        Yields (p2, matrix): row q of the (nd x nd) matrix is the image of P_q at p2. The matrix is one buffer, updated
+        in place: the images of all position pairs can take several GB.
+        """
+        cur = np.eye(nd, dtype=np.uint8)
+        k = p1
+        for p2 in positions[positions.index(p1) + 1 :]:
+            while k < p2:
+                op = base.ops[k]
+                if op.name == "CX" and op.qubits[0] in dpos and op.qubits[1] in dpos:
+                    c, tq = dpos[op.qubits[0]], dpos[op.qubits[1]]
+                    if kind == "X":  # X on control spreads to target
+                        cur[:, tq] ^= cur[:, c]
+                    else:  # Z on target spreads to control
+                        cur[:, c] ^= cur[:, tq]
+                k += 1
+            yield p2, cur
 
     def full(gs: list[Gadget]) -> tuple[Circuit, dict[int, int]]:
         return build(base, gs, blocks)
@@ -146,7 +150,7 @@ def greedy_ft(
         for kind in ("Z", "X"):
             comp = {p: cov.frame(p, kind).astype(np.int64) for p in positions}
             for p1 in positions:
-                for p2, mat in img[kind].get(p1, {}).items():
+                for p2, mat in images(kind, p1):
                     w = 1 + mat.sum(axis=1)
                     okq = np.nonzero(w <= W2_MAX)[0]
                     if not len(okq):
@@ -176,6 +180,10 @@ def greedy_ft(
         ]
 
         def apply(gs: list[Gadget], c: tuple, fid: int) -> list[Gadget]:
+            img = None
+            if c[0] == "T":
+                _, kind, p1, p2, _ = c
+                img = {kind: {p1: {p2: next(m.copy() for p, m in images(kind, p1) if p == p2)}}}
             return apply_candidate(gs, c, fid, late_at=end if late else None, img=img)
 
         raw0 = dict(rep.raw_failures)

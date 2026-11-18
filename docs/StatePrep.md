@@ -238,8 +238,8 @@ cc_simulator.plot_state_prep(ps, min_errors=50, p_idle_factor=0.01)
 The verification circuits above use as few CNOTs as possible, but they can be
 deep. Shallower circuits need more measurements and ancilla qubits. The front
 search finds this trade-off: for each CNOT depth, the fault tolerant circuit
-with the fewest CNOTs plus measurements that it can find. We call this set of
-circuits a _front_.
+with the fewest CNOTs plus measurements that it can find, if it has fewer than
+every shallower one. We call this set of circuits a _front_.
 
 ### Check types
 
@@ -264,8 +264,8 @@ The circuits combine three kinds of checks, all used for post-selection:
 - Fast procedures, such as an integer program that chooses the checks, complete
   partial candidates. A final pass removes redundant checks, shares flags
   between checks and reorders gates.
-- Every returned circuit is checked exactly: each set of up to
-  $t = \lfloor (d-1)/2 \rfloor$ faults (at most 3) is either detected or leaves
+- Every returned circuit is checked exactly: each set of up to $t$ faults (by
+  default $\lfloor (d-1)/2 \rfloor$, at most 3) is either detected or leaves
   only correctable errors.
 
 ### Example

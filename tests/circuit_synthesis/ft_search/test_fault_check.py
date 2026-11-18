@@ -19,8 +19,9 @@ from mqt.qecc.circuit_synthesis.ft_search._core import gauge
 from mqt.qecc.circuit_synthesis.ft_search._core.blocks import BlockSpec
 from mqt.qecc.circuit_synthesis.ft_search._core.circuit import Circuit, Op, layering, metrics
 from mqt.qecc.circuit_synthesis.ft_search._core.design import ancilla_states, compile_node, make_node
+from mqt.qecc.circuit_synthesis.ft_search._core.evaluation import check_cached
 from mqt.qecc.circuit_synthesis.ft_search._core.faults import fault_table
-from mqt.qecc.circuit_synthesis.ft_search._core.gauge import promote
+from mqt.qecc.circuit_synthesis.ft_search._core.gauge import layered_base, promote
 from mqt.qecc.circuit_synthesis.ft_search._core.greedy_ft import greedy_ft
 from mqt.qecc.circuit_synthesis.ft_search._core.kernels import enumerate_faults
 from mqt.qecc.circuit_synthesis.ft_search._core.schedule import schedule
@@ -103,7 +104,7 @@ def test_leader_weights_repetition() -> None:
 def _brute(circ: Circuit, state: CSSState, t: int) -> dict[int, int]:
     """Reference: count failing key multisets by direct enumeration."""
     table = fault_table(circ)
-    kx, kz, kc, sx, sz = table_keys(table, state)
+    kx, kz, kc, sx, sz = table_keys(table, state, circ.detector_matrix())
     keys = np.unique(np.stack([kx, kz, kc], axis=1), axis=0)
     wx, wz = leader_weights(sz, t), leader_weights(sx, t)
     out = {}
@@ -167,12 +168,36 @@ def test_wrong_state_detected(steane) -> None:
         check_noiseless(prep, plus)
 
 
+def test_memoized_check_tells_data_qubits_apart() -> None:
+    """Two circuits with the same gates but other data qubits get their own verdicts."""
+    plus = CSSState(np.array([[1]], dtype=np.uint8), np.zeros((0, 1), dtype=np.uint8))
+    ops = [Op("R", (0,)), Op("RX", (1,))]
+    with pytest.raises(AssertionError):
+        check_cached(Circuit(ops, 2, [0]), plus, 1)
+    assert check_cached(Circuit(ops, 2, [1]), plus, 1)[0]
+
+
 def _layered(circ: Circuit) -> Circuit:
     """Same circuit with ops reordered: preps/H first, then CNOT layers (ASAP)."""
     lay = layering(circ)
     pre = [op for op in circ.ops if op.name != "CX"]
     ops = pre + [Op("CX", g) for t in range(1, lay.depth + 1) for g in lay.gates[t]]
     return Circuit(ops, circ.num_qubits, circ.data)
+
+
+def test_from_stim_rejects_classical_targets_and_noisy_measurements() -> None:
+    """A record or sweep control and a measurement flip probability are rejected; M(0) is accepted."""
+    for text in ("R 0 1\nM 0\nCX rec[-1] 1", "R 0 1\nCX sweep[0] 1", "R 0\nM(0.1) 0"):
+        with pytest.raises(ValueError, match="supported"):
+            Circuit.from_stim(stim.Circuit(text))
+    assert len(Circuit.from_stim(stim.Circuit("R 0\nM(0) 0")).ops) == 2
+
+
+def test_layering_rejects_h_after_a_cnot() -> None:
+    """Layering would move the H before the CNOT and prepare a Bell state instead of |+0>."""
+    c = Circuit([Op("R", (0,)), Op("R", (1,)), Op("CX", (0, 1)), Op("H", (0,))], 2, [0, 1])
+    with pytest.raises(ValueError, match="after a CNOT"):
+        layered_base(c)
 
 
 def test_detectors_roundtrip_and_block(steane) -> None:

@@ -24,7 +24,7 @@ from mqt.qecc.circuit_synthesis.ft_search._core.complete import (
 )
 from mqt.qecc.circuit_synthesis.ft_search._core.config import Context
 from mqt.qecc.circuit_synthesis.ft_search._core.design import Design, compile_node, make_node
-from mqt.qecc.circuit_synthesis.ft_search._core.evaluation import check_cached, evaluate_cached, proposals
+from mqt.qecc.circuit_synthesis.ft_search._core.evaluation import check_cached, proposals
 from mqt.qecc.circuit_synthesis.ft_search._core.solvers import BlockSolver
 from mqt.qecc.circuit_synthesis.ft_search._core.verify import CSSState, check_ft, check_noiseless
 
@@ -56,11 +56,11 @@ def _fresh_ok(d: Design, state: CSSState) -> bool:
 @pytest.mark.slow
 def test_known_parts_attached_by_rollout_and_move(start) -> None:
     """A completion records its FT ancilla as a part, and the rollout and the move install it."""
-    d, _state = start
+    d, state = start
     props, bd = _block_design(d)
-    # a completion records its locally FT ancilla as a part
+    # a completion records its locally FT ancilla as a part (checked without ``evaluate_cached``, which records parts)
     comps = [x for _, x, _ in complete(bd, CTX, with_circuit=False, polish_budget=60)]
-    assert all(evaluate_cached(x).ok for x in comps)
+    assert all(_fresh_ok(x, state) for x in comps)
     local = [x for x in comps if check_cached(compile_node(x.node((0,))), x.node((0,)).target, 2)[0] is True]
     assert local  # some completion protects the ancilla on its own (others may catch its faults elsewhere)
     anc = local[0].node((0,))

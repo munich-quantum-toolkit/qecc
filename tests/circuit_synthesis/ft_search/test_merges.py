@@ -119,4 +119,6 @@ def test_every_gadget_gets_a_proposal(code, monkeypatch) -> None:  # ruff: ignor
     monkeypatch.setattr(rx, "MAX_PROPS", 4)
     labs = [lab for lab, _ in MergeSolver("macro").propose(d, (), ctx)]
     assert len(labs) == 4
-    assert any("[b0:" in lab for lab in labs)
+    n = len(d.root.gadgets)
+    units = {lab.split("[", 1)[1].split(":", 1)[0] for lab in labs}
+    assert {u for u in units if "+" not in u} == {"b0", f"g{n - 2}", f"g{n - 1}"}  # the block and both new gadgets

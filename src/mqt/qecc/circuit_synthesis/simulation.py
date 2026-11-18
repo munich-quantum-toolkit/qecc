@@ -431,7 +431,10 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         if self.detectors is None:
             kept = np.all(checks == 0, axis=1)
         else:
-            kept = ~np.any((checks.astype(np.int64) @ self.detectors.T) % 2, axis=1)
+            # the noise model may reorder the measurements of different qubits: follow each record to its new place
+            detectors = np.zeros_like(self.detectors)
+            detectors[:, _record_positions(self.circ, self._noisy_circ)] = self.detectors
+            kept = ~np.any((checks.astype(np.int64) @ detectors.T) % 2, axis=1)
         return samples[kept].astype(np.int8)
 
 
@@ -453,6 +456,25 @@ def _split_detectors(circ: stim.Circuit) -> tuple[npt.NDArray[np.int8], stim.Cir
         for r in recs:
             matrix[i, r] ^= 1
     return matrix, plain
+
+
+def _record_keys(circ: stim.Circuit) -> list[tuple[int, int]]:
+    """Each measurement record of ``circ`` as (qubit, number of earlier measurements of that qubit)."""
+    counts: dict[int, int] = {}
+    keys = []
+    for inst in circ.flattened():
+        if isinstance(inst, stim.CircuitInstruction) and stim.gate_data(inst.name).produces_measurements:
+            for target in inst.targets_copy():
+                q = target.value
+                keys.append((q, counts.get(q, 0)))
+                counts[q] = counts.get(q, 0) + 1
+    return keys
+
+
+def _record_positions(circ: stim.Circuit, noisy: stim.Circuit) -> list[int]:
+    """The record index in ``noisy`` of each measurement record of ``circ``, which ``noisy`` may reorder."""
+    index = {key: i for i, key in enumerate(_record_keys(noisy))}
+    return [index[key] for key in _record_keys(circ)]
 
 
 class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):

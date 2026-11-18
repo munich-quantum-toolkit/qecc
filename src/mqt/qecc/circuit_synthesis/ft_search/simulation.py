@@ -34,7 +34,8 @@ def logical_error_rate(
 ) -> tuple[float, float, int, int]:
     """Estimate the logical error rate of a found circuit by Monte Carlo sampling.
 
-    A shot is accepted if all detectors of the circuit are 0. The simulation is
+    A shot is accepted if all detectors of the circuit, each the parity of its measurements, are 0; a detector of
+    parity 1 without noise therefore rejects every shot. The simulation is
     :class:`~mqt.qecc.circuit_synthesis.simulation.VerificationNDFTStatePrepSimulator`.
 
     Args:
@@ -46,8 +47,8 @@ def logical_error_rate(
             scheduled as late as possible, so a qubit idles only after its initialization.
         zero_state: Whether the circuit prepares the logical zero (else the plus) state.
         noise: Another noise model instead of the default.
-        shots: Shots to sample at least.
-        min_errors: Sampling continues until this many logical errors are seen.
+        shots: Shots per batch, at most 100000.
+        min_errors: Sampling continues batch by batch until this many logical errors are seen.
         max_shots: Sampling stops at the first batch (up to 100000 shots) that reaches this many shots, even with
             fewer than ``min_errors`` logical errors. None: no limit, which never ends if no logical error occurs.
 

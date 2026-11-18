@@ -41,6 +41,7 @@ def test_drive_semantics(kind) -> None:
     cx = [op.qubits for op in drv.ops if op.name == "CX" and set(op.qubits) & {a, f} and set(op.qubits) - {a, f}]
     by_flag = [qs for qs in cx if f in qs]
     assert len(by_flag) == 2  # couplings 2 and 4 driven by the flag
+    assert sorted(q for qs in by_flag for q in qs if q != f) == [prep.data[sup[2]], prep.data[sup[4]]]
     for qs in by_flag:
         assert qs == ((f, qs[1]) if kind == "X" else (qs[0], f))
     assert metrics(drv)["cnot"] == metrics(plain)["cnot"]

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import numpy as np
+import stim
 
 from mqt.qecc import CSSCode
 from mqt.qecc.circuit_synthesis.ft_search._core.blocks import dual
@@ -48,3 +49,12 @@ def test_max_shots_caps_the_sampling() -> None:
     code, circ = _steane_zero()
     *_, errors, shots = logical_error_rate(circ, code, 0.0, shots=1000, min_errors=5, max_shots=3000)
     assert (errors, shots) == (0, 3000)
+
+
+def test_detectors_follow_reordered_measurements() -> None:
+    """A detector reads its own measurement when the noise model schedules the measurements in another order."""
+    code, circ = _steane_zero()
+    # the default noise model measures qubit 8 before qubit 7; the detector checks qubit 7 only
+    circ += stim.Circuit("R 7 8\nH 7\nH 7\nM 7\nX 8\nM 8\nDETECTOR rec[-2]")
+    ler, acc, errors, _ = logical_error_rate(circ, code, 0.0, shots=1000, min_errors=0)
+    assert (ler, acc, errors) == (0.0, 1.0, 0)

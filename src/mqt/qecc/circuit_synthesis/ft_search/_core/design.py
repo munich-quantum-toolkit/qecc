@@ -92,11 +92,25 @@ class Node:
         return [g for g in self.gadgets if g.late]
 
 
+def _layerable(prep: Circuit) -> bool:
+    """Whether ``layered_base`` keeps the state of ``prep``: only R, RX and H, each before any CX on its qubit."""
+    touched: set[int] = set()
+    for op in prep.ops:
+        if op.name == "CX":
+            touched.update(op.qubits)
+        elif op.name not in {"R", "RX", "H"} or touched.intersection(op.qubits):
+            return False
+    return True
+
+
 def make_node(
     name: str, prep: Circuit, state: CSSState, target: CSSState | None = None, origin: str = "", *, layer: bool = True
 ) -> Node:
-    """Build a node from a preparation circuit; with ``layer`` the circuit is ASAP-layered first."""
-    if not layer:
+    """Build a node from a preparation circuit; with ``layer`` the circuit is ASAP-layered first.
+
+    A circuit that is not resets and Hadamards followed by CNOTs (for example one with CZ gates) keeps its own order.
+    """
+    if not layer or not _layerable(prep):
         return Node(name, prep, state, state if target is None else target, origin=origin, layered=False)
     base, _ = layered_base(prep)
     again, _ = layered_base(base)

@@ -63,15 +63,20 @@ class BlockSolver:
                 s_min = min(sv for _, sv in fails)
                 fs = [f for f in fails if f[1] == s_min]
             for s in range(min(self.samples, profile(t).samples)):  # the run's limit
-                elems = robust_cover_from_failures(
-                    basis,
-                    fs,
-                    t,
-                    time_limit=ctx.cover_time,
-                    cost_jitter=JITTER if s else 0.0,
-                    seed=s,
-                    lw=lw,
-                )
+                try:
+                    elems = robust_cover_from_failures(
+                        basis,
+                        fs,
+                        t,
+                        time_limit=ctx.cover_time,
+                        cost_jitter=JITTER if s else 0.0,
+                        seed=s,
+                        lw=lw,
+                    )
+                except RuntimeError:  # no cover in time: a perturbed sample keeps the covers found so far
+                    if not s:
+                        raise
+                    continue
                 if not elems or tuple(sorted(elems)) in seen:
                     continue
                 seen.add(tuple(sorted(elems)))
@@ -99,8 +104,9 @@ class BlockSolver:
 class GuideSolver:
     """Replace a plain end-block ancilla prep by up to two cancellation-guided ones (``guided``).
 
-    In a guided prep no ancilla fault masks a dangerous data error. The local checks judge only the error type an
-    ancilla sends back, so no other move targets masking.
+    A guided prep avoids CNOTs whose ancilla faults would mask a dangerous data error; the exact check still decides
+    fault tolerance. The local checks judge only the error type an ancilla sends back, so no other move targets
+    masking.
     """
 
     ctx_deps = ()

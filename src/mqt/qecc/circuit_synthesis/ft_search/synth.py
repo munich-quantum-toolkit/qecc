@@ -19,11 +19,13 @@ Other tools plug in as further modes (``Context.synthesizers``): a picklable fun
 from __future__ import annotations
 
 import functools
+import inspect
 import os
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]  (runs the configured external synthesizer)
 import tempfile
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -39,9 +41,9 @@ from ._core.guided import greedy_candidates
 from ._core.verify import CSSState
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
-    Synthesizer = Callable[[np.ndarray, int], list[Circuit] | list[stim.Circuit]]
+Synthesizer = Callable[[np.ndarray, int], list[Circuit] | list[stim.Circuit]]
 
 __all__ = ["CommandSynthesizer", "Synthesizer"]
 
@@ -160,6 +162,8 @@ def _tool_key(synthesize: object) -> str:
     """Name of the tool behind a mode, so the memo tells two tools under one mode name apart."""
     if isinstance(synthesize, functools.partial):
         return f"{_tool_key(synthesize.func)}{synthesize.args!r}{sorted(synthesize.keywords.items())!r}"
+    if inspect.ismethod(synthesize):  # a bound method: its object holds the tool's settings
+        return f"{_tool_key(synthesize.__func__)}{synthesize.__self__!r}"
     name = getattr(synthesize, "__qualname__", None)
     return f"{getattr(synthesize, '__module__', '')}.{name}" if name else repr(synthesize)
 

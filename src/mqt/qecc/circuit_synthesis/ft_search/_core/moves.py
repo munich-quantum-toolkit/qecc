@@ -121,7 +121,7 @@ def split(design: Design, path: tuple, props: list[tuple[str, Design]]) -> list[
             if len(keep) == 1:  # the single check also bare at its best place in the preparation circuit
                 out.extend(
                     (lab + sfx + "p", design.with_node(path, x, lab + sfx + "p"))
-                    for x in place(design, path, nd, next(i for i, g in enumerate(nd.gadgets) if g not in old))
+                    for x in place(design, path, nd, len(old))  # the new check follows the old gadgets
                 )
     return out
 
@@ -163,6 +163,10 @@ class PlaceSolver:
 
     ctx_deps = ()
     name = "place"
+
+    def cache_extra(self, design: Design, path: tuple) -> tuple:  # ruff: ignore[no-self-use]  (solver interface)
+        """Extra memo key: the whole design of a nested scope, since ``place`` ranks positions by the full circuit."""
+        return (design.root,) if path else ()
 
     def propose(  # ruff: ignore[no-self-use]  (solver interface)
         self,

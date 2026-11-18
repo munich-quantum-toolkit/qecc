@@ -32,8 +32,8 @@ class Combos:
         Args:
             rep: An ``FTReport`` with collected failures.
             cls: Class id per elementary fault.
-            max_combos: Keep at most this many combinations: all of the lowest order, then a seeded sample of the rest
-                (``scale``: the weight that keeps sums over the sample unbiased).
+            max_combos: Keep at most this many combinations: the first ones of the lowest order, then a seeded sample
+                of the rest (``scale``: the weight that keeps sums over the sample unbiased).
             seed: Seed of the sample.
         """
         cls = np.asarray(cls, dtype=np.int64)

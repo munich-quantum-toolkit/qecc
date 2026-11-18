@@ -43,7 +43,9 @@ from mqt.qecc.circuit_synthesis.ft_search._core.front import DMAX, Front
 from mqt.qecc.circuit_synthesis.ft_search._core.gauge import Gadget, build
 from mqt.qecc.circuit_synthesis.ft_search._core.pool import kill_pool, process_pool
 from mqt.qecc.circuit_synthesis.ft_search._core.setcover import ilp_cover, ls_cover, solve_cover
-from mqt.qecc.circuit_synthesis.ft_search._core.solvers.common import circuit_choices, to_qecc_prep
+from mqt.qecc.circuit_synthesis.ft_search._core.solvers import ancilla
+from mqt.qecc.circuit_synthesis.ft_search._core.solvers.ancilla import BlockSolver
+from mqt.qecc.circuit_synthesis.ft_search._core.solvers.common import circuit_choices, to_cnot_circuit, to_qecc_prep
 from mqt.qecc.circuit_synthesis.ft_search._core.verify import (
     CSSState,
     check_added,
@@ -153,6 +155,15 @@ def test_ls_cover_edge_cases() -> None:
     assert not {0, 1} <= set(sel)
 
 
+def test_ls_cover_conflict_with_the_only_column_of_a_row() -> None:
+    """The greedy takes column 0 first, which conflicts with column 2, the only column of the last rows."""
+    a = np.zeros((1001, 4), dtype=np.uint8)
+    a[:501, [0, 1, 3]] = 1
+    a[501:, 2] = 1
+    sel = ls_cover(a, [1.0, 2.0, 1.0, 3.0], conflicts=[(0, 2)], time_limit=1.0, patience=50)
+    assert sel == [1, 2]
+
+
 def test_ilp_cover_edge_cases() -> None:
     """The ILP respects a conflict, finds no cover for an uncoverable row, and large problems go to local search."""
     a = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]], dtype=np.uint8)
@@ -198,6 +209,47 @@ def test_to_qecc_prep() -> None:
     assert sp.num_qubits == 7
     with pytest.raises(ValueError, match="unexpected M"):
         to_qecc_prep(Circuit([Op("R", (0,)), Op("M", (0,))], 1, [0]), 1)
+
+
+def test_cnot_circuit_initialization_in_order() -> None:
+    """Resets and Hadamards fold in order; an initialization after a CNOT on its qubit raises."""
+    c = to_cnot_circuit(Circuit([Op("R", (0, 1)), Op("H", (0,)), Op("H", (0,)), Op("H", (1,)), Op("CX", (1, 0))], 2))
+    assert str(c.to_stim_circuit()).split("\n")[:2] == ["R 0", "RX 1"]
+    with pytest.raises(ValueError, match="unexpected H"):
+        to_cnot_circuit(Circuit([Op("R", (0, 1)), Op("CX", (0, 1)), Op("H", (0,))], 2))
+
+
+def test_make_node_keeps_the_order_of_preps_it_cannot_layer() -> None:
+    """A prep with a CZ, or with a Hadamard after a CNOT on its qubit, is not reordered."""
+    state = state_of_code(CSSCode.from_code_name("Steane"))
+    prep = candidates(state.sx, "greedy", 1)[0]
+    j = next(i for i, op in enumerate(prep.ops) if op.name == "CX")
+    c, t = prep.ops[j].qubits
+    for ops in (
+        [*prep.ops[:j], Op("H", (t,)), Op("CZ", (c, t)), Op("H", (t,)), *prep.ops[j + 1 :]],
+        [*prep.ops, Op("H", (t,)), Op("CX", (c, t)), Op("CX", (c, t)), Op("H", (t,))],
+    ):
+        circ = Circuit(ops, prep.num_qubits, list(prep.data))
+        check_noiseless(circ, state)
+        node = make_node("D", circ, state)
+        assert not node.layered
+        assert node.base.ops == ops
+    assert make_node("D", prep, state).layered
+
+
+def test_block_cover_keeps_covers_when_a_later_sample_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A perturbed cover sample without a solution leaves the covers found before it."""
+    design, _ = _steane_design()
+    real = ancilla.robust_cover_from_failures
+
+    def flaky(*args: object, seed: int = 0, **kwargs: object) -> list[int]:
+        if seed:
+            msg = "cover failed"
+            raise RuntimeError(msg)
+        return real(*args, seed=seed, **kwargs)  # ty: ignore[invalid-argument-type]  (passed through)
+
+    monkeypatch.setattr(ancilla, "robust_cover_from_failures", flaky)
+    assert list(BlockSolver("Z", samples=2).propose(design, (), Context()))
 
 
 def test_prune_ancillas_removes_a_useless_check() -> None:

@@ -199,9 +199,9 @@ def polish_job(args: tuple) -> dict:
     out: dict = {"designs": []}
 
     def body() -> None:
-        for d in polish.full(design, ctx, budget=0.8 * prof.polish_limit):
-            if evaluate_cached(d).ok:
-                out["designs"].append(d)
+        # on a timeout, out["designs"] holds the candidates verified so far
+        front = polish.full(design, ctx, budget=0.8 * prof.polish_limit, found=out["designs"])
+        out["designs"] = [d for d in front if evaluate_cached(d).ok]
 
     return _timed(prof.polish_limit, out, body)
 
@@ -674,7 +674,11 @@ def search(
             }[kind]
             if snap[1] != parts_version[0]:
                 snap[:] = [parts.snapshot(), parts_version[0]]
-            fut = pool.submit(_job, fn, args, snap[0])
+            try:
+                fut = pool.submit(_job, fn, args, snap[0])
+            except BrokenProcessPool:  # the job goes to the new pool
+                queue.insert(0, (kind, args, n))
+                raise
             running[fut] = (kind, n, time.time())
             if j is None and via_r:
                 from_restart.add(fut)
@@ -692,8 +696,11 @@ def search(
         return process_pool(workers)
 
     def lost(kind: str, n: TNode) -> None:
-        """Mark the node of a job that died with its worker, so the search does not wait for it."""
-        if kind in {"node", "deep"}:
+        """Mark the node of a job that died with its worker, so the search does not wait for it.
+
+        A lost deep job leaves its node as it is: its quick evaluation stands.
+        """
+        if kind == "node":
             n.status = "dead"
         elif kind == "move":
             n.moving = False

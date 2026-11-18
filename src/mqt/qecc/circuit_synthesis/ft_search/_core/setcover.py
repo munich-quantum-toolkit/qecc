@@ -120,7 +120,15 @@ def ls_cover(
     sel: set = set()
     count = np.zeros(n_rows, dtype=np.int64)
     if not cover_greedy(sel, count, noisy=False):
-        return None
+        # a conflict blocked a column some row needs: again, with the only column of each such row chosen first
+        sel, count = set(), np.zeros(n_rows, dtype=np.int64)
+        for j in np.unique(sp[np.asarray(sp.sum(axis=1)).ravel() == 1].indices).tolist():
+            if not allowed(j, sel):
+                return None
+            sel.add(j)
+            count[col_rows[j]] += 1
+        if not cover_greedy(sel, count, noisy=False):
+            return None
     prune(sel, count)
     best, best_cost = set(sel), cost[list(sel)].sum()
     t0 = time.time()

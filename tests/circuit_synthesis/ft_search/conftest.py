@@ -13,6 +13,7 @@ import os
 import sys
 
 import pytest
+from numba import config as numba_config
 
 from mqt.qecc.circuit_synthesis.ft_search._core import memo, parts
 
@@ -22,7 +23,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
     The Linux CI runs, with the compiler, run every test.
     """
-    no_jit = os.environ.get("NUMBA_DISABLE_JIT") == "1"
+    no_jit = bool(getattr(numba_config, "DISABLE_JIT", 0))  # from the environment or a .numba_config.yaml
     other_ci = os.environ.get("CI") is not None and sys.platform != "linux"
     if not (no_jit or other_ci):
         return

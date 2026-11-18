@@ -115,15 +115,18 @@ def coupling_variants(design: Design) -> Iterator[Design]:
                 yield design.with_node(path, nd, f"{'.'.join(map(str, path)) or 'root'}:polish:couple{i}")
 
 
-def full(design: Design, ctx: Context, budget: float) -> list[Design]:
+def full(design: Design, ctx: Context, budget: float, found: list[Design] | None = None) -> list[Design]:
     """Full polish of a new front design: the front of everything found, the input excluded.
 
     The structured stage, then the circuit stage on its result, on the design itself and on its FT coupling-order
-    variants.
+    variants. ``found`` gets every FT candidate as soon as it is verified, so a caller that stops this function at its
+    time limit keeps them.
     """
     stop = time.time() + budget
     s = structured(design, ctx, stop=time.time() + budget / 3)
-    cands = [s] if s is not design else []
+    cands = found if found is not None else []
+    if s is not design:
+        cands.append(s)
     for base in [s, design] if s is not design else [design]:
         if time.time() > stop:
             break

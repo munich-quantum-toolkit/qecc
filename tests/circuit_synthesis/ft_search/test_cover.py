@@ -92,14 +92,38 @@ def test_sparse_leader_matches_dense() -> None:
     assert isinstance(leader_weights(_surface_hx(7), 2), SparseLeader)
 
 
+def _targets(basis: np.ndarray, fails: list[tuple[int, int]], t: int) -> np.ndarray:
+    """The targets of a robust cover: each failure plus each outcome error under which it stays dangerous.
+
+    Args:
+        basis: The rows the syndromes refer to.
+        fails: Pairs of a failure syndrome and its number of faults.
+        t: The largest number of faults.
+
+    Returns:
+        The distinct nonzero target syndromes, sorted.
+    """
+    cols = _pack(basis.T).astype(np.int64)
+    lw = leader_weights(basis, t)
+    tg = set()
+    for f, sv in fails:
+        for k in range(t - sv + 1):
+            for c in itertools.combinations(range(basis.shape[1]), k):
+                x = f ^ (int(np.bitwise_xor.reduce(cols[list(c)])) if c else 0)  # ty: ignore[no-matching-overload]  (numpy stub gap)
+                if x and lw[f] > sv + k:
+                    tg.add(x)
+    return np.array(sorted(tg), dtype=np.int64)
+
+
 def test_robust_cover_on_large_group() -> None:
-    """A robust cover on a large group covers every target."""
+    """A robust cover on a large group covers every target, also after one outcome error."""
     basis = _surface_hx(7)
     rng = np.random.default_rng(0)
     fails = [(int(x), 1) for x in rng.integers(1, 1 << basis.shape[0], size=30)]
     elems = robust_cover_from_failures(basis, fails, 2, time_limit=60)
-    a = parity_matrix(np.array([f for f, _ in fails]), np.array(elems))
-    assert a.any(axis=1).all()
+    tg = _targets(basis, fails, 2)
+    assert len(tg) > len(fails)
+    assert parity_matrix(tg, np.array(elems)).any(axis=1).all()
 
 
 def test_pulled_back_sample_in_group() -> None:
@@ -112,6 +136,14 @@ def test_pulled_back_sample_in_group() -> None:
     g = pulled_back_groups(base, state, [0, len(ops)], max_elems=500)
     assert len(g[len(ops)]["X"]) >= 300
     assert _in_rowspace(basis, g[len(ops)]["X"][:50])
+    pulled = basis.copy()  # X stabilizers before the CNOTs: X on the target spreads back to the control
+    for op in ops:
+        if op.name == "CX":
+            c, t = op.qubits
+            pulled[:, t] ^= pulled[:, c]
+    assert not _in_rowspace(basis, pulled)  # the CNOTs change the group
+    assert len(g[0]["X"]) >= 300
+    assert _in_rowspace(pulled, g[0]["X"][:50])
 
 
 def test_lazy_cover_equals_full_cover_coverage() -> None:
@@ -125,16 +157,6 @@ def test_lazy_cover_equals_full_cover_coverage() -> None:
     full = robust_cover_from_failures(basis, fails, 3, time_limit=60, lazy_targets=10**9)
     lazy = robust_cover_from_failures(basis, fails, 3, time_limit=60, lazy_targets=300)
 
-    cols = _pack(basis.T).astype(np.int64)
-    lw = leader_weights(basis, 3)
-    tg = set()
-    for f, sv in fails:  # targets exactly as in robust_cover_from_failures: still dangerous after the light error
-        for k in range(3 - sv + 1):
-            for c in itertools.combinations(range(basis.shape[1]), k):
-                x = f ^ (int(np.bitwise_xor.reduce(cols[list(c)])) if c else 0)  # ty: ignore[no-matching-overload]  (numpy stub gap)
-                if x and lw[f] > sv + k:
-                    tg.add(x)
-    tg = np.array(sorted(tg), dtype=np.int64)
-    assert parity_matrix(tg, np.array(lazy)).any(axis=1).all()
+    assert parity_matrix(_targets(basis, fails, 3), np.array(lazy)).any(axis=1).all()
     w = lambda es: sum(int(((((e >> np.arange(basis.shape[0])) & 1) @ basis) % 2).sum()) + 1 for e in es)
     assert w(lazy) <= 1.5 * w(full)

@@ -64,7 +64,7 @@ def test_command_synthesizer_reads_the_external_tool_output(tmp_path) -> None:
     script = tmp_path / "tool.sh"
     script.write_text('#!/bin/sh\nprintf "CX 0 1\\n" > "$1/cand_H_0.stim"\n')
     script.chmod(0o755)
-    cands = synth.candidates(H[:1, :2], "ext", 3, synthesizers={"ext": synth.CommandSynthesizer(str(script), "x")})
+    cands = synth.candidates(H[:1, :2], "ext", 3, synthesizers={"ext": synth.CommandSynthesizer([str(script)], "x")})
     assert len(cands) == 1
     assert [op.name for op in cands[0].ops if op.name == "CX"] == ["CX"]  # plus implicit resets
 
@@ -93,6 +93,26 @@ def test_two_tools_under_one_mode_name_are_not_confused() -> None:
     assert second == synth.candidates(H, "tool", 1, synthesizers={"tool": _one_circuit})
 
 
+class _Tool:
+    """A tool whose settings live on the object: the greedy or the random mode."""
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+
+    def run(self, h: np.ndarray, k: int) -> list:
+        return synth.candidates(h, self.mode, k)
+
+    def __repr__(self) -> str:
+        return f"_Tool({self.mode!r})"
+
+
+def test_methods_of_two_tool_objects_are_not_confused() -> None:
+    """The memo tells the same method of two differently set up objects apart."""
+    synth.candidates(H, "tool", 1, synthesizers={"tool": _Tool("greedy").run})
+    second = synth.candidates(H, "tool", 1, synthesizers={"tool": _Tool("random").run})
+    assert second == synth.candidates(H, "random", 1)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="shell script")
 def test_failing_command_reports_its_error_output(tmp_path) -> None:
     """A failing external tool raises a RuntimeError with its error output."""
@@ -100,7 +120,7 @@ def test_failing_command_reports_its_error_output(tmp_path) -> None:
     script.write_text('#!/bin/sh\necho "no license" >&2\nexit 3\n')
     script.chmod(0o755)
     with pytest.raises(RuntimeError, match="no license"):
-        synth.CommandSynthesizer(str(script), "x")(H, 1)
+        synth.CommandSynthesizer([str(script)], "x")(H, 1)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="shell script")
@@ -112,5 +132,5 @@ def test_command_synthesizer_keeps_the_first_k_files_by_number(tmp_path) -> None
         '  j=0; while [ $j -le $i ]; do printf "CX 0 1\\n"; j=$((j + 1)); done > "$1/cand_H_$i.stim"\ndone\n'
     )
     script.chmod(0o755)
-    cands = synth.CommandSynthesizer(str(script), "x")(H[:1, :2], 3)
+    cands = synth.CommandSynthesizer([str(script)], "x")(H[:1, :2], 3)
     assert sorted(sum(op.name == "CX" for op in c.ops) for c in cands) == [1, 2, 3]

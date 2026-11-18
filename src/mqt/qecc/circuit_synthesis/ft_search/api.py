@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
@@ -91,7 +92,7 @@ def synthesize_ft_prep(
         preps: Non-fault-tolerant preparation circuits to start from, on the code's qubits (gates R, RX, H, CX, CZ);
             by default one from each synthesis mode in ``synth``.
         seconds: Wall-clock time of the search; the call returns after it.
-        workers: Worker processes (default: all cores).
+        workers: Worker processes (default: all cores, at most 61 on Windows).
         synth: Synthesis modes for the preparation circuits of the code state and of ancilla states, as
             (mode, circuits per state). Default: one circuit each from "qecc_heuristic", "greedy" and "random"
             (see :mod:`.synth`).
@@ -140,7 +141,11 @@ def synthesize_ft_prep(
             msg = f"start circuit {i} does not prepare the logical {'zero' if zero_state else 'plus'} state: {e}"
             raise ValueError(msg) from e
         start.append(Design(make_node("D", c, state, origin=f"prep{i}"), t))
-    front = search(start, ctx, profile(t), workers=workers or os.cpu_count() or 1, time_limit=seconds)
+    if not workers:
+        workers = os.cpu_count() or 1
+        if sys.platform == "win32":
+            workers = min(workers, 61)  # the largest process pool on Windows
+    front = search(start, ctx, profile(t), workers=workers, time_limit=seconds)
     out: dict[tuple[int, int], FrontCircuit] = {}
     for s in front:  # several designs can share a front point: one of them is kept
         m = s["metrics"]

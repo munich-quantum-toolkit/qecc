@@ -34,6 +34,8 @@ from .solvers import BlockSolver, CrigerSolver, QeccSolver, scope_slack
 from .verify import weighted_failures
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .config import Context
 
 
@@ -72,13 +74,22 @@ def _finish(
     ctx: Context,
     lams: tuple[float, ...],
     deadline: float | None = None,
+    on_out: Callable[[str, Design], object] | None = None,
 ) -> list[tuple[str, Design]]:
     """Finish a design per λ: known parts on the open ancillas, then the profile's finishers.
 
     With nested block rounds also once with the scopes that have blocks kept, so the nested structure is finished
-    rather than swapped for known parts. ``deadline``: no further λ after it. Returns (label, design) pairs.
+    rather than swapped for known parts. ``deadline``: no further λ after it. ``on_out``: called with each result as
+    soon as it is found. Returns (label, design) pairs.
     """
-    outs, seen = [], set()
+    outs: list[tuple[str, Design]] = []
+    seen = set()
+
+    def add(lab: str, d: Design) -> None:
+        outs.append((lab, d))
+        if on_out is not None:
+            on_out(lab, d)
+
     keeps = (False, True) if profile(design.t).block_rounds > 1 else (False,)
     for lam in sorted(lams, key=lambda x: x != ctx.lam):
         if deadline is not None and outs and time.time() > deadline:
@@ -91,16 +102,16 @@ def _finish(
             seen.add(d.key())
             pre = f"{'keep' if keep else 'parts'}{n}"
             if _ok(d):
-                outs.append((pre, d))
+                add(pre, d)
                 continue
             for fin in profile(design.t).finishers:
                 d2 = _greedy_fix(d, c) if fin == "greedy" else _criger_fix(d, c)[1]
                 if d2 is not None:
-                    outs.append((f"{pre}+{fin}" if n or keep else fin, d2))
+                    add(f"{pre}+{fin}" if n or keep else fin, d2)
                     break
             if d.root.blocks and (deadline is None or time.time() < deadline):
                 for lab, x in _joint(d, c):
-                    outs.append((f"{pre}+{lab}" if n or keep else lab, x))
+                    add(f"{pre}+{lab}" if n or keep else lab, x)
     return outs
 
 
@@ -399,13 +410,13 @@ def complete(
         return items
 
     if evaluate_cached(design).ok:
-        raw = [("as-is", design)]
+        raw = keep([("as-is", design)])
     else:
         c = dataclasses.replace(ctx, ilp_time=min(ctx.ilp_time, profile(design.t).rollout_ilp_time))
         budget = quick_budget if quick_budget is not None else profile(design.t).rollout_budget
         deadline = None if budget is None else time.time() + budget
         hard = None if budget is None else time.time() + 2 * budget  # lead chains: at most twice the budget
-        raw = keep(_finish(design, c, ctx.extreme_lams(), deadline=deadline))
+        raw = _finish(design, c, ctx.extreme_lams(), deadline=deadline, on_out=lambda lx, x: keep([(lx, x)]))
         # the block step, repeated on its chains for ``Profile.block_rounds`` rounds
         todo = [(design, "", tuple(c.extreme_lams()), profile(design.t).block_rounds)]
         while todo:
@@ -418,7 +429,12 @@ def complete(
                 lead = lead and (hard is None or time.time() < hard)
                 in_time = deadline is None or time.time() < deadline
                 if lams and (in_time or lead):
-                    raw += keep([(f"{lab}+{lx}", x) for lx, x in _finish(d1, c, lams, deadline=deadline)])
+                    raw += [
+                        (f"{lab}+{lx}", x)
+                        for lx, x in _finish(
+                            d1, c, lams, deadline=deadline, on_out=lambda lx, x, lab=lab: keep([(f"{lab}+{lx}", x)])
+                        )
+                    ]
                     if rounds > 1:
                         todo.append((d1, lab, lams, rounds - 1))
                 if partials is not None:

@@ -102,8 +102,16 @@ class Gadget:
 
 
 def layered_base(circ: Circuit) -> tuple[Circuit, list[int]]:
-    """Same prep with ops in ASAP-layer order; returns (circuit, base positions of layer boundaries)."""
+    """Same prep with ops in ASAP-layer order; returns (circuit, base positions of layer boundaries).
+
+    Raises:
+        ValueError: A reset or H acts on a qubit after a CNOT on it (layering moves these ops before all CNOTs).
+    """
     lay = layering(circ)
+    for op, end in zip(circ.ops, lay.slice_of_op, strict=True):
+        if op.name != "CX" and end > 0:
+            msg = f"{op.name} after a CNOT on qubit {op.qubits[0]} is not supported"
+            raise ValueError(msg)
     pre = [op for op in circ.ops if op.name != "CX"]
     ops = pre + [Op("CX", g) for t in range(1, lay.depth + 1) for g in lay.gates[t]]
     bounds = [len(pre)]
@@ -457,7 +465,13 @@ class CheckCoverage:
         # a new flag (j, k) on a gadget flips iff the ancilla's frame differs right before couplings j and k: its two
         # flag CXs come last among the ops there and it touches nothing else. One probe per coupling (``flag_probes``)
         probes, self.probe_col = flag_probes(circ, gadgets, space.base.num_qubits, flag_on)
-        self.tab = fault_table(circ, record_at=sorted(set(where.values())), frame_qubits=space.base.data, probes=probes)
+        # frames only at the base positions that candidates read (one copy per position: all of them can take GBs)
+        need = {*space.positions, *space.last_loc.values()} | {
+            p for els in space.gauge.values() for e in els for p, _ in e
+        }
+        self.tab = fault_table(
+            circ, record_at=sorted({where[p] for p in need}), frame_qubits=space.base.data, probes=probes
+        )
         self.combos = Combos(rep, fault_classes(circ, state), max_combos=MAX_COMBOS, seed=seed)
 
     def frame(self, p: int, kind: str) -> np.ndarray:

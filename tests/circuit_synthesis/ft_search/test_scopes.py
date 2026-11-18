@@ -50,7 +50,9 @@ def test_late_greedy_protects_unprotected_ancillas_jointly(start) -> None:
     assert outs
     x = outs[0][1]
     assert evaluate_cached(x).ok
-    assert all(g.late for g in x.root.gadgets[len(bd.root.gadgets) :])
+    added = x.root.gadgets[len(bd.root.gadgets) :]
+    assert added
+    assert all(g.late for g in added)
 
 
 def test_part_cost_counts_depth_beyond_slack() -> None:
@@ -89,6 +91,10 @@ def test_gadgets_inside_a_base_with_detectors(start) -> None:
             g = Gadget(kind, p, [int(i) for i in np.flatnonzero(rows[np.argmin(rows.sum(axis=1))])])
             c, _ = build(base, [g])
             check_noiseless(c, state)  # the base's renumbered detectors and the new check all deterministic 0
+            rec = [op.qubits[0] for op in c.ops if op.name in {"M", "MX", "MR"}]  # measured qubit per record
+            a, b = rec.index(base.num_qubits - 2), rec.index(base.num_qubits - 1)
+            assert c.detectors is not None
+            assert c.detectors[:2] == [[a, b], [b]]  # still the base's two measurements
             n_checked += 1
     assert n_checked > 4
 

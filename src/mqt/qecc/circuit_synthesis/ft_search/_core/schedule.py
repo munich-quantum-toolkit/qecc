@@ -53,8 +53,8 @@ def schedule(circ: Circuit, *, seed: int = 0, noise: float = 0.0, keep_prep_orde
     """List schedule of ``circ`` with critical-path priorities, perturbed by ``noise`` (seeded).
 
     Each layer takes non-conflicting ready two-qubit gates by priority; other ops take no time. Detectors follow the
-    new measurement order. ``keep_prep_order``: data-data CNOTs keep their relative order (the fault structure of the
-    preparation circuit is unchanged).
+    new measurement order. ``keep_prep_order``: data-data CNOTs that share a qubit keep their relative order (the fault
+    structure of the preparation circuit is unchanged).
     """
     rng = np.random.default_rng(seed)
     ops = circ.ops

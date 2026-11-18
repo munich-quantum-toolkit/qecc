@@ -186,20 +186,28 @@ def to_qecc_prep(circ: Circuit, t: int) -> FaultyStatePrepCircuit:
 
 
 def to_cnot_circuit(circ: Circuit) -> CNOTCircuit:
-    """A non-fault-tolerant preparation circuit (resets, H before any CX, CX) as a ``CNOTCircuit`` (R + H -> RX)."""
-    plus, touched = set(), set()
+    """A non-fault-tolerant preparation circuit (resets, H before any CX, CX) as a ``CNOTCircuit`` (R + H -> RX).
+
+    Raises:
+        ValueError: An op other than R, RX, H and CX, or an R, RX or H on a qubit after a CX on it.
+    """
+    plus: set[int] = set()
+    touched: set[int] = set()
     for op in circ.ops:
-        if op.name == "H" and op.qubits[0] not in touched:
-            plus.add(op.qubits[0])
-        elif op.name == "CX":
+        if op.name == "CX":
             touched.update(op.qubits)
-        elif op.name not in {"R", "RX", "H"}:
-            msg = f"unexpected {op.name} in a CNOT preparation circuit"
+            continue
+        if op.name not in {"R", "RX", "H"} or touched.intersection(op.qubits):
+            msg = f"unexpected {op.name} {op.qubits} in a CNOT preparation circuit"
             raise ValueError(msg)
+        for q in op.qubits:  # each qubit's initialization in order: R -> |0>, RX -> |+>, H swaps them
+            if op.name == "R":
+                plus.discard(q)
+            elif op.name == "RX":
+                plus.add(q)
+            else:
+                plus ^= {q}
     s = stim.Circuit()
-    for op in circ.ops:
-        if op.name == "RX":
-            plus.add(op.qubits[0])
     for q in range(circ.num_qubits):
         s.append("RX" if q in plus else "R", [q])
     for op in circ.ops:

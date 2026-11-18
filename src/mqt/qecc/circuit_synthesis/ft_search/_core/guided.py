@@ -184,7 +184,8 @@ def cancel_reference(before: Circuit, spec: BlockSpec, state: CSSState, t: int) 
     rows = [np.nonzero(e)[0] for e in err]
     ws = np.array([int(np.bitwise_xor.reduce(cw[r])) if len(r) else 0 for r in rows], dtype=np.int64)  # ty: ignore[no-matching-overload]  (numpy stub gap)
     ms = np.array([int(np.bitwise_xor.reduce(cm[r])) if len(r) else 0 for r in rows], dtype=np.int64)  # ty: ignore[no-matching-overload]  (numpy stub gap)
-    flips = [bytes(f) if f.any() else b"" for f in tab.flips]
+    det = (tab.flips.astype(np.int64) @ before.detector_matrix().T.astype(np.int64)) % 2  # detector bits per fault
+    flips = [bytes(f) if f.any() else b"" for f in det.astype(np.uint8)]
     one: dict = {}
     two: dict = {}
     sel = [i for i in range(len(rows)) if ms[i] or ws[i]]

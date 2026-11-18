@@ -22,6 +22,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.ft_search._core.blocks import BlockSpec
 from mqt.qecc.circuit_synthesis.ft_search._core.design import Design, ancilla_states, local_check, make_node
+from mqt.qecc.circuit_synthesis.ft_search._core.faults import fault_table
 from mqt.qecc.circuit_synthesis.ft_search._core.verify import (
     CSSState,
     WeightedTarget,
@@ -129,8 +130,12 @@ def test_single_ancilla_fault_is_dangerous(code) -> None:
         d = _design(state, prep, [_grouped(_pair(state, kind), kind)])
         anc = d.root.blocks[0][1]
         assert not local_check(anc, 2).ok
-        rep = check_ft(d.circuit(), state, 2)
-        assert rep.failures[1] > 0
+        circ = d.circuit()
+        rep = check_ft(circ, state, 2, collect=True)
+        table = fault_table(circ)
+        assert circ.tags is not None
+        # the bare prep fails on its own: require a failing single fault in the ancilla circuit (provenance tag "a")
+        assert any(len(r) == 1 and circ.tags[int(table.op_index[r[0]])][0] == "a" for r in rep.failing_reps)
 
 
 def test_weighted_target_needs_its_matrices() -> None:

@@ -49,7 +49,7 @@ def _solver_key(solver: Solver, design: Design, path: tuple[int, ...], ctx: Cont
 
 def _stored(circ: Circuit, state: CSSState, t: int) -> tuple[str, tuple | None]:
     """The memo key of the check of ``circ`` and its stored result (``check_cached``), if any."""
-    key = memo.digest(str(circ.to_stim()), *target_key(state), t)
+    key = memo.digest(str(circ.to_stim()), circ.data, circ.detectors is None, *target_key(state), t)
     return key, cast("tuple | None", memo.get("check", key))
 
 
@@ -85,6 +85,8 @@ def check_cached(circ: Circuit, state: CSSState, t: int) -> tuple:
     if hit is None:
         try:
             check_noiseless(circ, state)
+        except MemoryError:  # not a verdict on the circuit: a later check may succeed
+            raise
         except Exception as e:  # ruff: ignore[blind-except]
             hit = ("error", f"{type(e).__name__}: {str(e)[:300]}")
         else:
