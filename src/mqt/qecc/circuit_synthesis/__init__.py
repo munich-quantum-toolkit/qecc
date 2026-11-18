@@ -20,6 +20,7 @@ from .encoding import (
     gottesman_encoding_circuit,
     synthesize_encoding_circuit,
 )
+from .ft_search import FrontCircuit, synthesize_ft_prep
 from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSequential
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
 from .state_prep import (
@@ -49,6 +50,7 @@ __all__ = [
     "DeterministicVerification",
     "DeterministicVerificationHelper",
     "FaultyStatePrepCircuit",
+    "FrontCircuit",
     "LutDecoder",
     "SteaneNDFTStatePrepSimulator",
     "SynthesisConfig",
@@ -71,5 +73,6 @@ __all__ = [
     "qiskit_to_stim_circuit",
     "synthesize_cnot",
     "synthesize_encoding_circuit",
+    "synthesize_ft_prep",
     "synthesize_non_css",
 ]

@@ -27,7 +27,8 @@ logical qubits into $n$ physical qubits.
 :link-type: doc
 
 Synthesis and simulation of fault-tolerant and non-fault-tolerant circuits
-preparing logical Pauli eigenstates of arbitrary $[[n,k,d]]$ CSS codes.
+preparing logical Pauli eigenstates of arbitrary $[[n,k,d]]$ CSS codes,
+including a search for the front of circuits over depth and size.
 :::
 
 :::{grid-item-card} Cat State Preparation

@@ -233,6 +233,69 @@ ft_simulator.plot_state_prep(
 cc_simulator.plot_state_prep(ps, min_errors=50, p_idle_factor=0.01)
 ```
 
+## Trading size against depth
+
+The verification circuits above use as few CNOTs as possible, but they can be
+deep. Shallower circuits need more measurements and ancilla qubits. The front
+search finds this trade-off: for each CNOT depth, the fault tolerant circuit
+with the fewest CNOTs plus measurements that it can find. We call this set of
+circuits a _front_.
+
+### Check types
+
+The circuits combine three kinds of checks, all used for post-selection:
+
+- **Single checks:** one ancilla qubit measures one stabilizer, as in the
+  verification circuits above. Cheap, but each check adds depth.
+- **Flags:** an extra ancilla qubit on a single check catches a hook error, as
+  in the previous section.
+- **Block checks:** several stabilizers are measured at once through a prepared
+  ancilla state on several qubits. This takes few CNOT layers but more ancilla
+  qubits. The ancilla state can itself spread errors to the data, so it gets its
+  own checks, again of any of the three kinds.
+
+### How the search works
+
+- A candidate circuit is a tree. The root is a non-fault tolerant preparation
+  circuit; each node adds checks, flags or blocks, and each block's ancilla
+  state is a child node.
+- A tree search on several worker processes combines the check types and keeps
+  every circuit that improves the front.
+- Fast procedures, such as an integer program that chooses the checks, complete
+  partial candidates. A final pass removes redundant checks, shares flags
+  between checks and reorders gates.
+- Every returned circuit is checked exactly: each set of up to
+  $t = \lfloor (d-1)/2 \rfloor$ faults (at most 3) is either detected or leaves
+  only correctable errors.
+
+### Example
+
+```{code-cell} ipython3
+from mqt.qecc.circuit_synthesis import synthesize_ft_prep
+
+front = synthesize_ft_prep(steane_code, seconds=20, workers=2)
+for f in front:
+    print(f"depth {f.depth}: {f.cnots} CNOTs, {f.measurements} measurements, {f.qubits} qubits")
+```
+
+Each entry holds a `stim.Circuit`. Its checks are `DETECTOR` instructions (a
+check can be the parity of several measurements), and the simulator above
+post-selects on them:
+
+```{code-cell} ipython3
+front_simulator = VerificationNDFTStatePrepSimulator(front[-1].circuit, code=steane_code, zero_state=True)
+pl_front, ra_front, _, _ = front_simulator.logical_error_rate(noise, min_errors=10)
+print(f"Logical error rate of the front circuit with the fewest operations: {pl_front}")
+```
+
+Notes:
+
+- Codes of distance 5 and 7 need hours on many cores.
+- `synthesize_ft_prep` can also start from given preparation circuits, prepare
+  $|+\rangle_L$ and use other synthesis tools; see its API documentation.
+- It starts worker processes, so in a script call it inside an
+  `if __name__ == "__main__":` block.
+
 ## Deterministic state preparation ($d < 5$)
 
 A possible disadvantage of the above approach is that the verification circuits

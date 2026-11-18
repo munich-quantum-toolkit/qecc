@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
+import stim
 
 from mqt.qecc import CSSCode
 from mqt.qecc.circuit_synthesis import (
@@ -301,3 +302,53 @@ def test_steane_type_ftsp_one_ancilla(steane_code: CSSCode, non_ft_steane_zero: 
     p_l_correction, _, _, _ = simulator.secondary_logical_error_rate(noise, p, min_errors=10)
 
     assert p_l_correction - tol < lower
+
+
+def _steane_zero_with_flipped_pair(steane_code: CSSCode) -> stim.Circuit:
+    """A Steane zero-state preparation plus two extra qubits that are always measured as 1."""
+    circ = heuristic_prep_circuit(steane_code).circ.to_stim_circuit()
+    circ.append("X", [7, 8])
+    circ.append("M", [7, 8])
+    return circ
+
+
+def test_verification_simulator_accepts_on_detector_parity(steane_code: CSSCode) -> None:
+    """With detectors, a shot is accepted if every detector parity is 0, even if single measurements are 1."""
+    with_detector = _steane_zero_with_flipped_pair(steane_code)
+    with_detector.append("DETECTOR", [stim.target_rec(-1), stim.target_rec(-2)])
+    simulator = VerificationNDFTStatePrepSimulator(with_detector, steane_code)
+    _, accepted, errors, _ = simulator.logical_error_rate(
+        make_uniform_error_model(0.0), shots=100, shots_per_batch=100, at_least_min_errors=False
+    )
+    assert accepted == 1.0  # ruff: ignore[float-equality-comparison]  (no noise: every parity is 0)
+    assert errors == 0
+
+    without_detector = _steane_zero_with_flipped_pair(steane_code)
+    simulator = VerificationNDFTStatePrepSimulator(without_detector, steane_code)
+    _, accepted, _, _ = simulator.logical_error_rate(
+        make_uniform_error_model(0.0), shots=100, shots_per_batch=100, at_least_min_errors=False
+    )
+    assert accepted == 0.0  # ruff: ignore[float-equality-comparison]  (every shot measures a 1)
+
+
+def test_max_shots_stops_sampling(steane_code: CSSCode) -> None:
+    """Sampling stops at ``max_shots`` even when fewer than ``min_errors`` logical errors were found."""
+    simulator = VerificationNDFTStatePrepSimulator(
+        heuristic_prep_circuit(steane_code).circ.to_stim_circuit(), steane_code
+    )
+    _, _, errors, shots = simulator.logical_error_rate(
+        make_uniform_error_model(0.0), shots=100, shots_per_batch=100, min_errors=10, max_shots=300
+    )
+    assert errors == 0
+    assert shots == 300
+
+
+def test_shot_count_matches_the_requested_shots(steane_code: CSSCode) -> None:
+    """Without ``min_errors``, the simulation reports the shots it sampled."""
+    simulator = VerificationNDFTStatePrepSimulator(
+        heuristic_prep_circuit(steane_code).circ.to_stim_circuit(), steane_code
+    )
+    *_, shots = simulator.logical_error_rate(
+        make_uniform_error_model(0.001), shots=300, shots_per_batch=100, at_least_min_errors=False
+    )
+    assert shots == 300
