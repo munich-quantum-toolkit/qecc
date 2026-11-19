@@ -288,6 +288,37 @@ pl_front, ra_front, _, _ = front_simulator.logical_error_rate(noise, min_errors=
 print(f"Logical error rate of the front circuit with the fewest operations: {pl_front}")
 ```
 
+The circuits that long runs found for codes up to distance 7 are listed under
+[Circuits and Evaluations](#circuits-and-evaluations). For the $[[17, 1, 5]]$
+color code, the front compares with the verification circuit from above as
+follows:
+
+```{code-cell} ipython3
+:tags: [remove-input]
+import csv
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+
+index = Path("../scripts/ft_stateprep/front_search/index.csv")
+rows = [r for r in csv.DictReader(index.open()) if r["code"] == "color_17_1_5"]
+rows.sort(key=lambda r: (int(r["depth"]), int(r["ops"])))
+rows = [r for i, r in enumerate(rows) if all(int(r["ops"]) < int(q["ops"]) for q in rows[:i])]  # front only
+depths = [int(r["depth"]) for r in rows]
+ops = [int(r["ops"]) for r in rows]
+
+verified_ops = cc_ft_sp.count_ops().get("cx", 0) + cc_ft_sp.count_ops().get("measure", 0)
+verified_depth = cc_ft_sp.depth(lambda instr: instr.operation.num_qubits == 2)
+
+fig, ax = plt.subplots(figsize=(5, 3.2))
+ax.step(depths, ops, where="post", marker="o", label="front search")
+ax.plot([verified_depth], [verified_ops], "s", label="verification circuit from above")
+ax.set_xlabel("CNOT depth")
+ax.set_ylabel("CNOTs + measurements")
+ax.legend()
+plt.show()
+```
+
 Notes:
 
 - Codes of distance 5 and 7 need hours on many cores.
@@ -424,4 +455,7 @@ The circuits and benchmark scripts used for our non-deterministic work
 [on GitHub](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/ft_stateprep/eval)
 and for the deterministic work {cite:labelpar}`schmid2024deterministic`
 [on GitHub](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/ft_stateprep/eval_det)
-as well.
+as well. The circuits found by long runs of the front search, for codes up to
+distance 7, are
+[on GitHub](https://github.com/munich-quantum-toolkit/qecc/tree/main/scripts/ft_stateprep/front_search),
+together with the codes and a script that simulates them.
