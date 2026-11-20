@@ -100,7 +100,7 @@ def extract_clifford_gate_count_circuit(
         inv_name, inv_qubits = gate_inst.inverse_stim_gate()
         stim_circuit.append(inv_name, inv_qubits)
 
-    return CliffordIsometry.from_stim_circuit(stim_circuit)
+    return CliffordIsometry.from_stim_circuit(stim_circuit, n=n)
 
 
 def extract_clifford_depth_circuit(
@@ -162,7 +162,7 @@ def extract_clifford_depth_circuit(
             inv_name, inv_qubits = gate_inst.inverse_stim_gate()
             stim_circuit.append(inv_name, inv_qubits)
 
-    return CliffordIsometry.from_stim_circuit(stim_circuit)
+    return CliffordIsometry.from_stim_circuit(stim_circuit, n=n)
 
 
 def extract_cnot_gate_count_circuit(

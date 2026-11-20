@@ -700,3 +700,53 @@ def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_c
     expected_z = Pauli.from_pauli_string("ZZZZZ")
     assert five_qubit_code.stabilizer_equivalent(x, expected_x), "Logical X operator does not match expected."
     assert five_qubit_code.stabilizer_equivalent(z, expected_z), "Logical Z operator does not match expected."
+
+
+def test_isometry_from_stim_circuit_explicit_num_qubits() -> None:
+    """Test that `from_stim_circuit` keeps qubits that no gate of the circuit touches."""
+    circ = stim.Circuit("R 0 1\nH 1 0\nCZ 0 1")
+
+    iso = CliffordIsometry.from_stim_circuit(circ)
+    assert iso.num_qubits() == 2
+    assert iso.num_outputs() == 2
+    assert iso.num_inputs() == 0
+
+    # qubit 2 is not mentioned by the circuit and has to be given explicitly
+    iso = CliffordIsometry.from_stim_circuit(circ, n=3)
+    assert iso.num_qubits() == 3
+    assert iso.num_outputs() == 3
+    assert iso.num_inputs() == 1
+    assert iso.inputs() == [2]
+    assert iso.get_uninitialized() == [2]
+    assert iso.get_code().n == 3
+    assert iso.to_qiskit_circuit().num_qubits == 3
+    x, z = iso.get_logical(0)
+    assert x == Pauli.from_pauli_string("IIX")
+    assert z == Pauli.from_pauli_string("IIZ")
+
+
+def test_isometry_from_stim_circuit_num_qubits_too_small() -> None:
+    """Test that `from_stim_circuit` rejects a qubit count smaller than the circuit."""
+    circ = stim.Circuit("R 0 1\nH 1 0\nCZ 0 1")
+    with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
+        CliffordIsometry.from_stim_circuit(circ, n=1)
+
+
+def test_cnot_circuit_from_stim_circuit_explicit_num_qubits() -> None:
+    """Test that `CNOTCircuit.from_stim_circuit` keeps qubits that no gate of the circuit touches."""
+    circ = stim.Circuit("R 1\nCX 0 1")
+
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ)
+    assert cnot_circuit.num_qubits() == 2
+    assert cnot_circuit.inputs() == [0]
+
+    # qubit 2 is not mentioned by the circuit and has to be given explicitly
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ, n=3)
+    assert cnot_circuit.num_qubits() == 3
+    assert cnot_circuit.num_outputs() == 3
+    assert cnot_circuit.outputs() == [0, 1, 2]
+    assert cnot_circuit.inputs() == [0, 2]
+    assert cnot_circuit.to_qiskit_circuit().num_qubits == 3
+
+    with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
+        CNOTCircuit.from_stim_circuit(circ, n=1)

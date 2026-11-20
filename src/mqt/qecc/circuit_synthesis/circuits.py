@@ -49,7 +49,7 @@ class CliffordIsometry:
         if idx >= self.num_inputs():
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
-        tab = self.to_stim_circuit().to_tableau(ignore_reset=True)
+        tab = self._padded_stim_circuit().to_tableau(ignore_reset=True)
         pauli_stim = tab.x_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
 
@@ -66,7 +66,7 @@ class CliffordIsometry:
             msg = "Given index is not a logical qubit index."
             raise ValueError(msg)
 
-        tab = self.to_stim_circuit().to_tableau(ignore_reset=True)
+        tab = self._padded_stim_circuit().to_tableau(ignore_reset=True)
         pauli_stim = tab.z_output(self._inputs[idx])
         return Pauli.from_stim(pauli_stim)
 
@@ -109,7 +109,7 @@ class CliffordIsometry:
         # remove resets and remember basis
         circ_no_reset = stim.Circuit()
         basis = {}
-        for gate in self.to_stim_circuit():
+        for gate in self._padded_stim_circuit():
             assert isinstance(gate, stim.CircuitInstruction)
             if gate.name not in {"R", "RX", "RZ"}:
                 circ_no_reset.append(gate)
@@ -134,17 +134,28 @@ class CliffordIsometry:
         )
 
     @classmethod
-    def from_stim_circuit(cls, circ: stim.Circuit) -> CliffordIsometry:
+    def from_stim_circuit(cls, circ: stim.Circuit, n: int | None = None) -> CliffordIsometry:
         """Construct Clifford isometry from stim Circuit.
 
         Args:
             circ: Stim Circuit representing the isometry.
+            n: Number of qubits the isometry acts on. A `stim.Circuit` is only as wide as the
+                highest qubit index it mentions, so trailing qubits that no gate touches cannot
+                be recovered from `circ` alone and have to be given here. If `None`, the number
+                of qubits is derived from `circ`.
 
         Returns:
             Clifford isometry.
+
+        Raises:
+            ValueError: If `n` is smaller than the number of qubits of `circ`.
         """
         iso = CliffordIsometry()
-        n = circ.num_qubits
+        if n is None:
+            n = circ.num_qubits
+        elif n < circ.num_qubits:
+            msg = f"Given number of qubits {n} is smaller than the number of qubits of the circuit {circ.num_qubits}."
+            raise ValueError(msg)
         iso._outputs = list(range(n))
         stripped = stim.Circuit()
 
@@ -172,7 +183,9 @@ class CliffordIsometry:
             with_resets: If set to `True`, includes resets in the |0> and |+> states for initialized qubits in the stim circuit.
 
         Returns:
-            A stim.Circuit representation of the isometry.
+            A stim.Circuit representation of the isometry. Note that a `stim.Circuit` is only as
+            wide as the highest qubit index it mentions, so it can span fewer than
+            :meth:`num_qubits` qubits if no gate touches the trailing qubits of the isometry.
         """
         if not with_resets:
             return self._circ.copy()
@@ -184,6 +197,24 @@ class CliffordIsometry:
         result += self._circ
 
         return result
+
+    def _padded_stim_circuit(self, with_resets: bool = True) -> stim.Circuit:
+        """Get the stim Circuit implementing the isometry, padded to span all qubits of the isometry.
+
+        A trailing identity gate is appended if necessary so that the circuit, and hence any
+        tableau derived from it, spans all :meth:`num_qubits` qubits of the isometry.
+
+        Args:
+            with_resets: If set to `True`, includes resets in the |0> and |+> states for initialized qubits in the stim circuit.
+
+        Returns:
+            A stim.Circuit representation of the isometry spanning :meth:`num_qubits` qubits.
+        """
+        circ = self.to_stim_circuit(with_resets=with_resets)
+        n = self.num_qubits()
+        if circ.num_qubits < n:
+            circ.append("I", [n - 1])
+        return circ
 
     def outputs(self) -> list[int]:
         """Get output qubits."""
@@ -213,8 +244,24 @@ class CliffordIsometry:
         """
         circ = QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
         if remove_resets:
-            return RemoveResetInZeroState()(circ)
-        return circ
+            circ = RemoveResetInZeroState()(circ)
+        return self._pad_qiskit_circuit(circ)
+
+    def _pad_qiskit_circuit(self, circ: QuantumCircuit) -> QuantumCircuit:
+        """Add the qubits of the isometry that the given qiskit circuit does not span back as idle qubits.
+
+        Args:
+            circ: The qiskit circuit built from the stim circuit of the isometry.
+
+        Returns:
+            A qiskit circuit spanning :meth:`num_qubits` qubits.
+        """
+        n = self.num_qubits()
+        if circ.num_qubits >= n:
+            return circ
+        padded = QuantumCircuit(n)
+        padded.compose(circ, qubits=range(circ.num_qubits), inplace=True)
+        return padded
 
     def num_inputs(self) -> int:
         """Get number of logical inputs."""
@@ -284,7 +331,7 @@ class CliffordIsometry:
         Returns:
             The total number of qubits.
         """
-        return int(self.to_stim_circuit().num_qubits)
+        return max(int(self.to_stim_circuit().num_qubits), self.num_outputs())
 
     def is_state(self) -> bool:
         """Check if all qubits used in the circuit are initialized.
@@ -405,8 +452,8 @@ class CNOTCircuit(CliffordIsometry):
         """
         circ = QuantumCircuit.from_qasm_str(self.to_stim_circuit().to_qasm(open_qasm_version=2))
         if remove_resets:
-            return RemoveResetInZeroState()(circ)
-        return circ
+            circ = RemoveResetInZeroState()(circ)
+        return self._pad_qiskit_circuit(circ)
 
     @classmethod
     def from_qiskit_circuit(
@@ -462,17 +509,27 @@ class CNOTCircuit(CliffordIsometry):
         return cnot_circuit
 
     @classmethod
-    def from_stim_circuit(cls, circ: stim.Circuit) -> CNOTCircuit:
+    def from_stim_circuit(cls, circ: stim.Circuit, n: int | None = None) -> CNOTCircuit:
         """Construct a CNOT circuit from a `stim.Circuit` object.
 
         Generally, circ must contain only CNOT gates and initializations in the Z- or X-basis.
 
         Args:
             circ: The `stim.Circuit` to construct the CNOT circuit from.
+            n: Number of qubits the circuit acts on. A `stim.Circuit` is only as wide as the
+                highest qubit index it mentions, so trailing qubits that no gate touches cannot
+                be recovered from `circ` alone and have to be given here. If `None`, the number
+                of qubits is derived from `circ`.
 
         Returns:
             CNOTCircuit representation of the input circuit.
+
+        Raises:
+            ValueError: If `n` is smaller than the number of qubits of `circ`.
         """
+        if n is not None and n < circ.num_qubits:
+            msg = f"Given number of qubits {n} is smaller than the number of qubits of the circuit {circ.num_qubits}."
+            raise ValueError(msg)
         cnot_circuit = cls()
         initialized = [False for _ in range(circ.num_qubits)]
         for gate in circ:
@@ -507,6 +564,10 @@ class CNOTCircuit(CliffordIsometry):
                 else:
                     msg = f"Unsupported gate {name} in the circuit."
                     raise ValueError(msg)
+
+        if n is not None:
+            # qubits that the circuit does not mention are idle inputs
+            cnot_circuit._inputs.extend(range(circ.num_qubits, n))
 
         return cnot_circuit
 
