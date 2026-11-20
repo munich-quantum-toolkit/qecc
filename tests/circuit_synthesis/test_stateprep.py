@@ -350,6 +350,17 @@ def test_full_ft_heuristic_cc5(color_code_d5_sp: FaultyStatePrepCircuit) -> None
     assert circ_ver.num_nonlocal_gates() == n_cnots + circ.circ.num_cnots()
 
 
+@pytest.mark.parametrize(("state", "verify_x_first"), [("all_plus", True), ("all_plus", False), ("all_zero", False)])
+def test_only_first_layer_without_measurements(state: str, verify_x_first: bool) -> None:
+    """Test that only verifying the first layer works if that layer requires no measurement."""
+    sp_circ = heuristic_prep_circuit(CSSCode.from_code_name("Shor"), state=state)
+    circ_ver = heuristic_verification_circuit(sp_circ, only_first_layer=True, verify_x_first=verify_x_first)
+
+    # no verification stabilizers are required, so the circuit is left unchanged
+    assert circ_ver.num_qubits == sp_circ.num_qubits
+    assert circ_ver.num_nonlocal_gates() == sp_circ.circ.num_cnots()
+
+
 @pytest.mark.parametrize("logical_state", ["00", "0+", "+0", "++"])
 def test_heuristic_custom_logical_state(logical_state: str, css_4_2_2_code: CSSCode) -> None:
     """Test preparation of custom logical states."""

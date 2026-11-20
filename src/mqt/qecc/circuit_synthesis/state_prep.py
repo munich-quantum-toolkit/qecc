@@ -498,21 +498,18 @@ def _verification_circuit(
 
     layers_1 = verification_stabs_fun(first_fault_sets, first_checks)
     measurements_1 = [measurement for layer in layers_1 for measurement in layer]
-    if not flag_first_layer:
-        if measurements_1:
+    if only_first_layer:
+        measurements_2 = []
+    else:
+        if not flag_first_layer and measurements_1:
+            # the hook errors of the first layer are not flagged, so they have to be caught by the second layer
             additional_errors = get_hook_errors(measurements_1)
-            extended_fault_sets = sp_circ.combine_faults(
-                additional_faults=additional_errors, x_errors=not verify_x_first
+            second_fault_sets = sp_circ.combine_faults(
+                additional_faults=additional_errors,
+                x_errors=not verify_x_first,
             )
-        else:
-            extended_fault_sets = second_fault_sets
-
-        if not only_first_layer:
-            layers_2 = verification_stabs_fun(extended_fault_sets, second_checks)
-    elif not only_first_layer:
         layers_2 = verification_stabs_fun(second_fault_sets, second_checks)
-
-    measurements_2 = [measurement for layer in layers_2 for measurement in layer] if not only_first_layer else []
+        measurements_2 = [measurement for layer in layers_2 for measurement in layer]
 
     z_measurements = measurements_1 if verify_x_first else measurements_2
     x_measurements = measurements_2 if verify_x_first else measurements_1
@@ -545,9 +542,9 @@ def gate_optimal_verification_circuit(
         min_timeout: The minimum time to allow each search to run for.
         max_timeout: The maximum time to allow each search to run for.
         max_ancillas: The maximum number of ancillas to allow in each layer verification circuit.
-        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument.
+        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument. Since the hook errors of the first layer are then neither flagged nor caught by a second layer, this is only sound if the unverified error type acts trivially on the prepared state, e.g. Z errors when preparing a logical :math:`|0\rangle`.
         verify_x_first: If True, X-errors are verified first.
-        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer. This is only relevant if full_fault_tolerance is True.
+        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer, which requires `only_first_layer` to be False.
 
     Returns:
         QuantumCircuit combining the state preparation and verification circuit.
@@ -583,9 +580,9 @@ def heuristic_verification_circuit(
         sp_circ: The state preparation circuit to verify.
         max_covering_sets: The maximum number of covering sets to consider.
         find_coset_leaders: Whether to find coset leaders for the found measurements. This is done using SAT solvers so it can be slow.
-        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument.
+        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument. Since the hook errors of the first layer are then neither flagged nor caught by a second layer, this is only sound if the unverified error type acts trivially on the prepared state, e.g. Z errors when preparing a logical :math:`|0\rangle`.
         verify_x_first: If True, X-errors are verified first.
-        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer. This is only relevant if full_fault_tolerance is True.
+        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer, which requires `only_first_layer` to be False.
 
     Returns:
         QuantumCircuit combining the state preparation and verification circuit.
