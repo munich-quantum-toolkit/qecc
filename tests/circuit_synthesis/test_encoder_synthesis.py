@@ -236,6 +236,24 @@ def test_gottesman_encoding_spans_all_qubits(generators: list[str]) -> None:
     assert circuit_code.equal_stabilizer_group(code)
 
 
+def test_gottesman_encoding_spans_all_qubits_with_negative_product() -> None:
+    """Check the width for a code whose elimination also picks up a minus sign.
+
+    For the generators `YYI` and `XXI`, qubit 2 is outside the support of both, and the
+    product `YYI * XXI` is `-ZZI`. The circuit therefore encodes into the -1 eigenspace of
+    `XXI`, which is the separate defect of
+    https://github.com/munich-quantum-toolkit/qecc/issues/891. This test covers the width
+    only. `equal_stabilizer_group` needs the fix for that issue as well.
+    """
+    code = StabilizerCode(["YYI", "XXI"])
+    encoder = gottesman_encoding_circuit(code.generators)
+    assert encoder is not None
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+    assert encoder.get_code().n == code.n
+
+
 def test_gottesman_encoding_invalid() -> None:
     """Check that `gottesman_encoding_circuit` fails for invalid stabilizers."""
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
