@@ -109,7 +109,7 @@ class CliffordIsometry:
         # remove resets and remember basis
         circ_no_reset = stim.Circuit()
         basis = {}
-        for gate in self._padded_stim_circuit():
+        for gate in self.to_stim_circuit():
             assert isinstance(gate, stim.CircuitInstruction)
             if gate.name not in {"R", "RX", "RZ"}:
                 circ_no_reset.append(gate)
@@ -122,6 +122,10 @@ class CliffordIsometry:
                     elif gate.name == "RX":
                         basis[q] = "X"
 
+        # pad after removing the resets, because a qubit that only a reset touches is gone now
+        n = self.num_qubits()
+        if circ_no_reset.num_qubits < n:
+            circ_no_reset.append("I", [n - 1])
         tab_no_reset = circ_no_reset.to_tableau()
         stabilizers = []
         for q in range(self.num_outputs()):
@@ -518,8 +522,10 @@ class CNOTCircuit(CliffordIsometry):
             circ: The `stim.Circuit` to construct the CNOT circuit from.
             n: Number of qubits the circuit acts on. A `stim.Circuit` is only as wide as the
                 highest qubit index it mentions, so trailing qubits that no gate touches cannot
-                be recovered from `circ` alone and have to be given here. If `None`, the number
-                of qubits is derived from `circ`.
+                be recovered from `circ` alone and have to be given here. If given, every qubit
+                below `n` that the circuit does not initialize is an input, including qubits
+                that no gate touches. If `None`, the number of qubits is derived from `circ`,
+                and only qubits that some CNOT touches become inputs.
 
         Returns:
             CNOTCircuit representation of the input circuit.
@@ -566,8 +572,10 @@ class CNOTCircuit(CliffordIsometry):
                     raise ValueError(msg)
 
         if n is not None:
-            # qubits that the circuit does not mention are idle inputs
-            cnot_circuit._inputs.extend(range(circ.num_qubits, n))
+            # qubits that no gate of the circuit touches are idle inputs
+            cnot_circuit._inputs.extend(
+                q for q in range(n) if q not in cnot_circuit._initializations and q not in cnot_circuit._inputs
+            )
 
         return cnot_circuit
 

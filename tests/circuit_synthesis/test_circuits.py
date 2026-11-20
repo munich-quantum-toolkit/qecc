@@ -750,3 +750,40 @@ def test_cnot_circuit_from_stim_circuit_explicit_num_qubits() -> None:
 
     with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
         CNOTCircuit.from_stim_circuit(circ, n=1)
+
+
+def test_cnot_circuit_from_stim_circuit_idle_qubit_below_circuit_width() -> None:
+    """Test that `CNOTCircuit.from_stim_circuit` with `n` makes an idle qubit inside the circuit an input."""
+    circ = stim.Circuit("R 2\nCX 0 2")
+
+    # qubit 1 lies inside the circuit, but no gate touches it; qubit 3 lies outside
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ, n=4)
+    assert cnot_circuit.num_qubits() == 4
+    assert cnot_circuit.inputs() == [0, 1, 3]
+    assert cnot_circuit.get_uninitialized() == [0, 1, 3]
+    assert cnot_circuit.get_code().n == 4
+    assert cnot_circuit.get_code().k == 3
+
+
+@pytest.mark.parametrize(
+    ("circuit", "n", "initialize"),
+    [
+        # a qubit that only a reset touches
+        ("R 0 1\nH 0", None, None),
+        # an idle input that is initialized after construction
+        ("R 0\nH 0", 2, 1),
+    ],
+)
+def test_isometry_get_code_reset_only_qubit(circuit: str, n: int | None, initialize: int | None) -> None:
+    """Test that `get_code` keeps a qubit that only a reset touches.
+
+    `get_code` removes the resets before it builds the tableau, so such a qubit must not be lost.
+    """
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit(circuit), n=n)
+    if initialize is not None:
+        iso.initialize_qubit(initialize, "Z")
+
+    code = iso.get_code()
+    assert code.n == 2
+    assert code.k == 0
+    assert code.equal_stabilizer_group(StabilizerCode(["XI", "IZ"]))
