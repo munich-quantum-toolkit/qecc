@@ -396,6 +396,12 @@ print(f"Reloaded: depth={reloaded.depth()}, TQ gates={reloaded.num_two_qubit_gat
 reloaded.draw("mpl")
 ```
 
+```{note}
+A `stim.Circuit` is only as wide as the highest qubit index it mentions, so a
+trailing qubit that no gate touches is not part of the serialized circuit. Pass
+the number of qubits as `from_stim_circuit(circ, n=...)` to keep such a qubit.
+```
+
 CSS circuits (returned as `CNOTCircuit`) use the same interface:
 
 ```{code-cell} ipython3

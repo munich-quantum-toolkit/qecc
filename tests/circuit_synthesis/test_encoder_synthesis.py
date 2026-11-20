@@ -208,6 +208,52 @@ def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ign
     assert circuit_code.equal_stabilizer_group(code)
 
 
+@pytest.mark.parametrize(
+    "generators",
+    [
+        ["IYI", "YII"],
+        ["XZI", "YYI"],
+        ["XI"],
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+    ],
+)
+def test_gottesman_encoding_spans_all_qubits(generators: list[str]) -> None:
+    """Check that `gottesman_encoding_circuit` returns an isometry spanning all `n` qubits.
+
+    A `stim.Circuit` is only as wide as the highest qubit index it mentions, so a qubit outside
+    the support of every generator used to get lost, which cost the isometry a logical qubit
+    (see https://github.com/munich-quantum-toolkit/qecc/issues/893).
+    """
+    code = StabilizerCode(generators)
+    encoder = gottesman_encoding_circuit(code.generators)
+    assert encoder is not None
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+
+    circuit_code = encoder.get_code()
+    assert circuit_code.n == code.n
+    assert circuit_code.equal_stabilizer_group(code)
+
+
+def test_gottesman_encoding_spans_all_qubits_with_negative_product() -> None:
+    """Check the width for a code whose elimination also picks up a minus sign.
+
+    For the generators `YYI` and `XXI`, qubit 2 is outside the support of both, and the
+    product `YYI * XXI` is `-ZZI`. The circuit therefore encodes into the -1 eigenspace of
+    `XXI`, which is the separate defect of
+    https://github.com/munich-quantum-toolkit/qecc/issues/891. This test covers the width
+    only. `equal_stabilizer_group` needs the fix for that issue as well.
+    """
+    code = StabilizerCode(["YYI", "XXI"])
+    encoder = gottesman_encoding_circuit(code.generators)
+    assert encoder is not None
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+    assert encoder.get_code().n == code.n
+
+
 def test_gottesman_encoding_invalid() -> None:
     """Check that `gottesman_encoding_circuit` fails for invalid stabilizers."""
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
