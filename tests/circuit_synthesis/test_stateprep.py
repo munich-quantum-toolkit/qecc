@@ -497,6 +497,26 @@ def test_non_strict_warns_on_unsuccessful_search(
     assert "exceeded its time limit" in caplog.text
 
 
+def test_only_first_layer_warns_about_skipped_error_type(caplog: pytest.LogCaptureFixture) -> None:
+    """Skipping an error type that the circuit actually propagates must be reported."""
+    sp_circ = heuristic_prep_circuit(CSSCode.from_code_name("Shor"), state="all_zero")
+
+    with caplog.at_level(logging.WARNING, logger="mqt.qecc.circuit_synthesis.state_prep"):
+        heuristic_verification_circuit(sp_circ, only_first_layer=True, verify_x_first=False)
+
+    assert "not fault tolerant with respect to X errors" in caplog.text
+
+
+def test_only_first_layer_is_quiet_when_nothing_is_skipped(caplog: pytest.LogCaptureFixture) -> None:
+    """Skipping an error type with an empty fault set is sound and must not warn."""
+    sp_circ = heuristic_prep_circuit(CSSCode.from_code_name("Shor"), state="all_zero")
+
+    with caplog.at_level(logging.WARNING, logger="mqt.qecc.circuit_synthesis.state_prep"):
+        heuristic_verification_circuit(sp_circ, only_first_layer=True, verify_x_first=True)
+
+    assert "not fault tolerant" not in caplog.text
+
+
 def _never_succeeds(_param: int) -> None:
     return None
 
