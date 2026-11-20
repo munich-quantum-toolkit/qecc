@@ -208,6 +208,38 @@ def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ign
     assert circuit_code.equal_stabilizer_group(code)
 
 
+@pytest.mark.parametrize(
+    "generators",
+    [
+        ["XX", "YY"],
+        ["XXX", "XYY"],
+        ["XYYZ", "ZXYI", "YIZI"],
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        ["-XX", "-YY"],
+        ["XXX", "-XYY"],
+        ["-XYYZ", "ZXYI", "-YIZI"],
+    ],
+)
+def test_gottesman_encoding_signs(generators: list[str]) -> None:
+    """Check that every given generator holds with its own sign after the circuit.
+
+    The elimination multiplies generators with each other, and such a product can carry a
+    minus sign, so a sign-free elimination can encode into the -1 eigenspace of a generator
+    that was given with a plus sign.
+    """
+    code = StabilizerCode(generators)
+    encoder = gottesman_encoding_circuit(code.generators)
+
+    simulator = stim.TableauSimulator()
+    simulator.set_num_qubits(code.n)
+    simulator.do(encoder.to_stim_circuit())
+    for generator in generators:
+        value = simulator.peek_observable_expectation(stim.PauliString(generator))
+        assert value == 1, f"{generator} has the value {value} after the circuit"
+
+    assert encoder.get_code().equal_stabilizer_group(code)
+
+
 def test_gottesman_encoding_invalid() -> None:
     """Check that `gottesman_encoding_circuit` fails for invalid stabilizers."""
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
