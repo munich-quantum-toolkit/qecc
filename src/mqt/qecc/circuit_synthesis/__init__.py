@@ -24,6 +24,7 @@ from .noise import CircuitLevelNoiseIdlingParallel, CircuitLevelNoiseIdlingSeque
 from .simulation import LutDecoder, SteaneNDFTStatePrepSimulator, VerificationNDFTStatePrepSimulator
 from .state_prep import (
     FaultyStatePrepCircuit,
+    VerificationStabilizersNotFoundError,
     depth_optimal_prep_circuit,
     gate_optimal_prep_circuit,
     gate_optimal_verification_circuit,
@@ -53,6 +54,7 @@ __all__ = [
     "SteaneNDFTStatePrepSimulator",
     "SynthesisConfig",
     "VerificationNDFTStatePrepSimulator",
+    "VerificationStabilizersNotFoundError",
     "cat_state_balanced_tree",
     "cat_state_line",
     "cnot_encoding_circuit",
