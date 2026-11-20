@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import z3
@@ -40,6 +40,57 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
     from ..codes.core.css_code import CSSCode
+
+
+VerificationFailureReason = Literal["undetectable", "budget", "timeout"]
+
+_FAILURE_EXPLANATIONS: dict[VerificationFailureReason, str] = {
+    "undetectable": (
+        "at least one fault commutes with every stabilizer generator available for verification, "
+        "so no verification stabilizers exist"
+    ),
+    "budget": "no verification stabilizers exist within the given numbers of ancillas and CNOTs",
+    "timeout": (
+        "the search exceeded its time limit before reaching a conclusion; "
+        "increasing max_timeout or max_ancillas may help"
+    ),
+}
+
+
+class VerificationStabilizersNotFoundError(ValueError):
+    """Raised when no verification stabilizers could be found for a non-empty fault set.
+
+    This is deliberately distinct from a fault set that needs no verification at all. If a fault set is
+    empty the corresponding verification layer is simply empty and no error is raised, because the
+    state preparation circuit is already fault tolerant with respect to that fault set.
+
+    Attributes:
+        reason: Why the search was unsuccessful. See `VerificationFailureReason`.
+        num_errors: The number of simultaneous faults the unsuccessful layer was verifying.
+    """
+
+    def __init__(self, reason: VerificationFailureReason, num_errors: int) -> None:
+        """Initialize the error.
+
+        Args:
+            reason: Why the search was unsuccessful.
+            num_errors: The number of simultaneous faults the unsuccessful layer was verifying.
+        """
+        self.reason = reason
+        self.num_errors = num_errors
+        super().__init__(
+            f"No verification stabilizers found for {num_errors} error(s): {_FAILURE_EXPLANATIONS[reason]}."
+        )
+
+
+def _undetectable_faults(faults: npt.NDArray[np.int8], stabs: npt.NDArray[np.int8]) -> npt.NDArray[np.int64]:
+    """Return the indices of the faults that commute with every stabilizer in `stabs`.
+
+    Such faults cannot be detected by any measurement built from `stabs`, so no verification exists.
+    """
+    if len(faults) == 0 or stabs.shape[0] == 0:
+        return np.arange(len(faults))
+    return np.where(np.all(faults @ stabs.T % 2 == 0, axis=1))[0]
 
 
 class FaultyStatePrepCircuit:
@@ -336,6 +387,11 @@ def gate_optimal_verification_stabilizers(
 
     Returns:
         A list of stabilizers for each number of errors to verify the state preparation circuit.
+
+    Raises:
+        VerificationStabilizersNotFoundError: If no verification stabilizers could be found for a
+            non-empty fault set. A fault set that requires no verification yields an empty layer
+            instead and does not raise.
     """
     return [
         layers[0] if layers != [] else []
@@ -373,6 +429,11 @@ def all_gate_optimal_verification_stabilizers(
 
     Returns:
         A list of all equivalent stabilizers for each number of errors to verify the state preparation circuit.
+
+    Raises:
+        VerificationStabilizersNotFoundError: If no verification stabilizers could be found for a
+            non-empty fault set. A fault set that requires no verification yields an empty layer
+            instead and does not raise.
     """
     n_layers = len(fault_sets)
     layers: list[list[list[npt.NDArray[np.int8]]]] = [[] for _ in range(n_layers)]
@@ -388,6 +449,10 @@ def all_gate_optimal_verification_stabilizers(
             logger.info(f"No non-trivial faults for {layer + 1} errors")
             layers[layer] = []
             continue
+
+        if _undetectable_faults(faults.faults, stabs).size > 0:
+            raise VerificationStabilizersNotFoundError(reason="undetectable", num_errors=layer + 1)
+
         # Start with maximal number of ancillas
         # Minimal CNOT solution must be achievable with these
         num_anc = max_ancillas
@@ -409,14 +474,12 @@ def all_gate_optimal_verification_stabilizers(
             max_timeout,
         )
 
-        if res is not None:
-            measurements, num_cnots = res
-        else:
-            measurements = None
+        measurements, num_cnots = res.result, res.param
 
         if measurements is None:
-            logger.info(f"No verification stabilizers found for {layer + 1} errors")
-            return []  # No solution found
+            raise VerificationStabilizersNotFoundError(
+                reason="timeout" if res.timed_out else "budget", num_errors=layer + 1
+            )
 
         logger.info(f"Found verification stabilizers for {layer + 1} errors with {num_cnots} CNOTs")
         # If any measurements are unused we can reduce the number of ancillas at least by that
@@ -469,6 +532,9 @@ def all_gate_optimal_verification_stabilizers(
             if all_stabs:
                 layers[layer] = all_stabs
                 logger.info(f"Found {len(layers[layer])} equivalent solutions for {layer} errors")
+            else:
+                # The search above already found a valid solution, so never fall back to an empty layer.
+                layers[layer] = [measurements]
 
     return layers
 
@@ -479,40 +545,55 @@ def _verification_circuit(
     only_first_layer: bool = True,
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
+    strict: bool = True,
 ) -> QuantumCircuit:
     logger.info("Finding verification stabilizers for the state preparation circuit")
 
     sp_circ.compute_fault_sets(reduce=True)
+    first_type, second_type = ("X", "Z") if verify_x_first else ("Z", "X")
     if verify_x_first:
-        first_fault_sets = sp_circ.x_fault_sets
-        first_checks = sp_circ.z_checks
-        if not only_first_layer:
-            second_fault_sets = sp_circ.z_fault_sets
-            second_checks = sp_circ.x_checks
+        first_fault_sets, first_checks = sp_circ.x_fault_sets, sp_circ.z_checks
+        second_fault_sets, second_checks = sp_circ.z_fault_sets, sp_circ.x_checks
     else:
-        first_fault_sets = sp_circ.z_fault_sets
-        first_checks = sp_circ.x_checks
-        if not only_first_layer:
-            second_fault_sets = sp_circ.x_fault_sets
-            second_checks = sp_circ.z_checks
+        first_fault_sets, first_checks = sp_circ.z_fault_sets, sp_circ.x_checks
+        second_fault_sets, second_checks = sp_circ.x_fault_sets, sp_circ.z_checks
 
-    layers_1 = verification_stabs_fun(first_fault_sets, first_checks)
-    measurements_1 = [measurement for layer in layers_1 for measurement in layer]
-    if not flag_first_layer:
-        if measurements_1:
-            additional_errors = get_hook_errors(measurements_1)
-            extended_fault_sets = sp_circ.combine_faults(
-                additional_faults=additional_errors, x_errors=not verify_x_first
+    def verify_layer(
+        fault_sets: list[PureFaultSet], checks: npt.NDArray[np.int8], error_type: str
+    ) -> list[list[npt.NDArray[np.int8]]]:
+        """Search one verification layer, honouring `strict` if the search is unsuccessful."""
+        try:
+            return verification_stabs_fun(fault_sets, checks)
+        except VerificationStabilizersNotFoundError as exc:
+            if strict:
+                raise
+            logger.warning(
+                f"{exc} The returned circuit is not fault tolerant with respect to the {error_type} errors "
+                f"of the state preparation circuit."
             )
-        else:
-            extended_fault_sets = second_fault_sets
+            return []
 
-        if not only_first_layer:
-            layers_2 = verification_stabs_fun(extended_fault_sets, second_checks)
-    elif not only_first_layer:
-        layers_2 = verification_stabs_fun(second_fault_sets, second_checks)
-
-    measurements_2 = [measurement for layer in layers_2 for measurement in layer] if not only_first_layer else []
+    layers_1 = verify_layer(first_fault_sets, first_checks, first_type)
+    measurements_1 = [measurement for layer in layers_1 for measurement in layer]
+    if only_first_layer:
+        measurements_2 = []
+        if any(len(fault_set) > 0 for fault_set in second_fault_sets):
+            logger.warning(
+                f"only_first_layer is set, so the {second_type} errors of the state preparation circuit are not "
+                f"verified even though the circuit propagates them. The returned circuit is not fault tolerant "
+                f"with respect to {second_type} errors. Set verify_x_first={not verify_x_first} to verify them "
+                f"instead, or only_first_layer=False to verify both error types."
+            )
+    else:
+        if not flag_first_layer and measurements_1:
+            # the hook errors of the first layer are not flagged, so they have to be caught by the second layer
+            additional_errors = get_hook_errors(measurements_1)
+            second_fault_sets = sp_circ.combine_faults(
+                additional_faults=additional_errors,
+                x_errors=not verify_x_first,
+            )
+        layers_2 = verify_layer(second_fault_sets, second_checks, second_type)
+        measurements_2 = [measurement for layer in layers_2 for measurement in layer]
 
     z_measurements = measurements_1 if verify_x_first else measurements_2
     x_measurements = measurements_2 if verify_x_first else measurements_1
@@ -533,6 +614,7 @@ def gate_optimal_verification_circuit(
     only_first_layer: bool = False,
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
+    strict: bool = True,
 ) -> QuantumCircuit:
     r"""Return a verified state preparation circuit.
 
@@ -545,12 +627,19 @@ def gate_optimal_verification_circuit(
         min_timeout: The minimum time to allow each search to run for.
         max_timeout: The maximum time to allow each search to run for.
         max_ancillas: The maximum number of ancillas to allow in each layer verification circuit.
-        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument.
+        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument. Since the hook errors of the first layer are then neither flagged nor caught by a second layer, this is only sound if the unverified error type acts trivially on the prepared state, e.g. Z errors when preparing a logical :math:`|0\rangle`. A warning is logged if the unverified error type has a non-empty fault set.
         verify_x_first: If True, X-errors are verified first.
-        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer. This is only relevant if full_fault_tolerance is True.
+        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer, which requires `only_first_layer` to be False.
+        strict: If True, an unsuccessful verification stabilizer search raises `VerificationStabilizersNotFoundError`. If False, the search failure is only logged as a warning and a circuit without the corresponding verification measurements is returned, which is then not fault tolerant.
 
     Returns:
-        QuantumCircuit combining the state preparation and verification circuit.
+        QuantumCircuit combining the state preparation and verification circuit. If a fault set requires no
+        verification the corresponding measurements are simply omitted.
+
+    Raises:
+        VerificationStabilizersNotFoundError: If `strict` is True and no verification stabilizers could be
+            found for a non-empty fault set. The `reason` attribute states whether the faults are
+            undetectable, the search budget was too small, or the search timed out.
     """
 
     def verification_stabs_fun(
@@ -564,6 +653,7 @@ def gate_optimal_verification_circuit(
         only_first_layer=only_first_layer,
         verify_x_first=verify_x_first,
         flag_first_layer=flag_first_layer,
+        strict=strict,
     )
 
 
@@ -574,6 +664,7 @@ def heuristic_verification_circuit(
     only_first_layer: bool = False,
     verify_x_first: bool = True,
     flag_first_layer: bool = False,
+    strict: bool = True,
 ) -> QuantumCircuit:
     r"""Return a verified state preparation circuit.
 
@@ -583,12 +674,19 @@ def heuristic_verification_circuit(
         sp_circ: The state preparation circuit to verify.
         max_covering_sets: The maximum number of covering sets to consider.
         find_coset_leaders: Whether to find coset leaders for the found measurements. This is done using SAT solvers so it can be slow.
-        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument.
+        only_first_layer: If True, only the first error type will be verified. The type depends on the `verify_x_first` argument. Since the hook errors of the first layer are then neither flagged nor caught by a second layer, this is only sound if the unverified error type acts trivially on the prepared state, e.g. Z errors when preparing a logical :math:`|0\rangle`. A warning is logged if the unverified error type has a non-empty fault set.
         verify_x_first: If True, X-errors are verified first.
-        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer. This is only relevant if full_fault_tolerance is True.
+        flag_first_layer: If True, the first verification layer (verifying X or Z errors) will also be flagged. If False, the potential hook errors introduced by the first layer will be caught by the second layer, which requires `only_first_layer` to be False.
+        strict: If True, an unsuccessful verification stabilizer search raises `VerificationStabilizersNotFoundError`. If False, the search failure is only logged as a warning and a circuit without the corresponding verification measurements is returned, which is then not fault tolerant.
 
     Returns:
-        QuantumCircuit combining the state preparation and verification circuit.
+        QuantumCircuit combining the state preparation and verification circuit. If a fault set requires no
+        verification the corresponding measurements are simply omitted.
+
+    Raises:
+        VerificationStabilizersNotFoundError: If `strict` is True and no verification stabilizers could be
+            found for a non-empty fault set. The `reason` attribute states whether the faults are
+            undetectable, the search budget was too small, or the search timed out.
     """
 
     def verification_stabs_fun(
@@ -602,6 +700,7 @@ def heuristic_verification_circuit(
         only_first_layer=only_first_layer,
         verify_x_first=verify_x_first,
         flag_first_layer=flag_first_layer,
+        strict=strict,
     )
 
 
@@ -618,6 +717,11 @@ def heuristic_verification_stabilizers(
         stabs: The stabilizer generators to verify the fault sets.
         max_covering_sets: The maximum number of covering sets to consider.
         find_coset_leaders: Whether to find coset leaders for the found measurements. This is done using SAT solvers so it can be slow.
+
+    Raises:
+        VerificationStabilizersNotFoundError: If no verification stabilizers could be found for a
+            non-empty fault set. A fault set that requires no verification yields an empty layer
+            instead and does not raise.
     """
     logger.info("Finding verification stabilizers using heuristic method")
     n_layers = len(fault_sets)
@@ -631,6 +735,10 @@ def heuristic_verification_stabilizers(
         if len(faults) == 0:
             layers[num_errors] = []
             continue
+
+        # Without this check _set_cover below can never cover the undetectable faults and would not terminate.
+        if _undetectable_faults(faults.faults, stabs).size > 0:
+            raise VerificationStabilizersNotFoundError(reason="undetectable", num_errors=num_errors + 1)
 
         layers[num_errors] = _heuristic_layer(faults.faults, stabs, find_coset_leaders, max_covering_sets)
 
@@ -649,6 +757,11 @@ def _set_cover(
 
     while universe:
         best = max(cands, key=lambda stab: (len(stab & universe), -np.sum(mapping[stab])))
+        if not best & universe:  # pragma: no cover
+            # Without this the loop would never terminate. The callers guard against undetectable faults,
+            # so reaching this point means the set cover was called with an uncoverable universe.
+            msg = "Some of the faults are not detectable by any of the given stabilizers."
+            raise ValueError(msg)
         cover.add(best)
         universe -= best
     return cover

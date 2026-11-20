@@ -532,7 +532,7 @@ def _apply_pauli_correction_to_clifford(
     pivot_qubits = circuit.get_zero_initialized()
     stim_circuit = circuit.to_stim_circuit(with_resets=False)
     corrected_stim_circuit = _apply_pauli_sign_correction(stim_circuit, n, target_tableau)
-    corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit)
+    corrected_circuit = CliffordIsometry.from_stim_circuit(corrected_stim_circuit, n=n)
 
     for q in pivot_qubits:
         corrected_circuit.initialize_qubit(q, basis="Z")

@@ -14,7 +14,7 @@ import pytest
 import stim
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose, compose_cnot_circuits
 from mqt.qecc.codes.core.pauli import Pauli
 from mqt.qecc.codes.core.stabilizer_code import StabilizerCode
 
@@ -700,3 +700,139 @@ def test_five_qubit_isometry(five_qubit_code_encoder: stim.Circuit, five_qubit_c
     expected_z = Pauli.from_pauli_string("ZZZZZ")
     assert five_qubit_code.stabilizer_equivalent(x, expected_x), "Logical X operator does not match expected."
     assert five_qubit_code.stabilizer_equivalent(z, expected_z), "Logical Z operator does not match expected."
+
+
+def test_isometry_from_stim_circuit_explicit_num_qubits() -> None:
+    """Test that `from_stim_circuit` keeps qubits that no gate of the circuit touches."""
+    circ = stim.Circuit("R 0 1\nH 1 0\nCZ 0 1")
+
+    iso = CliffordIsometry.from_stim_circuit(circ)
+    assert iso.num_qubits() == 2
+    assert iso.num_outputs() == 2
+    assert iso.num_inputs() == 0
+
+    # qubit 2 is not mentioned by the circuit and has to be given explicitly
+    iso = CliffordIsometry.from_stim_circuit(circ, n=3)
+    assert iso.num_qubits() == 3
+    assert iso.num_outputs() == 3
+    assert iso.num_inputs() == 1
+    assert iso.inputs() == [2]
+    assert iso.get_uninitialized() == [2]
+    assert iso.get_code().n == 3
+    assert iso.to_qiskit_circuit().num_qubits == 3
+    x, z = iso.get_logical(0)
+    assert x == Pauli.from_pauli_string("IIX")
+    assert z == Pauli.from_pauli_string("IIZ")
+
+
+def test_isometry_from_stim_circuit_num_qubits_too_small() -> None:
+    """Test that `from_stim_circuit` rejects a qubit count smaller than the circuit."""
+    circ = stim.Circuit("R 0 1\nH 1 0\nCZ 0 1")
+    with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
+        CliffordIsometry.from_stim_circuit(circ, n=1)
+
+
+def test_cnot_circuit_from_stim_circuit_explicit_num_qubits() -> None:
+    """Test that `CNOTCircuit.from_stim_circuit` keeps qubits that no gate of the circuit touches."""
+    circ = stim.Circuit("R 1\nCX 0 1")
+
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ)
+    assert cnot_circuit.num_qubits() == 2
+    assert cnot_circuit.inputs() == [0]
+
+    # qubit 2 is not mentioned by the circuit and has to be given explicitly
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ, n=3)
+    assert cnot_circuit.num_qubits() == 3
+    assert cnot_circuit.num_outputs() == 3
+    assert cnot_circuit.outputs() == [0, 1, 2]
+    assert cnot_circuit.inputs() == [0, 2]
+    assert cnot_circuit.to_qiskit_circuit().num_qubits == 3
+
+    with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
+        CNOTCircuit.from_stim_circuit(circ, n=1)
+
+
+def test_cnot_circuit_from_stim_circuit_idle_qubit_below_circuit_width() -> None:
+    """Test that `CNOTCircuit.from_stim_circuit` with `n` makes an idle qubit inside the circuit an input."""
+    circ = stim.Circuit("R 2\nCX 0 2")
+
+    # qubit 1 lies inside the circuit, but no gate touches it; qubit 3 lies outside
+    cnot_circuit = CNOTCircuit.from_stim_circuit(circ, n=4)
+    assert cnot_circuit.num_qubits() == 4
+    assert cnot_circuit.inputs() == [0, 1, 3]
+    assert cnot_circuit.get_uninitialized() == [0, 1, 3]
+    assert cnot_circuit.get_code().n == 4
+    assert cnot_circuit.get_code().k == 3
+
+
+@pytest.mark.parametrize(
+    ("circuit", "n", "initialize"),
+    [
+        # a qubit that only a reset touches
+        ("R 0 1\nH 0", None, None),
+        # an idle input that is initialized after construction
+        ("R 0\nH 0", 2, 1),
+    ],
+)
+def test_isometry_get_code_reset_only_qubit(circuit: str, n: int | None, initialize: int | None) -> None:
+    """Test that `get_code` keeps a qubit that only a reset touches.
+
+    `get_code` removes the resets before it builds the tableau, so such a qubit must not be lost.
+    """
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit(circuit), n=n)
+    if initialize is not None:
+        iso.initialize_qubit(initialize, "Z")
+
+    code = iso.get_code()
+    assert code.n == 2
+    assert code.k == 0
+    assert code.equal_stabilizer_group(StabilizerCode(["XI", "IZ"]))
+
+
+@pytest.mark.parametrize(
+    ("circuit", "n"),
+    [
+        # no gate at all
+        ("", 2),
+        # every qubit is an input
+        ("H 0 1", None),
+    ],
+)
+def test_isometry_get_code_without_stabilizers(circuit: str, n: int | None) -> None:
+    """Test that `get_code` keeps the width when the isometry has no stabilizers."""
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit(circuit), n=n)
+    code = iso.get_code()
+    assert code.n == 2
+    assert code.k == 2
+
+
+def test_compose_isometries_keeps_idle_qubits() -> None:
+    """Test that `compose` keeps qubits that no gate of either isometry touches."""
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit("H 0"), n=2)
+
+    composed = compose(iso, iso)
+    assert composed.num_qubits() == 2
+    assert composed.inputs() == [0, 1]
+    assert composed.get_code().n == 2
+
+
+def test_compose_isometry_with_idle_logical_qubit() -> None:
+    """Test composing a logical operation with an encoder whose logical qubit no gate touches."""
+    code = StabilizerCode(["IYI", "YII"])
+    encoder = CliffordIsometry.from_stim_circuit(stim.Circuit("R 0 1\nX 1 0\nH 1 0\nS_DAG 1 0"), n=3)
+    logical_h = CliffordIsometry.from_stim_circuit(stim.Circuit("H 0"))
+
+    composed = compose(logical_h, encoder)
+    assert composed.num_qubits() == 3
+    assert composed.num_inputs() == 1
+    assert composed.get_code().equal_stabilizer_group(code)
+
+
+def test_compose_cnot_circuits_keeps_idle_qubits() -> None:
+    """Test that `compose_cnot_circuits` keeps qubits that no gate of either circuit touches."""
+    circ = CNOTCircuit.from_stim_circuit(stim.Circuit("R 1\nCX 0 1"), n=3)
+
+    composed, mapping1, mapping2 = compose_cnot_circuits(circ, circ)
+    assert composed.num_qubits() == 6
+    assert sorted(mapping1) == sorted(mapping2) == [0, 1, 2]
+    assert sorted(composed.inputs()) == sorted([mapping1[0], mapping1[2], mapping2[0], mapping2[2]])

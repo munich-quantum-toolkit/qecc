@@ -281,7 +281,9 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
         if q not in initialized and circuit_tableau.z_output(q).sign == -1:
             circ.insert(0, stim.CircuitInstruction("X", [q]))
 
-    iso = CliffordIsometry.from_stim_circuit(circ)
+    # pass nq explicitly: qubits outside the support of every generator are not mentioned by the
+    # circuit and would otherwise be lost, see https://github.com/munich-quantum-toolkit/qecc/issues/893
+    iso = CliffordIsometry.from_stim_circuit(circ, n=nq)
     for q in initialized:
         iso.initialize_qubit(q, basis="Z")
     return iso
@@ -307,7 +309,7 @@ def synthesize_clifford(
         tableau,
         config=config,
     )
-    return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse())
+    return CliffordIsometry.from_stim_circuit(ops.to_circuit_inverse(), n=tableau.n)
 
 
 def synthesize_encoding_circuit(
