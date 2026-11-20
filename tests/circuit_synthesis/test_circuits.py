@@ -14,7 +14,7 @@ import pytest
 import stim
 from qiskit import QuantumCircuit
 
-from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose_cnot_circuits
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit, compose, compose_cnot_circuits
 from mqt.qecc.codes.core.pauli import Pauli
 from mqt.qecc.codes.core.stabilizer_code import StabilizerCode
 
@@ -787,3 +787,52 @@ def test_isometry_get_code_reset_only_qubit(circuit: str, n: int | None, initial
     assert code.n == 2
     assert code.k == 0
     assert code.equal_stabilizer_group(StabilizerCode(["XI", "IZ"]))
+
+
+@pytest.mark.parametrize(
+    ("circuit", "n"),
+    [
+        # no gate at all
+        ("", 2),
+        # every qubit is an input
+        ("H 0 1", None),
+    ],
+)
+def test_isometry_get_code_without_stabilizers(circuit: str, n: int | None) -> None:
+    """Test that `get_code` keeps the width when the isometry has no stabilizers."""
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit(circuit), n=n)
+    code = iso.get_code()
+    assert code.n == 2
+    assert code.k == 2
+
+
+def test_compose_isometries_keeps_idle_qubits() -> None:
+    """Test that `compose` keeps qubits that no gate of either isometry touches."""
+    iso = CliffordIsometry.from_stim_circuit(stim.Circuit("H 0"), n=2)
+
+    composed = compose(iso, iso)
+    assert composed.num_qubits() == 2
+    assert composed.inputs() == [0, 1]
+    assert composed.get_code().n == 2
+
+
+def test_compose_isometry_with_idle_logical_qubit() -> None:
+    """Test composing a logical operation with an encoder whose logical qubit no gate touches."""
+    code = StabilizerCode(["IYI", "YII"])
+    encoder = CliffordIsometry.from_stim_circuit(stim.Circuit("R 0 1\nX 1 0\nH 1 0\nS_DAG 1 0"), n=3)
+    logical_h = CliffordIsometry.from_stim_circuit(stim.Circuit("H 0"))
+
+    composed = compose(logical_h, encoder)
+    assert composed.num_qubits() == 3
+    assert composed.num_inputs() == 1
+    assert composed.get_code().equal_stabilizer_group(code)
+
+
+def test_compose_cnot_circuits_keeps_idle_qubits() -> None:
+    """Test that `compose_cnot_circuits` keeps qubits that no gate of either circuit touches."""
+    circ = CNOTCircuit.from_stim_circuit(stim.Circuit("R 1\nCX 0 1"), n=3)
+
+    composed, mapping1, mapping2 = compose_cnot_circuits(circ, circ)
+    assert composed.num_qubits() == 6
+    assert sorted(mapping1) == sorted(mapping2) == [0, 1, 2]
+    assert sorted(composed.inputs()) == sorted([mapping1[0], mapping1[2], mapping2[0], mapping2[2]])

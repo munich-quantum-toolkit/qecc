@@ -632,6 +632,28 @@ def test_compose_circuits(
     assert mapping2 == expected_mapping2
 
 
+def test_compose_circuits_explicit_num_qubits() -> None:
+    """Test that `compose_circuits` keeps qubits that no gate of either circuit touches."""
+    circ = stim.Circuit("H 0")
+
+    # without widths, qubit 1 of each circuit does not exist
+    _, mapping1, mapping2 = compose_circuits(circ, circ)
+    assert len(set(mapping1.values()) | set(mapping2.values())) == 2
+
+    # with widths, qubit 1 of each circuit is kept as an unconnected idle qubit
+    _, mapping1, mapping2 = compose_circuits(circ, circ, None, 2, 2)
+    assert sorted(mapping1) == [0, 1]
+    assert sorted(mapping2) == [0, 1]
+    assert len(set(mapping1.values()) | set(mapping2.values())) == 4
+
+    # with widths and full wiring, the idle qubits are connected
+    _, mapping1, mapping2 = compose_circuits(circ, circ, {0: 0, 1: 1}, 2, 2)
+    assert mapping1 == mapping2 == {0: 0, 1: 1}
+
+    with pytest.raises(ValueError, match=r"smaller than the number of qubits of the circuit"):
+        compose_circuits(stim.Circuit("H 1"), circ, None, 1, 1)
+
+
 @pytest.mark.parametrize(
     ("circuit", "count_swaps", "expected_count"),
     [

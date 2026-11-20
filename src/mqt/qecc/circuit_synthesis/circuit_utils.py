@@ -296,7 +296,11 @@ def measured_qubits(circ: Circuit) -> list[int]:
 
 
 def compose_circuits(
-    circ1: Circuit, circ2: Circuit, wiring: dict[int, int] | None = None
+    circ1: Circuit,
+    circ2: Circuit,
+    wiring: dict[int, int] | None = None,
+    num_qubits1: int | None = None,
+    num_qubits2: int | None = None,
 ) -> tuple[Circuit, dict[int, int], dict[int, int]]:
     """Compose two Stim circuits.
 
@@ -308,18 +312,32 @@ def compose_circuits(
         circ1: The first stim circuit.
         circ2: The second stim circuit.
         wiring: Optional dict mapping outputs of `circ1` to inputs of `circ2`.
+        num_qubits1: Number of qubits of `circ1`. A `stim.Circuit` is only as wide as the
+            highest qubit index it mentions, so trailing qubits that no gate touches have to be
+            given here. If `None`, the number of qubits of `circ1` is used.
+        num_qubits2: Number of qubits of `circ2`, as `num_qubits1`.
 
     Returns:
         A tuple containing the composed stim circuit and two mappings:
         - mapping1: Maps qubits of circ1 to the composed circuit.
         - mapping2: Maps qubits of circ2 to the composed circuit.
+
+    Raises:
+        ValueError: If `num_qubits1` or `num_qubits2` is smaller than the number of qubits of its circuit.
     """
     if wiring is None:
         wiring = {}
+    if num_qubits1 is None:
+        num_qubits1 = circ1.num_qubits
+    if num_qubits2 is None:
+        num_qubits2 = circ2.num_qubits
+    if num_qubits1 < circ1.num_qubits or num_qubits2 < circ2.num_qubits:
+        msg = "Given number of qubits is smaller than the number of qubits of the circuit."
+        raise ValueError(msg)
 
     connected = wiring.keys()
-    non_connected_circ1 = set(range(circ1.num_qubits)) - set(connected)
-    non_connected_circ2 = set(range(circ2.num_qubits)) - set(wiring.values())
+    non_connected_circ1 = set(range(num_qubits1)) - set(connected)
+    non_connected_circ2 = set(range(num_qubits2)) - set(wiring.values())
     # map non-connected of circ1 to the first n_connected qubits
     non_connected_mapping1 = {q: i for i, q in enumerate(non_connected_circ1)}
     # map non-connected of circ 2 to the qubits n_connected...n_connected + len(circ2)-1

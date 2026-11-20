@@ -134,7 +134,10 @@ class CliffordIsometry:
                 stabilizers.append(Pauli.from_stim(pauli_stim))
         logicals = self.get_all_logicals()
         return StabilizerCode(
-            stabilizers, z_logicals=[log[1] for log in logicals], x_logicals=[log[0] for log in logicals]
+            stabilizers,
+            z_logicals=[log[1] for log in logicals],
+            x_logicals=[log[0] for log in logicals],
+            n=self.num_qubits(),
         )
 
     @classmethod
@@ -804,8 +807,11 @@ def compose_cnot_circuits(
         msg = "Cannot compose circuits with wiring that connects to initialized qubits in circ2."
         raise ValueError(msg)
 
-    composed, mapping1, mapping2 = compose_circuits(circ1.to_stim_circuit(), circ2.to_stim_circuit(), wiring)
-    return CNOTCircuit.from_stim_circuit(composed), mapping1, mapping2
+    composed, mapping1, mapping2 = compose_circuits(
+        circ1.to_stim_circuit(), circ2.to_stim_circuit(), wiring, circ1.num_qubits(), circ2.num_qubits()
+    )
+    num_qubits = len(set(mapping1.values()) | set(mapping2.values()))
+    return CNOTCircuit.from_stim_circuit(composed, n=num_qubits), mapping1, mapping2
 
 
 def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, int] | None = None) -> CliffordIsometry:
@@ -848,5 +854,8 @@ def compose(enc1: CliffordIsometry, enc2: CliffordIsometry, wiring: dict[int, in
             msg = "Cannot compose isometries with wiring that connects to initialized qubits in enc2."
             raise ValueError(msg)
 
-    composed, _, _ = compose_circuits(enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring)
-    return CliffordIsometry.from_stim_circuit(composed)
+    composed, mapping1, mapping2 = compose_circuits(
+        enc1.to_stim_circuit(), enc2.to_stim_circuit(), wiring, enc1.num_qubits(), enc2.num_qubits()
+    )
+    num_qubits = len(set(mapping1.values()) | set(mapping2.values()))
+    return CliffordIsometry.from_stim_circuit(composed, n=num_qubits)
