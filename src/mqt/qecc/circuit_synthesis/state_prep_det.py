@@ -744,11 +744,10 @@ def deterministic_correction_single_outcome(
 
     res = iterative_search_with_timeout(_func, num_anc, max_ancillas, min_timeout, max_timeout)
 
-    assert res is not None, "No deterministic verification found."
-    assert res[0], "No deterministic verification found."
-    optimal_det_verify: Recovery = res[0]
+    assert res.result, "No deterministic verification found."
+    optimal_det_verify: Recovery = res.result
 
-    num_anc = res[1]
+    num_anc = res.param
     logger.info(f"Found deterministic verification with {num_anc} ancillas.")
 
     while num_anc > 1:

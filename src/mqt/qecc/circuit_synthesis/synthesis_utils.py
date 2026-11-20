@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import multiprocess
 import numpy as np
@@ -48,6 +48,22 @@ def run_with_timeout(func: Callable[[Any], Any], *args: Any, timeout: int = 10) 
     return return_list[0]
 
 
+class SearchResult(NamedTuple):
+    """Outcome of :func:`iterative_search_with_timeout`.
+
+    Attributes:
+        result: The result returned by the search function, or None if no result was found.
+        param: The parameter the result was found with, or the maximum parameter if no result was found.
+        timed_out: True if the last attempt was aborted because it exceeded its timeout. If no result was
+            found, this distinguishes an inconclusive search (True) from one that provably found no
+            result within the given parameter range (False).
+    """
+
+    result: Any
+    param: int
+    timed_out: bool
+
+
 def iterative_search_with_timeout(
     fun: Callable[[int], Any],
     min_param: int,
@@ -56,7 +72,7 @@ def iterative_search_with_timeout(
     max_timeout: int,
     param_factor: float = 2,
     timeout_factor: float = 2,
-) -> tuple[Any, int] | None:
+) -> SearchResult:
     """Geometrically increases the parameter and timeout until a result is found or the maximum timeout is reached.
 
     Args:
@@ -67,15 +83,21 @@ def iterative_search_with_timeout(
         max_timeout: maximum timeout to reach
         param_factor: factor to increase the parameter by at each iteration
         timeout_factor: factor to increase the timeout by at each iteration
+
+    Returns:
+        A :class:`SearchResult` whose `result` is None if no result was found. In that case `timed_out`
+        indicates whether the search was inconclusive because of the timeout.
     """
     curr_timeout = min_timeout
     curr_param = min_param
+    timed_out = False
     while curr_timeout <= max_timeout:
         while curr_param <= max_param:
             logger.info(f"Running iterative search with param={curr_param} and timeout={curr_timeout}")
             res = run_with_timeout(fun, curr_param, timeout=curr_timeout)
-            if res is not None and (not isinstance(res, str) or res != "timeout"):
-                return res, curr_param
+            timed_out = isinstance(res, str) and res == "timeout"
+            if res is not None and not timed_out:
+                return SearchResult(res, curr_param, timed_out=False)
             if curr_param == max_param:
                 break
 
@@ -84,7 +106,7 @@ def iterative_search_with_timeout(
 
         curr_timeout = int(curr_timeout * timeout_factor)
         curr_param = min_param
-    return None, max_param
+    return SearchResult(None, max_param, timed_out=timed_out)
 
 
 Objective = Literal["eliminations", "depth"]
