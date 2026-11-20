@@ -185,11 +185,17 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
 
     Raises:
-        ValueError: If the rows of the tableau do not generate a stabilizer group, or if one
-            of them is not Hermitian.
+        ValueError: If the rows of the tableau do not commute pairwise, are not independent,
+            or if one of them is not Hermitian.
     """
     if not isinstance(tableau, PauliTableau):
         tableau = PauliTableau.from_pauli_strings(tableau)
+
+    # The elimination does not notice anticommuting rows by itself and would return a
+    # circuit for them, so check that the rows generate a stabilizer group first.
+    if not tableau.all_commute(tableau):
+        msg = "Invalid tableau: the stabilizer generators must commute with each other."
+        raise ValueError(msg)
 
     nq = tableau.n
     # The elimination runs on a copy that carries the phase of every row. The phases

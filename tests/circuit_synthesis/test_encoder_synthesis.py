@@ -276,7 +276,26 @@ def test_gottesman_encoding_invalid() -> None:
         gottesman_encoding_circuit(["I"])
 
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
-        gottesman_encoding_circuit(["X", "Z"])
+        gottesman_encoding_circuit(["XX", "XX"])
+
+
+@pytest.mark.parametrize(
+    "generators",
+    [
+        ["X", "Z"],
+        ["IX", "IZ"],
+        ["IX", "XY"],
+        ["XX", "ZI"],
+    ],
+)
+def test_gottesman_encoding_anticommuting(generators: list[str]) -> None:
+    """Check that `gottesman_encoding_circuit` rejects generators that do not commute.
+
+    The elimination does not fail for every such set on its own; for `IX`, `IZ` it used to
+    return a circuit.
+    """
+    with pytest.raises(ValueError, match=r"must commute"):
+        gottesman_encoding_circuit(generators)
 
 
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit"])
