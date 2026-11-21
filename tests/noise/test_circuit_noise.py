@@ -12,13 +12,27 @@ from __future__ import annotations
 import pytest
 from stim import Circuit
 
-from mqt.qecc.circuit_synthesis.noise import (
-    CircuitLevelNoise,
-    CircuitLevelNoiseIdlingParallel,
-    CircuitLevelNoiseIdlingSequential,
-    ComposedNoiseModel,
-    NoiseModel,
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    CircuitNoiseModel,
+    DepolarizingChannel,
+    IdentityChannel,
+    ParallelSchedule,
+    SequentialSchedule,
+    StimCircuitNoiseAdapter,
 )
+
+
+def uniform_model(p_idle: float = 0.0, ideal_qubits: frozenset[int] = frozenset()) -> CircuitNoiseModel:
+    """The depolarizing configuration these tests pin, at the rates used throughout."""
+    return CircuitNoiseModel(
+        single_qubit_gate=DepolarizingChannel(0.02),
+        two_qubit_gate=DepolarizingChannel(0.01),
+        reset=DepolarizingChannel(0.04),
+        measurement=BitFlipChannel(0.03),
+        idle=DepolarizingChannel(p_idle) if p_idle else IdentityChannel(),
+        ideal_qubits=ideal_qubits,
+    )
 
 
 @pytest.mark.parametrize(
@@ -43,7 +57,7 @@ from mqt.qecc.circuit_synthesis.noise import (
 )
 def test_circuit_level_noise(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
-    noise_model = CircuitLevelNoise(p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04)
+    noise_model = StimCircuitNoiseAdapter(uniform_model())
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
@@ -70,9 +84,7 @@ def test_circuit_level_noise(noise_free, expected_noisy):
 )
 def test_circuit_level_noise_idling_parallel_alap(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
-    noise_model = CircuitLevelNoiseIdlingParallel(
-        p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=True
-    )
+    noise_model = StimCircuitNoiseAdapter(uniform_model(p_idle=0.5), ParallelSchedule("alap"))
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
@@ -99,9 +111,7 @@ def test_circuit_level_noise_idling_parallel_alap(noise_free, expected_noisy):
 )
 def test_circuit_level_noise_idling_parallel_asap(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
-    noise_model = CircuitLevelNoiseIdlingParallel(
-        p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=False
-    )
+    noise_model = StimCircuitNoiseAdapter(uniform_model(p_idle=0.5), ParallelSchedule("asap"))
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
@@ -128,9 +138,7 @@ def test_circuit_level_noise_idling_parallel_asap(noise_free, expected_noisy):
 )
 def test_circuit_level_noise_idling_sequential_alap(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
-    noise_model = CircuitLevelNoiseIdlingSequential(
-        p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=True
-    )
+    noise_model = StimCircuitNoiseAdapter(uniform_model(p_idle=0.5), SequentialSchedule("alap"))
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
@@ -151,9 +159,7 @@ def test_circuit_level_noise_idling_sequential_alap(noise_free, expected_noisy):
 )
 def test_circuit_level_noise_idling_sequential_asap(noise_free, expected_noisy):
     """Test the circuit-level noise model."""
-    noise_model = CircuitLevelNoiseIdlingSequential(
-        p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, p_idle=0.5, resets_alap=False
-    )
+    noise_model = StimCircuitNoiseAdapter(uniform_model(p_idle=0.5), SequentialSchedule("asap"))
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
@@ -175,68 +181,8 @@ def test_circuit_level_noise_idling_sequential_asap(noise_free, expected_noisy):
 )
 def test_ideal_qubits(noise_free, ideal_qubits, expected_noisy):
     """Test no noise on ideal qubits."""
-    noise_model = CircuitLevelNoise(p_tqg=0.01, p_sqg=0.02, p_meas=0.03, p_init=0.04, ideal_qubits=ideal_qubits)
+    noise_model = StimCircuitNoiseAdapter(uniform_model(ideal_qubits=frozenset(ideal_qubits)))
     noisy = noise_model.apply(noise_free)
 
     # Check that the noisy circuit has the expected operations
     assert noisy == expected_noisy, f"Expected: {expected_noisy}, Got: {noisy}"
-
-
-class MockNoiseModel(NoiseModel):
-    """Mock noise model for testing purposes."""
-
-    def __init__(self, operation: str, probability: float):
-        """Initialize the mock noise model."""
-        self.operation = operation
-        self.probability = probability
-
-    def apply(self, circ: Circuit) -> Circuit:
-        """Apply the mock noise model."""
-        noisy_circ = circ.copy()
-        for i in range(circ.num_qubits):
-            noisy_circ.append_operation(self.operation, [i], self.probability)
-        return noisy_circ
-
-
-@pytest.mark.parametrize(
-    ("circ_string", "noise_models", "expected_circ_string"),
-    [
-        # Test case 1: Single noise model
-        (
-            "H 0\nCX 0 1",
-            [MockNoiseModel("DEPOLARIZE1", 0.01)],
-            "H 0\nCX 0 1\nDEPOLARIZE1(0.01) 0 1",
-        ),
-        # Test case 2: Multiple noise models
-        (
-            "H 0\nCX 0 1",
-            [
-                MockNoiseModel("Z_ERROR", 0.01),
-                MockNoiseModel("X_ERROR", 0.02),
-            ],
-            "H 0\nCX 0 1\nZ_ERROR(0.01) 0 1\nX_ERROR(0.02) 0 1",
-        ),
-        # Test case 3: No noise models
-        (
-            "H 0\nCX 0 1",
-            [],
-            "H 0\nCX 0 1",
-        ),
-    ],
-)
-def test_composed_noise_model(circ_string, noise_models, expected_circ_string):
-    """Parameterized test for ComposedNoiseModel."""
-    # Create the circuit from the string
-    circ = Circuit(circ_string)
-
-    # Create the composed noise model
-    composed_model = ComposedNoiseModel(noise_models)
-
-    # Apply the composed noise model
-    noisy_circ = composed_model.apply(circ)
-
-    # Convert the noisy circuit to a string
-    actual_circ_string = str(noisy_circ)
-
-    # Check that the resulting circuit matches the expected circuit
-    assert actual_circ_string.strip() == expected_circ_string.strip()

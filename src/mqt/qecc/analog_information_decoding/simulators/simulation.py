@@ -19,6 +19,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ldpc.bposd_decoder import BpOsdDecoder
 
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    GaussianReadoutChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalNoiseSampler,
+    ReadoutChannel,
+)
+
 from ..utils.data_utils import (
     calculate_error_rates,
     is_converged,
@@ -29,15 +37,10 @@ from ..utils.simulation_utils import (
     build_single_stage_pcm,
     check_logical_err_h,
     error_channel_setup,
-    generate_err,
-    generate_syndr_err,
     get_binary_from_analog,
-    get_noisy_analog_syndrome,
-    get_sigma_from_syndr_er,
     get_signed_from_binary,
     get_virtual_check_init_vals,
     is_logical_err,
-    set_seed,
 )
 
 if TYPE_CHECKING:
@@ -74,7 +77,6 @@ class SingleShotSimulator:
         **kwargs: Any,  # ruff:ignore[any-type]
     ) -> None:
         """Initialize simulator."""
-        set_seed(seed)
         self.codename = codename
         self.data_err_rate = per
         self.syndr_err_rate = ser
@@ -99,6 +101,7 @@ class SingleShotSimulator:
         self.code_params = code_params
 
         self.input_values = self.__dict__.copy()
+        self.rng = np.random.default_rng(seed)
         self.outfile = get_outpath(**self.input_values)
 
         # Set parity check matrices
@@ -119,31 +122,33 @@ class SingleShotSimulator:
         else:
             self._check_logicals = False
 
-        (
-            self.x_bit_err_channel,
-            self.y_bit_err_channel,
-            self.z_bit_err_channel,
-        ) = error_channel_setup(self.data_err_rate, self.bias, self.n)
-        # encapsulates all bit error channels
-        self.data_error_channel = (
-            self.x_bit_err_channel,
-            self.y_bit_err_channel,
-            self.z_bit_err_channel,
-        )
+        data_channel = error_channel_setup(self.data_err_rate, self.bias)
 
-        # now setup syndrome error channels.
-        # This needs two calls since the syndromes may have different lengths
-        # first vector ([0]) is x channel probability vector
-        # by our convention the syndrome is named after the error.
-        full_x_syndr_err_chnl = error_channel_setup(self.syndr_err_rate, self.bias, self.Hz.shape[0])
-        full_z_syndr_err_chnl = error_channel_setup(self.syndr_err_rate, self.bias, self.Hx.shape[0])
-        self.x_syndr_error_channel = full_x_syndr_err_chnl[0] + full_x_syndr_err_chnl[1]  # x+y
-        self.z_syndr_error_channel = full_z_syndr_err_chnl[2] + full_z_syndr_err_chnl[1]  # z+y
+        # The syndrome channel is uniform, so a single rate per side describes it.
+        # By our convention the syndrome is named after the error.
+        syndrome_channel = error_channel_setup(self.syndr_err_rate, self.bias)
 
         # if we want to decode with analog syndrome noise and an analog decoder
         if self.analog_info or self.analog_tg:
-            self.sigma_x = get_sigma_from_syndr_er(self.x_syndr_error_channel[0])
-            self.sigma_z = get_sigma_from_syndr_er(self.z_syndr_error_channel[0])
+            self.sigma_x = GaussianReadoutChannel.from_bit_error_probability(syndrome_channel.x_marginal).sigma
+            self.sigma_z = GaussianReadoutChannel.from_bit_error_probability(syndrome_channel.z_marginal).sigma
+            x_syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma_x)
+            z_syndrome_channel: ReadoutChannel = GaussianReadoutChannel(self.sigma_z)
+        else:
+            x_syndrome_channel = BitFlipChannel(syndrome_channel.x_marginal)
+            z_syndrome_channel = BitFlipChannel(syndrome_channel.z_marginal)
+        self.noise_model = PhenomenologicalNoiseModel(
+            data=data_channel,
+            x_syndrome=x_syndrome_channel,
+            z_syndrome=z_syndrome_channel,
+        )
+
+        # Decoder priors derived from the model: the per-location marginals.
+        self.x_err_channel = self.noise_model.x_marginals(self.n)
+        self.z_err_channel = self.noise_model.z_marginals(self.n)
+        self.x_syndr_error_channel = np.full(self.Hz.shape[0], syndrome_channel.x_marginal)
+        self.z_syndr_error_channel = np.full(self.Hx.shape[0], syndrome_channel.z_marginal)
+        self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
 
         # if we want to decode with the analog tanner graph method construct respective matrices.
         # These are assumed to exist in the *_setup() methods
@@ -173,11 +178,7 @@ class SingleShotSimulator:
         # for single shot simulation we have sus_th_depth number of 'noisy' simulations (residual error carried over)
         # followed by a single round of perfect syndrome extraction after the sustainable threshold loop
         for _ in range(self.sus_th_depth):
-            x_err, z_err = generate_err(
-                nr_qubits=self.n,
-                channel_probs=self.data_error_channel,
-                residual_err=residual_err,
-            )
+            x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))
             # by our convention, we call the syndrome after the error that is occurred
             # however, the check_error_rate depends on which check errors,
             # hence is named after the check matrix.
@@ -201,11 +202,7 @@ class SingleShotSimulator:
             ]
 
         # perfect measurement round at the end
-        x_err, z_err = generate_err(
-            nr_qubits=self.n,
-            channel_probs=self.data_error_channel,
-            residual_err=residual_err,
-        )
+        x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))
 
         # X-syndrome: sx = Hz * ex
         # Z-syndrome: sz = Hx * ez
@@ -245,14 +242,8 @@ class SingleShotSimulator:
         z_syndrome_w_err: NDArray[Any]
 
         if not math.isclose(self.syndr_err_rate, 0.0):
-            if self.analog_info or self.analog_tg:  # analog syndrome error with converted sigma
-                x_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=x_syndrome, sigma=self.sigma_x)
-                z_syndrome_w_err = get_noisy_analog_syndrome(perfect_syndr=z_syndrome, sigma=self.sigma_z)
-            else:  # usual pauli error channel syndrome error
-                x_syndrome_err = generate_syndr_err(channel_probs=self.x_syndr_error_channel)
-                x_syndrome_w_err = (x_syndrome + x_syndrome_err) % 2
-                z_syndrome_err = generate_syndr_err(channel_probs=self.z_syndr_error_channel)
-                z_syndrome_w_err = (z_syndrome + z_syndrome_err) % 2
+            x_syndrome_w_err = self.noise_sampler.sample_x_syndrome(x_syndrome)
+            z_syndrome_w_err = self.noise_sampler.sample_z_syndrome(z_syndrome)
         else:
             x_syndrome_w_err = np.copy(x_syndrome)
             z_syndrome_w_err = np.copy(z_syndrome)
@@ -270,16 +261,12 @@ class SingleShotSimulator:
 
         Otherwise, we apply the decoding methods to the standard check matrices, hence the meta code is not used.
         """
-        # for convenience
-        x_err_channel = self.x_bit_err_channel + self.y_bit_err_channel
-        z_err_channel = self.z_bit_err_channel + self.y_bit_err_channel
-
         if self.x_meta and self.Mx is not None:
             z_decoded, self.z_bp_iters = self._decode_ss_with_meta(
                 syndrome_w_err=z_syndrome_w_err,
                 meta_pcm=self.Mx,
                 ss_bpd=self.ss_z_bpd,
-                bit_err_channel=z_err_channel,
+                bit_err_channel=self.z_err_channel,
                 sigma=self.sigma_z,
             )
         else:  # do not use x meta checks, just decode with noisy syndrome on standard check matrix
@@ -287,7 +274,7 @@ class SingleShotSimulator:
                 syndrome_w_err=z_syndrome_w_err,
                 analog_tg_decoder=self.z_abpd,
                 standard_decoder=self.z_bpd,
-                bit_err_channel=z_err_channel,
+                bit_err_channel=self.z_err_channel,
                 sigma=self.sigma_z,
             )
 
@@ -296,7 +283,7 @@ class SingleShotSimulator:
                 syndrome_w_err=x_syndrome_w_err,
                 meta_pcm=self.Mz,
                 ss_bpd=self.ss_x_bpd,
-                bit_err_channel=x_err_channel,
+                bit_err_channel=self.x_err_channel,
                 sigma=self.sigma_x,
             )
         else:  # do not use x meta checks, just decode with noisy syndrome on check matrix or analog_tg method
@@ -304,7 +291,7 @@ class SingleShotSimulator:
                 syndrome_w_err=x_syndrome_w_err,
                 analog_tg_decoder=self.x_abpd,
                 standard_decoder=self.x_bpd,
-                bit_err_channel=x_err_channel,
+                bit_err_channel=self.x_err_channel,
                 sigma=self.sigma_x,
             )
         return x_decoded, z_decoded
@@ -437,14 +424,14 @@ class SingleShotSimulator:
                 decoder=self.x_abpd,
                 hard_syndrome=x_syndrome_repaired,
                 analog_syndrome=x_syndrome_w_err,
-                bit_err_channel=self.z_bit_err_channel + self.y_bit_err_channel,
+                bit_err_channel=self.z_err_channel,
                 sigma=self.sigma_x,
             )
             z_decoded = self._analog_tg_decoding(
                 decoder=self.z_abpd,
                 hard_syndrome=z_syndrome_repaired,
                 analog_syndrome=z_syndrome_w_err,
-                bit_err_channel=self.x_bit_err_channel + self.y_bit_err_channel,
+                bit_err_channel=self.x_err_channel,
                 sigma=self.sigma_z,
             )
         else:
@@ -526,11 +513,10 @@ class SingleShotSimulator:
         # ss_x_bpd used to decode X bit errors using Z-side check matrices
         # single shot bp operates on the single shot pcm (Hz|Mz)
         # hence we need x bit error rate and x syndrome error rate
-        x_err_channel = self.x_bit_err_channel + self.y_bit_err_channel
         if self.ss_z_pcm is not None:
             self.ss_x_bpd = self.get_decoder(
                 pcm=self.ss_z_pcm,
-                channel_probs=np.hstack((x_err_channel, self.x_syndr_error_channel)),
+                channel_probs=np.hstack((self.x_err_channel, self.x_syndr_error_channel)),
                 # sigma=self.sigma_x,
                 # analog_info=self.analog_info,
             )
@@ -539,7 +525,7 @@ class SingleShotSimulator:
             self.x_abpd = self.get_decoder(
                 pcm=self.z_apcm,
                 # second part dummy, needs to be updated for each syndrome
-                channel_probs=np.hstack((x_err_channel, np.zeros(self.Hz.shape[0]))),
+                channel_probs=np.hstack((self.x_err_channel, np.zeros(self.Hz.shape[0]))),
                 # cutoff=self.cutoff,
                 # analog_info=False,
                 # sigma not needed, since we apply BPOSD
@@ -548,16 +534,15 @@ class SingleShotSimulator:
             self.x_abpd = None
         self.x_bpd = self.get_decoder(
             pcm=self.Hz,
-            channel_probs=x_err_channel,
+            channel_probs=self.x_err_channel,
             # cutoff=self.cutoff,
             # analog_info=self.analog_info,
         )
 
-        z_err_channel = self.z_bit_err_channel + self.y_bit_err_channel
         if self.ss_x_pcm is not None:
             self.ss_z_bpd = self.get_decoder(
                 pcm=self.ss_x_pcm,
-                channel_probs=np.hstack((z_err_channel, self.z_syndr_error_channel)),
+                channel_probs=np.hstack((self.z_err_channel, self.z_syndr_error_channel)),
                 # cutoff=self.cutoff,
                 # analog_info=self.analog_info,
                 # sigma=self.sigma_z,
@@ -567,7 +552,7 @@ class SingleShotSimulator:
             self.z_abpd = self.get_decoder(
                 pcm=self.x_apcm,
                 # second part dummy, needs to be updated for each syndrome
-                channel_probs=np.hstack((z_err_channel, np.zeros(self.Hx.shape[0]))),
+                channel_probs=np.hstack((self.z_err_channel, np.zeros(self.Hx.shape[0]))),
                 # cutoff=self.cutoff,
                 # analog_info=self.analog_info,
                 # sigma not needed, since we apply BPOSD
@@ -576,7 +561,7 @@ class SingleShotSimulator:
             self.z_abpd = None
         self.z_bpd = self.get_decoder(
             pcm=self.Hx,
-            channel_probs=z_err_channel,
+            channel_probs=self.z_err_channel,
             # cutoff=self.cutoff,
             # analog_info=self.analog_info,
             # sigma=self.sigma_z,
@@ -610,11 +595,10 @@ class SingleShotSimulator:
                 # analog_info=False,  # =False and sigma not needed, since we don't have soft info for meta code
             )
 
-        x_err_channel = self.x_bit_err_channel + self.y_bit_err_channel
         if self.analog_tg:
             self.x_abpd = self.get_decoder(
                 pcm=self.z_apcm,
-                channel_probs=np.hstack((x_err_channel, np.zeros(self.Hz.shape[0]))),
+                channel_probs=np.hstack((self.x_err_channel, np.zeros(self.Hz.shape[0]))),
                 # second part dummy, needs to be updated for each syndrome
                 # cutoff=self.cutoff,
                 # analog_info=self.analog_info,
@@ -622,24 +606,23 @@ class SingleShotSimulator:
             )
         self.x_bpd = self.get_decoder(
             pcm=self.Hz,
-            channel_probs=x_err_channel,
+            channel_probs=self.x_err_channel,
             # cutoff=self.cutoff,
             # analog_info=self.analog_info,
         )
 
-        z_err_channel = self.z_bit_err_channel + self.y_bit_err_channel
         if self.analog_tg:
             self.z_abpd = self.get_decoder(
                 pcm=self.x_apcm,
                 # second part dummy, needs to be updated for each syndrome
-                channel_probs=np.hstack((z_err_channel, np.zeros(self.Hx.shape[0]))),
+                channel_probs=np.hstack((self.z_err_channel, np.zeros(self.Hx.shape[0]))),
                 # cutoff=self.cutoff,
                 # analog_info=self.analog_info,
                 # sigma not needed, since we apply BPOSD
             )
         self.z_bpd = self.get_decoder(
             pcm=self.Hx,
-            channel_probs=z_err_channel,
+            channel_probs=self.z_err_channel,
             # cutoff=self.cutoff,
             # analog_info=self.analog_info,
             # sigma not needed, since we don't have analog info for meta code

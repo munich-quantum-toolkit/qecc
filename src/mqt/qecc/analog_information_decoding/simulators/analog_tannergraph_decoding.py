@@ -17,6 +17,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ldpc.bposd_decoder import BpOsdDecoder
 
+from mqt.qecc.noise import (
+    GaussianReadoutChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalNoiseSampler,
+)
+
 from ..utils import simulation_utils
 from ..utils.data_utils import calculate_error_rates, is_converged
 
@@ -53,7 +59,7 @@ class AnalogTannergraphDecoder:
             if self.syndr_err_rate is None:
                 msg = "Either sigma or ser must be specified"
                 raise ValueError(msg)
-            self.sigma = simulation_utils.get_sigma_from_syndr_er(self.syndr_err_rate)
+            self.sigma = GaussianReadoutChannel.from_bit_error_probability(self.syndr_err_rate).sigma
         elif self.syndr_err_rate is not None:
             msg = "Only one of sigma or ser must be specified"
             raise ValueError(msg)
@@ -124,7 +130,6 @@ class AtdSimulator:
         """Initialize the simulator."""
         if bias is None:
             bias = np.array([1.0, 1.0, 1.0])
-        simulation_utils.set_seed(seed)
         self.Hx = hx
         self.Lx = lx
         self.Hz = hz
@@ -142,33 +147,26 @@ class AtdSimulator:
                 raise ValueError(msg)
 
             self.syndr_err_rate = syndr_err_rate
-            synd_err_channel = simulation_utils.error_channel_setup(
-                error_rate=self.syndr_err_rate,
-                xyz_error_bias=self.bias,
-                nr_qubits=1,
-            )
 
         else:
             if syndr_err_rate is not None:
                 msg = "Only one of sigma or ser must be specified"
                 raise ValueError(msg)
 
-            self.syndr_err_rate = simulation_utils.get_error_rate_from_sigma(sigma)
-            synd_err_channel = simulation_utils.error_channel_setup(
-                error_rate=self.syndr_err_rate,
-                xyz_error_bias=self.bias,
-                nr_qubits=1,
-            )
+            self.syndr_err_rate = GaussianReadoutChannel(sigma).bit_error_probability
 
-        x_synd_err_rate = synd_err_channel[0][0] + synd_err_channel[1][0]  # x + y errors, 1st bit only
-        z_synd_err_rate = synd_err_channel[2][0] + synd_err_channel[1][0]  # z + y errors, 1st bit only
-        self.x_sigma = simulation_utils.get_sigma_from_syndr_er(x_synd_err_rate)
-        self.z_sigma = simulation_utils.get_sigma_from_syndr_er(z_synd_err_rate)
+        synd_err_channel = simulation_utils.error_channel_setup(
+            error_rate=self.syndr_err_rate,
+            xyz_error_bias=self.bias,
+        )
+        self.x_sigma = GaussianReadoutChannel.from_bit_error_probability(synd_err_channel.x_marginal).sigma
+        self.z_sigma = GaussianReadoutChannel.from_bit_error_probability(synd_err_channel.z_marginal).sigma
 
         self.bp_params = bp_params
         self.save_interval = kwargs.get("save_interval", 1_000)
         self.eb_precision = kwargs.get("eb_precision", 1e-1)
         self.input_values = self.__dict__.copy()
+        self.rng = np.random.default_rng(seed)
 
         self.n = hx.shape[1]
         self.code_params = code_params
@@ -182,19 +180,23 @@ class AtdSimulator:
             Decoder = AnalogTannergraphDecoder  # ruff:ignore[non-lowercase-variable-in-function]
 
         # single-sided error only, no bias
-        self.full_error_channel = simulation_utils.error_channel_setup(
-            error_rate=self.data_err_rate,
-            xyz_error_bias=self.bias,
-            nr_qubits=self.n,
+        self.noise_model = PhenomenologicalNoiseModel(
+            data=simulation_utils.error_channel_setup(
+                error_rate=self.data_err_rate,
+                xyz_error_bias=self.bias,
+            ),
+            x_syndrome=GaussianReadoutChannel(self.x_sigma),
+            z_syndrome=GaussianReadoutChannel(self.z_sigma),
         )
+        self.noise_sampler = PhenomenologicalNoiseSampler(self.noise_model, rng=self.rng)
         self.x_decoder = Decoder(
-            error_channel=self.full_error_channel[0] + self.full_error_channel[1],  # x + y errors
+            error_channel=self.noise_model.x_marginals(self.n),
             pcm=self.Hz,
             sigma=self.x_sigma,
             bp_params=self.bp_params,
         )
         self.z_decoder = Decoder(
-            error_channel=self.full_error_channel[2] + self.full_error_channel[1],  # z + y errors
+            error_channel=self.noise_model.z_marginals(self.n),
             pcm=self.Hx,
             sigma=self.z_sigma,
             bp_params=self.bp_params,
@@ -208,23 +210,16 @@ class AtdSimulator:
             np.zeros(self.n).astype(np.int32),
             np.zeros(self.n).astype(np.int32),
         ]  # no residual error
-        (
-            x_err,
-            z_err,
-        ) = simulation_utils.generate_err(  # no residual error, only one side needed
-            nr_qubits=self.n,
-            channel_probs=self.full_error_channel,
-            residual_err=residual_err,
-        )
+        x_err, z_err = self.noise_sampler.sample_data(self.n, (residual_err[0], residual_err[1]))  # no residual error
 
         x_perf_syndr = (self.Hz @ x_err) % 2
-        x_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(sigma=self.x_sigma, perfect_syndr=x_perf_syndr)
+        x_noisy_syndr = np.asarray(self.noise_sampler.sample_x_syndrome(x_perf_syndr), dtype=np.float64)
         x_decoding = self.x_decoder.decode(x_noisy_syndr)[: self.n]
         self.x_bp_iterations += self.x_decoder.bposd_decoder.iter
         x_residual = (x_err + x_decoding) % 2
 
         z_perf_syndr = (self.Hx @ z_err) % 2
-        z_noisy_syndr = simulation_utils.get_noisy_analog_syndrome(sigma=self.z_sigma, perfect_syndr=z_perf_syndr)
+        z_noisy_syndr = np.asarray(self.noise_sampler.sample_z_syndrome(z_perf_syndr), dtype=np.float64)
         z_decoding = self.z_decoder.decode(z_noisy_syndr)[: self.n]
         self.z_bp_iterations += self.z_decoder.bposd_decoder.iter
         z_residual = (z_err + z_decoding) % 2
