@@ -211,8 +211,42 @@ def test_gottesman_encoding(code: StabilizerCode, request) -> None:  # type: ign
 @pytest.mark.parametrize(
     "generators",
     [
+        ["XX", "YY"],
+        ["XXX", "XYY"],
+        ["XYYZ", "ZXYI", "YIZI"],
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
+        ["-XX", "-YY"],
+        ["XXX", "-XYY"],
+        ["-XYYZ", "ZXYI", "-YIZI"],
+        ["YYI", "XXI"],
+    ],
+)
+def test_gottesman_encoding_signs(generators: list[str]) -> None:
+    """Check that every given generator holds with its own sign after the circuit.
+
+    The elimination multiplies generators with each other, and such a product can carry a
+    minus sign, so a sign-free elimination can encode into the -1 eigenspace of a generator
+    that was given with a plus sign.
+    """
+    code = StabilizerCode(generators)
+    encoder = gottesman_encoding_circuit(code.generators)
+
+    simulator = stim.TableauSimulator()
+    simulator.set_num_qubits(code.n)
+    simulator.do(encoder.to_stim_circuit())
+    for generator in generators:
+        value = simulator.peek_observable_expectation(stim.PauliString(generator))
+        assert value == 1, f"{generator} has the value {value} after the circuit"
+
+    assert encoder.get_code().equal_stabilizer_group(code)
+
+
+@pytest.mark.parametrize(
+    "generators",
+    [
         ["IYI", "YII"],
         ["XZI", "YYI"],
+        ["YYI", "XXI"],
         ["XI"],
         ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"],
     ],
@@ -236,31 +270,32 @@ def test_gottesman_encoding_spans_all_qubits(generators: list[str]) -> None:
     assert circuit_code.equal_stabilizer_group(code)
 
 
-def test_gottesman_encoding_spans_all_qubits_with_negative_product() -> None:
-    """Check the width for a code whose elimination also picks up a minus sign.
-
-    For the generators `YYI` and `XXI`, qubit 2 is outside the support of both, and the
-    product `YYI * XXI` is `-ZZI`. The circuit therefore encodes into the -1 eigenspace of
-    `XXI`, which is the separate defect of
-    https://github.com/munich-quantum-toolkit/qecc/issues/891. This test covers the width
-    only. `equal_stabilizer_group` needs the fix for that issue as well.
-    """
-    code = StabilizerCode(["YYI", "XXI"])
-    encoder = gottesman_encoding_circuit(code.generators)
-    assert encoder is not None
-
-    assert encoder.num_qubits() == code.n
-    assert encoder.num_inputs() == code.k
-    assert encoder.get_code().n == code.n
-
-
 def test_gottesman_encoding_invalid() -> None:
     """Check that `gottesman_encoding_circuit` fails for invalid stabilizers."""
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
         gottesman_encoding_circuit(["I"])
 
     with pytest.raises(ValueError, match=r"Invalid tableau: could not find a valid pivot."):
-        gottesman_encoding_circuit(["X", "Z"])
+        gottesman_encoding_circuit(["XX", "XX"])
+
+
+@pytest.mark.parametrize(
+    "generators",
+    [
+        ["X", "Z"],
+        ["IX", "IZ"],
+        ["IX", "XY"],
+        ["XX", "ZI"],
+    ],
+)
+def test_gottesman_encoding_anticommuting(generators: list[str]) -> None:
+    """Check that `gottesman_encoding_circuit` rejects generators that do not commute.
+
+    The elimination does not fail for every such set on its own; for `IX`, `IZ` it used to
+    return a circuit.
+    """
+    with pytest.raises(ValueError, match=r"must commute"):
+        gottesman_encoding_circuit(generators)
 
 
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit"])

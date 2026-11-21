@@ -178,24 +178,36 @@ def _get_matrix_with_fewest_checks(code: CSSCode) -> tuple[CheckMatrix, CheckMat
 def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> CliffordIsometry:
     """Synthesize encoding circuit for a stabilizer code as described in chapter 6.4 of Gottesman's book.
 
-    Assumes all signs of the stabilizers are +1.
-
     Args:
         tableau: The stabilizer tableau of the code to synthesize the encoding circuit for.
 
     Returns:
         stim circuit implementing the encoding and a list of qubits that are used to encode the logical qubits.
+
+    Raises:
+        ValueError: If the rows of the tableau do not commute pairwise, are not independent,
+            or if one of them is not Hermitian.
     """
     if not isinstance(tableau, PauliTableau):
         tableau = PauliTableau.from_pauli_strings(tableau)
 
+    # The elimination does not notice anticommuting rows by itself and would return a
+    # circuit for them, so check that the rows generate a stabilizer group first.
+    if not tableau.all_commute(tableau):
+        msg = "Invalid tableau: the stabilizer generators must commute with each other."
+        raise ValueError(msg)
+
     nq = tableau.n
-    mat = tableau.tableau.data.copy()
-    x_part = mat[:, :nq]
-    z_part = mat[:, nq:]
+    # The elimination runs on a copy that carries the phase of every row. The phases
+    # are needed because the elimination multiplies rows with each other, and a
+    # product of two generators can carry a minus sign that a sign-free elimination
+    # on the symplectic matrix alone would lose.
+    tab = tableau.copy()
+    x_part = tab.tableau.data[:, :nq]
+    z_part = tab.tableau.data[:, nq:]
 
     circ = stim.Circuit()
-    n_rows = mat.shape[0]
+    n_rows = tab.n_rows
 
     initialized = []
     for row in range(n_rows):
@@ -219,50 +231,62 @@ def gottesman_encoding_circuit(tableau: PauliTableau | Sequence[str]) -> Cliffor
             raise ValueError(msg)
         initialized.append(column)
         # swap to row i
-        t = x_part[pivot].copy()
-        x_part[pivot] = x_part[row]
-        x_part[row] = t
-
-        t = z_part[pivot].copy()
-        z_part[pivot] = z_part[row]
-        z_part[row] = t
+        if pivot != row:
+            tab.tableau.data[[row, pivot]] = tab.tableau.data[[pivot, row]]
+            tab.phase_exponents[[row, pivot]] = tab.phase_exponents[[pivot, row]]
 
         if x_part[row][column] == 0:
             circ.append("H", [column])
-            t = x_part[:, column].copy()
-            x_part[:, column] = z_part[:, column]
-            z_part[:, column] = t
+            tab.apply_h(column)
 
         # reduce column
         for q in np.where(x_part[row])[0]:
             if q == column:
                 continue
             circ.append("CX", [column, q])
-            x_part[:, q] ^= x_part[:, column]
-            z_part[:, column] ^= z_part[:, q]
+            tab.apply_cx(column, q)
 
         if z_part[row][column] == 1:
             circ.append("S", [column])
-            z_part[:, column] ^= x_part[:, column]
+            tab.apply_s(column)
 
         for q in np.where(z_part[row])[0]:
             if q == column:
                 continue
             circ.append("CZ", [column, q])
-            z_part[:, q] ^= x_part[:, column]
-            z_part[:, column] ^= x_part[:, q]
+            tab.apply_cz(column, q)
 
-        # reduce stabilizers below row
-        x_part[:, column] = 0
-        x_part[row, column] = 1
+        # The row is +-X on `column` now. Clear that column from the remaining rows by
+        # multiplying them with this row, which is where a sign can enter.
+        for other in range(n_rows):
+            if other != row and x_part[other][column] == 1:
+                tab.multiply_rows(other, row)
 
     circ.append("H", initialized)
-    circ = circ.inverse()
+    for q in initialized:
+        tab.apply_h(q)
 
-    signs = [s.sign for s in circ.to_tableau().to_stabilizers()]
-    for row, sign in enumerate(signs):
-        if sign == -1:
-            circ.insert(0, stim.CircuitInstruction("X", [row]))
+    # Row `row` is +-Z on qubit `initialized[row]` now, so the circuit below maps that
+    # Z-output onto the given generator up to the tracked sign. Initializing the qubit
+    # in |1> instead of |0> flips that sign, and the given generator ends up with the
+    # sign it was given. Only the Z-outputs of the initialized qubits are stabilizers;
+    # fixing them one by one would be wrong, because they generate the stabilizer group
+    # of the code only up to signs.
+    signs = tab.signs()
+    circ = circ.inverse()
+    for row, column in enumerate(initialized):
+        if signs[row] == 1:
+            circ.insert(0, stim.CircuitInstruction("X", [column]))
+
+    # The Z-output of an input qubit is a logical operator, which the stabilizers do not
+    # fix. Keep the convention that the circuit encodes |0> into its +1 eigenstate. The X
+    # gates inserted above do not change these signs, because an X on one qubit leaves the
+    # Z-outputs of all other qubits alone.
+    circuit_tableau = circ.to_tableau()
+    for q in range(len(circuit_tableau)):
+        if q not in initialized and circuit_tableau.z_output(q).sign == -1:
+            circ.insert(0, stim.CircuitInstruction("X", [q]))
+
     # pass nq explicitly: qubits outside the support of every generator are not mentioned by the
     # circuit and would otherwise be lost, see https://github.com/munich-quantum-toolkit/qecc/issues/893
     iso = CliffordIsometry.from_stim_circuit(circ, n=nq)
