@@ -32,6 +32,12 @@ from mqt.qecc.circuit_synthesis.noise import (
         ),
         (Circuit(), Circuit()),
         (
+            Circuit("R 0\nR 1\nCX 0 1\nM 0\nMX 1"),
+            Circuit(
+                "R 0\nDEPOLARIZE1(0.04) 0\nR 1\nDEPOLARIZE1(0.04) 1\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nM(0.03) 0\nMX(0.03) 1\n"
+            ),
+        ),
+        (
             Circuit(
                 "RX 0\nDEPOLARIZE1(0.04) 0\nR 1\nDEPOLARIZE1(0.04) 1\nCX 0 1\nDEPOLARIZE2(0.01) 0 1\nMR(0.03) 0\nH 1\nDEPOLARIZE1(0.02) 1\nMRX(0.03) 1\n"
             ),

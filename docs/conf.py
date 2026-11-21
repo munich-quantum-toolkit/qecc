@@ -158,6 +158,7 @@ autoapi_root = "api"
 autoapi_add_toctree_entry = False
 autoapi_ignore = [
     "*/**/_version.py",
+    "*/ft_search/_core/*",  # internal modules of the front search; its API is api, synth and simulation
 ]
 autoapi_options = [
     "members",
