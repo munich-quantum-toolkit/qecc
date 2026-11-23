@@ -231,7 +231,7 @@ class CliffordIsometry:
         """Get input qubits."""
         return self._inputs
 
-    def draw(self, *args, **kwargs):  # ruff:ignore[missing-type-kwargs, missing-type-args, missing-return-type-undocumented-public-function]
+    def draw(self, *args, **kwargs):  # ruff:ignore[missing-type-kwargs, missing-type-args, missing-return-type-public-function]
         """Draw the circuit using Qiskit visualization tools.
 
         Args:
@@ -644,7 +644,7 @@ class CNOTCircuit(CliffordIsometry):
         """
         return self.num_qubits()
 
-    def draw(self, *args, **kwargs):  # ruff:ignore[missing-type-kwargs, missing-type-args, missing-return-type-undocumented-public-function]
+    def draw(self, *args, **kwargs):  # ruff:ignore[missing-type-kwargs, missing-type-args, missing-return-type-public-function]
         """Draw the circuit using Qiskit visualization tools.
 
         Args:
