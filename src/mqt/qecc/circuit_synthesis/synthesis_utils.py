@@ -37,9 +37,9 @@ def run_with_timeout(func: Callable[[Any], Any], *args: Any, timeout: int = 10) 
         args: The arguments to pass to the function.
         timeout: The maximum time to allow the function to run for in seconds.
     """
-    manager = multiprocess.Manager()  # ty: ignore[unresolved-attribute]
+    manager = multiprocess.Manager()  # ty: ignore[missing-attribute]
     return_list = manager.list()
-    p = multiprocess.Process(target=lambda: return_list.append(func(*args)))  # ty: ignore[unresolved-attribute]
+    p = multiprocess.Process(target=lambda: return_list.append(func(*args)))  # ty: ignore[missing-attribute]
     p.start()
     p.join(timeout)
     if p.is_alive():
