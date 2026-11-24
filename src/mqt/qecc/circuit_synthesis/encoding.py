@@ -608,4 +608,6 @@ def cnot_encoding_circuit(
     if checks.type == "Z":
         z_qubits, x_qubits = x_qubits, z_qubits
 
-    return CNOTCircuit.from_cnot_list(cnots, z_qubits, x_qubits)
+    # A logical qubit that no CNOT touches is still an input. Without `inputs` it would be
+    # absent from the circuit, which costs the encoder a logical qubit and a qubit of width.
+    return CNOTCircuit.from_cnot_list(cnots, z_qubits, x_qubits, inputs=logical_qubits)

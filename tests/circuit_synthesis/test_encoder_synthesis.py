@@ -144,6 +144,34 @@ def test_css_encoding_consistent(
     assert encoder.get_code().is_equivalent(code)
 
 
+@pytest.mark.parametrize(
+    ("hx", "hz"),
+    [
+        ([[1, 0, 0]], [[0, 1, 0]]),
+        ([[1, 1, 0, 0]], [[1, 1, 0, 0]]),
+        ([[1, 1, 1, 1, 0]], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]),
+    ],
+)
+@pytest.mark.parametrize("use_cnots_if_css", [True, False])
+def test_css_encoding_spans_all_qubits(hx: list[list[int]], hz: list[list[int]], use_cnots_if_css: bool) -> None:
+    """Check that `synthesize_encoding_circuit` returns an isometry spanning all `n` qubits.
+
+    A qubit outside the support of every check of a CSS code is still an input of the encoder.
+    The CNOT path used to drop such a qubit, which cost the encoder a logical qubit and a qubit
+    of width (see https://github.com/munich-quantum-toolkit/qecc/issues/893).
+    """
+    code = CSSCode(np.array(hx, dtype=np.int8), np.array(hz, dtype=np.int8))
+    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=use_cnots_if_css)
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+
+    circuit_code = encoder.get_code()
+    assert circuit_code.n == code.n
+    assert circuit_code.k == code.k
+    assert circuit_code.is_equivalent(code)
+
+
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit", "non_css_8_qubit"])
 @pytest.mark.parametrize("optimization_criterion", ["gates", "depth"])
 @pytest.mark.parametrize("enable_early_termination", [True, False])
