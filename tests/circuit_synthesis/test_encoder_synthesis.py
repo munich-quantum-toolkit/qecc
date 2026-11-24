@@ -176,6 +176,52 @@ def test_css_encoding_spans_all_qubits(hx: list[list[int]], hz: list[list[int]],
     assert circuit_code.is_equivalent(code)
 
 
+@pytest.mark.parametrize(
+    "generators",
+    [
+        ["XXI", "XXI"],
+        ["IIX", "IXI", "IXX"],
+        ["-IIX", "IXI", "-IXX"],
+        ["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ", "ZZXIX"],
+        ["XXXX", "ZZZZ", "YYYY"],
+    ],
+)
+def test_encoding_dependent_generators(generators: list[str]) -> None:
+    """Check that the general path of `synthesize_encoding_circuit` accepts dependent generators.
+
+    A code may list a generator that is a product of the others. The general path pairs every
+    generator with a destabilizer, which does not exist for a dependent generator.
+    """
+    code = StabilizerCode(generators)
+    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=False)
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+    assert encoder.get_code().equal_stabilizer_group(code)
+
+
+@pytest.mark.parametrize("use_cnots_if_css", [True, False])
+def test_css_encoding_dependent_checks(use_cnots_if_css: bool) -> None:
+    """Check that both paths of `synthesize_encoding_circuit` accept a CSS code with dependent checks."""
+    hx = np.array([[1, 1, 0, 0], [0, 0, 1, 1], [1, 1, 1, 1]], dtype=np.int8)
+    hz = np.array([[1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8)
+    code = CSSCode(hx, hz)
+    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=use_cnots_if_css)
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k
+    assert encoder.get_code().is_equivalent(code)
+
+
+def test_encoding_dependent_generators_fixed_logical() -> None:
+    """Check that fixing a logical qubit works for a code with dependent generators."""
+    code = StabilizerCode(["IIX", "IXI", "IXX"])
+    encoder = synthesize_encoding_circuit(code, use_cnots_if_css=False, fixed_logical_qubits={0: "0"})
+
+    assert encoder.num_qubits() == code.n
+    assert encoder.num_inputs() == code.k - 1
+
+
 @pytest.mark.parametrize("code_fixture", ["non_css_5_qubit", "non_css_8_qubit"])
 @pytest.mark.parametrize("optimization_criterion", ["gates", "depth"])
 @pytest.mark.parametrize("enable_early_termination", [True, False])
