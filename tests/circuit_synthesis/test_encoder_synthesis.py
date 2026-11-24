@@ -150,6 +150,7 @@ def test_css_encoding_consistent(
         ([[1, 0, 0]], [[0, 1, 0]]),
         ([[1, 1, 0, 0]], [[1, 1, 0, 0]]),
         ([[1, 1, 1, 1, 0]], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]),
+        ([[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]], [[1, 1, 1, 1, 0]]),
     ],
 )
 @pytest.mark.parametrize("use_cnots_if_css", [True, False])
@@ -159,6 +160,9 @@ def test_css_encoding_spans_all_qubits(hx: list[list[int]], hz: list[list[int]],
     A qubit outside the support of every check of a CSS code is still an input of the encoder.
     The CNOT path used to drop such a qubit, which cost the encoder a logical qubit and a qubit
     of width (see https://github.com/munich-quantum-toolkit/qecc/issues/893).
+
+    The CNOT path hands `cnot_encoding_circuit` the smaller of the two check matrices. The last
+    two codes are each other's X and Z parts, so they cover both the X and the Z branch.
     """
     code = CSSCode(np.array(hx, dtype=np.int8), np.array(hz, dtype=np.int8))
     encoder = synthesize_encoding_circuit(code, use_cnots_if_css=use_cnots_if_css)
