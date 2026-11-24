@@ -370,15 +370,20 @@ def synthesize_encoding_circuit(
         "A SynthesisConfig must be provided when use_cnots_if_css is False."
     )
 
+    # A code may list dependent generators, but the general path pairs every generator with a
+    # destabilizer and an initialized qubit, which needs an independent set. `StabilizerCode`
+    # rejects generators whose signs contradict each other, so dropping the dependent ones
+    # keeps the signed stabilizer group.
+    generators = code.generators.independent_rows()
     additional_x_rows = code.x_logicals.tableau.data[additional_x_checks]
     additional_z_rows = code.z_logicals.tableau.data[additional_z_checks]
     gens_mat: npt.NDArray[np.int8] = np.vstack((
-        code.symplectic,
+        generators.tableau.data,
         additional_x_rows,
         additional_z_rows,
     ))
     gens_phase: npt.NDArray[np.int8] = np.hstack((
-        code.generators.phase_exponents,
+        generators.phase_exponents,
         code.x_logicals.phase_exponents[additional_x_checks],
         code.z_logicals.phase_exponents[additional_z_checks],
     ))
@@ -608,4 +613,6 @@ def cnot_encoding_circuit(
     if checks.type == "Z":
         z_qubits, x_qubits = x_qubits, z_qubits
 
-    return CNOTCircuit.from_cnot_list(cnots, z_qubits, x_qubits)
+    # A logical qubit that no CNOT touches is still an input. Without `inputs` it would be
+    # absent from the circuit, which costs the encoder a logical qubit and a qubit of width.
+    return CNOTCircuit.from_cnot_list(cnots, z_qubits, x_qubits, inputs=logical_qubits)
