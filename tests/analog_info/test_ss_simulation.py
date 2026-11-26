@@ -23,6 +23,8 @@ from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from numpy.typing import NDArray
 
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
@@ -65,8 +67,14 @@ def single_stage_analog_simulator(
     mcm: NDArray[np.int32],
     code_params: dict[str, int],
     bias: NDArray[np.float64],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> SingleShotSimulator:
-    """Fixture for single stage analog single shot simulator."""
+    """Fixture for single stage analog single shot simulator.
+
+    The simulator writes its results below the current directory, so the fixture changes to a temporary directory.
+    """
+    monkeypatch.chdir(tmp_path)
     return SingleShotSimulator(
         codename="test",
         per=error_rate,
@@ -97,8 +105,14 @@ def two_stage_simulator(
     mcm: NDArray[np.int32],
     code_params: dict[str, int],
     bias: NDArray[np.float64],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> SingleShotSimulator:
-    """Fixture for hard syndrome two stage simulator."""
+    """Fixture for hard syndrome two stage simulator.
+
+    The simulator writes its results below the current directory, so the fixture changes to a temporary directory.
+    """
+    monkeypatch.chdir(tmp_path)
     return SingleShotSimulator(
         codename="test",
         per=error_rate,

@@ -23,6 +23,8 @@ from mqt.qecc.analog_information_decoding.utils import simulation_utils
 from mqt.qecc.analog_information_decoding.utils.data_utils import BpParams
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from numpy.typing import NDArray
 
 
@@ -75,7 +77,7 @@ def atd_simulator_sigma(pcm: NDArray[np.int32], code_params: dict[str, int]) -> 
 
 
 @pytest.fixture
-def atd_simulator_ser(pcm: NDArray[np.int32], code_params: dict[str, int]) -> AtdSimulator:
+def atd_simulator_ser(pcm: NDArray[np.int32], code_params: dict[str, int], tmp_path: Path) -> AtdSimulator:
     """Return AtdSimulator using error rate to initialize syndrome channel."""
     per = 0.1
     ser = 0.1
@@ -90,7 +92,7 @@ def atd_simulator_ser(pcm: NDArray[np.int32], code_params: dict[str, int]) -> At
         seed=666,
         bp_params=BpParams(osd_order=0, osd_method="osd0"),
         decoding_method="atd",
-        output_path="./res",
+        output_path=str(tmp_path / "results.json"),
         code_params=code_params,
     )
 
