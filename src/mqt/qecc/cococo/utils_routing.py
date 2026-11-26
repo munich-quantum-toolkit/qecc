@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import collections
-import datetime as dt
 import itertools
 import logging
 import pathlib
@@ -29,6 +28,7 @@ from mqt.qecc.cococo import dag_helper
 from .types import pos
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import Callable, Sequence
 
     from .types import VdpDict
@@ -39,6 +39,14 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+
+
+def _save_schedule(schedule: Any, path: str | os.PathLike[str] | None) -> None:  # ruff:ignore[any-type]
+    """Save ``schedule`` to ``path`` with ``pickle``, or do nothing if ``path`` is None."""
+    if path is None:
+        return
+    with pathlib.Path(path).open("wb") as f:
+        pickle.dump(schedule, f)
 
 
 SteinerType = dict[tuple[pos, ...], list[list[pos]]]
@@ -1391,6 +1399,7 @@ class TeleportationRouter(BasicRouter):
         idle_move_type: str,
         reduce_init_steiner: bool = False,
         stimtest: bool = False,
+        schedule_path: str | os.PathLike[str] | None = None,
     ) -> tuple[Any, list[tuple[int, Any]]]:
         """Optimize the positions in batches of size k_lookahead.
 
@@ -1420,6 +1429,7 @@ class TeleportationRouter(BasicRouter):
             idle_move_type: Recommended to use `later`. asap: moving back is done as frequent as possible. this may destroy however structure of the predicted routing from the steiner search. later: means that moving back is only done when the steiner search is done. if a locking occurs, extra layers with moving back are necessary, but no moving back during the routing of the k_lookahead layers with jump_harvesting = True.
             reduce_init_steiner: Defaults to False and is recommended not to be changed.
             stimtest: If True, at the end of the computation the schedule is sanity checked. Defaults to False but recommended to use.
+            schedule_path: If given, the schedule computed so far is saved to this file with `pickle` after each step. Defaults to None, which saves no file.
 
         Returns:
             schedule and improvement_history.
@@ -1429,7 +1439,6 @@ class TeleportationRouter(BasicRouter):
             raise ValueError(msg)
 
         schedule: Any = []
-        filename = f"schedule_{dt.datetime.now(dt.UTC).strftime('%Y-%m-%d_%H-%M-%S')}.pkl"  # logging filename
 
         available_gaps: list[pos] = []  # a list of gap positions which are free due to moves
         danger_qubits: dict[
@@ -1487,8 +1496,7 @@ class TeleportationRouter(BasicRouter):
                 schedule_temp["logical_pos"] = self.logical_pos.copy()
                 schedule_temp["layout"] = layout.copy()
                 schedule.append(schedule_temp)
-                with pathlib.Path(filename).open("wb") as f:
-                    pickle.dump(schedule, f)
+                _save_schedule(schedule, schedule_path)
                 break
             # remove what is already routed from `layers` + push the remainder into the next layers
             if self.use_dag:
@@ -1602,8 +1610,7 @@ class TeleportationRouter(BasicRouter):
                 schedule_temp["logical_pos"] = self.logical_pos.copy()
                 schedule_temp["layout"] = layout.copy()
                 schedule.append(schedule_temp)
-                with pathlib.Path(filename).open("wb") as f:
-                    pickle.dump(schedule, f)
+                _save_schedule(schedule, schedule_path)
                 flag_skip_steiner = True
 
             if flag_skip_steiner is False:
@@ -1740,8 +1747,7 @@ class TeleportationRouter(BasicRouter):
                 danger_qubits |= danger_qubits_temp.copy()
                 available_gaps += available_gaps_temp.copy()
 
-            with pathlib.Path(filename).open("wb") as f:
-                pickle.dump(schedule, f)
+            _save_schedule(schedule, schedule_path)
 
             flag_finished = False
             layers_k = layers[:k_lookahead].copy()
@@ -1780,8 +1786,7 @@ class TeleportationRouter(BasicRouter):
                         schedule_temp["logical_pos"] = self.logical_pos.copy()
                         schedule_temp["layout"] = layout.copy()
                         schedule.append(schedule_temp)
-                        with pathlib.Path(filename).open("wb") as f:
-                            pickle.dump(schedule, f)
+                        _save_schedule(schedule, schedule_path)
                         flag_finished = True
                         break
 
@@ -1880,8 +1885,7 @@ class TeleportationRouter(BasicRouter):
             if flag_finished:
                 break  # otherwise last layer may appear twice
 
-            with pathlib.Path(filename).open("wb") as f:
-                pickle.dump(schedule, f)
+            _save_schedule(schedule, schedule_path)
 
         if not tst.check_num_gates(terminal_pairs, schedule):
             warnings.warn(

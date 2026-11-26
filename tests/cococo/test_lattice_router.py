@@ -9,15 +9,16 @@
 
 from __future__ import annotations
 
+import pickle  # ruff:ignore[suspicious-pickle-import]
 from typing import TYPE_CHECKING, cast
+
+import pytest
 
 import mqt.qecc.cococo.utils_routing as utils
 from mqt.qecc.cococo import circuit_construction, layouts
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
     from mqt.qecc.cococo.types import Layout, pos
 
@@ -132,10 +133,8 @@ def test_basicrouter_3_sc_validpath():
         raise ValueError(msg) from e
 
 
-def test_teleportationrouter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_teleportationrouter():
     """Test the TeleportationRouter class. By running some instance with testing==True."""
-    # `optimize_layers` writes its schedule to the current directory.
-    monkeypatch.chdir(tmp_path)
     layout_type = "triple"
     m = 2
     n = 2
@@ -215,6 +214,46 @@ def test_teleportationrouter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     except Exception as e:
         msg = "Something is wrong with the TeleportationRouter class (on path_random, reduce init steiner true)."
         raise ValueError(msg) from e
+
+
+@pytest.mark.parametrize("save_schedule", [False, True])
+def test_teleportationrouter_schedule_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, save_schedule: bool
+) -> None:
+    """Test that optimize_layers writes the schedule only to the file given as schedule_path."""
+    monkeypatch.chdir(tmp_path)
+    factories: list[pos] = [(22, 2), (5, -2), (10, -2), (9, 4), (17, -2)]
+    g, data_qubit_locs, _factory_ring = layouts.gen_layout_scalable("triple", 2, 2, factories, False)
+    layout = dict(enumerate(data_qubit_locs))
+    pairs = circuit_construction.generate_random_circuit(len(data_qubit_locs), 9, tgate=True, ratio=0.8)
+    terminal_pairs = layouts.translate_layout_circuit(pairs, cast("Layout", layout))
+    router = utils.TeleportationRouter(
+        g, data_qubit_locs, factories, valid_path="cc", t=4, metric="exact", use_dag=True, seed=7
+    )
+    schedule_path = tmp_path / "schedule.pkl" if save_schedule else None
+
+    schedule, _ = router.optimize_layers(
+        terminal_pairs,
+        layout,
+        max_iters=2,
+        T_start=100.0,
+        T_end=0.1,
+        alpha=0.95,
+        radius=10,
+        k_lookahead=5,
+        steiner_init_type="full_random",
+        jump_harvesting=True,
+        reduce_steiner=True,
+        idle_move_type="later",
+        schedule_path=schedule_path,
+    )
+
+    if schedule_path is None:
+        assert not list(tmp_path.iterdir())
+    else:
+        assert list(tmp_path.iterdir()) == [schedule_path]
+        with schedule_path.open("rb") as f:
+            assert pickle.load(f) == schedule  # ruff:ignore[suspicious-pickle-usage]
 
 
 def test_count_crossings():
