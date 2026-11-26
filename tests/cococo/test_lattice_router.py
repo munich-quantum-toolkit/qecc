@@ -15,6 +15,10 @@ import mqt.qecc.cococo.utils_routing as utils
 from mqt.qecc.cococo import circuit_construction, layouts
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
+
     from mqt.qecc.cococo.types import Layout, pos
 
 
@@ -128,8 +132,10 @@ def test_basicrouter_3_sc_validpath():
         raise ValueError(msg) from e
 
 
-def test_teleportationrouter():
+def test_teleportationrouter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Test the TeleportationRouter class. By running some instance with testing==True."""
+    # `optimize_layers` writes its schedule to the current directory.
+    monkeypatch.chdir(tmp_path)
     layout_type = "triple"
     m = 2
     n = 2
