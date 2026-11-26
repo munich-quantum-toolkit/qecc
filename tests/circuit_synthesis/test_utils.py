@@ -26,6 +26,7 @@ from mqt.qecc.circuit_synthesis.circuit_utils import (
     measured_qubits,
     num_two_qubit_gates,
     qiskit_to_stim_circuit,
+    relabel_qubits,
     remove_single_qubit_gates,
     remove_swap_gates,
     two_qubit_gate_depth,
@@ -737,6 +738,74 @@ def test_remove_swap_gates(circuit_ops, expected_ops):
         expected.append_operation(op, targets)
 
     assert result == expected
+
+
+STIM_HAS_TAGS = hasattr(stim.CircuitInstruction, "tag")
+requires_stim_tags = pytest.mark.skipif(not STIM_HAS_TAGS, reason="Stim supports tags from version 1.15.")
+
+
+@pytest.mark.parametrize(
+    ("circuit", "expected"),
+    [
+        ("H 0\nCX 0 1", "H 2\nCX 2 3"),
+        ("M !0 1", "M !2 3"),
+        ("M(0.1) 0\nX_ERROR(0.01) 1\nDEPOLARIZE2(0.02) 0 1", "M(0.1) 2\nX_ERROR(0.01) 3\nDEPOLARIZE2(0.02) 2 3"),
+        ("QUBIT_COORDS(1, 2) 0\nSHIFT_COORDS(1)\nTICK", "QUBIT_COORDS(1, 2) 2\nSHIFT_COORDS(1)\nTICK"),
+        (
+            "M 0\nDETECTOR(1) rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+            "M 2\nDETECTOR(1) rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+        ),
+        ("M 0\nCX rec[-1] 1 sweep[0] 0", "M 2\nCX rec[-1] 3 sweep[0] 2"),
+        ("MPP X0*!Y1 Z0", "MPP X2*!Y3 Z2"),
+        ("MPAD 0 1", "MPAD 0 1"),
+        (
+            "REPEAT 2 {\n    REPEAT 3 {\n        M !1\n    }\n    H 0\n}",
+            "REPEAT 2 {\n    REPEAT 3 {\n        M !3\n    }\n    H 2\n}",
+        ),
+        pytest.param(
+            "H[a] 0\nREPEAT[b] 2 {\n    M[c](0.1) !1\n}",
+            "H[a] 2\nREPEAT[b] 2 {\n    M[c](0.1) !3\n}",
+            marks=requires_stim_tags,
+        ),
+    ],
+)
+@pytest.mark.parametrize("qubit_mapping", [2, {0: 2, 1: 3}])
+def test_relabel_qubits_changes_only_qubits(circuit: str, expected: str, qubit_mapping: dict[int, int] | int) -> None:
+    """Test that relabel_qubits changes qubit indices and keeps every other part of each instruction."""
+    assert relabel_qubits(stim.Circuit(circuit), qubit_mapping) == stim.Circuit(expected)
+
+
+def test_relabel_qubits_dict_mapping() -> None:
+    """Test that relabel_qubits applies a dictionary mapping to each qubit separately."""
+    circuit = stim.Circuit("CX 0 1 1 2\nMPP X0*Z2\nM !2")
+    expected = stim.Circuit("CX 5 0 0 3\nMPP X5*Z3\nM !3")
+    assert relabel_qubits(circuit, {0: 5, 1: 0, 2: 3}) == expected
+
+
+@pytest.mark.parametrize(
+    ("circuit", "expected"),
+    [
+        ("X_ERROR(0.1) 0\nSWAP 0 1\nM !0\nDETECTOR(1) rec[-1]", "X_ERROR(0.1) 0\nM !0\nDETECTOR(1) rec[-1]"),
+        ("M 0\nCX rec[-1] 1\nSWAP 0 1\nMPP X0*Z1", "M 0\nCX rec[-1] 1\nMPP X0*Z1"),
+        pytest.param("H[a] 0\nSWAP 0 1\nCX[b] 0 1", "H[a] 0\nCX[b] 0 1", marks=requires_stim_tags),
+    ],
+)
+def test_remove_swap_gates_keeps_other_instructions(circuit: str, expected: str) -> None:
+    """Test that remove_swap_gates copies every other instruction unchanged."""
+    assert remove_swap_gates(stim.Circuit(circuit)) == stim.Circuit(expected)
+
+
+@pytest.mark.parametrize(
+    ("circuit", "expected"),
+    [
+        ("DEPOLARIZE2(0.1) 0 1\nX_ERROR(0.1) 0\nMPP X0*Z1", "DEPOLARIZE2(0.1) 0 1\nMPP X0*Z1"),
+        ("M 0\nCX rec[-1] 1\nH 1", "CX rec[-1] 1"),
+        pytest.param("CX[a] 0 1\nH[b] 0", "CX[a] 0 1", marks=requires_stim_tags),
+    ],
+)
+def test_remove_single_qubit_gates_keeps_other_instructions(circuit: str, expected: str) -> None:
+    """Test that remove_single_qubit_gates copies every kept instruction unchanged."""
+    assert remove_single_qubit_gates(stim.Circuit(circuit)) == stim.Circuit(expected)
 
 
 @pytest.mark.parametrize(

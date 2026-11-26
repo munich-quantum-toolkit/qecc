@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from stim import Circuit, CircuitInstruction, CircuitRepeatBlock
+from stim import Circuit, CircuitInstruction, CircuitRepeatBlock, GateTarget, target_inv, target_x, target_y, target_z
 
 from .definitions import STIM_MEASUREMENTS
 
@@ -29,8 +29,40 @@ def get_stim_qubit_values(operation: CircuitInstruction | CircuitRepeatBlock) ->
     return cast("list[int]", qubits)
 
 
+def _relabel_target(target: GateTarget, qubit_mapping: dict[int, int] | int) -> GateTarget | int:
+    """Return ``target`` with its qubit relabeled and its kind and inversion flag kept."""
+    qubit = target.qubit_value
+    if qubit is None:
+        # Measurement record targets, sweep bits and Pauli product combiners refer to no qubit.
+        return target
+    new_qubit = qubit_mapping[qubit] if isinstance(qubit_mapping, dict) else qubit + qubit_mapping
+    invert = target.is_inverted_result_target
+    if target.is_x_target:
+        return target_x(new_qubit, invert=invert)
+    if target.is_y_target:
+        return target_y(new_qubit, invert=invert)
+    if target.is_z_target:
+        return target_z(new_qubit, invert=invert)
+    if invert:
+        return target_inv(new_qubit)
+    return new_qubit
+
+
+def _tag_kwargs(operation: CircuitInstruction | CircuitRepeatBlock) -> dict[str, str]:
+    """Return the keyword arguments that copy the tag of ``operation``.
+
+    Stim added tags in version 1.15. With older versions, operations have no tag and the keyword is not accepted.
+    """
+    tag = getattr(operation, "tag", "")
+    return {"tag": tag} if tag else {}
+
+
 def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circuit:
     """Relabels the qubits in a stim circuit based on the given mapping.
+
+    Only qubit indices change. Gate arguments, tags, inverted measurement results, Pauli targets, measurement record
+    targets, sweep bits, and ``REPEAT`` blocks stay as they are. The targets of ``MPAD`` are measurement results, not
+    qubits, so they also stay as they are.
 
     Parameters:
         circ: The original stim circuit.
@@ -41,12 +73,15 @@ def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circui
     """
     new_circ = Circuit()
     for op in circ:
-        assert isinstance(op, CircuitInstruction)
-        if isinstance(qubit_mapping, dict):
-            relabelled_qubits = [qubit_mapping[q.value] for q in op.targets_copy()]
-        else:
-            relabelled_qubits = [q.value + qubit_mapping for q in op.targets_copy()]
-        new_circ.append(op.name, relabelled_qubits)
+        if isinstance(op, CircuitRepeatBlock):
+            new_body = relabel_qubits(op.body_copy(), qubit_mapping)
+            new_circ.append(CircuitRepeatBlock(op.repeat_count, new_body, **_tag_kwargs(op)))
+            continue
+        if op.name == "MPAD":
+            new_circ.append(op)
+            continue
+        targets = [_relabel_target(t, qubit_mapping) for t in op.targets_copy()]
+        new_circ.append(CircuitInstruction(op.name, targets, op.gate_args_copy(), **_tag_kwargs(op)))
     return new_circ
 
 
@@ -231,7 +266,7 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
         assert isinstance(op, CircuitInstruction)
         if all(len(grp) == 1 for grp in op.target_groups()):
             continue
-        new_circ.append(op.name, get_stim_qubit_values(op))
+        new_circ.append(op)
     return new_circ
 
 
@@ -248,7 +283,7 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     for op in circ:
         if op.name == "SWAP":
             continue
-        new_circ.append(op.name, get_stim_qubit_values(op))
+        new_circ.append(op)
     return new_circ
 
 
