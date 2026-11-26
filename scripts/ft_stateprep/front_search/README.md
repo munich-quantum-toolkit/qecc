@@ -8,7 +8,11 @@ search found, kept only if it has fewer operations than every shallower circuit.
 Five further circuits are kept as well, although other circuits in this
 directory beat them: `color_17_1_5` 77/7, 58/10 and 55/12, `bga_24_4_5` 123/20
 and `color_31_1_7` 226/19 (operations/depth). A circuit for a code of distance
-`d` tolerates `t = (d - 1) // 2` faults.
+`d` tolerates `t = (d - 1) // 2` faults. For the even distance of the [[20,2,6]]
+code, `sd_20_2_6` also holds a second front of circuits that tolerate
+`t = d / 2 = 3` faults (files `zero_t3_<ops>_<depth>.stim`): sets of 3 faults
+leave errors of weight at most 3, which the code can still detect. The column
+`t` of `index.csv` gives the number of faults each circuit tolerates.
 
 | Code                                  | Directory        |
 | ------------------------------------- | ---------------- |
@@ -41,10 +45,11 @@ circuits.
 ## Files
 
 - `circuits/<code>/zero_<ops>_<depth>.stim`: a circuit that prepares the logical
-  all-zero state, with `<ops>` operations and depth `<depth>`. The code's qubits
-  come first, in the order of the code's check matrices. The ancilla qubits
-  follow. The circuits are in stim format only, because the parities of the
-  `DETECTOR` instructions cannot be written in OpenQASM.
+  all-zero state, with `<ops>` operations and depth `<depth>`
+  (`zero_t3_<ops>_<depth>.stim`: tolerates 3 faults). The code's qubits come
+  first, in the order of the code's check matrices. The ancilla qubits follow.
+  The circuits are in stim format only, because the parities of the `DETECTOR`
+  instructions cannot be written in OpenQASM.
 - `codes/<code>.json`: the code's check matrices `Hx` and `Hz`, its logical
   operators `Lx` and `Lz`, its length `n` and its distance `d`.
 - `index.csv`: one row per circuit, with these columns:
