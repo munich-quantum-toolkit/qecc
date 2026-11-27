@@ -26,6 +26,7 @@ from mqt.qecc import CSSCode
 from mqt.qecc.circuit_synthesis import DeterministicVerification
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from types import ModuleType
 
 
@@ -52,17 +53,26 @@ class _Protocol:
 
 
 @pytest.fixture
-def simulation_det(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    """Import simulation_det with a stand-in for qsample."""
+def simulation_det(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
+    """Import simulation_det with a stand-in for qsample.
+
+    After the test, the fixture removes the imported module, so that later imports do not use the stand-in.
+    """
     qsample = types.ModuleType("qsample")
     qsample.__dict__.update(
         Circuit=_Circuit, Protocol=_Protocol, ErrorModel=object, noise=types.SimpleNamespace(E1_1=object)
     )
     monkeypatch.setitem(sys.modules, "qsample", qsample)
-    monkeypatch.delitem(sys.modules, "mqt.qecc.circuit_synthesis.simulation_det", raising=False)
+    module_name = "mqt.qecc.circuit_synthesis.simulation_det"
+    original_module = sys.modules.pop(module_name, None)
     package = importlib.import_module("mqt.qecc.circuit_synthesis")
-    monkeypatch.setattr(package, "simulation_det", None, raising=False)
-    return importlib.import_module("mqt.qecc.circuit_synthesis.simulation_det")
+    monkeypatch.setattr(package, "simulation_det", original_module, raising=False)
+    try:
+        yield importlib.import_module(module_name)
+    finally:
+        sys.modules.pop(module_name, None)
+        if original_module is not None:
+            sys.modules[module_name] = original_module
 
 
 @pytest.mark.parametrize("zero_state", [True, False])
