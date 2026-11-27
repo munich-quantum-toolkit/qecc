@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib
 import sys
 import types
+from collections import UserList
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 
-class _Circuit(list[dict[str, Any]]):
+class _Circuit(UserList[dict[str, Any]]):
     """Record the operations of a qsample circuit."""
 
     def __init__(self, ops: list[dict[str, Any]], noisy: bool = True) -> None:
