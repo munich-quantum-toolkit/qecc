@@ -91,6 +91,17 @@ def test_maxsat_decoder(code: HexagonalColorCode) -> None:
     assert est[1] == 1
 
 
+def test_maxsat_decoder_light_without_switches() -> None:
+    """A light that no switch controls must be off for the problem to have a solution."""
+    lo = decoder.LightsOut(lights_to_switches={0: [], 1: [0]}, switches_to_lights={0: [1]})
+    lo.preconstruct_z3_instance()
+    est, converged, _ = lo.solve(lights=[False, True])
+    assert converged
+    assert est == [1]
+    _, converged, _ = lo.solve(lights=[True, True])
+    assert not converged
+
+
 def test_simulate(d3_hexcode: HexagonalColorCode, p: float, nr_sims: int) -> None:
     """Test the general simulation function."""
     res = decoder.simulate_error_rate(d3_hexcode, p, nr_sims)

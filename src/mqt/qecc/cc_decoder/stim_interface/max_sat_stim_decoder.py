@@ -44,16 +44,16 @@ class MaxSatStim:
 
     @staticmethod
     def check_matrix_to_adj_lists(check_matrix: Any) -> tuple[dict[int, list[int]], dict[int, list[int]]]:  # ruff:ignore[any-type]
-        """Converts a check matrix to two adjacency lists."""
-        qtf: dict[int, list[int]] = {}
-        ftq: dict[int, list[int]] = {}
+        """Converts a check matrix to two adjacency lists.
+
+        Every column and every row gets an entry, also if it has no nonzero entries.
+        This keeps the column indices aligned with the priors and the observables matrix.
+        """
+        qtf: dict[int, list[int]] = {col: [] for col in range(check_matrix.shape[1])}
+        ftq: dict[int, list[int]] = {row: [] for row in range(check_matrix.shape[0])}
         for row in range(check_matrix.shape[0]):
             for col in range(check_matrix.shape[1]):
                 if check_matrix[row, col] == 1:
-                    if row not in ftq:
-                        ftq[row] = []
-                    if col not in qtf:
-                        qtf[col] = []
                     qtf[col].append(row)
                     ftq[row].append(col)
         return qtf, ftq
