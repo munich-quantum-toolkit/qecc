@@ -257,7 +257,8 @@ class CSSCode(StabilizerCode):
         """Load a CSS code from a file.
 
         The file can contain either:
-        1. Pauli string format - X and Z stabilizers as Pauli strings
+        1. Pauli string format - X and Z stabilizers as Pauli strings. Each row contains only I and X,
+           or only I and Z. Rows must not contain Y or a sign.
         2. Binary matrix format - X stabilizers followed by empty line, then Z stabilizers
 
         For Pauli string format (Steane code example):
@@ -300,6 +301,10 @@ class CSSCode(StabilizerCode):
 
         Returns:
             CSSCode: The CSS code.
+
+        Raises:
+            InvalidCSSCodeError: If the file is empty, or if a Pauli string row is not a pure X or a pure Z
+                stabilizer.
         """
         content = Path(file_path).read_text(encoding="utf-8").strip()
 
