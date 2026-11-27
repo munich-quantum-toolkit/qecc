@@ -303,8 +303,8 @@ class CSSCode(StabilizerCode):
             CSSCode: The CSS code.
 
         Raises:
-            InvalidCSSCodeError: If the file is empty, or if a Pauli string row is not a pure X or a pure Z
-                stabilizer.
+            InvalidCSSCodeError: If the file is empty or cannot be parsed, for example if a Pauli string row
+                is not a pure X or a pure Z stabilizer.
         """
         content = Path(file_path).read_text(encoding="utf-8").strip()
 
