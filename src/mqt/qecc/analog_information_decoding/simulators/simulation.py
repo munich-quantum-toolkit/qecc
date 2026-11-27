@@ -224,15 +224,16 @@ class SingleShotSimulator:
         x_residual_err = residual_err[0]
         z_residual_err = residual_err[1]
 
-        # check for logical errors
-        # check if residual X-error commutes with Z-logical and vice versa
-        # equivalently, check if residual X-error is in rowspace of Hz and vice versa
+        # Check for logical errors. A residual X error is a logical error if it anticommutes with a
+        # logical Z operator. Without logical operators, a residual X error counts as a logical error
+        # if it is not in the row space of Hx (the X stabilizers), and the same for Z errors.
+        # check_logical_err_h computes the residual itself from the error and the correction.
         if self._check_logicals:
             is_x_logical_error = is_logical_err(self.lz, x_residual_err)
             is_z_logical_error = is_logical_err(self.lx, z_residual_err)
         else:
-            is_x_logical_error = check_logical_err_h(self.Hz, x_err, x_residual_err)
-            is_z_logical_error = check_logical_err_h(self.Hx, z_err, z_residual_err)
+            is_x_logical_error = check_logical_err_h(self.Hx, x_err, x_decoded)
+            is_z_logical_error = check_logical_err_h(self.Hz, z_err, z_decoded)
 
         return is_x_logical_error, is_z_logical_error
 

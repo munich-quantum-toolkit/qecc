@@ -15,6 +15,8 @@ from unittest import mock
 import numpy as np
 import pytest
 
+from mqt.qecc import CSSCode
+from mqt.qecc.analog_information_decoding.simulators import simulation
 from mqt.qecc.analog_information_decoding.simulators.simulation import SingleShotSimulator
 from mqt.qecc.analog_information_decoding.utils.simulation_utils import (
     build_single_stage_pcm,
@@ -188,3 +190,109 @@ def test_single_sample(single_stage_analog_simulator: SingleShotSimulator) -> No
     assert res["z_ler"] is not None
     assert res["x_success_cnt"] is not None
     assert res["z_success_cnt"] is not None
+
+
+@pytest.fixture
+def toric_code_checks() -> tuple[NDArray[np.int32], NDArray[np.int32]]:
+    """Check matrices of the distance-3 toric code, a hypergraph product of two cyclic repetition codes.
+
+    Hx differs from Hz, so a check that swaps them gives wrong results.
+    """
+    h = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]], dtype=np.int32)
+    eye = np.eye(3, dtype=np.int32)
+    hx = np.hstack([np.kron(h, eye), np.kron(eye, h.T)]) % 2
+    hz = np.hstack([np.kron(eye, h), np.kron(h.T, eye)]) % 2
+    return hx, hz
+
+
+def _two_stage_simulator_without_logicals(
+    hx: NDArray[np.int32], hz: NDArray[np.int32], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> SingleShotSimulator:
+    monkeypatch.chdir(tmp_path)
+    return SingleShotSimulator(
+        codename="toric3",
+        per=0.05,
+        ser=0.0,
+        single_stage=False,
+        seed=1,
+        bias=np.array([1.0, 1.0, 1.0]),
+        x_meta=False,
+        z_meta=False,
+        sus_th_depth=0,
+        bp_params=BpParams(osd_order=0, osd_method="osd0"),
+        hx=hx,
+        hz=hz,
+        mx=None,
+        mz=None,
+        lx=None,
+        lz=None,
+        code_params={"n": hx.shape[1], "k": 2},
+    )
+
+
+def _fixed_errors(monkeypatch: pytest.MonkeyPatch, x_err: NDArray[np.int32], z_err: NDArray[np.int32]) -> None:
+    """Make every sampled data error equal to X_ERR and Z_ERR."""
+    monkeypatch.setattr(
+        simulation,
+        "generate_err",
+        lambda nr_qubits, channel_probs, residual_err: (x_err.copy(), z_err.copy()),  # ruff: ignore[unused-lambda-argument]
+    )
+
+
+@pytest.mark.parametrize("pauli", ["X", "Z"])
+def test_corrected_error_is_not_logical_without_logicals(
+    toric_code_checks: tuple[NDArray[np.int32], NDArray[np.int32]],
+    pauli: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without logical operators, a single-qubit error that the decoder corrects is not a logical error."""
+    hx, hz = toric_code_checks
+    sim = _two_stage_simulator_without_logicals(hx, hz, tmp_path, monkeypatch)
+    single = np.zeros(hx.shape[1], dtype=np.int32)
+    single[0] = 1
+    none = np.zeros(hx.shape[1], dtype=np.int32)
+    _fixed_errors(monkeypatch, *((single, none) if pauli == "X" else (none, single)))
+
+    assert sim._single_sample() == (False, False)  # ruff: ignore[private-member-access]
+
+
+@pytest.mark.parametrize("pauli", ["X", "Z"])
+def test_logical_error_is_detected_without_logicals(
+    toric_code_checks: tuple[NDArray[np.int32], NDArray[np.int32]],
+    pauli: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without logical operators, an error equal to a logical operator counts as a logical error of its type."""
+    hx, hz = toric_code_checks
+    sim = _two_stage_simulator_without_logicals(hx, hz, tmp_path, monkeypatch)
+    code = CSSCode(hx.astype(np.int8), hz.astype(np.int8))
+    none = np.zeros(hx.shape[1], dtype=np.int32)
+    if pauli == "X":
+        _fixed_errors(monkeypatch, code.Lx[0].astype(np.int32), none)
+        expected = (True, False)
+    else:
+        _fixed_errors(monkeypatch, none, code.Lz[0].astype(np.int32))
+        expected = (False, True)
+
+    assert sim._single_sample() == expected  # ruff: ignore[private-member-access]
+
+
+@pytest.mark.parametrize("pauli", ["X", "Z"])
+def test_stabilizer_error_is_not_logical_without_logicals(
+    toric_code_checks: tuple[NDArray[np.int32], NDArray[np.int32]],
+    pauli: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without logical operators, an error equal to a stabilizer of its own type is not a logical error.
+
+    An X stabilizer lies in the row space of Hx but not of Hz, so this test fails if the check uses the wrong matrix.
+    """
+    hx, hz = toric_code_checks
+    sim = _two_stage_simulator_without_logicals(hx, hz, tmp_path, monkeypatch)
+    none = np.zeros(hx.shape[1], dtype=np.int32)
+    _fixed_errors(monkeypatch, *((hx[0].copy(), none) if pauli == "X" else (none, hz[0].copy())))
+
+    assert sim._single_sample() == (False, False)  # ruff: ignore[private-member-access]
