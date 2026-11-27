@@ -22,11 +22,20 @@ if TYPE_CHECKING:
 
 
 def iter_set_xor(set_list: list[list[int]]) -> frozenset[int]:
-    """Computes XOR between sets."""
+    """Compute the sum modulo 2 of index lists.
+
+    An index that occurs an even number of times, in one list or across lists, cancels.
+
+    Args:
+        set_list: The lists of indices to add.
+
+    Returns:
+        The indices that occur an odd number of times in total.
+    """
     out: set[int] = set()
     for x in set_list:
-        s = set(x)
-        out = (out - s) | (s - out)
+        for elem in x:
+            out ^= {elem}
     return frozenset(out)
 
 
@@ -84,8 +93,10 @@ def detector_error_model_to_check_matrices(
     Returns:
         A collection of matrices representing the stim DetectorErrorModel
     """
-    hyperedge_ids: dict[frozenset[int], int] = {}
-    edge_ids: dict[frozenset[int], int] = {}
+    # Key the hyperedges and edges by their detectors and their observables.
+    # Errors with the same detectors but different observables must stay separate columns.
+    hyperedge_ids: dict[tuple[frozenset[int], frozenset[int]], int] = {}
+    edge_ids: dict[tuple[frozenset[int], frozenset[int]], int] = {}
     hyperedge_obs_map: dict[int, frozenset[int]] = {}
     edge_obs_map: dict[int, frozenset[int]] = {}
     priors_dict: dict[int, float] = {}
@@ -94,18 +105,25 @@ def detector_error_model_to_check_matrices(
     def handle_error(prob: float, detectors: list[list[int]], observables: list[list[int]]) -> None:
         hyperedge_dets = iter_set_xor(detectors)
         hyperedge_obs = iter_set_xor(observables)
+        if not hyperedge_dets and not hyperedge_obs:
+            # All targets cancel, so the error has no effect.
+            return
 
-        if hyperedge_dets not in hyperedge_ids:
-            hyperedge_ids[hyperedge_dets] = len(hyperedge_ids)
-            priors_dict[hyperedge_ids[hyperedge_dets]] = 0.0
-        hid = hyperedge_ids[hyperedge_dets]
+        hyperedge_key = (hyperedge_dets, hyperedge_obs)
+        if hyperedge_key not in hyperedge_ids:
+            hyperedge_ids[hyperedge_key] = len(hyperedge_ids)
+            priors_dict[hyperedge_ids[hyperedge_key]] = 0.0
+        hid = hyperedge_ids[hyperedge_key]
         hyperedge_obs_map[hid] = hyperedge_obs
         priors_dict[hid] = priors_dict[hid] * (1 - prob) + prob * (1 - priors_dict[hid])
 
         eids = []
         for i in range(len(detectors)):
-            e_dets = frozenset(detectors[i])
-            e_obs = frozenset(observables[i])
+            e_dets = iter_set_xor([detectors[i]])
+            e_obs = iter_set_xor([observables[i]])
+            if not e_dets and not e_obs:
+                # All targets of this component cancel, so the component adds no edge.
+                continue
 
             if len(e_dets) > 2:
                 if not allow_undecomposed_hyperedges:
@@ -117,9 +135,10 @@ def detector_error_model_to_check_matrices(
                     raise ValueError(msg)
                 continue
 
-            if e_dets not in edge_ids:
-                edge_ids[e_dets] = len(edge_ids)
-            eid = edge_ids[e_dets]
+            edge_key = (e_dets, e_obs)
+            if edge_key not in edge_ids:
+                edge_ids[edge_key] = len(edge_ids)
+            eid = edge_ids[edge_key]
             eids.append(eid)
             edge_obs_map[eid] = e_obs
 
@@ -147,7 +166,7 @@ def detector_error_model_to_check_matrices(
         else:
             raise NotImplementedError
     check_matrix = dict_to_csc_matrix(
-        {v: k for k, v in hyperedge_ids.items()},
+        {v: dets for (dets, _), v in hyperedge_ids.items()},
         shape=(dem.num_detectors, len(hyperedge_ids)),
     )
     observables_matrix = dict_to_csc_matrix(hyperedge_obs_map, shape=(dem.num_observables, len(hyperedge_ids)))
@@ -156,7 +175,7 @@ def detector_error_model_to_check_matrices(
         priors[i] = p
     hyperedge_to_edge_matrix = dict_to_csc_matrix(hyperedge_to_edge, shape=(len(edge_ids), len(hyperedge_ids)))
     edge_check_matrix = dict_to_csc_matrix(
-        {v: k for k, v in edge_ids.items()}, shape=(dem.num_detectors, len(edge_ids))
+        {v: dets for (dets, _), v in edge_ids.items()}, shape=(dem.num_detectors, len(edge_ids))
     )
     edge_observables_matrix = dict_to_csc_matrix(edge_obs_map, shape=(dem.num_observables, len(edge_ids)))
     return DemMatrices(

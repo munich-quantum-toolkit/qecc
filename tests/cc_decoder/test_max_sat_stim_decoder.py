@@ -355,3 +355,13 @@ def test_decode_batch(detector_error_model: stim.DetectorErrorModel) -> None:
     assert len(res_pred) == 1
     assert res_conv == 1
     assert res_not_cong_cnt == 0
+
+
+def test_decode_prefers_likely_error_with_same_syndrome() -> None:
+    """The decoder predicts the logical effect of the more likely of two errors with the same syndrome."""
+    dem = stim.DetectorErrorModel("""
+        error(0.4) D0 D1
+        error(0.01) D0 D1 L0""")
+    prediction, converged = MaxSatStim(dem).decode(np.array([1, 1], dtype=np.uint8))
+    assert converged == 1
+    assert np.array_equal(prediction, [0])

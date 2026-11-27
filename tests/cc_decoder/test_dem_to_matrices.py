@@ -1369,3 +1369,51 @@ def test_detector_error_model_to_check_matrices(
     assert array_equal(result.edge_check_matrix.todense(), edge_check_matrix)
     assert array_equal(result.edge_observables_matrix.todense(), edge_obsbl_matrix)
     assert array_equal(result.hyperedge_to_edge_matrix.todense(), hyperedge_to_edge_matrix)
+
+
+def test_errors_with_same_detectors_and_different_observables_stay_separate() -> None:
+    """Two errors that flip the same detectors but different observables give two columns."""
+    dem = stim.DetectorErrorModel("""
+        error(0.4) D0 D1
+        error(0.01) D0 D1 L0""")
+    result = detector_error_model_to_check_matrices(dem)
+    assert array_equal(result.check_matrix.todense(), [[1, 1], [1, 1]])
+    assert array_equal(result.observables_matrix.todense(), [[0, 1]])
+    assert np.allclose(result.priors, [0.4, 0.01])
+
+
+def test_errors_with_same_detectors_and_same_observables_merge() -> None:
+    """Two errors with the same effect give one column with the combined probability."""
+    dem = stim.DetectorErrorModel("""
+        error(0.1) D0 D1 ^ D2 L0
+        error(0.2) D0 D1 L0 ^ D2""")
+    result = detector_error_model_to_check_matrices(dem)
+    assert array_equal(result.check_matrix.todense(), [[1], [1], [1]])
+    assert array_equal(result.observables_matrix.todense(), [[1]])
+    assert np.allclose(result.priors, [0.1 * 0.8 + 0.2 * 0.9])
+
+
+def test_edges_with_same_detectors_and_different_observables_stay_separate() -> None:
+    """Each edge keeps its own observables, and the edges of a hyperedge add up to the hyperedge."""
+    dem = stim.DetectorErrorModel("""
+        error(0.1) D0 D1 ^ D2 D3
+        error(0.1) D0 D1 L0 ^ D2 D3""")
+    result = detector_error_model_to_check_matrices(dem, allow_undecomposed_hyperedges=False)
+    edge_checks = result.edge_check_matrix.todense()
+    edge_observables = result.edge_observables_matrix.todense()
+    decomposition = result.hyperedge_to_edge_matrix.todense()
+    assert edge_checks.shape == (4, 3)
+    assert array_equal(edge_checks @ decomposition % 2, result.check_matrix.todense())
+    assert array_equal(edge_observables @ decomposition % 2, result.observables_matrix.todense())
+
+
+def test_repeated_targets_cancel() -> None:
+    """A target that occurs twice in one error cancels, and an error whose targets all cancel adds no column."""
+    dem = stim.DetectorErrorModel("""
+        error(0.1) D0 D0 L0 L0
+        error(0.1) D1 D2 D2 ^ D3 D3
+        error(0.1) D3 D4 D4 L0""")
+    result = detector_error_model_to_check_matrices(dem, allow_undecomposed_hyperedges=False)
+    assert array_equal(result.check_matrix.todense(), [[0, 0], [1, 0], [0, 0], [0, 1], [0, 0]])
+    assert array_equal(result.observables_matrix.todense(), [[0, 1]])
+    assert array_equal(result.edge_check_matrix.todense(), [[0, 0], [1, 0], [0, 0], [0, 1], [0, 0]])
