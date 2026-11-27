@@ -529,3 +529,23 @@ def test_string_representation() -> None:
         "Logical X operators:\n"
         "  XX"
     )
+
+
+def test_boolean_tableau_stabilizer_code() -> None:
+    """A stabilizer code accepts commuting generators given as a boolean tableau."""
+    code = StabilizerCode(PauliTableau(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=bool)))
+    assert code.n == 2
+    assert code.k == 0
+
+
+@pytest.mark.parametrize(
+    ("z_logicals", "x_logicals", "match"),
+    [
+        (["ZI", "XX"], ["XI", "IZ"], "Logical Z-operators must commute with each other"),
+        (["ZI", "IX"], ["XI", "ZZ"], "Logical X-operators must commute with each other"),
+    ],
+)
+def test_anticommuting_logicals_rejected(z_logicals: list[str], x_logicals: list[str], match: str) -> None:
+    """Logical Z operators must commute with each other, and so must logical X operators."""
+    with pytest.raises(InvalidStabilizerCodeError, match=match):
+        StabilizerCode([], z_logicals=z_logicals, x_logicals=x_logicals, n=2)

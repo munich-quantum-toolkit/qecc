@@ -75,6 +75,21 @@ def ft_steane_plus(steane_code: CSSCode) -> QuantumCircuit:
     return gate_optimal_verification_circuit(circ, max_timeout=2)
 
 
+@pytest.mark.parametrize("init_luts", [True, False])
+@pytest.mark.parametrize("row_order", [[0, 1, 2], [1, 2, 0]])
+def test_lut_self_dual_code_decodes_both_types(steane_code: CSSCode, init_luts: bool, row_order: list[int]) -> None:
+    """The LUT decoder corrects single-qubit errors of a self-dual code, also when Hz lists the rows of Hx in another order."""
+    code = CSSCode(steane_code.Hx, steane_code.Hx[row_order], 3)
+    lut = LutDecoder(code, init_luts=init_luts)
+    for qubit in range(code.n):
+        error = np.zeros(code.n, dtype=np.int8)
+        error[qubit] = 1
+        x_syndrome = ((code.Hx @ error) % 2).astype(np.int8)
+        z_syndrome = ((code.Hz @ error) % 2).astype(np.int8)
+        np.testing.assert_array_equal((code.Hx @ lut.decode_z(x_syndrome)) % 2, x_syndrome)
+        np.testing.assert_array_equal((code.Hz @ lut.decode_x(z_syndrome)) % 2, z_syndrome)
+
+
 @pytest.fixture
 def steane_lut(steane_code: CSSCode) -> LutDecoder:
     """Return a LutDecoder for the Steane code."""

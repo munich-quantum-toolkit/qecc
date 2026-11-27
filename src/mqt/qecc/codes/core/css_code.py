@@ -183,10 +183,13 @@ class CSSCode(StabilizerCode):
         return are_in_same_coset(error_1, error_2, self.Hz)
 
     def is_self_dual(self) -> bool:
-        """Check if the code is self-dual."""
-        return bool(
-            self.Hx.shape[0] == self.Hz.shape[0] and mod2.rank(self.Hx) == mod2.rank(np.vstack([self.Hx, self.Hz]))
-        )
+        """Check if the code is self-dual.
+
+        A CSS code is self-dual if the X checks and the Z checks span the same row space.
+        The number of rows and the order of the rows do not matter.
+        """
+        rank_x = mod2.rank(self.Hx)
+        return bool(rank_x == mod2.rank(self.Hz) == mod2.rank(np.vstack([self.Hx, self.Hz])))
 
     @staticmethod
     def _check_valid_check_matrices(Hx: npt.NDArray[np.int8] | None, Hz: npt.NDArray[np.int8] | None) -> None:  # ruff:ignore[invalid-argument-name]
@@ -314,12 +317,13 @@ class CSSCode(StabilizerCode):
         z_stabs = []
 
         for stab in stabilizers:
-            if "X" in stab:
+            letters = set(stab)
+            if letters <= {"I", "X"} and "X" in letters:
                 x_stabs.append([1 if c == "X" else 0 for c in stab])
-            elif "Z" in stab:
+            elif letters <= {"I", "Z"} and "Z" in letters:
                 z_stabs.append([1 if c == "Z" else 0 for c in stab])
             else:
-                msg = f"Invalid stabilizer: {stab}"
+                msg = f"Invalid stabilizer: {stab}. Each CSS stabilizer must contain only I and X, or only I and Z."
                 raise InvalidCSSCodeError(msg)
 
         x_stabs_array = np.array(x_stabs, dtype=np.int8) if x_stabs else None
@@ -354,6 +358,21 @@ class CSSCode(StabilizerCode):
                     lx[j] ^= xl
             lz[[i, first]] = lz[[first, i]]
 
+    @staticmethod
+    def _check_logicals_independent(
+        logicals: npt.NDArray[np.int8], checks: npt.NDArray[np.int8], pauli_type: str
+    ) -> None:
+        """Raise an error unless the logicals are linearly independent modulo the checks of the same type.
+
+        A logical operator in the span of the checks is a stabilizer, not a logical operator.
+        """
+        if mod2.rank(np.vstack([checks, logicals])) != mod2.rank(checks) + logicals.shape[0]:
+            msg = (
+                f"Logical {pauli_type} operators must be linearly independent, "
+                f"and no product of them may be a {pauli_type} stabilizer."
+            )
+            raise InvalidCSSCodeError(msg)
+
     def set_x_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
         """Set all X logical operators."""
         if logicals.shape[0] != self.k:
@@ -365,6 +384,7 @@ class CSSCode(StabilizerCode):
             msg = "Logical operators must commute with the Z stabilizers"
             raise InvalidCSSCodeError(msg)
 
+        self._check_logicals_independent(logicals, self.Hx, "X")
         self.x_logicals = PauliTableau.from_check_matrix(CheckMatrix(logicals, pauli_type="X"))
 
     def set_z_logicals(self, logicals: npt.NDArray[np.int8]) -> None:
@@ -378,6 +398,7 @@ class CSSCode(StabilizerCode):
             msg = "Logical operators must commute with the X stabilizers"
             raise InvalidCSSCodeError(msg)
 
+        self._check_logicals_independent(logicals, self.Hz, "Z")
         self.z_logicals = PauliTableau.from_check_matrix(CheckMatrix(logicals, pauli_type="Z"))
 
 

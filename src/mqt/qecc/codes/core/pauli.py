@@ -365,7 +365,9 @@ class PauliTableau:
     """
 
     def __init__(
-        self, tableau: SymplecticMatrix | npt.NDArray[np.int8], phase_exponents: npt.NDArray[np.int8] | None = None
+        self,
+        tableau: SymplecticMatrix | npt.NDArray[np.integer] | npt.NDArray[np.bool_],
+        phase_exponents: npt.NDArray[np.int8] | None = None,
     ) -> None:
         """Create a new stabilizer tableau.
 
