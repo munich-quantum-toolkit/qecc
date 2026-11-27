@@ -1417,3 +1417,13 @@ def test_repeated_targets_cancel() -> None:
     assert array_equal(result.check_matrix.todense(), [[0, 0], [1, 0], [0, 0], [0, 1], [0, 0]])
     assert array_equal(result.observables_matrix.todense(), [[0, 1]])
     assert array_equal(result.edge_check_matrix.todense(), [[0, 0], [1, 0], [0, 0], [0, 1], [0, 0]])
+
+
+@pytest.mark.parametrize("error", ["D1 ^ D1 ^ D2", "D0 D0 D1 ^ D1 ^ D2"])
+def test_repeated_edges_cancel_in_decomposition(error: str) -> None:
+    """An edge that occurs twice in the decomposition of one error cancels."""
+    dem = stim.DetectorErrorModel(f"error(0.1) {error}")
+    result = detector_error_model_to_check_matrices(dem, allow_undecomposed_hyperedges=False)
+    decomposition = result.hyperedge_to_edge_matrix.todense()
+    assert array_equal(result.check_matrix.todense(), [[0], [0], [1]])
+    assert array_equal(result.edge_check_matrix.todense() @ decomposition % 2, result.check_matrix.todense())

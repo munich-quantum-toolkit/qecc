@@ -143,7 +143,8 @@ def detector_error_model_to_check_matrices(
             edge_obs_map[eid] = e_obs
 
         if hid not in hyperedge_to_edge:
-            hyperedge_to_edge[hid] = frozenset(eids)
+            # Edges that occur an even number of times in the decomposition cancel.
+            hyperedge_to_edge[hid] = iter_set_xor([eids])
 
     for instruction in dem.flattened():
         if instruction.type == "error":

@@ -365,3 +365,29 @@ def test_decode_prefers_likely_error_with_same_syndrome() -> None:
     prediction, converged = MaxSatStim(dem).decode(np.array([1, 1], dtype=np.uint8))
     assert converged == 1
     assert np.array_equal(prediction, [0])
+
+
+def test_check_matrix_to_adj_lists_keeps_empty_rows_and_columns() -> None:
+    """Rows and columns without nonzero entries get empty adjacency lists."""
+    qtf, ftq = MaxSatStim.check_matrix_to_adj_lists(np.array([[0, 0], [0, 1]]))
+    assert qtf == {0: [], 1: [1]}
+    assert ftq == {0: [], 1: [1]}
+
+
+@pytest.mark.parametrize("dem_text", ["error(0.1) L0\nerror(0.2) D0", "error(0.1) D0 D0 L0\nerror(0.2) D0"])
+def test_decode_with_error_without_detectors(dem_text: str) -> None:
+    """The decoder handles an error that flips an observable but no detector."""
+    prediction, converged = MaxSatStim(stim.DetectorErrorModel(dem_text)).decode(np.array([1], dtype=np.uint8))
+    assert converged == 1
+    assert np.array_equal(prediction, [0])
+
+
+@pytest.mark.parametrize("dem_text", ["detector D0\nerror(0.2) D1 L0", "error(0.1) D0 D0\nerror(0.2) D1 L0"])
+def test_decode_with_detector_without_errors(dem_text: str) -> None:
+    """The decoder handles a detector that no error flips."""
+    decoder = MaxSatStim(stim.DetectorErrorModel(dem_text))
+    prediction, converged = decoder.decode(np.array([0, 1], dtype=np.uint8))
+    assert converged == 1
+    assert np.array_equal(prediction, [1])
+    _, converged = decoder.decode(np.array([1, 1], dtype=np.uint8))
+    assert converged == 0
