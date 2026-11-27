@@ -50,7 +50,7 @@ def test_symplectic_vector_validation() -> None:
 
 def test_symplectic_vector_properties() -> None:
     """Test that SymplecticVector rejects invalid inputs."""
-    vector = np.array([1, 0, 0, 0, 0, 1])
+    vector = np.array([1, 0, 0, 0, 0, 1], dtype=np.int8)
     v = SymplecticVector(vector)
 
     assert len(v) == 6
@@ -66,14 +66,17 @@ def test_symplectic_matrix_arithmetic() -> None:
     assert eye + eye == zero_mat
     assert eye - eye == zero_mat
 
-    vs = np.array([
-        [1, 0, 0, 0, 0, 1],
-        [0, 1, 0, 0, 0, 1],
-        [0, 0, 1, 0, 0, 0],
-        [1, 1, 1, 1, 1, 1],
-        [0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 1],
-    ])
+    vs = np.array(
+        [
+            [1, 0, 0, 0, 0, 1],
+            [0, 1, 0, 0, 0, 1],
+            [0, 0, 1, 0, 0, 0],
+            [1, 1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 1],
+        ],
+        dtype=np.int8,
+    )
     m = SymplecticMatrix(np.array(vs))
     assert_array_equal(m @ eye, m.data)
     assert_array_equal(eye @ m, m.data.T)
@@ -126,3 +129,27 @@ def test_symplectic_product_validation() -> None:
         symplectic_product(v, np.zeros((1, 2, 6), dtype=np.int8))
     with pytest.raises(ValueError, match="nonzero"):
         symplectic_product(np.zeros(0, dtype=np.int8), np.zeros(0, dtype=np.int8))
+
+
+def test_symplectic_negation_is_identity() -> None:
+    """Over GF(2), the negation of a symplectic vector is the vector itself."""
+    v = SymplecticVector(np.array([1, 0, 1, 1], dtype=np.int8))
+    assert -v == v
+    assert_array_equal((-v).data, np.array([1, 0, 1, 1]))
+
+
+@pytest.mark.parametrize("dtype", [bool, np.int64, np.uint8])
+def test_symplectic_data_is_int8(dtype: type) -> None:
+    """Symplectic vectors and matrices store their data as int8 for every input dtype."""
+    vector = SymplecticVector(np.array([1, 0, 0, 1], dtype=dtype))
+    matrix = SymplecticMatrix(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=dtype))
+    assert vector.data.dtype == np.int8
+    assert matrix.data.dtype == np.int8
+    assert hash(vector) == hash(SymplecticVector(np.array([1, 0, 0, 1], dtype=np.int8)))
+    assert hash(matrix) == hash(SymplecticMatrix(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8)))
+
+
+def test_symplectic_product_of_boolean_arrays() -> None:
+    """The symplectic product of boolean arrays is computed mod 2."""
+    xx_zz = np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=bool)
+    assert_array_equal(symplectic_product(xx_zz, xx_zz), np.zeros((2, 2), dtype=np.int8))

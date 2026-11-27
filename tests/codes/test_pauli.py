@@ -531,3 +531,23 @@ def test_check_matrix_normalizes_dtype(dtype: npt.DTypeLike) -> None:
     checks = CheckMatrix(matrix, "X")
     assert checks.matrix.dtype == np.int8
     assert_array_equal(checks.matrix, np.eye(2, dtype=np.int8))
+
+
+def test_equal_paulis_with_different_dtypes_have_equal_hashes() -> None:
+    """Equal Pauli operators and tableaus have equal hashes, independent of the input dtype."""
+    a = Pauli.from_pauli_string("XZ")
+    b = Pauli(SymplecticVector(np.array([1, 0, 0, 1], dtype=np.int64)))
+    assert a == b
+    assert hash(a) == hash(b)
+    assert len({a, b}) == 1
+
+    tab_a = PauliTableau.from_pauli_strings(["XZ"])
+    tab_b = PauliTableau(np.array([[1, 0, 0, 1]], dtype=np.int64))
+    assert tab_a == tab_b
+    assert hash(tab_a) == hash(tab_b)
+
+
+def test_boolean_tableau_commutation() -> None:
+    """A tableau built from a boolean array gives mod-2 commutation results."""
+    tableau = PauliTableau(np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=bool))
+    assert tableau.all_commute(tableau)

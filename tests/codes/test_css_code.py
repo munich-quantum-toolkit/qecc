@@ -427,3 +427,53 @@ def test_trivial_code_syndromes_and_cosets() -> None:
     assert not code.stabilizer_eq_x_error(e, zero)
     assert code.check_if_logical_x_error(e)
     assert code.check_if_logical_z_error(e)
+
+
+def test_self_dual_compares_row_spans(steane_code_checks: tuple[npt.NDArray[np.int8], npt.NDArray[np.int8]]) -> None:
+    """is_self_dual compares the row spans of Hx and Hz, not the number of rows."""
+    hx, _ = steane_code_checks
+    dependent_hz = np.array([hx[0], hx[1], hx[0] ^ hx[1]])
+    smaller_span = CSSCode(hx, dependent_hz)
+    assert smaller_span.k == 2
+    assert not smaller_span.is_self_dual()
+
+    redundant_hz = np.vstack([hx, hx[0] ^ hx[1]])
+    redundant_row = CSSCode(hx, redundant_hz)
+    assert redundant_row.k == 1
+    assert redundant_row.is_self_dual()
+
+    reordered = CSSCode(hx, hx[[1, 2, 0]])
+    assert reordered.is_self_dual()
+
+
+@pytest.mark.parametrize(
+    "stabilizers",
+    [
+        "XZZXI\nIXZZX\nXIXZZ\nZXIXZ",  # Five-qubit code: not CSS.
+        "XXXX\nYYYY",
+        "+XXXX\nZZZZ",
+    ],
+)
+def test_css_code_from_file_rejects_non_css_pauli_strings(tmp_path, stabilizers: str) -> None:  # type: ignore[no-untyped-def]
+    """CSSCode.from_file rejects Pauli strings that are not pure X or pure Z."""
+    file_path = tmp_path / "test_css_non_css.txt"
+    file_path.write_text(stabilizers)
+
+    with pytest.raises(InvalidCSSCodeError, match="Invalid stabilizer"):
+        CSSCode.from_file(file_path)
+
+
+def test_set_logicals_rejects_stabilizers(steane_code: CSSCode) -> None:
+    """The logical setters reject stabilizers and dependent rows as logical operators."""
+    with pytest.raises(InvalidCSSCodeError, match="linearly independent"):
+        steane_code.set_x_logicals(steane_code.Hx[:1].copy())
+    with pytest.raises(InvalidCSSCodeError, match="linearly independent"):
+        steane_code.set_z_logicals(steane_code.Hz[:1].copy())
+
+    h = np.array([[1, 1, 1, 1]])
+    code = CSSCode(h, h)
+    lx = code.Lx.copy()
+    with pytest.raises(InvalidCSSCodeError, match="linearly independent"):
+        code.set_x_logicals(np.vstack([lx[0], lx[0]]))
+    with pytest.raises(InvalidCSSCodeError, match="linearly independent"):
+        code.set_x_logicals(np.vstack([lx[0], lx[0] ^ h[0]]))

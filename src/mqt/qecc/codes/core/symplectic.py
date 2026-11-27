@@ -56,6 +56,9 @@ def symplectic_product(
         raise ValueError(msg)
     n = widths[0] // 2
 
+    # For boolean arrays, ``+`` and ``@`` are logical operations and lose the parity.
+    lhs = np.asarray(lhs, dtype=np.int8)
+    rhs = np.asarray(rhs, dtype=np.int8)
     lhs_x, lhs_z = lhs[..., :n], lhs[..., n:]
     rhs_x, rhs_z = rhs[..., :n], rhs[..., n:]
     if rhs.ndim == 2:
@@ -69,8 +72,13 @@ def symplectic_product(
 class SymplecticVector:
     """Symplectic Vector Class."""
 
-    def __init__(self, vector: npt.NDArray[np.int8]) -> None:
-        """Initialize the Symplectic Vector."""
+    def __init__(self, vector: npt.NDArray[np.integer] | npt.NDArray[np.bool_]) -> None:
+        """Initialize the Symplectic Vector.
+
+        The vector is stored as ``int8``. An ``int8`` input is stored without a copy.
+        Other dtypes are converted, so that arithmetic is mod 2 and equal vectors hash equally.
+        """
+        vector = np.asarray(vector, dtype=np.int8)
         assert vector.ndim == 1, "Vector must be 1D."
         assert vector.shape[0] % 2 == 0, "Vector must have even length."
         self.data = vector
@@ -99,8 +107,8 @@ class SymplecticVector:
         return SymplecticVector((self.data - other.data) % 2)
 
     def __neg__(self) -> SymplecticVector:
-        """Negate the vector."""
-        return SymplecticVector(-self.data)
+        """Negate the vector. Over GF(2), the negation of a vector is the vector itself."""
+        return self.copy()
 
     def __matmul__(self, other: SymplecticVector) -> int:
         """Compute the symplectic inner product."""
@@ -140,8 +148,13 @@ class SymplecticVector:
 class SymplecticMatrix:
     """Symplectic Matrix Class."""
 
-    def __init__(self, matrix: npt.NDArray[np.int8]) -> None:
-        """Initialize the Symplectic Matrix."""
+    def __init__(self, matrix: npt.NDArray[np.integer] | npt.NDArray[np.bool_]) -> None:
+        """Initialize the Symplectic Matrix.
+
+        The matrix is stored as ``int8``. An ``int8`` input is stored without a copy.
+        Other dtypes are converted, so that arithmetic is mod 2 and equal matrices hash equally.
+        """
+        matrix = np.asarray(matrix, dtype=np.int8)
         assert matrix.ndim == 2, "Matrix must be 2D."
         assert matrix.shape[1] % 2 == 0, "Matrix must have even width."
         self.data = matrix

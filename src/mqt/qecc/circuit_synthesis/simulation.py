@@ -593,7 +593,7 @@ class LutDecoder:
 
         assert self.code.Hz is not None, "The code does not have a Z stabilizer matrix."
         self.x_lut = LutDecoder._generate_lut(self.code.Hz)
-        if self.code.is_self_dual():
+        if self._same_check_matrices():
             self.z_lut = self.x_lut
 
     def generate_z_lut(self) -> None:
@@ -603,8 +603,16 @@ class LutDecoder:
 
         assert self.code.Hx is not None, "The code does not have an X stabilizer matrix."
         self.z_lut = LutDecoder._generate_lut(self.code.Hx)
-        if self.code.is_self_dual():
-            self.z_lut = self.x_lut
+        if self._same_check_matrices():
+            self.x_lut = self.z_lut
+
+    def _same_check_matrices(self) -> bool:
+        """Check if the X and Z check matrices are equal row by row.
+
+        Only then do X and Z syndromes have the same meaning, so that both lookup tables can be the same.
+        A self-dual code with different row orders or redundant rows needs two tables.
+        """
+        return np.array_equal(self.code.Hx, self.code.Hz)
 
     @staticmethod
     def _generate_lut(

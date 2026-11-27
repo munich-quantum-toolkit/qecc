@@ -297,6 +297,13 @@ class StabilizerCode:
             msg = "Logical X-operators must commute with the stabilizer generators."
             raise InvalidStabilizerCodeError(msg)
 
+        if not self.z_logicals.all_commute(self.z_logicals):
+            msg = "Logical Z-operators must commute with each other."
+            raise InvalidStabilizerCodeError(msg)
+        if not self.x_logicals.all_commute(self.x_logicals):
+            msg = "Logical X-operators must commute with each other."
+            raise InvalidStabilizerCodeError(msg)
+
         commutations = symplectic_product(self.z_logicals.symplectic, self.x_logicals.symplectic)
         if not np.array_equal(commutations, np.eye(self.z_logicals.shape[0], dtype=np.int8)):
             msg = "Every logical X-operator must anti-commute with exactly one logical Z-operator and vice versa."
