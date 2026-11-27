@@ -24,7 +24,13 @@ if TYPE_CHECKING:
 
 
 class ConcatenatedCode(StabilizerCode):
-    """A concatenated quantum code."""
+    """A concatenated quantum code.
+
+    Each qubit of the outer code is encoded in one inner code. The stabilizer generators are the
+    generators of each inner code on its block of qubits, and the outer generators with each outer
+    qubit replaced by the logical operators of its inner code. The logical operators are the outer
+    logical operators, mapped in the same way.
+    """
 
     inner_codes: Sequence[StabilizerCode]
 
@@ -34,18 +40,30 @@ class ConcatenatedCode(StabilizerCode):
         Args:
             outer_code: The outer code.
             inner_code: The inner code. If a list of codes is provided, the qubits of the outer code are encoded by the different inner codes in the list.
+                The list must contain one inner code for each qubit of the outer code.
+
+        Raises:
+            InvalidStabilizerCodeError: If the number of inner codes differs from the number of outer qubits,
+                or if an inner code does not encode exactly one logical qubit.
         """
         self.outer_code = outer_code
         if isinstance(inner_code, Sequence):
-            self.inner_codes = inner_code
+            self.inner_codes = list(inner_code)
         else:
             self.inner_codes = [inner_code] * outer_code.n
+        if len(self.inner_codes) != outer_code.n:
+            msg = (
+                f"The number of inner codes ({len(self.inner_codes)}) must equal the number of qubits "
+                f"of the outer code ({outer_code.n})."
+            )
+            raise InvalidStabilizerCodeError(msg)
         if not all(code.k == 1 for code in self.inner_codes):
             msg = "The inner codes must be stabilizer codes with a single logical qubit."
             raise InvalidStabilizerCodeError(msg)
 
         self.n = sum(code.n for code in self.inner_codes)
-        generators = [self._outer_pauli_to_physical(p) for p in outer_code.generators]
+        generators = self._inner_generators_to_physical()
+        generators += [self._outer_pauli_to_physical(p) for p in outer_code.generators]
 
         x_logicals = None
         z_logicals = None
@@ -55,19 +73,36 @@ class ConcatenatedCode(StabilizerCode):
             z_logicals = [self._outer_pauli_to_physical(p) for p in outer_code.z_logicals]
 
         d = min(code.distance * outer_code.distance for code in self.inner_codes)
-        StabilizerCode.__init__(self, generators, d, x_logicals, z_logicals)
+        StabilizerCode.__init__(self, generators, d, z_logicals=z_logicals, x_logicals=x_logicals, n=self.n)
 
     def __eq__(self, other: object) -> bool:
         """Check if two concatenated codes are equal."""
         if not isinstance(other, ConcatenatedCode):
             return NotImplemented
         return self.outer_code == other.outer_code and all(
-            c1 == c2 for c1, c2 in zip(self.inner_codes, other.inner_codes, strict=False)
+            c1 == c2 for c1, c2 in zip(self.inner_codes, other.inner_codes, strict=True)
         )
 
     def __hash__(self) -> int:
         """Compute the hash of the concatenated code."""
         return hash((self.outer_code, tuple(self.inner_codes)))
+
+    def _inner_generators_to_physical(self) -> list[Pauli]:
+        """Place the stabilizer generators of each inner code on its block of physical qubits.
+
+        Returns:
+            The inner generators as Pauli operators on all physical qubits.
+        """
+        generators = []
+        offset = 0
+        for c in self.inner_codes:
+            for g in c.generators:
+                physical = SymplecticVector.zeros(self.n)
+                physical[offset : offset + c.n] = g.x_part()
+                physical[offset + self.n : offset + c.n + self.n] = g.z_part()
+                generators.append(Pauli(physical, g.phase_exponent))
+            offset += c.n
+        return generators
 
     def _outer_pauli_to_physical(self, p: Pauli) -> Pauli:
         """Convert a Pauli operator on the outer code to the operator on the concatenated code.
@@ -105,10 +140,6 @@ class ConcatenatedCode(StabilizerCode):
         return Pauli(concatenated, phase)
 
 
-# def _valid_logicals(lst: list[PauliTableau | None]) -> TypeGuard[list[PauliTableau]]:
-#     return None not in lst
-
-
 class ConcatenatedCSSCode(ConcatenatedCode, CSSCode):
     """A concatenated CSS code."""
 
@@ -128,10 +159,38 @@ class ConcatenatedCSSCode(ConcatenatedCode, CSSCode):
             raise InvalidStabilizerCodeError(msg)
 
         ConcatenatedCode.__init__(self, outer_code, inner_codes)
-        hx = np.array([self._outer_checks_to_physical(check, "X") for check in outer_code.Hx], dtype=np.int8)
-        hz = np.array([self._outer_checks_to_physical(check, "Z") for check in outer_code.Hz], dtype=np.int8)
+        hx = np.vstack([
+            self._inner_checks_to_physical("X"),
+            *(self._outer_checks_to_physical(check, "X") for check in outer_code.Hx),
+        ])
+        hz = np.vstack([
+            self._inner_checks_to_physical("Z"),
+            *(self._outer_checks_to_physical(check, "Z") for check in outer_code.Hz),
+        ])
+        lx = np.array([self._outer_checks_to_physical(lx, "X") for lx in outer_code.Lx], dtype=np.int8)
+        lz = np.array([self._outer_checks_to_physical(lz, "Z") for lz in outer_code.Lz], dtype=np.int8)
         d = min(code.distance * outer_code.distance for code in inner_codes)
-        CSSCode.__init__(self, hx, hz, d)
+        CSSCode.__init__(self, hx, hz, d, n=self.n, Lx=lx, Lz=lz)
+
+    def _inner_checks_to_physical(self, operator: str) -> npt.NDArray[np.int8]:
+        """Place the checks of each inner code on its block of physical qubits.
+
+        Args:
+            operator: The type of checks. Either 'X' or 'Z'.
+
+        Returns:
+            The block-diagonal matrix of the inner checks of the given type.
+        """
+        blocks = []
+        offset = 0
+        for code in self.inner_codes:
+            c = cast("CSSCode", code)
+            checks = c.Hx if operator == "X" else c.Hz
+            block = np.zeros((checks.shape[0], self.n), dtype=np.int8)
+            block[:, offset : offset + c.n] = checks
+            blocks.append(block)
+            offset += c.n
+        return np.vstack(blocks)
 
     def _outer_checks_to_physical(self, check: npt.NDArray[np.int8], operator: str) -> npt.NDArray[np.int8]:
         """Convert a check operator on the outer code to the operator on the concatenated code.
