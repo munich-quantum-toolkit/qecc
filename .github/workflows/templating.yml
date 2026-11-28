@@ -24,7 +24,7 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           permission-contents: write # Needed to push the templating branch
           permission-pull-requests: write # Needed to open the templating pull request
-      - uses: munich-quantum-toolkit/templates@cf0390a674091c1a428c5c59b90d48c7a38dd51c # v1.6.0
+      - uses: munich-quantum-toolkit/templates@a0f93d5fad788ca615e2b36043846fe3f200b9be # v1.7.0
         env:
           PREK_SKIP: ty
         with:
