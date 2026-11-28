@@ -184,7 +184,7 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
     """Simulate the logical error rate for a given distance and error rate.
 
     Only the z3 solver returns a decoding estimate. An external solver only gets timed, so the logical error rates
-    and their error bars are NaN in that case.
+    and their error bars are NaN in that case, and ``nr_unsolved`` is None.
 
     Args:
         code: The color code to simulate.
@@ -256,7 +256,7 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
         "avg_solve_time": avg_solve_time,
         "avg_total_time": avg_total_time,
         "min_wts_logical_err": min_wt_logicals.tolist(),
-        "nr_unsolved": nr_unsolved,
+        "nr_unsolved": None if timing_only else nr_unsolved,
     }
 
 

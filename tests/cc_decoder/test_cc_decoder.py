@@ -203,6 +203,8 @@ def test_external_solver(
     assert len(result["logical_error_rates"]) == 1
     assert math.isnan(result["logical_error_rates"][0])
     assert math.isnan(result["logical_error_rate_ebs"][0])
+    # The simulation does not read the output of an external solver, so it cannot count unsolved samples.
+    assert result["nr_unsolved"] is None
     assert result["min_wts_logical_err"] == [-1]
     assert result["preconstr_time"] > 0.0
     assert result["avg_constr_time"] > 0.0
