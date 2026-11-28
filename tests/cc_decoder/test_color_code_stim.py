@@ -96,3 +96,19 @@ def test_gen_stim_memory_experiment(hamming_code: NDArray[np.bool_]) -> None:
     expected_circuit.append_from_stim_program_text("OBSERVABLE_INCLUDE(0) rec[-1]")
     logical = np.array([2, 5, 6])
     assert expected_circuit == gen_stim_circuit_memory_experiment(hamming_code.astype(np.int_), logical, 3, 0.5)
+
+
+@pytest.mark.parametrize("distance", [1, 2, 4])
+def test_gen_pcm_and_logical_rejects_invalid_distance(distance: int) -> None:
+    """Only odd distances of at least 3 define a triangular color code."""
+    with pytest.raises(ValueError, match="must be odd and at least 3"):
+        gen_pcm_and_logical(distance)
+
+
+@pytest.mark.parametrize("distance", [1, 2, 4])
+def test_gen_stim_circuit_memory_experiment_rejects_invalid_distance(
+    hamming_code: NDArray[np.bool_], distance: int
+) -> None:
+    """The memory experiment rejects a distance that does not define a triangular color code."""
+    with pytest.raises(ValueError, match="must be odd and at least 3"):
+        gen_stim_circuit_memory_experiment(hamming_code.astype(np.int_), {2, 5, 6}, distance, 0.1)

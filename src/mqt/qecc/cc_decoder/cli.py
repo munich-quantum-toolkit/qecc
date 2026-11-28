@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 
+from ..codes.constructions.color_codes.color_code import LatticeType
 from . import decoder
 from .comparison import tn_decoder
 
@@ -23,8 +24,9 @@ def cli() -> None:
     parser.add_argument(
         "--type",
         type=str,
-        default="hexagon",
-        help="type of the code lattice (hexagon or square_octagon). Default: hexagon",
+        default=LatticeType.HEXAGON.value,
+        choices=[lattice.value for lattice in LatticeType],
+        help="type of the code lattice. The tn decoder supports only hexagon. Default: hexagon",
     )
     parser.add_argument(
         "--nr_sims",
@@ -42,17 +44,23 @@ def cli() -> None:
         "--decoder",
         type=str,
         default="maxsat",
-        help="the decoder to use (maxsat or tn). Default: maxsat",
+        choices=["maxsat", "tn"],
+        help="the decoder to use. Default: maxsat",
     )
 
     parser.add_argument(
         "--solver",
         type=str,
         default="z3",
-        help="maxsat solver to use (path to a executable). Default: z3",
+        help=(
+            "maxsat solver to use: z3 or the path to an executable. "
+            "An executable only gets timed, so the logical error rates are NaN. Default: z3"
+        ),
     )
 
     args = parser.parse_args()
+    if args.decoder == "tn" and args.type != LatticeType.HEXAGON:
+        parser.error("the tn decoder supports only --type hexagon")
 
     if args.decoder == "maxsat":
         decoder.run(
@@ -63,8 +71,5 @@ def cli() -> None:
             args.results_dir,
             args.solver,
         )
-    elif args.decoder == "tn":
-        tn_decoder.run(args.distance, args.error_rate, args.nr_sims, args.results_dir)
     else:
-        msg = f"Unknown decoder {args.decoder}. Please choose either maxsat or tn."
-        raise ValueError(msg)
+        tn_decoder.run(args.distance, args.error_rate, args.nr_sims, args.results_dir)

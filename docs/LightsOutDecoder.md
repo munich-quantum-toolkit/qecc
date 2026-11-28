@@ -138,13 +138,12 @@ lights = [True, False, False]
 Now we can solve the LightsOut puzzle for the given initial configuration, i.e.,
 we find a minimal set of switches that turns off all the lights. This is done
 using the `solve` method of the `LightsOut` object. This method takes the
-initial configuration of the LightsOut puzzle as input and returns a set of
-switches that constitute a solution to the LightsOut puzzle and the time needed
-to construct the satisfiability formulation and the solving time of the MaxSAT
-solver.
+initial configuration of the LightsOut puzzle as input. It returns three values:
+the switches that solve the LightsOut puzzle, whether the solver found a valid
+solution, and the solving time of the MaxSAT solver.
 
 ```{code-cell} ipython3
-switches, constr_time, solve_time = problem.solve(lights)
+switches, solved, solve_time = problem.solve(lights)
 ```
 
 <!-- #region -->
@@ -174,7 +173,7 @@ see the available options.
 
 ```bash
 $ mqt.qecc.cc-decoder --help
-usage: mqt.qecc.cc-decoder [-h] [--nr_sims NR_SIMS] [--results_dir RESULTS_DIR] [--decoder DECODER] [--solver SOLVER] distance error_rate
+usage: mqt.qecc.cc-decoder [-h] [--type {hexagon,square_octagon}] [--nr_sims NR_SIMS] [--results_dir RESULTS_DIR] [--decoder {maxsat,tn}] [--solver SOLVER] distance error_rate
 
 positional arguments:
   distance              the distance of the code
@@ -182,12 +181,20 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --type {hexagon,square_octagon}
+                        type of the code lattice. The tn decoder supports only hexagon. Default: hexagon
   --nr_sims NR_SIMS     the number of simulations to run. Default: 10000
   --results_dir RESULTS_DIR
                         the directory to save the results to. Default: ./results
-  --decoder DECODER     the decoder to use (maxsat or tn). Default: maxsat
-  --solver SOLVER       maxsat solver to use (path to a executable). Default: z3
+  --decoder {maxsat,tn}
+                        the decoder to use. Default: maxsat
+  --solver SOLVER       maxsat solver to use: z3 or the path to an executable. An executable only gets timed, so the logical error rates are NaN. Default: z3
 ```
+
+Only the z3 solver decodes. An external solver gets the path of a WCNF file with
+the MaxSAT problem, and the simulation only measures the solving time. The
+output of the solver is written to `solver-out_<solver name>.txt` in the working
+directory.
 
 <!-- #endregion -->
 
