@@ -306,7 +306,8 @@ def _optimal_prep_circuit(
     Shared implementation for the gate- and depth-optimal state-prep synthesizers; delegates to
     :func:`~mqt.qecc.circuit_synthesis.exact.synthesize_isometry_exact` (see the Exact Circuit
     Synthesis guide for the full interface) and wraps the result with the fault metadata used by
-    the verification pipeline. Returns ``None`` when no circuit exists within the bounds/timeout.
+    the verification pipeline. Returns ``None`` when no circuit exists within the bounds/timeout or the circuit
+    fails verification.
     """
     checks = CheckMatrix(code.Hx, pauli_type="X") if zero_state else CheckMatrix(code.Hz, pauli_type="Z")
     result = synthesize_isometry_exact(
@@ -319,7 +320,7 @@ def _optimal_prep_circuit(
         min_timeout=min_timeout,
         timeout=max_timeout,
     )
-    if result.status != SynthesisStatus.SUCCESS:
+    if result.status != SynthesisStatus.SUCCESS or not result.verified:
         return None
     assert isinstance(result.circuit, CNOTCircuit)
     return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2)

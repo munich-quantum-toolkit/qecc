@@ -64,7 +64,8 @@ def depth_optimal_encoding_circuit_non_css(
 
     Returns:
         The encoding circuit as a :class:`CliffordIsometry`, or ``"UNSAT"`` if no circuit exists
-        in ``[min_depth, max_depth]`` (or a diagnostic string if the search is inconclusive).
+        in ``[min_depth, max_depth]`` (or a diagnostic string if the search is inconclusive or the
+        circuit fails verification).
     """
     assert code.x_logicals is not None
     assert code.z_logicals is not None
@@ -81,6 +82,8 @@ def depth_optimal_encoding_circuit_non_css(
         max_two_qubit_gates=max_two_qubit_gates,
     )
     if result.status == SynthesisStatus.SUCCESS:
+        if not result.verified:
+            return f"UNVERIFIED: {result.message}"
         assert isinstance(result.circuit, CliffordIsometry)
         return result.circuit
     if result.status == SynthesisStatus.UNSAT:
@@ -101,7 +104,8 @@ def _optimal_css_encoding_circuit(
     Shared implementation for the gate- and depth-optimal CSS encoders; delegates to
     :func:`~mqt.qecc.circuit_synthesis.exact.synthesize_isometry_exact` (see the Exact Circuit
     Synthesis guide for the full, general interface). Uses the check matrix with the fewest
-    rows for efficiency and returns ``None`` when no circuit exists within the bounds/timeout.
+    rows for efficiency and returns ``None`` when no circuit exists within the bounds/timeout or the
+    circuit fails verification.
     """
     checks, logicals = _get_matrix_with_fewest_checks(code)
     result = synthesize_isometry_exact(
@@ -116,7 +120,7 @@ def _optimal_css_encoding_circuit(
         min_timeout=min_timeout,
         timeout=max_timeout,
     )
-    if result.status != SynthesisStatus.SUCCESS:
+    if result.status != SynthesisStatus.SUCCESS or not result.verified:
         return None
     assert isinstance(result.circuit, CNOTCircuit)
     return result.circuit

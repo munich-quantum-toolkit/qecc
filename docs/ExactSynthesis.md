@@ -219,6 +219,12 @@ The `TargetKind` enum selects the synthesis problem:
 | `CLIFFORD_UNITARY`  | Full $n$-qubit Clifford unitary | `StabilizerTableau` target + `x_logicals` + `z_logicals` |
 | `STABILIZER_STATE`  | Stabilizer state (any)          | `StabilizerTableau` target only                          |
 
+The stabilizer generators or checks of the target may be linearly dependent.
+Before the search, MQT QECC reduces them to independent generators of the same
+group, with the signs of a `StabilizerTableau` target taken into account. For an
+isometry, the number of independent generators must be $n - k$. Generators that
+generate $-I$ raise a `ValueError`.
+
 ## Search Configuration
 
 ### Bounds and timeouts

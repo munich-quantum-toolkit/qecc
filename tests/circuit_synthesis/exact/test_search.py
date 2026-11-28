@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import depth_optimal_encoding_circuit_non_css
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
@@ -774,6 +774,94 @@ def test_result_contains_metadata(plus_state: tuple[StabilizerTableau, Stabilize
     assert result.verified is not None
     assert result.message is not None
     assert result.gate_set is not None
+
+
+# ---------------------------------------------------------------------------
+# Dependent stabilizer generators and checks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_css_state_dependent_checks(objective: Objective) -> None:
+    """Test that a redundant check does not change the prepared CSS state."""
+    checks = CheckMatrix(np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]], dtype=np.int8), pauli_type="X")
+    independent_checks = CheckMatrix(np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_isometry_exact(checks, TargetKind.CSS_STATE, objective, 0, 6)
+    independent_result = synthesize_isometry_exact(independent_checks, TargetKind.CSS_STATE, objective, 0, 6)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert verify_css_state(result.circuit, checks)
+    assert (result.gate_count, result.depth) == (independent_result.gate_count, independent_result.depth)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_css_isometry_dependent_checks(objective: Objective) -> None:
+    """Test that a duplicated check row does not make a CSS isometry unsatisfiable."""
+    checks = CheckMatrix(np.array([[1, 1, 0], [1, 1, 0], [0, 1, 1]], dtype=np.int8), pauli_type="X")
+    x_logicals = CheckMatrix(np.array([[1, 0, 0]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_isometry_exact(checks, TargetKind.CSS_ISOMETRY, objective, 0, 6, x_logicals=x_logicals)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert result.gate_count == 2
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert verify_css_isometry(result.circuit, checks, x_logicals, k=1)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_stabilizer_state_dependent_generators(objective: Objective) -> None:
+    """Test the Bell state given by XX, ZZ and their product -YY."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "-YY"])
+
+    result = synthesize_isometry_exact(stabilizers, TargetKind.STABILIZER_STATE, objective, 0, 4)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CliffordIsometry)
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+@pytest.mark.parametrize("generators", [["ZZI", "IZZ", "ZIZ"], ["ZZI", "ZZI", "IZZ"], ["ZZI", "-ZIZ", "-IZZ"]])
+def test_clifford_isometry_dependent_generators(generators: list[str], objective: Objective) -> None:
+    """Test the 3-qubit bit-flip code given by dependent Z checks."""
+    stabilizers = StabilizerTableau.from_pauli_strings(generators)
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZII"])
+
+    result = synthesize_isometry_exact(
+        stabilizers, TargetKind.CLIFFORD_ISOMETRY, objective, 0, 4, x_logicals, z_logicals
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CliffordIsometry)
+    code = StabilizerCode(generators, x_logicals=["XXX"], z_logicals=["ZII"])
+    assert result.circuit.get_code().is_equivalent(code)
+
+
+def test_stabilizer_generators_generate_minus_identity() -> None:
+    """Test that generators whose product is -I are rejected."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "YY"])
+
+    with pytest.raises(ValueError, match="do not generate a stabilizer group"):
+        synthesize_isometry_exact(stabilizers, TargetKind.STABILIZER_STATE, Objective.GATE_COUNT, 0, 4)
+
+
+def test_clifford_isometry_too_few_independent_generators() -> None:
+    """Test that a generator set with too small a rank for the number of logical qubits is rejected."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["ZZI", "ZZI"])
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZII"])
+
+    with pytest.raises(ValueError, match="Expected 2 independent stabilizer generators"):
+        synthesize_isometry_exact(
+            stabilizers, TargetKind.CLIFFORD_ISOMETRY, Objective.GATE_COUNT, 0, 4, x_logicals, z_logicals
+        )
 
 
 # ---------------------------------------------------------------------------

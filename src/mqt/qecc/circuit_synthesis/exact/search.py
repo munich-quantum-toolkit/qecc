@@ -456,8 +456,13 @@ def _prepare_clifford_target(
         z_logicals: Logical Z operators.
 
     Returns:
-        Tuple of (combined_target, k).
+        Tuple of (combined_target, k). The stabilizer rows of the target are independent.
+
+    Raises:
+        ValueError: If the stabilizer generators do not generate a stabilizer group, or if their number of
+            independent generators is not ``n - k``.
     """
+    stabilizers = _independent_stabilizer_generators(stabilizers)
     if target_kind == TargetKind.STABILIZER_STATE:
         return stabilizers, 0
 
@@ -466,9 +471,32 @@ def _prepare_clifford_target(
         raise TypeError(msg)
 
     k = x_logicals.num_rows()
-
     target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
+    if stabilizers.num_rows() != stabilizers.n - k:
+        msg = (
+            f"Expected {stabilizers.n - k} independent stabilizer generators for {k} logical qubits on "
+            f"{stabilizers.n} qubits, got {stabilizers.num_rows()}"
+        )
+        raise ValueError(msg)
     return target, k
+
+
+def _independent_stabilizer_generators(stabilizers: StabilizerTableau) -> StabilizerTableau:
+    """Return independent generators of the stabilizer group, with their signs.
+
+    The reduction tracks the signs of products, so the returned generators generate the same signed group.
+
+    Raises:
+        ValueError: If the generators do not generate a stabilizer group, for example because they generate ``-I``.
+    """
+    if stabilizers.num_rows() == 0:
+        return stabilizers
+    echelon = pauli_row_echelon(stabilizers)
+    if echelon.n_global_phases != 1:
+        msg = "The stabilizer generators do not generate a stabilizer group, for example because they generate -I"
+        raise ValueError(msg)
+    rank = len(echelon.pivot_cols)
+    return StabilizerTableau(echelon.reduced.tableau.data[:rank], echelon.reduced.phase_exponents[:rank])
 
 
 def _combine_stabilizers_and_logicals(
@@ -887,8 +915,9 @@ def _prepare_css_target(
 
     Returns:
         Tuple of (combined_target, k, m_x) where k is the number of logical qubits
-        and m_x is the number of stabilizers.
+        and m_x is the number of independent checks. The check rows of the target are independent.
     """
+    checks = CheckMatrix(mod2.row_basis(checks.matrix).astype(np.int8), pauli_type=checks.type)
     if target_kind == TargetKind.CSS_STATE:
         m_x = checks.num_rows()
         return checks, 0, m_x
