@@ -86,7 +86,8 @@ def synthesize_isometry_exact(
             and CSS_ISOMETRY with X-type checks. Must be a StabilizerTableau for Clifford synthesis.
         z_logicals: Logical Z operators. Required for CLIFFORD_UNITARY, CLIFFORD_ISOMETRY,
             and CSS_ISOMETRY with Z-type checks. Must be a StabilizerTableau for Clifford synthesis.
-        verify: Whether to verify synthesized circuit.
+        verify: Whether to verify the synthesized circuit. If the circuit fails verification, the result has
+            status ``ERROR``.
         allow_qubit_permutation: Allow qubit permutation in the terminal constraint.
         gate_set: Custom gate set. If None, uses the standard gate set for the inferred family.
         use_symmetry_breaking: Add symmetry-breaking constraints to prune the SAT search space.
@@ -280,12 +281,23 @@ def _make_success_result(
     postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None,
     proven_optimal: bool = False,
 ) -> SynthesisResult:
-    """Extract a SAT model into a SynthesisResult."""
+    """Extract a SAT model into a SynthesisResult.
+
+    If ``verify`` is set and the circuit fails verification, the result has status ``ERROR`` and keeps the circuit
+    for inspection.
+    """
     circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
     if postprocess is not None:
         circuit = postprocess(circuit)
     actual_resources = encoding.compute_actual_resources(model)
     verified = verify and verify_fn(circuit)
+    if verify and not verified:
+        return SynthesisResult(
+            status=SynthesisStatus.ERROR,
+            circuit=circuit,
+            message="The synthesized circuit fails verification against the target",
+            gate_set=encoding.gate_set,
+        )
     if is_depth:
         opt_depth = actual_resources
         opt_gate_count = _circuit_gate_count(circuit)
@@ -342,6 +354,8 @@ def _descend_to_optimum(
         result, solver = _solve_bound(encoding, target, k, b, max_timeout)
         if result == z3.sat:
             best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+            if best.status != SynthesisStatus.SUCCESS:
+                return best
         elif result == z3.unsat:
             proven = True
             break
@@ -406,6 +420,8 @@ def _search_with_exponential_backoff(
 
             if result == z3.sat:
                 best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+                if best.status != SynthesisStatus.SUCCESS:
+                    return best
                 # Phase B: descend with max_timeout to tighten the solution.
                 return _descend_to_optimum(
                     encoding, target, k, bound, lower_bound, best, is_depth, verify, verify_fn, postprocess, max_timeout

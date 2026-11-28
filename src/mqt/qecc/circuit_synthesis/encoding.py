@@ -82,8 +82,6 @@ def depth_optimal_encoding_circuit_non_css(
         max_two_qubit_gates=max_two_qubit_gates,
     )
     if result.status == SynthesisStatus.SUCCESS:
-        if not result.verified:
-            return f"UNVERIFIED: {result.message}"
         assert isinstance(result.circuit, CliffordIsometry)
         return result.circuit
     if result.status == SynthesisStatus.UNSAT:
@@ -120,7 +118,7 @@ def _optimal_css_encoding_circuit(
         min_timeout=min_timeout,
         timeout=max_timeout,
     )
-    if result.status != SynthesisStatus.SUCCESS or not result.verified:
+    if result.status != SynthesisStatus.SUCCESS:
         return None
     assert isinstance(result.circuit, CNOTCircuit)
     return result.circuit

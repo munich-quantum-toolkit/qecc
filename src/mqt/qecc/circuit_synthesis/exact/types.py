@@ -61,7 +61,7 @@ class SynthesisResult:
 
         Args:
             status: Status of synthesis attempt.
-            circuit: Synthesized circuit (None if failed).
+            circuit: Synthesized circuit. None if no circuit was found. A circuit that fails verification is kept.
             gate_count: Number of gates in circuit.
             depth: Circuit depth.
             verified: Whether circuit was verified.

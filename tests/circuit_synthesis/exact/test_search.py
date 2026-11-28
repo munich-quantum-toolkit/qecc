@@ -14,6 +14,7 @@ import pytest
 
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import depth_optimal_encoding_circuit_non_css
+from mqt.qecc.circuit_synthesis.exact import search
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
 from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
@@ -274,6 +275,52 @@ def test_verification_flag(
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.verified is verify_flag
+
+
+@pytest.mark.parametrize("use_exponential_backoff", [False, True])
+def test_failed_verification_is_an_error(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+    use_exponential_backoff: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that a circuit that fails verification gives the status ERROR, not SUCCESS."""
+    monkeypatch.setattr(search, "verify_stabilizer_state", lambda *_args: False)
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_isometry_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+        use_exponential_backoff=use_exponential_backoff,
+    )
+
+    assert result.status == SynthesisStatus.ERROR
+    assert result.verified is False
+    assert result.circuit is not None
+    assert "fails verification" in result.message
+
+
+def test_failed_verification_is_ignored_without_verification(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that the verifier does not run when verification is turned off."""
+    monkeypatch.setattr(search, "verify_stabilizer_state", lambda *_args: False)
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_isometry_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+        verify=False,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is False
 
 
 def test_lower_bound_respected(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:

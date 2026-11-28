@@ -298,12 +298,15 @@ relevant metadata:
 | Attribute        | Type                                      | Description                                             |
 | ---------------- | ----------------------------------------- | ------------------------------------------------------- |
 | `status`         | `SynthesisStatus`                         | `SUCCESS`, `UNSAT`, `TIMEOUT`, or `ERROR`               |
-| `circuit`        | `CliffordIsometry \| CNOTCircuit \| None` | Synthesized circuit, or `None` if failed                |
+| `circuit`        | `CliffordIsometry \| CNOTCircuit \| None` | Synthesized circuit, or `None` if none was found        |
 | `gate_count`     | `int \| None`                             | Total non-identity non-Pauli gate count                 |
 | `depth`          | `int \| None`                             | Two-qubit-gate depth                                    |
 | `proven_optimal` | `bool`                                    | `True` when all smaller bounds were proven UNSAT        |
 | `verified`       | `bool`                                    | `True` when the circuit was verified against the target |
 | `message`        | `str`                                     | Human-readable status message                           |
+
+With `verify=True` (the default), a circuit that fails verification gives the
+status `ERROR`. The result keeps the circuit for inspection.
 
 ```{code-cell} ipython3
 result = synthesize_isometry_exact(

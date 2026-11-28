@@ -246,7 +246,7 @@ def test_optimal_encoders_reject_unverified_circuits(monkeypatch: pytest.MonkeyP
 
     assert gate_optimal_encoding_circuit(css_code, 0, 8, max_timeout=30) is None
     assert depth_optimal_encoding_circuit(css_code, 0, 8, max_timeout=30) is None
-    assert str(depth_optimal_encoding_circuit_non_css(code, max_depth=4)).startswith("UNVERIFIED")
+    assert "fails verification" in str(depth_optimal_encoding_circuit_non_css(code, max_depth=4))
 
 
 def test_encoding_dependent_generators_fixed_logical() -> None:

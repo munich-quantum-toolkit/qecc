@@ -320,7 +320,7 @@ def _optimal_prep_circuit(
         min_timeout=min_timeout,
         timeout=max_timeout,
     )
-    if result.status != SynthesisStatus.SUCCESS or not result.verified:
+    if result.status != SynthesisStatus.SUCCESS:
         return None
     assert isinstance(result.circuit, CNOTCircuit)
     return FaultyStatePrepCircuit(result.circuit, code.x_distance // 2, code.z_distance // 2)
