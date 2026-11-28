@@ -18,7 +18,7 @@ from timeit import default_timer as timer
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from z3 import Bool, Not, Optimize, Xor, simplify
+from z3 import Bool, BoolVal, Not, Optimize, Xor, simplify
 
 from . import code_from_string
 
@@ -45,8 +45,8 @@ class LightsOut:
         Adds all constraint to the optimizer that are independent of the value of the light.
         """
         helper_vars = self.helper_vars[light]
-        if len(indices) == 1:
-            # nothing to preconstruct for a single switch
+        if len(indices) <= 1:
+            # nothing to preconstruct for no switch or a single switch
             return
 
         assert self.switch_vars is not None
@@ -64,6 +64,11 @@ class LightsOut:
         """
         helper_vars = self.helper_vars[light]
         assert self.switch_vars is not None
+        if not indices:
+            # No switch controls the light, so a light that is on makes the problem unsatisfiable.
+            if val:
+                self.optimizer.add(BoolVal(False))
+            return
         if len(indices) == 1:
             constraint = self.switch_vars[indices[0]] == val
         else:
