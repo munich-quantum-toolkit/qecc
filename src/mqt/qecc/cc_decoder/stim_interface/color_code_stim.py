@@ -10,10 +10,17 @@
 from __future__ import annotations
 
 import itertools as it
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import stim
+
+from mqt.qecc.noise import (
+    BitFlipChannel,
+    PauliChannel,
+    PhenomenologicalNoiseModel,
+    PhenomenologicalStimAdapter,
+)
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -84,9 +91,30 @@ def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, e
 
 
 def gen_stim_circuit_memory_experiment(
-    pcm: NDArray[np.int_], logical_operator: NDArray[np.int_], distance: int, error_probability: float
+    pcm: NDArray[np.int_],
+    logical_operator: NDArray[np.int_],
+    distance: int,
+    error_probability: float | None = None,
+    noise: PhenomenologicalNoiseModel | None = None,
 ) -> Any:  # ruff:ignore[any-type]
-    """Generate a stim circuit for a memory experiment on the 2D color code."""
+    """Generate a stim circuit for a memory experiment on the 2D color code.
+
+    The noise is phenomenological: data noise between rounds and a flip on each
+    check measurement. Pass a `PhenomenologicalNoiseModel` to describe data and
+    readout noise separately, or a single `error_probability` to use the same
+    rate for both.
+    """
+    if (error_probability is None) == (noise is None):
+        msg = "Exactly one of error_probability or noise must be given."
+        raise ValueError(msg)
+    if noise is None:
+        probability = cast("float", error_probability)
+        noise = PhenomenologicalNoiseModel(
+            data=PauliChannel(probability, 0.0, 0.0),
+            z_syndrome=BitFlipChannel(probability),
+        )
+    adapter = PhenomenologicalStimAdapter(noise)
+
     data_qubits = range(len(pcm[0]))
     circuit = stim.Circuit()
     circuit.append("R", data_qubits)
@@ -96,8 +124,8 @@ def gen_stim_circuit_memory_experiment(
 
     # rounds of QEC
     for _ in range(distance):
-        circuit.append("X_ERROR", data_qubits, error_probability)
-        circuit = add_checks_one_round(pcm, circuit, True, error_probability)
+        adapter.append_data_noise(circuit, data_qubits)
+        circuit = add_checks_one_round(pcm, circuit, True, adapter.z_readout_probability)
 
     # logical measurement
 

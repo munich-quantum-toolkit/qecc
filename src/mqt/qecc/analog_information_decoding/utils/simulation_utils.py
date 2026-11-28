@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import json
 import locale
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from scipy.special import erfc, erfcinv
 
 from mqt.qecc.mod2 import rank
+from mqt.qecc.noise import PauliChannel
 
 from .data_utils import calculate_error_rates, replace_inf
 
@@ -26,11 +25,6 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from .data_utils import BpParams
-
-
-def set_seed(value: float) -> None:
-    """The appropriate way to set seeds when numba is used."""
-    np.random.seed(value)  # ruff:ignore[numpy-legacy-random]
 
 
 def alist2numpy(fname: str) -> NDArray[np.int32]:  # current original implementation is buggy
@@ -91,50 +85,6 @@ def is_logical_err(logicals: NDArray[np.int32], residual_err: NDArray[np.int32])
     return bool(l_check.any())  # check all zeros
 
 
-# adapted from https://github.com/quantumgizmos/bp_osd/blob/a179e6e86237f4b9cc2c952103fce919da2777c8/src/bposd/css_decode_sim.py#L430
-# and https://github.com/MikeVasmer/single_shot_3D_HGP/blob/bdfb437b2abcfa514997f26be97a711b878448cb/sim_scripts/single_shot_hgp3d.cpp#L207
-# channel_probs = [x,y,z], residual_err = [x,z]
-def generate_err(
-    nr_qubits: int,
-    channel_probs: tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]],
-    residual_err: list[NDArray[np.int32]],
-) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
-    """Computes error vector with X and Z part given channel probabilities and residual error.
-
-    Assumes that residual error has two equally sized parts.
-    """
-    error_x = residual_err[0]
-    error_z = residual_err[1]
-    channel_probs_x = channel_probs[0]
-    channel_probs_y = channel_probs[1]
-    channel_probs_z = channel_probs[2]
-    residual_err_x = residual_err[0]
-    residual_err_z = residual_err[1]
-
-    for i in range(nr_qubits):
-        rand = np.random.default_rng().random()  # this returns a random float in [0,1)
-        # e.g. if err channel is p = 0.3, then an error will be applied if rand < p
-        if rand < channel_probs_z[i]:  # if probability for z error high enough, rand < p, apply
-            # if there is a z error on the i-th bit, flip the bit but take residual error into account
-            # nothing on x part - probably redundant anyways
-            error_z[i] = (residual_err_z[i] + 1) % 2
-        elif (  # if p = 0.3 then 0.3 <= rand < 0.6 is the same sized interval as rand < 0.3
-            channel_probs_z[i] <= rand < (channel_probs_z[i] + channel_probs_x[i])
-        ):
-            # X error
-            error_x[i] = (residual_err_x[i] + 1) % 2
-        elif (  # 0.6 <= rand < 0.9
-            (channel_probs_z[i] + channel_probs_x[i])
-            <= rand
-            < (channel_probs_x[i] + channel_probs_y[i] + channel_probs_z[i])
-        ):
-            # y error == both x and z error
-            error_z[i] = (residual_err_z[i] + 1) % 2
-            error_x[i] = (residual_err_x[i] + 1) % 2
-
-    return error_x, error_z
-
-
 def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
     """Computes analog LLRs given analog syndrome and sigma."""
     if sigma <= 0.0:
@@ -142,24 +92,13 @@ def get_analog_llr(analog_syndrome: NDArray[np.float64], sigma: float) -> NDArra
     return (2 * analog_syndrome) / (sigma**2)
 
 
-def get_sigma_from_syndr_er(ser: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
-    if math.isclose(ser, 0.0):
-        return 0.0
-    return float(1 / np.sqrt(2) / (erfcinv(2 * ser)))  # see Eq. cref{eq:perr-to-sigma} in our paper
-
-
-def get_error_rate_from_sigma(sigma: float) -> float:
-    """For analog Cat syndrome noise we need to convert the syndrome error model as described in the paper."""
-    if math.isclose(sigma, 0.0):
-        return 0.0
-    return float(0.5 * erfc(1 / np.sqrt(2 * sigma**2)))  # see Eq. cref{eq:perr-to-sigma} in our paper
-
-
 def get_virtual_check_init_vals(noisy_syndr: NDArray[np.float64], sigma: float) -> NDArray[np.float64]:
     """Computes a vector of values v_i from the noisy syndrome bits y_i s.t.
 
-    BP initializes the LLRs l_i of the analog nodes with the analog info values (see paper section). v_i := 1/(e^{y_i}+1).
+    BP initializes the LLRs l_i of the analog nodes with the analog info values,
+    v_i := 1/(e^{y_i}+1), as described in Berent et al., "Analog information
+    decoding of bosonic quantum LDPC codes", PRX Quantum 5, 020349 (2024),
+    arXiv:2311.01328.
     """
     if sigma <= 0.0:
         return np.zeros_like(noisy_syndr).astype(np.float64)
@@ -167,62 +106,13 @@ def get_virtual_check_init_vals(noisy_syndr: NDArray[np.float64], sigma: float) 
     return np.array(1 / (np.exp(np.abs(llrs)) + 1))
 
 
-def generate_syndr_err(channel_probs: NDArray[np.float64]) -> NDArray[np.int32]:
-    """Generates a random error vector given the error channel probabilities."""
-    error: NDArray[np.int32] = np.zeros_like(channel_probs, dtype=np.int32)
-
-    for i, p in np.ndenumerate(channel_probs):
-        rand = np.random.default_rng().random()
-
-        if rand < float(p):
-            error[i] = 1
-
-    return error
-
-
-def get_noisy_analog_syndrome(perfect_syndr: NDArray[np.int32], sigma: float) -> NDArray[np.float64]:
-    """Generate noisy analog syndrome vector given the perfect syndrome and standard deviation sigma (~ noise strength).
-
-    Assumes perfect_syndr has entries in {0,1}.
-    """
-    # compute signed syndrome: 1 = check satisfied, -1 = check violated. float needed for Gaussian sampling call
-    sgns: NDArray[np.float64] = np.where(
-        np.isclose(perfect_syndr, 0.0, atol=0.0),
-        np.ones_like(perfect_syndr),
-        np.full_like(perfect_syndr, -1.0),
-    ).astype(np.float64)
-
-    # sample from Gaussian with zero mean and sigma std. dev: ~N(0, sigma_sq)
-    return np.array(np.random.default_rng().normal(loc=sgns, scale=sigma, size=perfect_syndr.shape)).astype(np.float64)
-
-
-def error_channel_setup(
-    error_rate: float, xyz_error_bias: NDArray[np.float64], nr_qubits: int
-) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-    """Set up an error_channel given the physical error rate, bias, and number of bits."""
-    xyz_error_bias = np.array(xyz_error_bias)
-    if xyz_error_bias[0] == np.inf:
-        px = error_rate
-        py = 0.0
-        pz = 0.0
-    elif xyz_error_bias[1] == np.inf:
-        px = 0.0
-        py = error_rate
-        pz = 0.0
-    elif xyz_error_bias[2] == np.inf:
-        px = 0.0
-        py = 0.0
-        pz = error_rate
-    else:
-        px, py, pz = (
-            error_rate * xyz_error_bias / np.sum(xyz_error_bias)
-        )  # Oscar only considers X or Z errors. For reproducibility remove normalization
-
-    channel_probs_x = np.ones(nr_qubits) * px
-    channel_probs_z = np.ones(nr_qubits) * pz
-    channel_probs_y = np.ones(nr_qubits) * py
-
-    return channel_probs_x, channel_probs_y, channel_probs_z
+def error_channel_setup(error_rate: float, xyz_error_bias: NDArray[np.float64]) -> PauliChannel:
+    """Set up the Pauli error channel given the physical error rate and bias."""
+    bias_values = tuple(float(value) for value in np.asarray(xyz_error_bias).tolist())
+    if len(bias_values) != 3:
+        msg = f"xyz_error_bias must contain exactly three values, got {len(bias_values)}."
+        raise ValueError(msg)
+    return PauliChannel.from_total_probability(error_rate, bias=bias_values)
 
 
 def build_single_stage_pcm(pcm: NDArray[np.int32], meta: NDArray[np.int32]) -> NDArray[np.int32]:
