@@ -221,8 +221,10 @@ The `TargetKind` enum selects the synthesis problem:
 
 The stabilizer generators or checks of the target may be linearly dependent.
 Before the search, MQT QECC reduces them to independent generators of the same
-group, with the signs of a `StabilizerTableau` target taken into account. For an
-isometry, the number of independent generators must be $n - k$. Generators that
+group, with the signs of a `StabilizerTableau` target taken into account. For a
+`CLIFFORD_ISOMETRY` or `CLIFFORD_UNITARY` target, the number of independent
+stabilizer generators must be $n - k$. A `CSS_ISOMETRY` target contains only one
+check type, so its number of independent checks can be smaller. Generators that
 generate $-I$ raise a `ValueError`.
 
 ## Search Configuration
