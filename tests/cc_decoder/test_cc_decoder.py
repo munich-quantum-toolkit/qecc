@@ -168,9 +168,10 @@ def test_external_solver(
 
     wcnf_headers: list[str] = []
 
-    def solver_stub(args: list[str], **_: object) -> None:
+    def solver_stub(args: list[str], **_: object) -> object:
         # The solver gets the path of a WCNF file, not the problem text.
         wcnf_headers.append(Path(args[1]).read_text(encoding="utf-8").split("\n", maxsplit=1)[0])
+        return mocker.Mock(returncode=30)
 
     # mock the subprocess.run call in the `solve` method of the `LightsOut` class
     mocker.patch("subprocess.run", side_effect=solver_stub)
@@ -324,3 +325,36 @@ def test_cli_rejects_invalid_options(
     assert exc_info.value.code == 2
     maxsat_run.assert_not_called()
     tn_run.assert_not_called()
+
+
+@pytest.mark.parametrize("returncode", [0, 10, 20, 30])
+def test_external_solver_accepts_maxsat_exit_codes(
+    code: HexagonalColorCode,
+    returncode: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: pytest_mock.MockerFixture,
+) -> None:
+    """The exit codes of the MaxSAT Evaluations count as a successful solver call."""
+    monkeypatch.chdir(tmp_path)
+    mocker.patch("subprocess.run", return_value=mocker.Mock(returncode=returncode))
+    lo = decoder.LightsOut(code.faces_to_qubits, code.qubits_to_faces)
+    lo.preconstruct_z3_instance()
+    switches, solved, _ = lo.solve(lights=[True, False, False], solver_path="mock_solver")
+    assert switches == []
+    assert solved
+
+
+def test_external_solver_failure_raises(
+    code: HexagonalColorCode,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: pytest_mock.MockerFixture,
+) -> None:
+    """A solver call that fails is an error, not a solving time."""
+    monkeypatch.chdir(tmp_path)
+    mocker.patch("subprocess.run", return_value=mocker.Mock(returncode=1))
+    lo = decoder.LightsOut(code.faces_to_qubits, code.qubits_to_faces)
+    lo.preconstruct_z3_instance()
+    with pytest.raises(RuntimeError, match="exit code 1"):
+        lo.solve(lights=[True, False, False], solver_path="mock_solver")

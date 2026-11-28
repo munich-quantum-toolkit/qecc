@@ -194,7 +194,8 @@ options:
 Only the z3 solver decodes. An external solver gets the path of a WCNF file with
 the MaxSAT problem, and the simulation only measures the solving time. The
 output of the solver is written to `solver-out_<solver name>.txt` in the working
-directory.
+directory. The simulation accepts the exit codes of the MaxSAT Evaluations (0,
+10, 20 and 30) and stops with an error for any other exit code.
 
 <!-- #endregion -->
 

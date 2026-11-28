@@ -30,6 +30,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..codes.constructions.color_codes.color_code import ColorCode
 
 
+# Exit codes of MaxSAT solvers in the MaxSAT Evaluations: 0 for an unknown result, 10 for a satisfiable problem,
+# 20 for an unsatisfiable problem, and 30 for an optimal solution.
+MAXSAT_EXIT_CODES = frozenset({0, 10, 20, 30})
+
+
 @dataclass
 class LightsOut:
     """Lights out problem representation."""
@@ -129,7 +134,11 @@ class LightsOut:
 
         Returns:
             The switches to press, whether the solver found a valid solution, and the time spent in the solver call.
-            For an external solver, the list of switches is empty.
+            For an external solver, the list of switches is empty and the flag is always True, because the method
+            does not read the solver output.
+
+        Raises:
+            RuntimeError: If an external solver exits with a code that is not in :data:`MAXSAT_EXIT_CODES`.
         """
         # push a new context to the optimizer
         self.optimizer.push()
@@ -171,8 +180,12 @@ class LightsOut:
                 wcnf_path = Path(tmp_dir) / "problem.wcnf"
                 wcnf_path.write_text(wcnf, encoding="utf-8")
                 start = timer()
-                subprocess.run([solver_path, str(wcnf_path)], stdout=out, check=False)  # ruff:ignore[subprocess-without-shell-equals-true]
+                completed = subprocess.run([solver_path, str(wcnf_path)], stdout=out, check=False)  # ruff:ignore[subprocess-without-shell-equals-true]
                 solve_time = timer() - start
+            if completed.returncode not in MAXSAT_EXIT_CODES:
+                self.optimizer.pop()
+                msg = f"The MaxSAT solver {solver_path} failed with exit code {completed.returncode}."
+                raise RuntimeError(msg)
 
         # pop the context from the optimizer
         self.optimizer.pop()
