@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+import stim
 from qiskit import ClassicalRegister, QuantumCircuit
 from tqdm import tqdm
 
@@ -31,7 +32,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable, Generator, Iterator
 
     import numpy.typing as npt
-    import stim
 
     from ..codes.core.css_code import CSSCode
     from .noise import NoiseModel
@@ -125,6 +125,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         shots_per_batch: int = 100000,
         at_least_min_errors: bool = True,
         min_errors: int = 500,
+        max_shots: int | None = None,
     ) -> tuple[float, float, int, int]:
         batch = min(shots_per_batch, shots)
         p_l = 0.0
@@ -134,7 +135,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
 
         i = 1
         total_batches = int(np.ceil(shots / batch))
-        while i <= total_batches or at_least_min_errors:
+        while (i <= total_batches or at_least_min_errors) and (max_shots is None or (i - 1) * batch < max_shots):
             num_logical_errors_batch, discarded_batch = processing_fun(sampler, batch)
 
             logger.info(
@@ -150,10 +151,11 @@ class NoisyNDFTStatePrepSimulator(ABC):
             r_a = ((i - 1) * r_a + r_a_batch) / i
 
             if at_least_min_errors and num_logical_errors >= min_errors:
+                i += 1
                 break
             i += 1
 
-        return p_l / self.code.k, r_a, num_logical_errors, i * batch
+        return p_l / self.code.k, r_a, num_logical_errors, (i - 1) * batch
 
     def logical_error_rate(
         self,
@@ -162,6 +164,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         shots_per_batch: int = 100000,
         at_least_min_errors: bool = True,
         min_errors: int = 500,
+        max_shots: int | None = None,
     ) -> tuple[float, float, int, int]:
         """Estimate the logical error rate of the code.
 
@@ -171,11 +174,16 @@ class NoisyNDFTStatePrepSimulator(ABC):
             shots_per_batch: The number of shots per batch.
             at_least_min_errors: Whether to continue simulating until at least min_errors are found.
             min_errors: The minimum number of errors to find before stopping.
+            max_shots: Stop after this many shots even if fewer than ``min_errors`` errors were found.
+
+        Returns:
+            The logical error rate per logical qubit, the acceptance rate, the number of logical errors and the number
+            of shots.
         """
         noisy_circ = self._build_noisy_circuit(noise)
         sampler = noisy_circ.compile_sampler()
         return self._batched_logical_error_rate(
-            sampler, self._simulate_batch, shots, shots_per_batch, at_least_min_errors, min_errors
+            sampler, self._simulate_batch, shots, shots_per_batch, at_least_min_errors, min_errors, max_shots
         )
 
     def secondary_logical_error_rate(
@@ -400,8 +408,15 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
             code: The code to simulate.
             zero_state: Whether the zero state is prepared or nor.
             decoder: The decoder to use.
+
+        A shot is accepted if every measurement of the circuit is 0. If the circuit declares detectors (a stim
+        circuit with ``DETECTOR`` instructions), a shot is accepted if every detector, the parity of its measurements,
+        is 0 instead.
         """
         super().__init__(state_prep_circ, code, zero_state, decoder)
+        self.detectors: npt.NDArray[np.int8] | None = None
+        if self.circ.num_detectors > 0:
+            self.detectors, self.circ = _split_detectors(self.circ)
 
     def _filter_runs(self, samples: npt.NDArray[np.int8]) -> npt.NDArray[np.int8]:
         """Filter samples based on measurement outcomes.
@@ -412,8 +427,54 @@ class VerificationNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):
         Returns:
             npt.NDArray[np.int8]: The filtered samples.
         """
-        index_array = np.where(np.all(samples[:, : self.circ.num_measurements] == 0, axis=1))[0]
-        return samples[index_array].astype(np.int8)
+        checks = samples[:, : self.circ.num_measurements]
+        if self.detectors is None:
+            kept = np.all(checks == 0, axis=1)
+        else:
+            # the noise model may reorder the measurements of different qubits: follow each record to its new place
+            detectors = np.zeros_like(self.detectors)
+            detectors[:, _record_positions(self.circ, self._noisy_circ)] = self.detectors
+            kept = ~np.any((checks.astype(np.int64) @ detectors.T) % 2, axis=1)
+        return samples[kept].astype(np.int8)
+
+
+def _split_detectors(circ: stim.Circuit) -> tuple[npt.NDArray[np.int8], stim.Circuit]:
+    """The detectors of ``circ`` as a (detectors x measurements) 0/1 matrix, and ``circ`` without them."""
+    rows: list[list[int]] = []
+    plain = stim.Circuit()
+    measured = 0
+    for inst in circ.flattened():
+        if not isinstance(inst, stim.CircuitInstruction):  # flattened circuits have no repeat blocks
+            continue
+        if inst.name == "DETECTOR":
+            rows.append([measured + target.value for target in inst.targets_copy()])
+            continue
+        plain.append(inst)
+        measured = plain.num_measurements
+    matrix = np.zeros((len(rows), measured), dtype=np.int8)
+    for i, recs in enumerate(rows):
+        for r in recs:
+            matrix[i, r] ^= 1
+    return matrix, plain
+
+
+def _record_keys(circ: stim.Circuit) -> list[tuple[int, int]]:
+    """Each measurement record of ``circ`` as (qubit, number of earlier measurements of that qubit)."""
+    counts: dict[int, int] = {}
+    keys = []
+    for inst in circ.flattened():
+        if isinstance(inst, stim.CircuitInstruction) and stim.gate_data(inst.name).produces_measurements:
+            for target in inst.targets_copy():
+                q = target.value
+                keys.append((q, counts.get(q, 0)))
+                counts[q] = counts.get(q, 0) + 1
+    return keys
+
+
+def _record_positions(circ: stim.Circuit, noisy: stim.Circuit) -> list[int]:
+    """The record index in ``noisy`` of each measurement record of ``circ``, which ``noisy`` may reorder."""
+    index = {key: i for i, key in enumerate(_record_keys(noisy))}
+    return [index[key] for key in _record_keys(circ)]
 
 
 class SteaneNDFTStatePrepSimulator(NoisyNDFTStatePrepSimulator):

@@ -56,5 +56,5 @@ STIM_TQGS = {
     "ZCY",
     "ZCZ",
 }
-STIM_MEASUREMENTS = {"MR", "MRX", "MRY", "MRZ"}
+STIM_MEASUREMENTS = {"M", "MX", "MY", "MZ", "MR", "MRX", "MRY", "MRZ"}
 STIM_RESETS = {"R", "RX", "RY", "RZ"}
