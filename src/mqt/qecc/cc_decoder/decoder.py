@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import locale
 import subprocess  # ruff:ignore[suspicious-subprocess-import]
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from timeit import default_timer as timer
@@ -27,6 +28,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from z3 import BoolRef, ModelRef
 
     from ..codes.constructions.color_codes.color_code import ColorCode
+
+
+# Exit codes of MaxSAT solvers in the MaxSAT Evaluations: 0 for an unknown result, 10 for a satisfiable problem,
+# 20 for an unsatisfiable problem, and 30 for an optimal solution.
+MAXSAT_EXIT_CODES = frozenset({0, 10, 20, 30})
 
 
 @dataclass
@@ -99,6 +105,8 @@ class LightsOut:
     def validate_model(self, model: ModelRef, lights: list[bool]) -> bool:
         """Validate the model by checking if pressing the switches turns off all lights."""
         assert self.switch_vars is not None
+        # Work on a copy, so that the caller's light pattern stays unchanged.
+        lights = list(lights)
         for i, var in enumerate(self.switch_vars):
             if model[var]:
                 # flip all lights that are controlled by this switch
@@ -116,6 +124,21 @@ class LightsOut:
         """Solve the lights-out problem for a given pattern.
 
         Assumes that the z3 instance has already been pre-constructed.
+        A solver other than z3 only gets timed: the method writes the problem to a WCNF file, passes the path of
+        this file to the solver, and does not read the solver output.
+
+        Args:
+            lights: The light pattern. The method does not change this list.
+            solver_path: ``"z3"``, or the path to an external MaxSAT solver executable.
+            timeout: The time limit of the z3 solver in milliseconds.
+
+        Returns:
+            The switches to press, whether the solver found a valid solution, and the time spent in the solver call.
+            For an external solver, the list of switches is empty and the flag is always True, because the method
+            does not read the solver output.
+
+        Raises:
+            RuntimeError: If an external solver exits with a code that is not in :data:`MAXSAT_EXIT_CODES`.
         """
         # push a new context to the optimizer
         self.optimizer.push()
@@ -148,12 +171,21 @@ class LightsOut:
             wcnf = str(self.optimizer)
             # Note: This merely calls the solver. It does not interpret the output.
             #       This is just to measure the time it takes to solve the problem.
-            with Path("./solver-out_" + solver_path.rsplit("/", maxsplit=1)[-1] + ".txt").open(
-                "a+", encoding=locale.getpreferredencoding(False)
-            ) as out:
+            with (
+                tempfile.TemporaryDirectory() as tmp_dir,
+                Path("./solver-out_" + solver_path.rsplit("/", maxsplit=1)[-1] + ".txt").open(
+                    "a+", encoding=locale.getpreferredencoding(False)
+                ) as out,
+            ):
+                wcnf_path = Path(tmp_dir) / "problem.wcnf"
+                wcnf_path.write_text(wcnf, encoding="utf-8")
                 start = timer()
-                subprocess.run([solver_path, wcnf], stdout=out, check=False)  # ruff:ignore[subprocess-without-shell-equals-true]
+                completed = subprocess.run([solver_path, str(wcnf_path)], stdout=out, check=False)  # ruff:ignore[subprocess-without-shell-equals-true]
                 solve_time = timer() - start
+            if completed.returncode not in MAXSAT_EXIT_CODES:
+                self.optimizer.pop()
+                msg = f"The MaxSAT solver {solver_path} failed with exit code {completed.returncode}."
+                raise RuntimeError(msg)
 
         # pop the context from the optimizer
         self.optimizer.pop()
@@ -162,7 +194,23 @@ class LightsOut:
 
 
 def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver_path: str = "z3") -> dict[str, Any]:
-    """Simulate the logical error rate for a given distance and error rate."""
+    """Simulate the logical error rate for a given distance and error rate.
+
+    Only the z3 solver returns a decoding estimate. An external solver only gets timed, so the logical error rates
+    and their error bars are NaN in that case, and ``nr_unsolved`` is None.
+
+    Args:
+        code: The color code to simulate.
+        error_rate: The bit-flip error rate.
+        nr_sims: The number of samples.
+        solver_path: ``"z3"``, or the path to an external MaxSAT solver executable.
+
+    Returns:
+        The simulation results. ``avg_constr_time`` is the average time per sample in
+        :meth:`LightsOut.solve` outside the solver call, mainly for building the constraints of the sample.
+        ``nr_unsolved`` is the number of samples for which the solver did not find a valid solution.
+    """
+    timing_only = solver_path != "z3"
     problem = LightsOut(code.faces_to_qubits, code.qubits_to_faces)
 
     start = timer()
@@ -172,6 +220,7 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
     logical_errors: npt.NDArray[np.int_] = np.zeros(len(code.L)).astype(int)
     avg_constr_time = 0.0
     avg_solve_time = 0.0
+    nr_unsolved = 0
     rng = np.random.default_rng()
     for i in range(nr_sims):
         # sample error
@@ -182,8 +231,12 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
         lights = [bool(b) for b in syndrome]
 
         # compute estimate
-        estimate, constr_time, solve_time = problem.solve(lights, solver_path=solver_path)
-        if len(estimate) > 0:
+        start = timer()
+        estimate, solved, solve_time = problem.solve(lights, solver_path=solver_path)
+        constr_time = timer() - start - solve_time
+        if not solved:
+            nr_unsolved += 1
+        if not timing_only:
             # check if the estimate is correct
             residual = (error + np.array(estimate)) % 2
             for logical in range(len(code.L)):
@@ -200,6 +253,9 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
 
     logical_error_rates: list[float] = [nr_errors / nr_sims for nr_errors in logical_errors]
     logical_error_rate_ebs: list[float] = [np.sqrt((1 - ler) * ler / nr_sims) for ler in logical_error_rates]
+    if timing_only:
+        logical_error_rates = [float("nan")] * len(code.L)
+        logical_error_rate_ebs = [float("nan")] * len(code.L)
     avg_total_time = avg_constr_time + avg_solve_time
 
     return {
@@ -213,6 +269,7 @@ def simulate_error_rate(code: ColorCode, error_rate: float, nr_sims: int, solver
         "avg_solve_time": avg_solve_time,
         "avg_total_time": avg_total_time,
         "min_wts_logical_err": min_wt_logicals.tolist(),
+        "nr_unsolved": None if timing_only else nr_unsolved,
     }
 
 

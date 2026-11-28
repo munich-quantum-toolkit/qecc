@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import locale
 import pathlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import stim
 from sinter import CompiledDecoder, Decoder
@@ -26,18 +26,30 @@ if TYPE_CHECKING:
 class SinterCompiledDecoderMaxSat(CompiledDecoder):  # type: ignore[misc]
     """MaxSAT decoder instantiation as CompiledDecoder."""
 
-    def __init__(self, decoder: MaxSatStim, **kwargs: dict[str, Any]) -> None:
-        """Constructor initializing compiled decoder with stim decoder."""
-        self.decoder = decoder
+    def __init__(self, decoder: MaxSatStim, d: int | None = None, p: float | None = None) -> None:
+        """Constructor initializing compiled decoder with stim decoder.
 
-        if kwargs:
-            self.convergence_cnt = 0
-            self.not_convergence_cnt = 0
-            self.d = kwargs["d"]
-            self.p = kwargs["p"]
-            self.measure_convergence = True
-        else:
-            self.measure_convergence = False
+        If both ``d`` and ``p`` are given, each call of :meth:`decode_shots_bit_packed` appends a line to
+        ``convergence_rate.txt`` in the working directory. The line holds ``d``, ``p`` and the running numbers of
+        converged and not converged shots.
+
+        Args:
+            decoder: The MaxSAT decoder for the detector error model.
+            d: The code distance for the convergence log.
+            p: The error rate for the convergence log.
+
+        Raises:
+            ValueError: If only one of ``d`` and ``p`` is given.
+        """
+        if (d is None) != (p is None):
+            msg = "Give both d and p to log the convergence, or neither."
+            raise ValueError(msg)
+        self.decoder = decoder
+        self.d = d
+        self.p = p
+        self.measure_convergence = d is not None
+        self.convergence_cnt = 0
+        self.not_convergence_cnt = 0
 
     def decode_shots_bit_packed(
         self,
@@ -52,8 +64,8 @@ class SinterCompiledDecoderMaxSat(CompiledDecoder):  # type: ignore[misc]
         if self.measure_convergence:
             self.convergence_cnt += converged_cnt
             self.not_convergence_cnt += not_converged_cnt
-            with pathlib.Path("convergence_rate.txt").open("a", encoding=locale.getpreferredencoding(False)) as self.f:
-                self.f.write(
+            with pathlib.Path("convergence_rate.txt").open("a", encoding=locale.getpreferredencoding(False)) as f:
+                f.write(
                     str(self.d)
                     + " "
                     + str(self.p)
@@ -70,20 +82,25 @@ class SinterCompiledDecoderMaxSat(CompiledDecoder):  # type: ignore[misc]
 class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
     """Sinter implementation of MaxSAT decoder."""
 
-    def __init__(
-        self,
-        **maxsat_kwargs: Any,  # ruff:ignore[any-type]
-    ) -> None:
-        """Init sinter decoder with kwargs."""
-        self.maxsat_kwargs = maxsat_kwargs
+    def __init__(self, d: int | None = None, p: float | None = None) -> None:
+        """Init sinter decoder.
+
+        Args:
+            d: The code distance for the convergence log. See :class:`SinterCompiledDecoderMaxSat`.
+            p: The error rate for the convergence log. See :class:`SinterCompiledDecoderMaxSat`.
+
+        Raises:
+            ValueError: If only one of ``d`` and ``p`` is given.
+        """
+        if (d is None) != (p is None):
+            msg = "Give both d and p to log the convergence, or neither."
+            raise ValueError(msg)
+        self.d = d
+        self.p = p
 
     def compile_decoder_for_dem(self, dem: stim.DetectorErrorModel) -> SinterCompiledDecoderMaxSat:
         """Return sinter compiled decoder initialized with the given DEM."""
-        maxsat = MaxSatStim(
-            model=dem,
-            #            **self.maxsat_kwargs,
-        )
-        return SinterCompiledDecoderMaxSat(maxsat, **self.maxsat_kwargs)
+        return SinterCompiledDecoderMaxSat(MaxSatStim(model=dem), d=self.d, p=self.p)
 
     def decode_via_files(  # ruff:ignore[no-self-use]
         self,
@@ -144,6 +161,14 @@ class SinterDecoderMaxSat(Decoder):  # type: ignore[misc]
         )
 
 
-def sinter_decoders(**kwargs: Any) -> dict[str, Decoder]:  # ruff:ignore[any-type]
-    """Return a list of available sinter decoders."""
-    return {"maxsat": SinterDecoderMaxSat(**kwargs)}
+def sinter_decoders(d: int | None = None, p: float | None = None) -> dict[str, Decoder]:
+    """Return a dictionary of the available sinter decoders.
+
+    Args:
+        d: The code distance for the convergence log. See :class:`SinterCompiledDecoderMaxSat`.
+        p: The error rate for the convergence log. See :class:`SinterCompiledDecoderMaxSat`.
+
+    Returns:
+        The decoders by name.
+    """
+    return {"maxsat": SinterDecoderMaxSat(d=d, p=p)}

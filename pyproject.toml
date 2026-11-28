@@ -107,7 +107,6 @@ Discussions = "https://github.com/munich-quantum-toolkit/qecc/discussions"
 
 [project.scripts]
 "mqt.qecc.cc-decoder" = "mqt.qecc.cc_decoder.cli:cli"
-"mqt.qecc.cc-decoder-plot" = "mqt.qecc.cc_decoder.plots:main"
 
 
 [dependency-groups]

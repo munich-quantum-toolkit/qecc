@@ -16,7 +16,16 @@ import numpy as np
 import stim
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from numpy.typing import NDArray
+
+
+def _check_distance(distance: int) -> None:
+    """Raise a ValueError unless the distance is an odd integer of at least 3."""
+    if distance < 3 or distance % 2 == 0:
+        msg = f"The distance of the triangular color code must be odd and at least 3, but it is {distance}."
+        raise ValueError(msg)
 
 
 def neighbors(perm: NDArray[np.int_]) -> NDArray[np.int_]:
@@ -31,7 +40,18 @@ def neighbors(perm: NDArray[np.int_]) -> NDArray[np.int_]:
 
 
 def gen_pcm_and_logical(distance: int) -> tuple[NDArray[np.bool_], set[int]]:
-    """Generate the parity check matrix and logical operator for the 2D color code."""
+    """Generate the parity check matrix and logical operator for the 2D color code.
+
+    Args:
+        distance: The distance of the code. It must be odd and at least 3.
+
+    Returns:
+        The parity check matrix and the set of qubits that support the logical operator.
+
+    Raises:
+        ValueError: If the distance is even or smaller than 3.
+    """
+    _check_distance(distance)
     lattice_points_to_qubit_index, ancilla_qubit_to_lattice_points = {}, {}
     qubit_count, ancilla_qubit_count = 0, 0
     logical_operator = set()
@@ -84,9 +104,23 @@ def add_checks_one_round(pcm: NDArray[np.int_], circuit: Any, detectors: bool, e
 
 
 def gen_stim_circuit_memory_experiment(
-    pcm: NDArray[np.int_], logical_operator: NDArray[np.int_], distance: int, error_probability: float
+    pcm: NDArray[np.int_], logical_operator: Iterable[int], distance: int, error_probability: float
 ) -> Any:  # ruff:ignore[any-type]
-    """Generate a stim circuit for a memory experiment on the 2D color code."""
+    """Generate a stim circuit for a memory experiment on the 2D color code.
+
+    Args:
+        pcm: The parity check matrix of the code.
+        logical_operator: The qubits that support the logical operator.
+        distance: The distance of the code, which is also the number of noisy rounds. It must be odd and at least 3.
+        error_probability: The probability of a bit flip and of a measurement error.
+
+    Returns:
+        The stim circuit of the memory experiment.
+
+    Raises:
+        ValueError: If the distance is even or smaller than 3.
+    """
+    _check_distance(distance)
     data_qubits = range(len(pcm[0]))
     circuit = stim.Circuit()
     circuit.append("R", data_qubits)
