@@ -219,6 +219,14 @@ The `TargetKind` enum selects the synthesis problem:
 | `CLIFFORD_UNITARY`  | Full $n$-qubit Clifford unitary | `StabilizerTableau` target + `x_logicals` + `z_logicals` |
 | `STABILIZER_STATE`  | Stabilizer state (any)          | `StabilizerTableau` target only                          |
 
+The stabilizer generators or checks of the target may be linearly dependent.
+Before the search, MQT QECC reduces them to independent generators of the same
+group, with the signs of a `StabilizerTableau` target taken into account. For a
+`CLIFFORD_ISOMETRY` or `CLIFFORD_UNITARY` target, the number of independent
+stabilizer generators must be $n - k$. A `CSS_ISOMETRY` target contains only one
+check type, so its number of independent checks can be smaller. Generators that
+generate $-I$ raise a `ValueError`.
+
 ## Search Configuration
 
 ### Bounds and timeouts
@@ -290,12 +298,15 @@ relevant metadata:
 | Attribute        | Type                                      | Description                                             |
 | ---------------- | ----------------------------------------- | ------------------------------------------------------- |
 | `status`         | `SynthesisStatus`                         | `SUCCESS`, `UNSAT`, `TIMEOUT`, or `ERROR`               |
-| `circuit`        | `CliffordIsometry \| CNOTCircuit \| None` | Synthesized circuit, or `None` if failed                |
+| `circuit`        | `CliffordIsometry \| CNOTCircuit \| None` | Synthesized circuit, or `None` if none was found        |
 | `gate_count`     | `int \| None`                             | Total non-identity non-Pauli gate count                 |
 | `depth`          | `int \| None`                             | Two-qubit-gate depth                                    |
 | `proven_optimal` | `bool`                                    | `True` when all smaller bounds were proven UNSAT        |
 | `verified`       | `bool`                                    | `True` when the circuit was verified against the target |
 | `message`        | `str`                                     | Human-readable status message                           |
+
+With `verify=True` (the default), a circuit that fails verification gives the
+status `ERROR`. The result keeps the circuit for inspection.
 
 ```{code-cell} ipython3
 result = synthesize_isometry_exact(

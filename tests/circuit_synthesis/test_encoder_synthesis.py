@@ -30,6 +30,7 @@ from mqt.qecc.circuit_synthesis.encoding import (
     resynthesize_stim_circuit,
     synthesize_encoding_circuit,
 )
+from mqt.qecc.circuit_synthesis.exact import search
 from mqt.qecc.circuit_synthesis.synthesis import SynthesisConfig
 from mqt.qecc.codes import (
     CSSCode,
@@ -41,6 +42,7 @@ from mqt.qecc.codes import (
 from mqt.qecc.codes.core.pauli import Pauli, StabilizerTableau
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Literal
 
 
@@ -211,6 +213,40 @@ def test_css_encoding_dependent_checks(use_cnots_if_css: bool) -> None:
     assert encoder.num_qubits() == code.n
     assert encoder.num_inputs() == code.k
     assert encoder.get_code().is_equivalent(code)
+
+
+@pytest.mark.parametrize("synthesize", [gate_optimal_encoding_circuit, depth_optimal_encoding_circuit])
+def test_optimal_css_encoding_dependent_checks(synthesize: Callable[..., CNOTCircuit | None]) -> None:
+    """Check that the exact CSS encoders give a circuit for the code when the checks are dependent."""
+    hx = np.array([[1, 1, 0, 0], [0, 0, 1, 1]], dtype=np.int8)
+    hz = np.array([[1, 1, 1, 1], [1, 1, 1, 1]], dtype=np.int8)
+    code = CSSCode(hx, hz)
+    encoder = synthesize(code, 0, 8, max_timeout=30)
+
+    assert encoder is not None
+    assert encoder.num_inputs() == code.k == 1
+    assert encoder.get_code().is_equivalent(code)
+
+
+def test_depth_optimal_encoding_non_css_dependent_generators() -> None:
+    """Check that the exact Clifford encoder gives a circuit for the code when the generators are dependent."""
+    code = StabilizerCode(["ZZI", "ZZI", "IZZ"], x_logicals=["XXX"], z_logicals=["ZII"])
+    encoder = depth_optimal_encoding_circuit_non_css(code, max_depth=4)
+
+    assert isinstance(encoder, CliffordIsometry)
+    assert encoder.get_code().is_equivalent(code)
+
+
+def test_optimal_encoders_reject_unverified_circuits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the exact encoders do not return a circuit that fails verification."""
+    monkeypatch.setattr(search, "verify_css_isometry", lambda *_args: False)
+    monkeypatch.setattr(search, "verify_clifford_isometry", lambda *_args: False)
+    css_code = CSSCode(np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8), np.array([[1, 1, 1]], dtype=np.int8))
+    code = StabilizerCode(["ZZI", "IZZ"], x_logicals=["XXX"], z_logicals=["ZII"])
+
+    assert gate_optimal_encoding_circuit(css_code, 0, 8, max_timeout=30) is None
+    assert depth_optimal_encoding_circuit(css_code, 0, 8, max_timeout=30) is None
+    assert "fails verification" in str(depth_optimal_encoding_circuit_non_css(code, max_depth=4))
 
 
 def test_encoding_dependent_generators_fixed_logical() -> None:

@@ -86,7 +86,8 @@ def synthesize_isometry_exact(
             and CSS_ISOMETRY with X-type checks. Must be a StabilizerTableau for Clifford synthesis.
         z_logicals: Logical Z operators. Required for CLIFFORD_UNITARY, CLIFFORD_ISOMETRY,
             and CSS_ISOMETRY with Z-type checks. Must be a StabilizerTableau for Clifford synthesis.
-        verify: Whether to verify synthesized circuit.
+        verify: Whether to verify the synthesized circuit. If the circuit fails verification, the result has
+            status ``ERROR``.
         allow_qubit_permutation: Allow qubit permutation in the terminal constraint.
         gate_set: Custom gate set. If None, uses the standard gate set for the inferred family.
         use_symmetry_breaking: Add symmetry-breaking constraints to prune the SAT search space.
@@ -280,12 +281,23 @@ def _make_success_result(
     postprocess: Callable[[CliffordIsometry | CNOTCircuit], CliffordIsometry | CNOTCircuit] | None,
     proven_optimal: bool = False,
 ) -> SynthesisResult:
-    """Extract a SAT model into a SynthesisResult."""
+    """Extract a SAT model into a SynthesisResult.
+
+    If ``verify`` is set and the circuit fails verification, the result has status ``ERROR`` and keeps the circuit
+    for inspection.
+    """
     circuit: CliffordIsometry | CNOTCircuit = encoding.extract_circuit(model)
     if postprocess is not None:
         circuit = postprocess(circuit)
     actual_resources = encoding.compute_actual_resources(model)
     verified = verify and verify_fn(circuit)
+    if verify and not verified:
+        return SynthesisResult(
+            status=SynthesisStatus.ERROR,
+            circuit=circuit,
+            message="The synthesized circuit fails verification against the target",
+            gate_set=encoding.gate_set,
+        )
     if is_depth:
         opt_depth = actual_resources
         opt_gate_count = _circuit_gate_count(circuit)
@@ -342,6 +354,8 @@ def _descend_to_optimum(
         result, solver = _solve_bound(encoding, target, k, b, max_timeout)
         if result == z3.sat:
             best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+            if best.status != SynthesisStatus.SUCCESS:
+                return best
         elif result == z3.unsat:
             proven = True
             break
@@ -406,6 +420,8 @@ def _search_with_exponential_backoff(
 
             if result == z3.sat:
                 best = _make_success_result(encoding, solver.model(), is_depth, verify, verify_fn, postprocess)
+                if best.status != SynthesisStatus.SUCCESS:
+                    return best
                 # Phase B: descend with max_timeout to tighten the solution.
                 return _descend_to_optimum(
                     encoding, target, k, bound, lower_bound, best, is_depth, verify, verify_fn, postprocess, max_timeout
@@ -456,8 +472,13 @@ def _prepare_clifford_target(
         z_logicals: Logical Z operators.
 
     Returns:
-        Tuple of (combined_target, k).
+        Tuple of (combined_target, k). The stabilizer rows of the target are independent.
+
+    Raises:
+        ValueError: If the stabilizer generators do not generate a stabilizer group, or if their number of
+            independent generators is not ``n - k``.
     """
+    stabilizers = _independent_stabilizer_generators(stabilizers)
     if target_kind == TargetKind.STABILIZER_STATE:
         return stabilizers, 0
 
@@ -466,9 +487,32 @@ def _prepare_clifford_target(
         raise TypeError(msg)
 
     k = x_logicals.num_rows()
-
     target = _combine_stabilizers_and_logicals(stabilizers, k, x_logicals, z_logicals)
+    if stabilizers.num_rows() != stabilizers.n - k:
+        msg = (
+            f"Expected {stabilizers.n - k} independent stabilizer generators for {k} logical qubits on "
+            f"{stabilizers.n} qubits, got {stabilizers.num_rows()}"
+        )
+        raise ValueError(msg)
     return target, k
+
+
+def _independent_stabilizer_generators(stabilizers: StabilizerTableau) -> StabilizerTableau:
+    """Return independent generators of the stabilizer group, with their signs.
+
+    The reduction tracks the signs of products, so the returned generators generate the same signed group.
+
+    Raises:
+        ValueError: If the generators do not generate a stabilizer group, for example because they generate ``-I``.
+    """
+    if stabilizers.num_rows() == 0:
+        return stabilizers
+    echelon = pauli_row_echelon(stabilizers)
+    if echelon.n_global_phases != 1:
+        msg = "The stabilizer generators do not generate a stabilizer group, for example because they generate -I"
+        raise ValueError(msg)
+    rank = len(echelon.pivot_cols)
+    return StabilizerTableau(echelon.reduced.tableau.data[:rank], echelon.reduced.phase_exponents[:rank])
 
 
 def _combine_stabilizers_and_logicals(
@@ -887,8 +931,9 @@ def _prepare_css_target(
 
     Returns:
         Tuple of (combined_target, k, m_x) where k is the number of logical qubits
-        and m_x is the number of stabilizers.
+        and m_x is the number of independent checks. The check rows of the target are independent.
     """
+    checks = CheckMatrix(mod2.row_basis(checks.matrix).astype(np.int8), pauli_type=checks.type)
     if target_kind == TargetKind.CSS_STATE:
         m_x = checks.num_rows()
         return checks, 0, m_x

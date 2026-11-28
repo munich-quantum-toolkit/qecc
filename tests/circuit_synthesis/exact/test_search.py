@@ -12,10 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mqt.qecc.circuit_synthesis.circuits import CNOTCircuit
+from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import depth_optimal_encoding_circuit_non_css
+from mqt.qecc.circuit_synthesis.exact import search
+from mqt.qecc.circuit_synthesis.exact.encoding_interface import CliffordGateCountEncoding
+from mqt.qecc.circuit_synthesis.exact.gate_operations import get_standard_clifford_gate_set
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
-from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
+from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisResult, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_isometry,
     verify_css_state,
@@ -274,6 +277,82 @@ def test_verification_flag(
 
     assert result.status == SynthesisStatus.SUCCESS
     assert result.verified is verify_flag
+
+
+@pytest.mark.parametrize("use_exponential_backoff", [False, True])
+def test_failed_verification_is_an_error(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+    use_exponential_backoff: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that a circuit that fails verification gives the status ERROR, not SUCCESS."""
+    monkeypatch.setattr(search, "verify_stabilizer_state", lambda *_args: False)
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_isometry_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+        use_exponential_backoff=use_exponential_backoff,
+    )
+
+    assert result.status == SynthesisStatus.ERROR
+    assert result.verified is False
+    assert result.circuit is not None
+    assert "fails verification" in result.message
+
+
+def test_descent_stops_at_failed_verification(
+    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test that the descent of the exponential-backoff search returns the error of a smaller failing circuit.
+
+    The descent starts from a verified circuit. It must not keep that circuit when a smaller circuit fails
+    verification.
+    """
+    stabilizers, _x_logicals, _z_logicals = bell_state
+    encoding = CliffordGateCountEncoding(get_standard_clifford_gate_set(), allow_qubit_permutation=True)
+    verified_result = SynthesisResult(status=SynthesisStatus.SUCCESS, verified=True)
+
+    result = search._descend_to_optimum(  # ruff: ignore[private-member-access]
+        encoding,
+        stabilizers,
+        k=0,
+        sat_bound=5,
+        lower_bound=0,
+        best=verified_result,
+        is_depth=False,
+        verify=True,
+        verify_fn=lambda _circuit: False,
+        postprocess=None,
+        max_timeout=60,
+    )
+
+    assert result.status == SynthesisStatus.ERROR
+    assert "fails verification" in result.message
+
+
+def test_failed_verification_is_ignored_without_verification(
+    plus_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that the verifier does not run when verification is turned off."""
+    monkeypatch.setattr(search, "verify_stabilizer_state", lambda *_args: False)
+    stabilizers, _x_logicals, _z_logicals = plus_state
+
+    result = synthesize_isometry_exact(
+        target=stabilizers,
+        target_kind=TargetKind.STABILIZER_STATE,
+        objective=Objective.GATE_COUNT,
+        lower_bound=0,
+        upper_bound=5,
+        verify=False,
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is False
 
 
 def test_lower_bound_respected(bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau]) -> None:
@@ -774,6 +853,94 @@ def test_result_contains_metadata(plus_state: tuple[StabilizerTableau, Stabilize
     assert result.verified is not None
     assert result.message is not None
     assert result.gate_set is not None
+
+
+# ---------------------------------------------------------------------------
+# Dependent stabilizer generators and checks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_css_state_dependent_checks(objective: Objective) -> None:
+    """Test that a redundant check does not change the prepared CSS state."""
+    checks = CheckMatrix(np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]], dtype=np.int8), pauli_type="X")
+    independent_checks = CheckMatrix(np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_isometry_exact(checks, TargetKind.CSS_STATE, objective, 0, 6)
+    independent_result = synthesize_isometry_exact(independent_checks, TargetKind.CSS_STATE, objective, 0, 6)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert verify_css_state(result.circuit, checks)
+    assert (result.gate_count, result.depth) == (independent_result.gate_count, independent_result.depth)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_css_isometry_dependent_checks(objective: Objective) -> None:
+    """Test that a duplicated check row does not make a CSS isometry unsatisfiable."""
+    checks = CheckMatrix(np.array([[1, 1, 0], [1, 1, 0], [0, 1, 1]], dtype=np.int8), pauli_type="X")
+    x_logicals = CheckMatrix(np.array([[1, 0, 0]], dtype=np.int8), pauli_type="X")
+
+    result = synthesize_isometry_exact(checks, TargetKind.CSS_ISOMETRY, objective, 0, 6, x_logicals=x_logicals)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert result.gate_count == 2
+    assert isinstance(result.circuit, CNOTCircuit)
+    assert verify_css_isometry(result.circuit, checks, x_logicals, k=1)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+def test_stabilizer_state_dependent_generators(objective: Objective) -> None:
+    """Test the Bell state given by XX, ZZ and their product -YY."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "-YY"])
+
+    result = synthesize_isometry_exact(stabilizers, TargetKind.STABILIZER_STATE, objective, 0, 4)
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CliffordIsometry)
+    assert verify_stabilizer_state(result.circuit, stabilizers)
+
+
+@pytest.mark.parametrize("objective", [Objective.GATE_COUNT, Objective.DEPTH])
+@pytest.mark.parametrize("generators", [["ZZI", "IZZ", "ZIZ"], ["ZZI", "ZZI", "IZZ"], ["ZZI", "-ZIZ", "-IZZ"]])
+def test_clifford_isometry_dependent_generators(generators: list[str], objective: Objective) -> None:
+    """Test the 3-qubit bit-flip code given by dependent Z checks."""
+    stabilizers = StabilizerTableau.from_pauli_strings(generators)
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZII"])
+
+    result = synthesize_isometry_exact(
+        stabilizers, TargetKind.CLIFFORD_ISOMETRY, objective, 0, 4, x_logicals, z_logicals
+    )
+
+    assert result.status == SynthesisStatus.SUCCESS
+    assert result.verified is True
+    assert isinstance(result.circuit, CliffordIsometry)
+    code = StabilizerCode(generators, x_logicals=["XXX"], z_logicals=["ZII"])
+    assert result.circuit.get_code().is_equivalent(code)
+
+
+def test_stabilizer_generators_generate_minus_identity() -> None:
+    """Test that generators whose product is -I are rejected."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["XX", "ZZ", "YY"])
+
+    with pytest.raises(ValueError, match="do not generate a stabilizer group"):
+        synthesize_isometry_exact(stabilizers, TargetKind.STABILIZER_STATE, Objective.GATE_COUNT, 0, 4)
+
+
+def test_clifford_isometry_too_few_independent_generators() -> None:
+    """Test that a generator set with too small a rank for the number of logical qubits is rejected."""
+    stabilizers = StabilizerTableau.from_pauli_strings(["ZZI", "ZZI"])
+    x_logicals = StabilizerTableau.from_pauli_strings(["XXX"])
+    z_logicals = StabilizerTableau.from_pauli_strings(["ZII"])
+
+    with pytest.raises(ValueError, match="Expected 2 independent stabilizer generators"):
+        synthesize_isometry_exact(
+            stabilizers, TargetKind.CLIFFORD_ISOMETRY, Objective.GATE_COUNT, 0, 4, x_logicals, z_logicals
+        )
 
 
 # ---------------------------------------------------------------------------

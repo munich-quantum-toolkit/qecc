@@ -30,6 +30,7 @@ from mqt.qecc.circuit_synthesis import (
     heuristic_verification_stabilizers,
     state_prep,
 )
+from mqt.qecc.circuit_synthesis.exact import search
 from mqt.qecc.circuit_synthesis.faults import PureFaultSet
 from mqt.qecc.circuit_synthesis.synthesis_utils import SearchResult, iterative_search_with_timeout
 from mqt.qecc.codes import RotatedSurfaceCode, SquareOctagonColorCode
@@ -37,6 +38,8 @@ from mqt.qecc.codes import RotatedSurfaceCode, SquareOctagonColorCode
 from .utils import eq_span, in_span
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Callable
+
     from mqt.qecc.circuit_synthesis import FaultyStatePrepCircuit
 
 
@@ -145,6 +148,27 @@ def test_gate_optimal_prep_consistent(code: str, request: pytest.FixtureRequest)
 
     assert eq_span(code_.Hx, sp_circ.x_checks)
     assert eq_span(np.vstack((code_.Hz, code_.Lz)), sp_circ.z_checks)
+
+
+@pytest.mark.parametrize("synthesize", [gate_optimal_prep_circuit, depth_optimal_prep_circuit])
+def test_optimal_prep_dependent_checks(synthesize: Callable[..., FaultyStatePrepCircuit | None]) -> None:
+    """Check that the exact state preparation keeps every X check of the code when the checks are dependent."""
+    hx = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]], dtype=np.int8)
+    code = CSSCode(hx, np.array([[1, 1, 1]], dtype=np.int8), distance=1)
+    with pytest.warns(UserWarning, match="max_errors=0"):
+        sp_circ = synthesize(code, True, 0, 6, max_timeout=30)
+
+    assert sp_circ is not None
+    assert eq_span(code.Hx, sp_circ.circ.get_code().Hx)
+
+
+def test_optimal_prep_rejects_unverified_circuits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the exact state preparation does not return a circuit that fails verification."""
+    monkeypatch.setattr(search, "verify_css_state", lambda *_args: False)
+    code = CSSCode(np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int8), np.array([[1, 1, 1]], dtype=np.int8))
+
+    assert gate_optimal_prep_circuit(code, True, 0, 6, max_timeout=30) is None
+    assert depth_optimal_prep_circuit(code, True, 0, 6, max_timeout=30) is None
 
 
 @pytest.mark.skipif(
