@@ -63,14 +63,3 @@ def _preserved_n(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 def _preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check the number-of-logical-qubits invariant."""
     return c1.k == c2.k
-
-
-def _preserved_distance(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    """Check the total-code-distance invariant.
-
-    Permutation equivalence additionally preserves the X- and Z-distances of a CSS code
-    separately, which local Clifford equivalence does not, since local Cliffords may
-    exchange the X and Z sector of a qubit. That stronger invariant therefore lives in
-    :mod:`mqt.qecc.equivalence_checking.permutation_equivalence`.
-    """
-    return c1.distance == c2.distance

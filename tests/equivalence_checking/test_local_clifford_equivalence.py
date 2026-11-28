@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from mqt.qecc import StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc import CSSCode, StabilizerCode, are_local_clifford_equivalent, is_local_clifford_equivalent_to_css
+from mqt.qecc.circuit_synthesis import synthesize_encoding_circuit
 from mqt.qecc.codes import RotatedSurfaceCode
 from mqt.qecc.equivalence_checking import local_clifford_equivalence
 from mqt.qecc.equivalence_checking.invariants import (
-    _preserved_distance,  # ruff: ignore[import-private-name]
     _preserved_k,  # ruff: ignore[import-private-name]
     _preserved_n,  # ruff: ignore[import-private-name]
 )
@@ -220,9 +220,6 @@ def test_stabilizer_group_graph() -> None:
     [
         pytest.param(_preserved_n, StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4), id="n"),
         pytest.param(_preserved_k, StabilizerCode.get_trivial_code(3), StabilizerCode(["ZII"]), id="k"),
-        pytest.param(
-            _preserved_distance, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"
-        ),
     ],
 )
 def test_cheap_invariants(
@@ -236,6 +233,26 @@ def test_cheap_invariants(
 
     assert are_local_clifford_equivalent(code1, code2) is None
     assert stages == []
+
+
+def test_stored_distance_is_ignored() -> None:
+    """Test that the stored distance does not decide equivalence.
+
+    A code stores the distance 1 when the caller gives no distance, so the stored value is not a property of the code.
+    """
+    code = StabilizerCode(["XXXX", "ZZZZ"], distance=2)
+    same_code = StabilizerCode(["XXXX", "ZZZZ"])
+
+    assert same_code.distance == 1
+    assert are_local_clifford_equivalent(code, same_code) is not None
+
+
+def test_code_of_encoding_circuit() -> None:
+    """Test that a code is equivalent to the code of its encoding circuit, which stores no distance."""
+    steane = CSSCode.from_code_name("Steane")
+    circuit_code = synthesize_encoding_circuit(steane).get_code()
+
+    assert are_local_clifford_equivalent(steane, circuit_code) is not None
 
 
 def test_trivial_code(stages: list[str]) -> None:
