@@ -214,7 +214,7 @@ corresponding test files can be found in the {code}`tests` directory. A
 {code}`nox` session is provided to conveniently run the Python tests.
 
 ```console
-nox -s tests
+uvx nox -s tests
 ```
 
 This command automatically builds the project and runs the tests on all
@@ -227,7 +227,7 @@ If you only want to run the tests on a specific Python version, you can pass the
 desired Python version to the {code}`nox` command.
 
 ```console
-nox -s tests-3.14
+uvx nox -s tests-3.15
 ```
 
 :::{note}
@@ -238,7 +238,7 @@ dependencies installed in your virtual environment (e.g., by running
 {code}`uv sync`).
 
 ```console
-pytest
+uv run pytest
 ```
 
 :::
@@ -250,7 +250,7 @@ still be built and the tests pass with the minimum required versions of the
 dependencies.
 
 ```console
-nox -s minimums
+uvx nox -s minimums
 ```
 
 ## Code Formatting and Linting
@@ -275,7 +275,7 @@ repository. The hooks will be executed whenever you commit changes.
 You can also run the {code}`nox` session {code}`lint` to run the hooks manually.
 
 ```console
-nox -s lint
+uvx nox -s lint
 ```
 
 :::{note}
@@ -309,30 +309,28 @@ extension for Sphinx.
 
 ## Working on the Documentation
 
-The documentation is written in
-[MyST](https://myst-parser.readthedocs.io/en/latest/index.html) (a flavor of
-Markdown) and built using [Sphinx](https://www.sphinx-doc.org/en/master/). The
-documentation source files can be found in the {code}`docs/` directory.
+You'll find the documentation source files in the {code}`docs/` directory. We
+write them in [MyST](https://myst-parser.readthedocs.io/en/latest/index.html), a
+flavor of Markdown, and use [Sphinx](https://www.sphinx-doc.org/en/master/) to
+build the documentation.
 
-Tutorials use [MyST-NB](https://myst-nb.readthedocs.io/) Markdown notebooks.
-Only `{code-cell}` blocks in notebook pages execute; ordinary code fences are
-illustrative. Keep required setup visible, show useful output, and assert the
-behavior that each example demonstrates. Use local simulation for executable
-examples; leave credentials and remote-device deployment as configuration
-recipes.
+Our tutorials use [MyST-NB](https://myst-nb.readthedocs.io/) Markdown notebooks,
+so code in `{code-cell}` blocks runs during the build, while ordinary code
+fences only display code. When writing an example, include the setup readers
+need and show useful output. Use local simulation for executable examples, and
+explain credentials and remote-device deployment in configuration instructions.
 
-Use the documentation session to install Python dependencies, build the package
-and generated references, and render the examples:
+Before building the documentation, install the project's native build
+requirements, including Doxygen if you're generating C++ API documentation. Then
+run the documentation session, which installs the Python dependencies, builds
+the package and API references, and renders the examples:
 
 ```console
 uvx nox --non-interactive -s docs
 ```
 
-Install the project's native build requirements first. C++ API generation needs
-Doxygen. The session manages Python packages, not these system tools.
-
-Omit `--non-interactive` to serve the documentation while editing. To check
-external links, run:
+While editing, you can omit `--non-interactive` to serve the documentation
+locally and preview your changes. You can also check external links with:
 
 ```console
 uvx nox --non-interactive -s docs -- -b linkcheck
@@ -387,8 +385,8 @@ Once everything is in order, navigate to the
 GitHub, edit the release draft if necessary, and publish the release.
 
 <!--- Links --->
-[nox]: https://nox.thea.codes/en/stable/
-[prek]: https://prek.j178.dev
-[ruff]: https://docs.astral.sh/ruff/
-[ty]: https://docs.astral.sh/ty/
-[issues]: https://github.com/munich-quantum-toolkit/qecc/issues
+[nox]: <https://nox.thea.codes/en/stable/>
+[prek]: <https://prek.j178.dev>
+[ruff]: <https://docs.astral.sh/ruff/>
+[ty]: <https://docs.astral.sh/ty/>
+[issues]: <https://github.com/munich-quantum-toolkit/qecc/issues>
