@@ -352,13 +352,14 @@ class NoisyDFTStatePrepSimulator:
         """Create the deterministic verification circuit for the given verification stabilizers.
 
         Args:
-            verification_stabilizers: The stabilizers to measure.
+            verification_stabilizers: The stabilizers to measure: a list of stabilizers, one stabilizer as a 1D
+                array, or a check matrix as a 2D array with one stabilizer per row.
             z_stabs: If True the stabilizers are Z-stabilizers, otherwise X-stabilizers.
             hook_corrections: Whether to apply hook corrections for the stabilizers.
             noisy: If True the circuit is noisy, otherwise it is noiseless (used for decoding).
         """
         if not isinstance(verification_stabilizers, list):
-            verification_stabilizers = [verification_stabilizers]
+            verification_stabilizers = list(np.atleast_2d(verification_stabilizers))
 
         num_stabs = len(verification_stabilizers)
         if num_stabs == 0:
