@@ -15,8 +15,10 @@ import pytest
 from mqt.qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 from mqt.qecc.circuit_synthesis.encoding import depth_optimal_encoding_circuit_non_css
 from mqt.qecc.circuit_synthesis.exact import search
+from mqt.qecc.circuit_synthesis.exact.encoding_interface import CliffordGateCountEncoding
+from mqt.qecc.circuit_synthesis.exact.gate_operations import get_standard_clifford_gate_set
 from mqt.qecc.circuit_synthesis.exact.search import synthesize_isometry_exact
-from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisStatus, TargetKind
+from mqt.qecc.circuit_synthesis.exact.types import Objective, SynthesisResult, SynthesisStatus, TargetKind
 from mqt.qecc.circuit_synthesis.exact.verification import (
     verify_css_isometry,
     verify_css_state,
@@ -299,6 +301,36 @@ def test_failed_verification_is_an_error(
     assert result.status == SynthesisStatus.ERROR
     assert result.verified is False
     assert result.circuit is not None
+    assert "fails verification" in result.message
+
+
+def test_descent_stops_at_failed_verification(
+    bell_state: tuple[StabilizerTableau, StabilizerTableau, StabilizerTableau],
+) -> None:
+    """Test that the descent of the exponential-backoff search returns the error of a smaller failing circuit.
+
+    The descent starts from a verified circuit. It must not keep that circuit when a smaller circuit fails
+    verification.
+    """
+    stabilizers, _x_logicals, _z_logicals = bell_state
+    encoding = CliffordGateCountEncoding(get_standard_clifford_gate_set(), allow_qubit_permutation=True)
+    verified_result = SynthesisResult(status=SynthesisStatus.SUCCESS, verified=True)
+
+    result = search._descend_to_optimum(  # ruff: ignore[private-member-access]
+        encoding,
+        stabilizers,
+        k=0,
+        sat_bound=5,
+        lower_bound=0,
+        best=verified_result,
+        is_depth=False,
+        verify=True,
+        verify_fn=lambda _circuit: False,
+        postprocess=None,
+        max_timeout=60,
+    )
+
+    assert result.status == SynthesisStatus.ERROR
     assert "fails verification" in result.message
 
 
