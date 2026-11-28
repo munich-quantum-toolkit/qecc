@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 
 from mqt.qecc import CSSCode, StabilizerCode, are_permutation_equivalent
+from mqt.qecc.circuit_synthesis import synthesize_encoding_circuit
 from mqt.qecc.equivalence_checking import permutation_equivalence
 from mqt.qecc.equivalence_checking.graphs import (
     _colored_graph_isomorphism,  # ruff: ignore[import-private-name]
@@ -36,7 +37,6 @@ from mqt.qecc.equivalence_checking.permutation_equivalence import (
     _preserved_number_duplicate_columns,  # ruff: ignore[import-private-name]
     _preserved_number_zero_columns,  # ruff: ignore[import-private-name]
     _preserved_ranks,  # ruff: ignore[import-private-name]
-    _preserved_sector_distances,  # ruff: ignore[import-private-name]
     _punctured_hull_weight_enumerators,  # ruff: ignore[import-private-name]
     _quaternary_punctured_hull_bases,  # ruff: ignore[import-private-name]
 )
@@ -256,9 +256,6 @@ def test_isomorphism_beyond_color_refinement() -> None:
     [
         pytest.param(_preserved_n, StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4), id="n"),
         pytest.param(_preserved_k, StabilizerCode.get_trivial_code(3), StabilizerCode(["ZII"]), id="k"),
-        pytest.param(
-            _preserved_sector_distances, StabilizerCode(["ZZ"], distance=1), StabilizerCode(["ZZ"], distance=2), id="d"
-        ),
         pytest.param(_preserved_ranks, StabilizerCode(["Z"]), StabilizerCode(["X"]), id="ranks-one-qubit"),
         pytest.param(_preserved_ranks, StabilizerCode(["XII"]), StabilizerCode(["ZII"]), id="ranks-x-vs-z"),
         pytest.param(
@@ -282,12 +279,6 @@ def test_isomorphism_beyond_color_refinement() -> None:
             CSSCode.get_trivial_code(4),
             CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8)),
             id="css-k",
-        ),
-        pytest.param(
-            _preserved_sector_distances,
-            CSSCode(Hx=np.array([[1, 1, 0]], dtype=np.int8), distance=1, x_distance=2, z_distance=1),
-            CSSCode(Hx=np.array([[1, 1, 0]], dtype=np.int8), distance=1, x_distance=1, z_distance=2),
-            id="css-d",
         ),
         pytest.param(
             _preserved_ranks,
@@ -317,6 +308,49 @@ def test_trivial(code: StabilizerCode, stages: list[str]) -> None:
     """Test that a trivial code returns the identity permutation without running any stage."""
     assert are_permutation_equivalent(code, code) == list(range(code.n))
     assert stages == []
+
+
+@pytest.mark.parametrize(
+    ("code_name", "distance"),
+    [
+        pytest.param("Steane", None, id="distance"),
+        pytest.param("Tetrahedral", 3, id="x-distance"),
+    ],
+)
+def test_stored_distances_are_ignored(code_name: str, distance: int | None) -> None:
+    """Test that the stored distances of a CSS code do not decide equivalence.
+
+    A code stores the distance 1 when the caller gives no distance, and a CSS code copies the distance to its X- and
+    Z-distances. So the stored values are not properties of the code.
+    """
+    code = CSSCode.from_code_name(code_name)
+    same_code = CSSCode(code.Hx, code.Hz, distance=distance)
+
+    assert (code.x_distance, code.z_distance) != (same_code.x_distance, same_code.z_distance)
+    permutation = are_permutation_equivalent(code, same_code)
+    assert permutation is not None
+    _assert_maps_rowspace_css(code, same_code, permutation)
+
+
+def test_stored_distance_is_ignored_for_stabilizer_codes() -> None:
+    """Test that the stored distance of a stabilizer code does not decide equivalence."""
+    code = StabilizerCode(["XXXX", "ZZZZ"], distance=2)
+    same_code = StabilizerCode(["XXXX", "ZZZZ"])
+
+    assert same_code.distance == 1
+    assert are_permutation_equivalent(code, same_code) is not None
+
+
+def test_code_of_encoding_circuit() -> None:
+    """Test that a code is equivalent to the code of its encoding circuit, which stores no distance."""
+    steane = CSSCode.from_code_name("Steane")
+    circuit_code = synthesize_encoding_circuit(steane).get_code()
+    assert isinstance(circuit_code, CSSCode)
+
+    permutation = are_permutation_equivalent(steane, circuit_code)
+
+    assert permutation is not None
+    _assert_maps_rowspace_css(steane, circuit_code, permutation)
 
 
 # ----------------------------------------------------------------------------------------------------
