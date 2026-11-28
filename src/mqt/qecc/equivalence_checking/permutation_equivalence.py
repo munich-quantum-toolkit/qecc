@@ -85,7 +85,6 @@ def are_permutation_equivalent(code1: StabilizerCode | CSSCode, code2: Stabilize
     cheap_invariants = (
         _preserved_n,
         _preserved_k,
-        _preserved_sector_distances,
         _preserved_ranks,
         _preserved_number_zero_columns,
         _preserved_number_duplicate_columns,
@@ -175,18 +174,6 @@ def _permutation_equivalent_stabilizer_codes(code1: StabilizerCode, code2: Stabi
 # ----------------------------------------------------------------------------------------------------
 #   Invariants
 # ----------------------------------------------------------------------------------------------------
-
-
-def _preserved_sector_distances(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:
-    """Check the code-distance invariant, refined to the X and Z sectors for CSS codes.
-
-    A permutation acts on the physical qubits without mixing the X and Z sector, so the
-    X- and Z-distances of a CSS code are preserved individually. This refinement is not
-    available to local Clifford equivalence, which may exchange the two sectors.
-    """
-    if isinstance(c1, CSSCode) and isinstance(c2, CSSCode):
-        return c1.x_distance == c2.x_distance and c1.z_distance == c2.z_distance
-    return c1.distance == c2.distance
 
 
 def _preserved_ranks(c1: StabilizerCode | CSSCode, c2: StabilizerCode | CSSCode) -> bool:

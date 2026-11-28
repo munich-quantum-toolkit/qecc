@@ -27,7 +27,6 @@ from .cliffords import (
 )
 from .graphs import _colored_graph_isomorphism
 from .invariants import (
-    _preserved_distance,
     _preserved_k,
     _preserved_n,
     _reduce_stabilizer_generators,
@@ -73,7 +72,6 @@ def are_local_clifford_equivalent(code1: StabilizerCode, code2: StabilizerCode) 
     cheap_invariants = (
         _preserved_n,
         _preserved_k,
-        _preserved_distance,
     )
 
     if not all(invariant(code1, code2) for invariant in cheap_invariants):
